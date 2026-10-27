@@ -1,0 +1,5 @@
+# PR chạm vào các file dưới đây sẽ tự động yêu cầu review từ người tương ứng.
+# Hợp đồng API và tài liệu do Lead duyệt.
+openapi.yaml        @NguyenDokhai2005
+/docs/              @NguyenDokhai2005
+/.github/           @NguyenDokhai2005
