@@ -1,0 +1,19 @@
+# Java
+target/
+*.class
+.gradle/
+build/
+# Node
+node_modules/
+dist/
+# Python
+__pycache__/
+.venv/
+*.ipynb_checkpoints
+# Env & IDE
+.env
+*.env.local
+.idea/
+.vscode/
+*.iml
+.DS_Store
