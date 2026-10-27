@@ -1,0 +1,65 @@
+@startuml 04-don-online-kenh-ban
+!include _style.iuml
+title Use case – Đơn online và tích hợp kênh bán
+
+actor "Kênh bán\n(Website, Sàn)" as Channel <<hệ thống>>
+actor "Bộ hẹn giờ" as Timer <<hệ thống>>
+actor "Quản lý chi nhánh" as Manager
+actor "Thủ kho" as Keeper
+actor "Admin" as Admin
+actor "Kênh bán\n(nhận cập nhật)" as ChannelOut <<hệ thống>>
+
+rectangle "Đơn online và tích hợp kênh" {
+  usecase "Gửi đơn mới\n(UC-02, SYNC-02)" as NewOrder
+  usecase "Xác thực chữ ký HMAC" as Verify
+  usecase "Kiểm tra trùng đơn\n(BR-05)" as Dedup
+  usecase "Phân bổ chi nhánh\n(BR-14)" as Allocate
+  usecase "Giữ chỗ tồn kho\n(BR-03)" as Reserve
+  usecase "Từ chối đơn\n(hết hàng)" as Reject
+  usecase "Xác nhận thanh toán" as PayConfirm
+
+  usecase "Xem đơn cần xử lý" as Queue
+  usecase "Đóng gói và hoàn tất đơn" as Complete
+  usecase "Hủy đơn\n(UC-03, ORD-04)" as Cancel
+  usecase "Hết hạn giữ chỗ\n(ORD-03)" as Expire
+  usecase "Nhả giữ chỗ\n(BR-04)" as Release
+
+  usecase "Đẩy tồn ra kênh\n(SYNC-03, BR-15)" as PushStock
+  usecase "Báo trạng thái đơn về kênh\n(SYNC-04)" as PushStatus
+  usecase "Xem nhật ký đồng bộ\n(SYNC-05)" as SyncLog
+  usecase "Gửi lại đồng bộ lỗi" as Resend
+}
+
+Channel --> NewOrder
+Channel --> PayConfirm
+Channel --> Cancel
+NewOrder ..> Verify : <<include>>
+NewOrder ..> Dedup : <<include>>
+NewOrder ..> Allocate : <<include>>
+NewOrder ..> Reserve : <<include>>
+NewOrder <.. Reject : <<extend>>\n(không chi nhánh đủ hàng)
+
+Manager --> Queue
+Keeper --> Queue
+Keeper --> Complete
+Manager --> Complete
+Manager --> Cancel
+Timer --> Expire
+Cancel ..> Release : <<include>>
+Expire ..> Release : <<include>>
+
+Reserve ..> PushStock : <<include>>
+Release ..> PushStock : <<include>>
+Complete ..> PushStatus : <<include>>
+Cancel ..> PushStatus : <<include>>
+PushStock --> ChannelOut
+PushStatus --> ChannelOut
+
+Admin --> SyncLog
+SyncLog <.. Resend : <<extend>>
+
+note bottom of Expire
+  Quá 15 phút chưa thanh toán:
+  đơn RESERVED → EXPIRED
+end note
+@enduml

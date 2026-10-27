@@ -1,0 +1,55 @@
+@startuml 03-ban-tai-quay
+!include _style.iuml
+title Use case – Bán tại quầy (POS) và trả hàng
+
+actor "Thu ngân" as Cashier
+actor "Quản lý chi nhánh" as Manager
+
+rectangle "Bán tại quầy và trả hàng" {
+  usecase "Bán tại quầy\n(UC-01, ORD-01)" as Sell
+  usecase "Quét / tìm sản phẩm" as Scan
+  usecase "Tính tiền và\náp khuyến mại tốt nhất\n(PRM-02)" as Price
+  usecase "Thanh toán\n(PAY-01)" as Pay
+  usecase "Tiền mặt" as Cash
+  usecase "Thẻ (giả lập)" as Card
+  usecase "QR (giả lập)" as QR
+  usecase "Trừ tồn kho nguyên tử\n(INV-07)" as Deduct
+  usecase "Hiển thị hóa đơn\n(ORD-07)" as Receipt
+  usecase "Gắn khách hàng" as AttachCus
+  usecase "Tạo nhanh khách hàng" as QuickCus
+  usecase "Giảm giá ngoài\nchương trình (BR-19)" as ManualDisc
+
+  usecase "Tra cứu đơn hàng\n(ORD-06)" as SearchOrder
+  usecase "Tạo yêu cầu trả hàng\n(UC-04, ORD-05)" as ReqReturn
+  usecase "Duyệt trả hàng" as ApproveReturn
+  usecase "Tính tiền hoàn\n(BR-10)" as Refund
+  usecase "Cộng lại tồn hoặc\nxuất hủy hàng hỏng" as Restock
+}
+
+Cashier --> Sell
+Manager --> Sell
+Sell ..> Scan : <<include>>
+Sell ..> Price : <<include>>
+Sell ..> Pay : <<include>>
+Sell ..> Deduct : <<include>>
+Sell ..> Receipt : <<include>>
+Sell <.. AttachCus : <<extend>>
+AttachCus <.. QuickCus : <<extend>>\n(SĐT chưa có)
+Sell <.. ManualDisc : <<extend>>
+Pay <|-- Cash
+Pay <|-- Card
+Pay <|-- QR
+ManualDisc <-- Manager
+
+Cashier --> SearchOrder
+Cashier --> ReqReturn
+ReqReturn ..> SearchOrder : <<include>>
+ReqReturn ..> Refund : <<include>>
+Manager --> ApproveReturn
+ApproveReturn ..> Restock : <<include>>
+
+note right of Deduct
+  Thiếu tồn lúc hoàn tất → hủy cả đơn, trả 409.
+  Bấm hai lần → chỉ 1 đơn (Idempotency-Key).
+end note
+@enduml

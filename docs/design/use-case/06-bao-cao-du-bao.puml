@@ -1,0 +1,55 @@
+@startuml 06-bao-cao-du-bao
+!include _style.iuml
+title Use case – Báo cáo, cảnh báo và dự báo
+
+actor "Chủ chuỗi" as Owner
+actor "Quản lý chi nhánh" as Manager
+actor "Thủ kho" as Keeper
+actor "Admin" as Admin
+actor "Bộ hẹn giờ" as Timer <<hệ thống>>
+
+rectangle "Báo cáo, cảnh báo, dự báo" {
+  usecase "Xem dashboard doanh thu\n(DASH-01)" as Dashboard
+  usecase "Lọc theo ngày,\nchi nhánh, kênh" as Filter
+  usecase "Xem top sản phẩm\n(DASH-02)" as Top
+  usecase "Xuất báo cáo CSV\n(DASH-04)" as Export
+  usecase "Xem cảnh báo tồn thấp\n(DASH-03)" as Alerts
+
+  usecase "Xem dự báo so với thực tế\n(AI-06)" as Forecast
+  usecase "Xem gợi ý nhập hàng\n(AI-05)" as Suggest
+  usecase "Lập phiếu nhập từ gợi ý" as ImportFromSuggest
+
+  usecase "Chạy dự báo\n(UC-10, AI-03)" as Run
+  usecase "Tổng hợp doanh số ngày\n(AI-02, BR-18)" as Aggregate
+  usecase "Dự báo 7 và 30 ngày" as Predict
+  usecase "So với baseline\n(MAE, WAPE – AI-04)" as Evaluate
+  usecase "Tính ROP và\nsố lượng gợi ý" as Rop
+}
+
+Owner --> Dashboard
+Manager --> Dashboard
+Dashboard <.. Filter : <<extend>>
+Dashboard <.. Top : <<extend>>
+Dashboard <.. Export : <<extend>>
+Owner --> Alerts
+Manager --> Alerts
+Keeper --> Alerts
+
+Owner --> Forecast
+Manager --> Suggest
+Keeper --> Suggest
+Suggest <.. ImportFromSuggest : <<extend>>
+
+Timer --> Run
+Admin --> Run
+Owner --> Run
+Run ..> Aggregate : <<include>>
+Run ..> Predict : <<include>>
+Run ..> Evaluate : <<include>>
+Run ..> Rop : <<include>>
+
+note bottom of Run
+  Tự chạy lúc 02:00 hằng đêm;
+  Admin hoặc Chủ chuỗi chạy lại thủ công
+end note
+@enduml
