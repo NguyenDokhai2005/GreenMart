@@ -1,0 +1,204 @@
+@startuml 03-erd-tich-hop-du-bao
+' Toàn bộ thực thể và quan hệ của CSDL GreenMart (khớp mục 7 SRS v1.0)
+' Ký hiệu: * = bắt buộc (NOT NULL), <<PK>> khóa chính, <<FK>> khóa ngoại, <<UQ>> duy nhất
+' Tag: $core dùng chung, $sales bán hàng, $stock kho, $ops tích hợp/hệ thống/dự báo
+
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 12
+skinparam shadowing false
+skinparam linetype ortho
+skinparam ArrowColor #5C6360
+skinparam class {
+  BackgroundColor #FFFDF8
+  BorderColor #2F7D5B
+  HeaderBackgroundColor #E7F1EB
+  FontColor #16302B
+  AttributeFontColor #2B3A35
+}
+skinparam package {
+  BorderColor #8A8F8C
+  FontColor #16302B
+}
+hide circle
+hide methods
+hide stereotype
+title ERD – Tích hợp kênh, hệ thống và dự báo
+
+package "Danh mục và tổ chức" {
+  entity "branch\nChi nhánh" as branch {
+    * id : BIGINT <<PK>>
+    --
+    * code : VARCHAR(20) <<UQ>>
+    * name : VARCHAR(120)
+    address : VARCHAR(255)
+    * is_active : BOOLEAN
+  }
+  entity "product\nSản phẩm" as product {
+    * id : BIGINT <<PK>>
+    --
+    * sku : VARCHAR(40) <<UQ>>
+    barcode : VARCHAR(40)
+    * name : VARCHAR(200)
+    * unit : VARCHAR(20)
+    * category_id : BIGINT <<FK>>
+    * sale_price : BIGINT (VND, ≥ 0)
+    * cost_price : BIGINT (VND, ≥ 0)
+    * is_active : BOOLEAN
+  }
+}
+package "Người dùng và phân quyền" {
+  entity "app_user\nNgười dùng" as app_user {
+    * id : BIGINT <<PK>>
+    --
+    * username : VARCHAR(60) <<UQ>>
+    * password_hash : VARCHAR(100)
+    * full_name : VARCHAR(120)
+    * role : ADMIN | OWNER | BRANCH_MANAGER\n| CASHIER | STOREKEEPER
+    * is_active : BOOLEAN
+    failed_login_count : INT
+    locked_until : TIMESTAMPTZ
+  }
+  entity "audit_log\nNhật ký thao tác" as audit_log {
+    * id : BIGINT <<PK>>
+    --
+    user_id : BIGINT <<FK>>
+    * action : VARCHAR(60)
+    * entity : VARCHAR(60)
+    entity_id : VARCHAR(60)
+    detail : JSONB
+    * created_at : TIMESTAMPTZ
+    .. chỉ INSERT ..
+  }
+}
+package "Bán hàng" {
+  entity "sales_order\nĐơn hàng" as sales_order {
+    * id : BIGINT <<PK>>
+    --
+    * code : VARCHAR(30) <<UQ>>
+    * channel_id : BIGINT <<FK>>
+    external_order_id : VARCHAR(60)
+    * branch_id : BIGINT <<FK>>
+    customer_id : BIGINT <<FK>>
+    promotion_id : BIGINT <<FK>> (KM cấp đơn)
+    * status : NEW | RESERVED | CONFIRMED | COMPLETED\n| CANCELLED | EXPIRED | REJECTED | RETURNED
+    * subtotal : BIGINT
+    * discount : BIGINT
+    * total : BIGINT
+    reserved_until : TIMESTAMPTZ
+    created_by : BIGINT <<FK>>
+    * created_at : TIMESTAMPTZ
+    completed_at : TIMESTAMPTZ
+    .. UQ (channel_id, external_order_id) ..
+  }
+}
+package "Kho" {
+  entity "inventory\nTồn kho" as inventory {
+    * branch_id : BIGINT <<PK, FK>>
+    * product_id : BIGINT <<PK, FK>>
+    --
+    * on_hand : INT (≥ 0)
+    * reserved : INT (≥ 0, ≤ on_hand)
+    reorder_point : INT
+    * version : BIGINT
+    * updated_at : TIMESTAMPTZ
+  }
+}
+package "Tích hợp kênh" {
+  entity "sales_channel\nKênh bán" as channel {
+    * id : BIGINT <<PK>>
+    --
+    * code : POS | WEB | MARKET <<UQ>>
+    * name : VARCHAR(60)
+    default_branch_id : BIGINT <<FK>>
+    webhook_secret : VARCHAR(100)
+    * safety_stock : INT (mặc định 2)
+  }
+  entity "channel_branch\nChi nhánh phục vụ kênh" as channel_branch {
+    * channel_id : BIGINT <<PK, FK>>
+    * branch_id : BIGINT <<PK, FK>>
+  }
+  entity "channel_product\nÁnh xạ SKU kênh" as channel_product {
+    * channel_id : BIGINT <<PK, FK>>
+    * product_id : BIGINT <<PK, FK>>
+    --
+    * external_sku : VARCHAR(60)
+    .. UQ (channel_id, external_sku) ..
+  }
+  entity "outbox_event\nSự kiện chờ gửi" as outbox {
+    * id : BIGINT <<PK>>
+    --
+    * aggregate_type : VARCHAR(40)
+    * aggregate_id : VARCHAR(60)
+    * event_type : VARCHAR(60)
+    * payload : JSONB
+    * status : PENDING | SENT | FAILED
+    * attempts : INT
+    * created_at : TIMESTAMPTZ
+  }
+  entity "sync_log\nNhật ký đồng bộ" as sync_log {
+    * id : BIGINT <<PK>>
+    --
+    * channel_id : BIGINT <<FK>>
+    * direction : IN | OUT
+    external_id : VARCHAR(60)
+    * status : SUCCESS | RETRYING | FAILED
+    error : TEXT
+    * attempts : INT
+    * created_at : TIMESTAMPTZ
+  }
+}
+package "Dự báo (do forecast-service sở hữu)" {
+  entity "daily_sales\nDoanh số ngày" as daily_sales {
+    * sale_date : DATE <<PK>>
+    * branch_id : BIGINT <<PK, FK>>
+    * product_id : BIGINT <<PK, FK>>
+    --
+    * qty_sold : INT
+    * qty_returned : INT
+    * qty_net : INT
+    * revenue : BIGINT
+    * promo_flag : BOOLEAN
+    * promo_discount_pct : NUMERIC(5,2)
+    * stockout : BOOLEAN
+  }
+  entity "forecast_run\nLần chạy dự báo" as forecast_run {
+    * id : BIGINT <<PK>>
+    --
+    * started_at : TIMESTAMPTZ
+    finished_at : TIMESTAMPTZ
+    * status : RUNNING | DONE | FAILED
+    * model_version : VARCHAR(40)
+    mae : NUMERIC
+    wape : NUMERIC
+    baseline_mae : NUMERIC
+    baseline_wape : NUMERIC
+  }
+  entity "forecast_result\nKết quả dự báo" as forecast_result {
+    * id : BIGINT <<PK>>
+    --
+    * run_id : BIGINT <<FK>>
+    * branch_id : BIGINT <<FK>>
+    * product_id : BIGINT <<FK>>
+    * horizon : 7 | 30
+    * target_date : DATE
+    * predicted_qty : NUMERIC
+  }
+}
+app_user |o--o{ audit_log
+branch ||--o{ sales_order
+channel ||--o{ sales_order
+app_user |o--o{ sales_order : tạo
+branch ||--o{ inventory
+product ||--o{ inventory
+branch |o--o{ channel : mặc định
+channel ||--o{ channel_branch
+branch ||--o{ channel_branch
+channel ||--o{ channel_product
+product ||--o{ channel_product
+channel ||--o{ sync_log
+branch ||--o{ daily_sales
+product ||--o{ daily_sales
+forecast_run ||--o{ forecast_result
+branch ||--o{ forecast_result
+product ||--o{ forecast_result
+@enduml

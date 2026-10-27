@@ -1,0 +1,123 @@
+@startuml 02-erd-kho
+' Toàn bộ thực thể và quan hệ của CSDL GreenMart (khớp mục 7 SRS v1.0)
+' Ký hiệu: * = bắt buộc (NOT NULL), <<PK>> khóa chính, <<FK>> khóa ngoại, <<UQ>> duy nhất
+' Tag: $core dùng chung, $sales bán hàng, $stock kho, $ops tích hợp/hệ thống/dự báo
+
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 12
+skinparam shadowing false
+skinparam linetype ortho
+skinparam ArrowColor #5C6360
+skinparam class {
+  BackgroundColor #FFFDF8
+  BorderColor #2F7D5B
+  HeaderBackgroundColor #E7F1EB
+  FontColor #16302B
+  AttributeFontColor #2B3A35
+}
+skinparam package {
+  BorderColor #8A8F8C
+  FontColor #16302B
+}
+hide circle
+hide methods
+hide stereotype
+title ERD – Kho
+
+package "Danh mục và tổ chức" {
+  entity "branch\nChi nhánh" as branch {
+    * id : BIGINT <<PK>>
+    --
+    * code : VARCHAR(20) <<UQ>>
+    * name : VARCHAR(120)
+    address : VARCHAR(255)
+    * is_active : BOOLEAN
+  }
+  entity "product\nSản phẩm" as product {
+    * id : BIGINT <<PK>>
+    --
+    * sku : VARCHAR(40) <<UQ>>
+    barcode : VARCHAR(40)
+    * name : VARCHAR(200)
+    * unit : VARCHAR(20)
+    * category_id : BIGINT <<FK>>
+    * sale_price : BIGINT (VND, ≥ 0)
+    * cost_price : BIGINT (VND, ≥ 0)
+    * is_active : BOOLEAN
+  }
+}
+package "Người dùng và phân quyền" {
+  entity "app_user\nNgười dùng" as app_user {
+    * id : BIGINT <<PK>>
+    --
+    * username : VARCHAR(60) <<UQ>>
+    * password_hash : VARCHAR(100)
+    * full_name : VARCHAR(120)
+    * role : ADMIN | OWNER | BRANCH_MANAGER\n| CASHIER | STOREKEEPER
+    * is_active : BOOLEAN
+    failed_login_count : INT
+    locked_until : TIMESTAMPTZ
+  }
+}
+package "Kho" {
+  entity "inventory\nTồn kho" as inventory {
+    * branch_id : BIGINT <<PK, FK>>
+    * product_id : BIGINT <<PK, FK>>
+    --
+    * on_hand : INT (≥ 0)
+    * reserved : INT (≥ 0, ≤ on_hand)
+    reorder_point : INT
+    * version : BIGINT
+    * updated_at : TIMESTAMPTZ
+  }
+  entity "inventory_transaction\nSổ giao dịch kho" as inv_tx {
+    * id : BIGINT <<PK>>
+    --
+    * branch_id : BIGINT <<FK>>
+    * product_id : BIGINT <<FK>>
+    * type : IMPORT | EXPORT | SALE | RESERVE | RELEASE\n| RETURN | TRANSFER_OUT | TRANSFER_IN | ADJUST
+    * quantity : INT (±)
+    * balance_after : INT
+    * ref_type : VARCHAR(30)
+    * ref_id : BIGINT
+    created_by : BIGINT <<FK>>
+    * created_at : TIMESTAMPTZ
+    .. chỉ INSERT ..
+  }
+  entity "stock_document\nPhiếu kho" as stock_doc {
+    * id : BIGINT <<PK>>
+    --
+    * code : VARCHAR(30) <<UQ>>
+    * type : IMPORT | EXPORT | TRANSFER | ADJUST
+    * branch_id : BIGINT <<FK>>
+    to_branch_id : BIGINT <<FK>> (chuyển kho)
+    * status : DRAFT | APPROVED | IN_TRANSIT\n| RECEIVED | CANCELLED
+    supplier : VARCHAR(120)
+    reason : VARCHAR(255)
+    * created_by : BIGINT <<FK>>
+    approved_by : BIGINT <<FK>> (≠ created_by)
+    received_by : BIGINT <<FK>>
+    * created_at : TIMESTAMPTZ
+  }
+  entity "stock_document_item\nDòng phiếu kho" as stock_item {
+    * id : BIGINT <<PK>>
+    --
+    * document_id : BIGINT <<FK>>
+    * product_id : BIGINT <<FK>>
+    * quantity : INT
+    received_quantity : INT (chuyển kho)
+    counted_quantity : INT (kiểm kê)
+    unit_cost : BIGINT (nhập hàng)
+  }
+}
+branch ||--o{ inventory
+product ||--o{ inventory
+branch ||--o{ inv_tx
+product ||--o{ inv_tx
+app_user |o--o{ inv_tx
+branch ||--o{ stock_doc : chi nhánh nguồn
+branch |o--o{ stock_doc : chi nhánh đích
+app_user ||--o{ stock_doc : lập / duyệt
+stock_doc ||--|{ stock_item
+product ||--o{ stock_item
+@enduml
