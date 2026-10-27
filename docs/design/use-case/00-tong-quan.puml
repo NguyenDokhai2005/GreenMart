@@ -1,0 +1,55 @@
+@startuml 00-tong-quan
+!include _style.iuml
+title Tổng quan use case – Hệ thống GreenMart
+
+actor "Người dùng nội bộ" as User
+actor "Thu ngân" as Cashier
+actor "Thủ kho" as Keeper
+actor "Quản lý chi nhánh" as Manager
+actor "Chủ chuỗi" as Owner
+actor "Admin" as Admin
+actor "Kênh bán\n(Website, Sàn)" as Channel <<hệ thống>>
+actor "Bộ hẹn giờ" as Timer <<hệ thống>>
+
+User <|-- Cashier
+User <|-- Keeper
+User <|-- Manager
+User <|-- Owner
+User <|-- Admin
+
+rectangle "Hệ thống GreenMart" {
+  usecase "Đăng nhập\n(AUTH-01)" as UC_Login
+  usecase "Bán tại quầy\n(UC-01)" as UC_POS
+  usecase "Trả hàng\n(UC-04)" as UC_Return
+  usecase "Xử lý đơn online\n(UC-02, UC-03)" as UC_Online
+  usecase "Quản lý kho\n(UC-05 → UC-08)" as UC_Stock
+  usecase "Quản lý danh mục,\nkhách hàng, khuyến mại" as UC_Catalog
+  usecase "Xem báo cáo,\ncảnh báo, dự báo\n(UC-10)" as UC_Report
+  usecase "Quản trị hệ thống" as UC_Admin
+}
+
+User --> UC_Login
+Cashier --> UC_POS
+Cashier --> UC_Return
+Manager --> UC_POS
+Manager --> UC_Return
+Manager --> UC_Online
+Keeper --> UC_Online
+Keeper --> UC_Stock
+Manager --> UC_Stock
+Owner --> UC_Catalog
+Cashier --> UC_Catalog
+Manager --> UC_Report
+Owner --> UC_Report
+Admin --> UC_Admin
+
+UC_Online <-- Channel
+UC_Online <-- Timer
+UC_Report <-- Timer
+
+note bottom of UC_Login
+  Mọi người dùng chỉ thao tác
+  dữ liệu chi nhánh được gán,
+  trừ Admin và Chủ chuỗi (BR-11)
+end note
+@enduml

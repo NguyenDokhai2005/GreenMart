@@ -1,0 +1,46 @@
+@startuml 02-danh-muc-khuyen-mai
+!include _style.iuml
+title Use case – Danh mục, khách hàng và khuyến mại
+
+actor "Chủ chuỗi" as Owner
+actor "Thu ngân" as Cashier
+actor "Quản lý chi nhánh" as Manager
+
+rectangle "Danh mục, khách hàng, khuyến mại" {
+  usecase "Quản lý danh mục\n(PRD-01)" as Category
+  usecase "Quản lý sản phẩm\n(PRD-01)" as Product
+  usecase "Nhập sản phẩm từ CSV\n(PRD-03)" as ImportCsv
+  usecase "Đổi giá bán\n(PRD-02)" as ChangePrice
+  usecase "Ghi nhật ký thao tác" as Audit
+  usecase "Tra cứu sản phẩm" as SearchProduct
+
+  usecase "Tạo / sửa khuyến mại\n(PRM-01)" as Promo
+  usecase "Kích hoạt / tạm dừng\nkhuyến mại" as PromoStatus
+  usecase "Đặt giới hạn lượt dùng\n(PRM-03)" as PromoLimit
+
+  usecase "Quản lý khách hàng\n(CUS-01)" as Customer
+  usecase "Xem lịch sử mua\n(CUS-02)" as History
+}
+
+Owner --> Category
+Owner --> Product
+Owner --> ChangePrice
+Owner --> Promo
+Owner --> PromoStatus
+Product <.. ImportCsv : <<extend>>
+ChangePrice ..> Audit : <<include>>
+Promo <.. PromoLimit : <<extend>>
+
+Cashier --> SearchProduct
+Manager --> SearchProduct
+Cashier --> Customer
+Manager --> Customer
+Owner --> Customer
+Customer <.. History : <<extend>>
+
+note right of Promo
+  Phạm vi theo chi nhánh và kênh,
+  thời gian hiệu lực, % hoặc số tiền,
+  cấp đơn hoặc cấp sản phẩm (BR-07)
+end note
+@enduml

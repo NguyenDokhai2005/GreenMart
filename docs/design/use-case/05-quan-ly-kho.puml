@@ -1,0 +1,57 @@
+@startuml 05-quan-ly-kho
+!include _style.iuml
+title Use case – Quản lý kho
+
+actor "Thủ kho" as Keeper
+actor "Quản lý chi nhánh" as Manager
+actor "Thủ kho\nchi nhánh đích" as Receiver
+
+rectangle "Quản lý kho" {
+  usecase "Xem tồn kho\n(INV-01)" as View
+  usecase "Xem sổ giao dịch kho\n(INV-06)" as Ledger
+
+  usecase "Lập phiếu nhập\n(UC-05, INV-02)" as Import
+  usecase "Lập phiếu xuất hủy\n(UC-06, INV-03)" as Dispose
+  usecase "Lập phiếu chuyển kho\n(UC-07, INV-04)" as Transfer
+  usecase "Lập phiếu kiểm kê\n(UC-08, INV-05)" as Count
+
+  usecase "Duyệt phiếu\n(người lập ≠ người duyệt,\nBR-13)" as Approve
+  usecase "Duyệt xuất chuyển kho" as ApproveOut
+  usecase "Nhận hàng chuyển kho" as Receive
+  usecase "Ghi chênh lệch\n(BR-16)" as Diff
+
+  usecase "Cập nhật tồn\n(không âm, BR-01)" as Update
+  usecase "Ghi sổ giao dịch kho\n(chỉ ghi thêm)" as Write
+  usecase "Kiểm tra / đóng\ncảnh báo tồn thấp (BR-09)" as Alert
+}
+
+Keeper --> View
+Manager --> View
+Keeper --> Ledger
+Manager --> Ledger
+
+Keeper --> Import
+Keeper --> Dispose
+Keeper --> Transfer
+Keeper --> Count
+Manager --> Approve
+Manager --> ApproveOut
+Receiver --> Receive
+
+Import ..> Approve : <<include>>
+Dispose ..> Approve : <<include>>
+Count ..> Approve : <<include>>
+Transfer ..> ApproveOut : <<include>>
+Receive <.. Diff : <<extend>>\n(nhận thiếu)
+
+Approve ..> Update : <<include>>
+ApproveOut ..> Update : <<include>>
+Receive ..> Update : <<include>>
+Update ..> Write : <<include>>
+Update ..> Alert : <<include>>
+
+note right of Dispose
+  Số lượng xuất hủy không vượt
+  tồn khả dụng; lý do bắt buộc
+end note
+@enduml

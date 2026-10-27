@@ -1,0 +1,26 @@
+' Kiểu dùng chung cho mọi sơ đồ use case GreenMart
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam backgroundColor #FFFFFF
+skinparam packageStyle rectangle
+skinparam ArrowColor #5C6360
+skinparam ArrowFontSize 11
+skinparam ArrowFontColor #5C6360
+skinparam actorBorderColor #16302B
+skinparam actorBackgroundColor #FFFFFF
+skinparam usecase {
+  BackgroundColor #F6F4EE
+  BorderColor #2F7D5B
+  FontColor #16302B
+}
+skinparam rectangle {
+  BorderColor #16302B
+  FontStyle bold
+}
+skinparam note {
+  BackgroundColor #FBEDE3
+  BorderColor #B5541C
+  FontSize 11
+}
+left to right direction

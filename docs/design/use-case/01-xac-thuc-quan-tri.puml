@@ -1,0 +1,40 @@
+@startuml 01-xac-thuc-quan-tri
+!include _style.iuml
+title Use case – Xác thực và quản trị hệ thống
+
+actor "Người dùng nội bộ" as User
+actor "Admin" as Admin
+actor "Chủ chuỗi" as Owner
+
+rectangle "Xác thực và quản trị" {
+  usecase "Đăng nhập\n(AUTH-01)" as Login
+  usecase "Đăng xuất" as Logout
+  usecase "Đổi mật khẩu" as ChangePw
+  usecase "Chọn chi nhánh làm việc" as PickBranch
+  usecase "Khóa tạm sau 5 lần sai" as Lockout
+  usecase "Ghi nhật ký thao tác\n(AUTH-03)" as Audit
+
+  usecase "Quản lý tài khoản\n(AUTH-04)" as ManageUser
+  usecase "Gán vai trò và chi nhánh" as AssignRole
+  usecase "Khóa / mở tài khoản" as LockUser
+  usecase "Quản lý chi nhánh" as ManageBranch
+  usecase "Cấu hình kênh bán" as ManageChannel
+  usecase "Xem nhật ký thao tác" as ViewAudit
+}
+
+User --> Login
+User --> Logout
+User --> ChangePw
+Login <.. PickBranch : <<extend>>\n(gán nhiều chi nhánh)
+Login <.. Lockout : <<extend>>\n(sai mật khẩu)
+Lockout ..> Audit : <<include>>
+
+Admin --> ManageUser
+Admin --> ManageBranch
+Admin --> ManageChannel
+Admin --> ViewAudit
+Owner --> ViewAudit
+ManageUser ..> AssignRole : <<include>>
+ManageUser <.. LockUser : <<extend>>
+AssignRole ..> Audit : <<include>>
+@enduml
