@@ -68,7 +68,7 @@ Múi giờ nghiệp vụ là `Asia/Ho_Chi_Minh`. JVM nhận tùy chọn qua `JAV
 | Backend API | http://localhost:8080/api/v1 |
 | Health tổng hợp | http://localhost:8080/actuator/health |
 | Readiness / liveness | `/actuator/health/readiness`, `/actuator/health/liveness` trên backend |
-| PostgreSQL / Redis / RabbitMQ | Chỉ trong mạng Compose; không publish cổng hạ tầng |
+| PostgreSQL / Redis / RabbitMQ | Các cổng localhost qua override; xem hướng dẫn IDE bên dưới |
 
 ```powershell
 docker compose ps
@@ -96,11 +96,10 @@ Theo thiết kế outbox, giao dịch và sự kiện chờ gửi được lưu 
 phục hồi thì bộ gửi xử lý tiếp. Readiness độc lập RabbitMQ không thay thế việc
 triển khai và kiểm thử outbox EX-12.
 
-Sau khi PR #182/#183 được tích hợp, healthcheck backend trong Dockerfile và
-Compose phải dùng `/actuator/health/readiness` để broker lỗi không đánh dấu
-backend `unhealthy`. Các file này chưa có trên nhánh PR #186. Việc gộp cấu hình
-`management.*` vào `application.yml` và xóa `application.properties` (#192) chờ
-PR #182 merge, sau đó rebase nhánh này lên `develop`.
+Healthcheck backend trong Dockerfile và Compose dùng
+`/actuator/health/readiness` để broker lỗi không đánh dấu backend `unhealthy`.
+Cấu hình `management.*` được quản lý trong `application.yml`;
+không dùng file `application.properties` riêng.
 
 ## Chạy từng phần trong lúc chờ frontend
 
@@ -141,3 +140,57 @@ Script backup/restore và seed được bổ sung ở các issue sau.
 | Cổng 3000/8080 đã được dùng | Dừng ứng dụng chiếm cổng hoặc thống nhất đổi cổng local |
 
 Không chia sẻ `.env`, `docker inspect` hoặc đầu ra Compose có chứa secrets.
+
+### Chạy backend từ IDE, hạ tầng bằng Docker
+
+Yêu cầu Docker Engine/Docker Desktop đang chạy và Docker Compose v2. Tại thư mục
+gốc, sao chép `.env.example` thành `.env` nếu chưa có, rồi thay các giá trị
+`change-me`. Không commit `.env`.
+
+```powershell
+docker compose config --quiet
+docker compose up -d --wait postgres redis rabbitmq
+docker compose ps
+```
+
+Compose tự ghép `docker-compose.yml` với `docker-compose.override.yml`. File
+override mở các cổng sau chỉ trên `127.0.0.1` của máy chạy Docker:
+
+| Dịch vụ | Địa chỉ từ máy local |
+| --- | --- |
+| PostgreSQL | `localhost:5432` |
+| Redis | `localhost:6379` |
+| RabbitMQ AMQP | `localhost:5672` |
+| RabbitMQ Management | http://localhost:15672 |
+
+Trong cấu hình Run/Debug của IDE, đặt các biến môi trường sau; thay phần trong
+`<...>` bằng giá trị tương ứng trong `.env` (IDE không tự đọc `.env`):
+
+```dotenv
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/<POSTGRES_DB>
+SPRING_DATASOURCE_USERNAME=<POSTGRES_USER>
+SPRING_DATASOURCE_PASSWORD=<POSTGRES_PASSWORD>
+SPRING_DATA_REDIS_HOST=localhost
+SPRING_DATA_REDIS_PORT=6379
+SPRING_DATA_REDIS_PASSWORD=<REDIS_PASSWORD>
+SPRING_RABBITMQ_HOST=localhost
+SPRING_RABBITMQ_PORT=5672
+SPRING_RABBITMQ_USERNAME=<RABBITMQ_DEFAULT_USER>
+SPRING_RABBITMQ_PASSWORD=<RABBITMQ_DEFAULT_PASS>
+```
+
+Dùng tài khoản `RABBITMQ_DEFAULT_USER` / `RABBITMQ_DEFAULT_PASS` để đăng nhập
+trang quản trị. Nếu backend Docker đang chạy, dừng bằng
+`docker compose stop backend` trước khi chạy backend trong IDE để tránh trùng
+cổng 8080. Backend chạy trong Docker vẫn dùng hostname `postgres`, `redis`,
+`rabbitmq` theo file Compose gốc.
+
+Để chỉ dùng cấu hình gốc, không mở cổng hạ tầng ra máy, chỉ định file rõ ràng:
+
+```powershell
+docker compose -f docker-compose.yml up -d --wait postgres redis rabbitmq
+```
+
+Nếu cổng 5432/6379/5672/15672 đã được dùng, dừng dịch vụ local đang chiếm cổng
+hoặc đổi cổng phía máy trong override và cập nhật cấu hình IDE tương ứng.
+Dừng môi trường bằng `docker compose down`; dữ liệu volume vẫn được giữ lại.
