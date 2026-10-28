@@ -48,7 +48,7 @@ services:
       - ./infra/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
       - ./infra/rabbitmq/bootstrap.sh:/etc/rabbitmq/bootstrap.sh:ro
     healthcheck:
-      test: [CMD, rabbitmq-diagnostics, -q, ping]
+      test: [CMD, rabbitmq-diagnostics, -q, check_running]
       interval: 10s
       timeout: 5s
       retries: 20
