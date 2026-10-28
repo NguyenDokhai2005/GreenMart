@@ -4,7 +4,6 @@ import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -41,11 +40,11 @@ public class GlobalExceptionHandler {
 
         ErrorResponse response = new ErrorResponse(
             ErrorCode.VALIDATION_ERROR.name(),
-            "Dữ liệu không hợp lệ",
+            ErrorCode.VALIDATION_ERROR.getDefaultMessage(),
             details,
             generateTraceId()
         );
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getHttpStatus()).body(response);
     }
 
     //  Validation trên @RequestParam, @PathVariable
@@ -57,11 +56,11 @@ public class GlobalExceptionHandler {
 
         ErrorResponse response = new ErrorResponse(
             ErrorCode.VALIDATION_ERROR.name(),
-            "Dữ liệu không hợp lệ",
+            ErrorCode.VALIDATION_ERROR.getDefaultMessage(),
             details,
             generateTraceId()
         );
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getHttpStatus()).body(response);
     }
 
     // JSON hỏng cú pháp / sai kiểu dữ liệu enum
@@ -73,7 +72,7 @@ public class GlobalExceptionHandler {
             null,
             generateTraceId()
         );
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getHttpStatus()).body(response);
     }
 
     // Sai kiểu dữ liệu trên URL
@@ -85,26 +84,40 @@ public class GlobalExceptionHandler {
 
         ErrorResponse response = new ErrorResponse(
             ErrorCode.VALIDATION_ERROR.name(),
-            "Tham số yêu cầu không hợp lệ",
+            ErrorCode.VALIDATION_ERROR.getDefaultMessage(),
             details,
             generateTraceId()
         );
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getHttpStatus()).body(response);
     }
 
-    // Thiếu tham số bắt buộc hoặc thiếu header
-    @ExceptionHandler({MissingServletRequestParameterException.class, MissingRequestHeaderException.class})
-    public ResponseEntity<ErrorResponse> handleMissingParamsOrHeaders(Exception ex) {
+    // Thiếu tham số bắt buộc
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingParameter(MissingServletRequestParameterException ex) {
+        List<ValidationErrorDetail> details = List.of(new ValidationErrorDetail(ex.getParameterName(), "Bắt buộc"));
         ErrorResponse response = new ErrorResponse(
             ErrorCode.VALIDATION_ERROR.name(),
-            ex.getMessage(),
-            null,
+            "Thiếu tham số bắt buộc",
+            details,
             generateTraceId()
         );
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getHttpStatus()).body(response);
     }
 
-    //  URL không tồn tại -> 404 NOT_FOUND
+    // thiếu header bắt buộc
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorResponse> handleMissingHeader(MissingRequestHeaderException ex) {
+        List<ValidationErrorDetail> details = List.of(new ValidationErrorDetail(ex.getHeaderName(), "Bắt buộc"));
+        ErrorResponse response = new ErrorResponse(
+            ErrorCode.VALIDATION_ERROR.name(),
+            "Thiếu header bắt buộc",
+            details,
+            generateTraceId()
+        );
+        return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getHttpStatus()).body(response);
+    }
+
+    // URL không tồn tại -> 404 NOT_FOUND
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(NoResourceFoundException ex) {
         ErrorResponse response = new ErrorResponse(
@@ -113,31 +126,31 @@ public class GlobalExceptionHandler {
             null,
             generateTraceId()
         );
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+        return ResponseEntity.status(ErrorCode.NOT_FOUND.getHttpStatus()).body(response);
     }
 
     // Sai HTTP Method -> 405
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
         ErrorResponse response = new ErrorResponse(
-            "METHOD_NOT_ALLOWED",
+            ErrorCode.METHOD_NOT_ALLOWED.name(),
             "Phương thức " + ex.getMethod() + " không được hỗ trợ cho tài nguyên này",
             null,
             generateTraceId()
         );
-        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(response);
+        return ResponseEntity.status(ErrorCode.METHOD_NOT_ALLOWED.getHttpStatus()).body(response);
     }
 
     // Lỗi xung đột Database / Optimistic lock -> 409 CONFLICT
     @ExceptionHandler({DataIntegrityViolationException.class, ObjectOptimisticLockingFailureException.class})
     public ResponseEntity<ErrorResponse> handleDatabaseConflict(Exception ex) {
         ErrorResponse response = new ErrorResponse(
-            "CONFLICT",
-            "Dữ liệu bị xung đột hoặc đã bị thay đổi bởi giao dịch khác",
+            ErrorCode.CONFLICT.name(),
+            ErrorCode.CONFLICT.getDefaultMessage(),
             null,
             generateTraceId()
         );
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+        return ResponseEntity.status(ErrorCode.CONFLICT.getHttpStatus()).body(response);
     }
 
     // Lỗi nghiệp vụ chủ động ném ra
@@ -160,11 +173,11 @@ public class GlobalExceptionHandler {
 
         ErrorResponse response = new ErrorResponse(
             ErrorCode.INTERNAL_SERVER_ERROR.name(),
-            "Đã có lỗi hệ thống xảy ra, vui lòng thử lại sau",
+            ErrorCode.INTERNAL_SERVER_ERROR.getDefaultMessage(),
             null,
             traceId
         );
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        return ResponseEntity.status(ErrorCode.INTERNAL_SERVER_ERROR.getHttpStatus()).body(response);
     }
 
     private String generateTraceId() {

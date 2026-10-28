@@ -11,6 +11,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -44,6 +46,16 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/test/server-error")
         public String testServerError() {
             throw new RuntimeException("Lỗi hệ thống bất ngờ");
+        }
+
+        @GetMapping("/test/type-mismatch")
+        public String testTypeMismatch(@RequestParam("page") int page) {
+            return "page: " + page;
+        }
+
+        @GetMapping("/test/required-header")
+        public String testRequiredHeader(@RequestHeader("Idempotency-Key") String key) {
+            return "key: " + key;
         }
     }
 
@@ -85,5 +97,30 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.details").doesNotExist())
                 .andExpect(result -> org.junit.jupiter.api.Assertions.assertFalse(
                         result.getResponse().getContentAsString().contains("java.lang.RuntimeException")));
+    }
+
+    @Test
+    void testTypeMismatch_Returns400() throws Exception {
+        mockMvc.perform(get("/test/type-mismatch?page=abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.details[0].field").value("page"));
+    }
+
+    @Test
+    void testMissingRequiredHeader_Returns400() throws Exception {
+        mockMvc.perform(get("/test/required-header"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("Thiếu header bắt buộc"))
+                .andExpect(jsonPath("$.details[0].field").value("Idempotency-Key"))
+                .andExpect(jsonPath("$.details[0].message").value("Bắt buộc"));
+    }
+
+    @Test
+    void testMethodNotSupported_Returns405() throws Exception {
+        mockMvc.perform(post("/test/app-exception"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"));
     }
 }
