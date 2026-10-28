@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: greenmart
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/greenmart}
+    username: ${POSTGRES_USER:greenmart}
+    password: ${POSTGRES_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    # Placeholder cho V2__grant_forecast.sql
+    placeholders:
+      forecast_user: ${FORECAST_DB_USER:forecast_ro}
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      password: ${REDIS_PASSWORD}
+      connect-timeout: 3s
+      timeout: 3s
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    username: ${RABBITMQ_DEFAULT_USER:greenmart}
+    password: ${RABBITMQ_DEFAULT_PASS}
+    connection-timeout: 3s
+server:
+  error:
+    include-stacktrace: never
+    include-message: never
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
