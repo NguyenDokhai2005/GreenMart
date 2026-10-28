@@ -8,7 +8,10 @@ function Assert-Health([string]$Path, [int]$ExpectedCode, [string]$ExpectedStatu
     if ([int]$response.StatusCode -ne $ExpectedCode) {
         throw "$Path expected HTTP $ExpectedCode, got $($response.StatusCode)"
     }
-    if ($ExpectedStatus -and (($response.Content | ConvertFrom-Json).status -ne $ExpectedStatus)) {
+    $body = if ($response.Content -is [byte[]]) {
+        [Text.Encoding]::UTF8.GetString($response.Content)
+    } else { [string]$response.Content }
+    if ($ExpectedStatus -and (($body | ConvertFrom-Json).status -ne $ExpectedStatus)) {
         throw "$Path expected status $ExpectedStatus"
     }
     Write-Host "$Path : HTTP $ExpectedCode $ExpectedStatus"
