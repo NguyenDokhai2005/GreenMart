@@ -13,14 +13,14 @@ Mỗi điểm có giả định tạm thời; nếu giả định đúng thì kh
 
 ## 1. API Contract (cần SV01 xác nhận)
 
-| # | Câu hỏi | Giả định tạm thời |
-|---|---|---|
-| Q-01 | Endpoint tạo đơn POS là `POST /api/v1/orders/pos` hay `POST /api/v1/orders`? | `POST /api/v1/orders/pos` |
-| Q-02 | Response body của login có field `accessToken` hay `access_token`? | `accessToken` (camelCase theo SRS §8.2) |
-| Q-03 | Header idempotency chính xác là `Idempotency-Key` hay `X-Idempotency-Key`? | `Idempotency-Key` |
-| Q-04 | Webhook HMAC header là `X-Signature` với format `sha256=<hex>`? | Đúng theo SRS §8.3 |
-| Q-05 | `openapi.yaml` bao giờ sẵn sàng để QA viết test khớp spec? | Tuần 2 (SV01 merge) |
-| Q-06 | Khi bị 403, body có field `code` = `FORBIDDEN` không? | Có, theo định dạng lỗi SRS §8.2 |
+| # | Câu hỏi | Giả định tạm thời | Trạng thái |
+|---|---|---|---|
+| Q-01 | Endpoint tạo đơn POS là gì? | `POST /api/v1/orders/pos` | ✅ Xác nhận – openapi.yaml |
+| Q-02 | Response body của login có field gì? | `accessToken`, `refreshToken`, `tokenType`, `expiresIn`, `user` | ✅ Xác nhận – `TokenResponse` schema |
+| Q-03 | Header idempotency tên chính xác? | `Idempotency-Key` (UUID, bắt buộc) | ✅ Xác nhận – `IdempotencyKey` parameter |
+| Q-04 | Webhook HMAC header là gì? | `X-Signature` format `sha256=<hex>` | ✅ Xác nhận – SRS §8.3, scope v2 |
+| Q-05 | `openapi.yaml` bao giờ sẵn sàng? | Đã có v1 (27/10), v2 hạn 04/11 | ✅ Đã merge – `docs/api/openapi.yaml` |
+| Q-06 | Khi bị 403 sai chi nhánh, code là gì? | `BRANCH_FORBIDDEN` (khác với `FORBIDDEN`) | ✅ Xác nhận – bảng mã lỗi openapi.yaml |
 
 ---
 

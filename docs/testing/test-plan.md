@@ -1,4 +1,4 @@
-# Kế hoạch kiểm thử – GreenMart (DT03)
+﻿# Kế hoạch kiểm thử – GreenMart (DT03)
 
 **Phiên bản:** 1.0  
 **Ngày soạn:** 27/10/2026  
@@ -80,35 +80,37 @@ Test tự động chạy trên staging. Load test chạy trên local trước kh
 
 | ID | Tiêu đề | Given | When | Then | Mức độ |
 |---|---|---|---|---|---|
-| TC-POS-01 | Bán hàng bình thường – tiền mặt | Sản phẩm X có khả dụng 10, giỏ 2 món | Thanh toán tiền mặt, hoàn tất | Đơn COMPLETED, khả dụng còn 8, sổ kho SALE -2 | Must |
-| TC-POS-02 | Tính khuyến mại đúng | Giỏ 238.000 đ với KM-GAO và KM-10 | Tính tiền | Tổng phải trả 200.700 đ | Must |
-| TC-POS-03 | Idempotency – bấm đúp | Cùng Idempotency-Key | Gửi 2 lần | Chỉ 1 đơn được tạo | Must |
-| TC-POS-04 | Tồn bị lấy đúng lúc hoàn tất | Khả dụng 1, đơn khác lấy trước | Hoàn tất | Trả 409 INSUFFICIENT_STOCK, giỏ giữ nguyên | Must |
-| TC-POS-05 | Thanh toán thẻ thất bại | Giả lập thẻ thất bại | Bấm Hoàn tất | Không tạo đơn, cho chọn lại | Must |
-| TC-POS-06 | Thanh toán QR quá 60 giây | Giả lập QR timeout | Chờ 60 giây | Không tạo đơn | Must |
-| TC-POS-07 | Tiền đưa < tổng | Tiền mặt nhỏ hơn tổng | Hoàn tất | Bị chặn, thông báo rõ | Must |
-| TC-POS-08 | Sản phẩm không tồn tại / ngừng bán | Quét mã không có | Quét | Báo lỗi, không thêm dòng | Must |
+| TC-POS-01 | Bán hàng bình thường – tiền mặt | Sản phẩm X có khả dụng 10, giỏ 2 món | `POST /orders/pos` `payment.method=CASH` | HTTP 201, đơn COMPLETED, khả dụng còn 8, sổ kho SALE -2 | Must |
+| TC-POS-02 | Tính khuyến mại đúng | Giỏ 238.000 đ với KM-GAO và KM-10 | `POST /orders/quote` | `total=200700` trong `Quote` response | Must |
+| TC-POS-03 | Idempotency – bấm đúp | Cùng `Idempotency-Key` header | `POST /orders/pos` gửi 2 lần | HTTP 200 lần 2, trả đơn cũ, chỉ 1 đơn được tạo | Must |
+| TC-POS-04 | Tồn bị lấy đúng lúc hoàn tất | Khả dụng 1, đơn khác lấy trước | `POST /orders/pos` | HTTP 409 `INSUFFICIENT_STOCK`, `details.lines` có dòng thiếu | Must |
+| TC-POS-05 | Thanh toán thẻ thất bại | Giả lập thẻ thất bại | `POST /orders/pos` `payment.method=CARD` | HTTP 422 `PAYMENT_FAILED` | Must |
+| TC-POS-06 | Thanh toán QR quá 60 giây | Giả lập QR timeout | `POST /orders/pos` `payment.method=QR` | HTTP 422 `PAYMENT_TIMEOUT` | Must |
+| TC-POS-07 | Tiền đưa < tổng | `cashReceived` nhỏ hơn `total` | `POST /orders/pos` `payment.cashReceived=1` | HTTP 422 `CASH_INSUFFICIENT`, có `details.total` và `details.cashReceived` | Must |
+| TC-POS-08 | Sản phẩm không tồn tại | Barcode không có trong hệ thống | `GET /products/lookup?code=INVALID&branchId=1` | HTTP 404 `NOT_FOUND` | Must |
+| TC-POS-09 | Sản phẩm ngừng bán | `active=false` | `GET /products/lookup?code=SKU&branchId=1` | HTTP 200, `active=false` → frontend báo lỗi 1a | Must |
+| TC-POS-10 | Tổng tính lại khác expectedTotal | KM hết hạn đúng lúc hoàn tất | `POST /orders/pos` với `expectedTotal` cũ | HTTP 422 `TOTAL_CHANGED`, có `details.quote` mới | Must |
 
 ### US-02 · Không bán vượt tồn (INV-07, AC-02)
 
 | ID | Tiêu đề | Given | When | Then | Mức độ |
 |---|---|---|---|---|---|
-| TC-CONC-01 | 100 yêu cầu đồng thời, tồn 5 | Khả dụng = 5, mỗi yêu cầu mua 1 | 100 request song song | Đúng 5 thành công, 95 nhận 409, khả dụng = 0 | Must |
-| TC-CONC-02 | Đơn hỗn hợp POS + online | Tồn 5, 50 POS + 50 webhook đồng thời | Gửi đồng thời | Tổng thành công ≤ 5, không tồn âm | Must |
-| TC-CONC-03 | Không deadlock đơn nhiều dòng | Đơn A có [P1,P2], đơn B có [P2,P1] | Gửi đồng thời | Không deadlock, cả hai thành công nếu đủ tồn | Must |
-| TC-CONC-04 | CHECK constraint DB tồn âm | Trực tiếp update DB vượt tồn | SQL trực tiếp | DB từ chối với constraint violation | Must |
+| TC-CONC-01 | 100 yêu cầu đồng thời, tồn 5 | Khả dụng = 5, mỗi yêu cầu mua 1 | 100 `POST /orders/pos` song song | Đúng 5 trả HTTP 201, 95 trả HTTP 409 `INSUFFICIENT_STOCK`, `GET /inventory/{branchId}/{productId}` → `available=0` | Must |
+| TC-CONC-02 | Đơn hỗn hợp POS + online | Tồn 5, 50 POS + 50 webhook đồng thời | Gửi đồng thời (v2 webhook) | Tổng thành công ≤ 5, `available` ≥ 0 | Must |
+| TC-CONC-03 | Không deadlock đơn nhiều dòng | Đơn A [P1,P2], đơn B [P2,P1] | 2 `POST /orders/pos` đồng thời | Không deadlock, cả hai thành công nếu đủ tồn | Must |
+| TC-CONC-04 | CHECK constraint DB tồn âm | Update DB trực tiếp vượt tồn | SQL `UPDATE inventory SET on_hand=-1` | DB từ chối, `InventoryItem.available` không bao giờ âm | Must |
 
 ### US-03 · Nhận đơn online (ORD-02, SYNC-02)
 
 | ID | Tiêu đề | Given | When | Then | Mức độ |
 |---|---|---|---|---|---|
-| TC-ONL-01 | Đặt hàng hợp lệ – giữ chỗ | Khả dụng 10, đơn 3 cái | Webhook hợp lệ | Đơn RESERVED, reserved = 3, khả dụng = 7 | Must |
-| TC-ONL-02 | Gửi trùng đơn | Đơn WEB-100 đã nhận | Gửi lại WEB-100 | Trả đơn cũ, không giữ chỗ thêm | Must |
-| TC-ONL-03 | Chữ ký HMAC sai | Bất kỳ đơn nào | HMAC sai | HTTP 401, không ghi đơn | Must |
-| TC-ONL-04 | SKU chưa ánh xạ | SKU kênh chưa có ánh xạ nội bộ | Webhook | Đơn REJECTED, không giữ chỗ | Must |
-| TC-ONL-05 | Phân bổ chi nhánh mặc định đủ tồn | CN mặc định đủ hàng | Webhook | Phân bổ đúng CN mặc định | Must |
-| TC-ONL-06 | Phân bổ CN khác khi CN mặc định không đủ | CN mặc định thiếu, CN2 đủ | Webhook | Phân bổ đúng CN2 | Must |
-| TC-ONL-07 | Mọi CN đều không đủ | Không CN nào đủ tồn | Webhook | Đơn REJECTED lý do OUT_OF_STOCK | Must |
+| TC-ONL-01 | Đặt hàng hợp lệ – giữ chỗ | Khả dụng 10, đơn 3 cái | `POST /integrations/WEB/orders` HMAC đúng (v2) | HTTP 202, đơn RESERVED, `reserved=3`, `available=7` | Must |
+| TC-ONL-02 | Gửi trùng đơn | Đơn WEB-100 đã nhận | Gửi lại WEB-100 | HTTP 200 trả đơn cũ, không tạo mới, không giữ chỗ thêm | Must |
+| TC-ONL-03 | Chữ ký HMAC sai | Bất kỳ đơn nào | Header `X-Signature` sai | HTTP 401 `UNAUTHORIZED` | Must |
+| TC-ONL-04 | SKU chưa ánh xạ | SKU kênh chưa có trong `channel_product` | Webhook | Đơn REJECTED | Must |
+| TC-ONL-05 | Phân bổ chi nhánh mặc định đủ tồn | CN mặc định đủ hàng | Webhook | Đơn gắn đúng CN mặc định | Must |
+| TC-ONL-06 | Phân bổ CN khác khi CN mặc định không đủ | CN mặc định thiếu, CN2 đủ | Webhook | Đơn gắn CN2 | Must |
+| TC-ONL-07 | Mọi CN đều không đủ | Không CN nào đủ tồn | Webhook | Đơn REJECTED `OUT_OF_STOCK` | Must |
 
 ### US-04 · Hết hạn giữ chỗ (ORD-03)
 
@@ -121,24 +123,24 @@ Test tự động chạy trên staging. Load test chạy trên local trước kh
 
 | ID | Tiêu đề | Given | When | Then | Mức độ |
 |---|---|---|---|---|---|
-| TC-SYNC-01 | Tồn đến kênh sau giao dịch | Tồn thay đổi | Commit giao dịch | Kênh nhận tồn mới trong 1 phút | Must |
-| TC-SYNC-02 | RabbitMQ dừng 5 phút | RabbitMQ ngắt | Nhiều giao dịch xảy ra | Sau khi RabbitMQ chạy lại, mọi cập nhật được gửi bù | Must |
-| TC-SYNC-03 | Bỏ qua bản version cũ | Kênh đã có version 5 | Nhận version 3 | Kênh bỏ qua, không cập nhật | Must |
+| TC-SYNC-01 | Tồn đến kênh sau giao dịch | Tồn thay đổi sau `POST /orders/pos` | Commit giao dịch | Kênh nhận `PUT /mock/{channelCode}/stock` với tồn mới trong 1 phút | Must |
+| TC-SYNC-02 | RabbitMQ dừng 5 phút | RabbitMQ ngắt | Nhiều `POST /orders/pos` xảy ra | Sau khi RabbitMQ chạy lại, outbox gửi bù đủ các cập nhật | Must |
+| TC-SYNC-03 | Bỏ qua bản version cũ | Kênh đã có version 5 | Nhận `stock` version 3 | Kênh bỏ qua theo `BR-15`, `available` không cập nhật lùi | Must |
 
 ### US-08 · Phân quyền theo chi nhánh (AUTH-02, AC-04)
 
 | ID | Tiêu đề | Given | When | Then | Mức độ |
 |---|---|---|---|---|---|
-| TC-AUTH-01 | Thu ngân CN1 gọi API CN2 | Thu ngân gán CN1 | GET /orders?branchId=CN2 | HTTP 403 | Must |
-| TC-AUTH-02 | Thu ngân CN1 tạo đơn tại CN2 | Thu ngân gán CN1 | POST /orders branchId=CN2 | HTTP 403 | Must |
-| TC-AUTH-03 | Gọi API không có token | Chưa đăng nhập | Bất kỳ protected endpoint | HTTP 401 | Must |
-| TC-AUTH-04 | Token hết hạn | JWT hết hạn 15 phút | Gọi API | HTTP 401 | Must |
-| TC-AUTH-05 | Refresh token còn hạn | Refresh token 7 ngày | POST /auth/refresh | Nhận access token mới | Must |
-| TC-AUTH-06 | Đăng nhập sai 5 lần | Sai mật khẩu 5 lần liên tiếp | Lần thứ 6 | Tài khoản bị khóa 15 phút | Must |
-| TC-AUTH-07 | Thu ngân không đổi giá | Thu ngân CN1 | PUT /products/{id}/price | HTTP 403 | Must |
-| TC-AUTH-08 | Owner truy cập toàn chuỗi | Owner | GET orders mọi chi nhánh | HTTP 200 | Must |
-| TC-AUTH-09 | Nhật ký đăng nhập thất bại | Đăng nhập sai | Sai mật khẩu | audit_log có bản ghi | Must |
-| TC-AUTH-10 | Người lập phiếu không tự duyệt | Thủ kho A lập phiếu | A tự duyệt | HTTP 422 / lỗi nghiệp vụ | Must |
+| TC-AUTH-01 | Thu ngân CN1 gọi API CN2 | Thu ngân gán CN1 | `GET /orders?branchId=2` | HTTP 403 `BRANCH_FORBIDDEN` | Must |
+| TC-AUTH-02 | Thu ngân CN1 tạo đơn tại CN2 | Thu ngân gán CN1 | `POST /orders/pos` body `branchId=2` | HTTP 403 `BRANCH_FORBIDDEN` | Must |
+| TC-AUTH-03 | Gọi API không có token | Không có header Authorization | `GET /orders` | HTTP 401 `UNAUTHORIZED` | Must |
+| TC-AUTH-04 | Token hết hạn | JWT hết hạn sau 15 phút | Gọi bất kỳ API | HTTP 401 `UNAUTHORIZED` | Must |
+| TC-AUTH-05 | Refresh token còn hạn | Refresh token 7 ngày | `POST /auth/refresh` body `{refreshToken}` | HTTP 200, nhận `accessToken` mới | Must |
+| TC-AUTH-06 | Đăng nhập sai 5 lần | Sai mật khẩu 5 lần liên tiếp | `POST /auth/login` lần thứ 6 | HTTP 401 `ACCOUNT_LOCKED`, có `details.lockedUntil` | Must |
+| TC-AUTH-07 | Thu ngân không đổi giá | Thu ngân CN1 | `PUT /products/{productId}` với `salePrice` mới | HTTP 403 `FORBIDDEN` | Must |
+| TC-AUTH-08 | Owner truy cập toàn chuỗi | OWNER | `GET /orders` không truyền `branchId` | HTTP 200 trả mọi chi nhánh | Must |
+| TC-AUTH-09 | Nhật ký đăng nhập thất bại | Đăng nhập sai | `POST /auth/login` sai password | HTTP 401, `audit_log` ghi `LOGIN_FAILED` | Must |
+| TC-AUTH-10 | Người lập phiếu không tự duyệt | Thủ kho A lập phiếu | A tự duyệt (v2 – chưa có trong v1) | HTTP 422 (scope v2) | Should |
 
 ---
 
@@ -171,9 +173,9 @@ Cấu hình gitleaks chạy trong GitHub Actions khi mở PR vào `develop`.
 
 | Script | Mục tiêu | Ngưỡng đạt |
 |---|---|---|
-| `load-read-api.js` | API đọc với 50 VU đồng thời | p95 < 300 ms |
-| `load-create-order.js` | API tạo đơn với 50 VU đồng thời | p95 < 500 ms |
-| `concurrency-stock.js` | 100 yêu cầu đồng thời, tồn 5 | Đúng 5 thành công, không tồn âm |
+| `load-read-api.js` | `GET /products`, `GET /orders`, `GET /inventory` với 50 VU | p95 < 300 ms |
+| `load-create-order.js` | `POST /orders/pos` với 50 VU | p95 < 500 ms |
+| `concurrency-stock.js` | 100 `POST /orders/pos` đồng thời, tồn 5 | Đúng 5 HTTP 201, không `available` âm |
 
 ### 6.2 Integration test timing
 
