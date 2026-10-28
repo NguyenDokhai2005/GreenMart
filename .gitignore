@@ -17,3 +17,11 @@ __pycache__/
 .vscode/
 *.iml
 .DS_Store
+
+# Test artifacts – không commit báo cáo sinh ra khi chạy
+tests/api/environment.local.json
+tests/api/newman-report.json
+docs/testing/newman-report.html
+docs/testing/playwright-report/
+tests/e2e/test-results/
+tests/load/results/
