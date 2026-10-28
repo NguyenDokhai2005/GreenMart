@@ -37,6 +37,8 @@ Xem [CONTRIBUTING.md](CONTRIBUTING.md). Việc của từng người nằm trong
 
 ## Chạy dự án
 
+Xem [hướng dẫn quản lý biến môi trường và secrets](docs/operations/SECRETS.md).
+
 Yêu cầu: Git, Docker Engine/Docker Desktop đang chạy Linux containers và Docker
 Compose v2. Dùng PowerShell 7 để chạy script kiểm tra bên dưới. Không cần cài
 Java/Maven/Node trên máy nếu chỉ chạy bằng Docker.
