@@ -1,9 +1,9 @@
 ﻿# Kế hoạch kiểm thử – GreenMart (DT03)
 
-**Phiên bản:** 1.0  
-**Ngày soạn:** 27/10/2026  
-**Người soạn:** SV08 – QA/Security (Huỳnh Phúc Đạt)  
-**Trạng thái:** Tuần 1 – Bản nháp khởi tạo
+**Phiên bản:** 1.1
+**Ngày soạn:** 27/10/2026 · **Cập nhật:** 30/10/2026
+**Người soạn:** SV08 – QA/Security (Huỳnh Phúc Đạt)
+**Trạng thái:** Tuần 1 – Đã bổ sung AC-01..AC-06 đầy đủ
 
 ---
 
@@ -11,10 +11,12 @@
 
 Đảm bảo hệ thống GreenMart đáp ứng toàn bộ 6 tiêu chí nghiệm thu (AC-01..AC-06), 14 yêu cầu phi chức năng (NFR-01..14) và không có lỗi thuộc 19 quy tắc nghiệp vụ (BR-01..19). Trọng tâm đặc biệt vào:
 
+- **Dữ liệu nền** — seed đủ 3 chi nhánh, 1.000 sản phẩm, 10.000 đơn COMPLETED (AC-01).
 - **Tính nguyên tử của tồn kho** — không tồn âm trong mọi tình huống đồng thời (AC-02, INV-07).
+- **Đồng bộ hai chiều** — đơn online và tồn kho đến kênh đúng, không mất dữ liệu (AC-03).
 - **Phân quyền và bảo mật** — mọi API kiểm tra vai trò + chi nhánh ở backend (AC-04, NFR-05/06).
-- **Đồng bộ hai chiều** — đơn online và tồn kho đến kênh đúng và không mất dữ liệu (AC-03).
-- **Chất lượng mã** — unit test coverage ≥ 70 % trên module sales và inventory (NFR-11).
+- **Dự báo nhu cầu** — WAPE mô hình thấp hơn baseline tốt nhất ở cả 2 tầm (AC-05).
+- **Cảnh báo tồn thấp** — dashboard hiện/đóng cảnh báo đúng theo ROP (AC-06).
 
 ---
 
@@ -30,7 +32,7 @@
 | Bảo mật cơ bản | OWASP Top 10 check cơ bản | Thủ công + công cụ |
 | Luồng E2E giao diện | Bán tại quầy, đơn online | Playwright |
 | Secrets trong repo | Quét gitleaks | CI / gitleaks |
-| Idempotency | Gửi trùng đơn, idempotency-key | Postman |
+| Idempotency | Gửi trùng đơn và gửi body khác key | Postman |
 | Tích hợp RabbitMQ | Tắt 5 phút, kiểm tra bù sự kiện | Test tích hợp thủ công |
 
 ### 2.2 Ngoài phạm vi
@@ -74,110 +76,109 @@ Test tự động chạy trên staging. Load test chạy trên local trước kh
 
 ---
 
-## 4. Test cases theo User Story
+## 4. Test cases theo tiêu chí nghiệm thu (AC-01..AC-06)
 
-### US-01 · Bán tại quầy (ORD-01, PAY-01)
+### AC-01 · Dữ liệu nền – seed script (AI-01)
+
+> Cách chứng minh: chạy script seed, truy vấn đếm trước hội đồng.
+
+| ID | Tiêu đề | Given | When | Then | Mức độ |
+|---|---|---|---|---|---|
+| TC-AC01-01 | Đủ 3 chi nhánh | Seed script đã chạy | `SELECT COUNT(*) FROM branch WHERE is_active = true` | = 3 | Must |
+| TC-AC01-02 | Đủ 1.000 sản phẩm | Seed script đã chạy | `SELECT COUNT(*) FROM product` | = 1.000 | Must |
+| TC-AC01-03 | Đủ 10.000 đơn COMPLETED | Seed script đã chạy | `SELECT COUNT(*) FROM sales_order WHERE status = 'COMPLETED'` | = 10.000 | Must |
+| TC-AC01-04 | Seed chạy lại cho kết quả giống nhau | Xóa DB, chạy seed lần 2 cùng random seed | Đếm lại | Số lượng giống hệt lần 1 | Must |
+
+### AC-02 · Không tồn âm khi giao dịch đồng thời (INV-07, US-02)
+
+> Cách chứng minh: k6 script 100 yêu cầu song song.
+
+| ID | Tiêu đề | Given | When | Then | Mức độ |
+|---|---|---|---|---|---|
+| TC-CONC-01 | 100 yêu cầu đồng thời, tồn 5 | Khả dụng = 5, mỗi yêu cầu mua 1 | 100 `POST /orders/pos` song song (k6) | Đúng 5 trả HTTP 201, 95 trả HTTP 409 `INSUFFICIENT_STOCK`; `GET /inventory/{branchId}/{productId}` → `available=0` | Must |
+| TC-CONC-02 | Đơn hỗn hợp POS + online | Tồn 5, 50 POS + 50 webhook đồng thời | Gửi đồng thời (v2 webhook) | Tổng thành công ≤ 5, `available` ≥ 0 | Must |
+| TC-CONC-03 | Không deadlock đơn nhiều dòng | Đơn A [P1,P2], đơn B [P2,P1] | 2 `POST /orders/pos` đồng thời | Không deadlock, cả hai thành công nếu đủ tồn | Must |
+| TC-CONC-04 | CHECK constraint DB tồn âm | Update DB trực tiếp vượt tồn | `UPDATE inventory SET on_hand=-1` | DB từ chối, `available` không bao giờ âm | Must |
+
+### AC-03 · Đơn online đồng bộ hai chiều (SYNC-01..04, US-03..05)
+
+| ID | Tiêu đề | Given | When | Then | Mức độ |
+|---|---|---|---|---|---|
+| TC-ONL-01 | Đặt hàng hợp lệ – giữ chỗ | Khả dụng 10, đơn 3 cái | `POST /integrations/WEB/orders` HMAC đúng (v2) | HTTP 202, đơn RESERVED, `reserved=3`, `available=7` | Must |
+| TC-ONL-02 | Gửi trùng đơn (idempotent) | Đơn WEB-100 đã nhận | Gửi lại WEB-100 | HTTP 200 trả đơn cũ, không tạo mới, không giữ chỗ thêm | Must |
+| TC-ONL-03 | Chữ ký HMAC sai | Bất kỳ đơn nào | Header `X-Signature` sai | HTTP 401 `UNAUTHORIZED` | Must |
+| TC-ONL-04 | SKU chưa ánh xạ | SKU kênh chưa có trong `channel_product` | Webhook | Đơn REJECTED | Must |
+| TC-ONL-05 | Tồn mới đến kênh sau giao dịch | Tồn thay đổi sau `POST /orders/pos` | Commit giao dịch | Kênh nhận `PUT /mock/{channelCode}/stock` với tồn mới trong 1 phút | Must |
+| TC-ONL-06 | RabbitMQ dừng 5 phút rồi chạy lại | RabbitMQ ngắt | Nhiều `POST /orders/pos` xảy ra | Sau khi RabbitMQ chạy lại, outbox gửi bù đủ, không mất cập nhật | Must |
+| TC-ONL-07 | Đơn RESERVED quá 15 phút tự EXPIRED | Đơn RESERVED giữ 3 lúc 10:00 | Đến 10:16 | Đơn EXPIRED, `reserved` giảm 3 trong vòng 1 phút, kênh nhận tồn mới | Must |
+
+### AC-04 · Phân quyền đúng theo chi nhánh (AUTH-01..02, US-08)
+
+| ID | Tiêu đề | Given | When | Then | Mức độ |
+|---|---|---|---|---|---|
+| TC-AUTH-01 | Thu ngân CN1 gọi API CN2 | CASHIER gán CN1 | `GET /orders?branchId=2` | HTTP 403 `BRANCH_FORBIDDEN`, `details.branchId=2` | Must |
+| TC-AUTH-02 | Thu ngân CN1 tạo đơn tại CN2 | CASHIER gán CN1 | `POST /orders/pos` body `branchId=2` | HTTP 403 `BRANCH_FORBIDDEN` | Must |
+| TC-AUTH-03 | Gọi API không có token | Không có header Authorization | `GET /orders` | HTTP 401 `UNAUTHORIZED` | Must |
+| TC-AUTH-04 | Token hết hạn sau 15 phút | JWT hết hạn | Gọi bất kỳ API | HTTP 401 `UNAUTHORIZED` | Must |
+| TC-AUTH-05 | Refresh token còn hạn 7 ngày | Refresh token hợp lệ | `POST /auth/refresh` `{refreshToken}` | HTTP 200, nhận `accessToken` mới; refresh token cũ thu hồi | Must |
+| TC-AUTH-06 | Khóa tài khoản sau 5 lần sai | Sai mật khẩu 5 lần liên tiếp | `POST /auth/login` lần thứ 6 | HTTP 401 `ACCOUNT_LOCKED`, có `details.lockedUntil` | Must |
+| TC-AUTH-07 | CASHIER không đổi giá sản phẩm | CASHIER | `PUT /products/{productId}` với `salePrice` mới | HTTP 403 `FORBIDDEN` | Must |
+| TC-AUTH-08 | OWNER truy cập mọi chi nhánh | OWNER | `GET /orders` không truyền `branchId` | HTTP 200, thấy đơn mọi chi nhánh | Must |
+| TC-AUTH-09 | Nhật ký đăng nhập thất bại | Đăng nhập sai password | `POST /auth/login` | HTTP 401, `audit_log` có bản ghi `LOGIN_FAILED` | Must |
+
+### AC-05 · Dự báo WAPE thấp hơn baseline (AI-03..04, US-10)
+
+> Cách chứng minh: báo cáo MAE, WAPE từ `forecast_run` sau khi SV06 chạy mô hình.
+
+| ID | Tiêu đề | Given | When | Then | Mức độ |
+|---|---|---|---|---|---|
+| TC-FC-01 | Dự báo 7 ngày tốt hơn baseline | Dữ liệu 12 tháng, tập test = 30 ngày cuối | Chạy `POST /forecast/run`, chờ hoàn tất | `GET /forecast/runs/{runId}` → WAPE mô hình < WAPE baseline tốt nhất (naive 7 ngày hoặc MA-28) | Must |
+| TC-FC-02 | Dự báo 30 ngày tốt hơn baseline | Như TC-FC-01 | Như TC-FC-01 | WAPE 30 ngày của mô hình < WAPE baseline tốt nhất | Must |
+| TC-FC-03 | Mỗi sản phẩm × chi nhánh có kết quả | Sau TC-FC-01 | `SELECT COUNT(*) FROM forecast_result WHERE run_id = ?` | Số dòng = số sản phẩm đủ dữ liệu × 3 chi nhánh × (7+30) ngày tầm | Must |
+| TC-FC-04 | Dự báo chạy tự động lúc 02:00 | Scheduler đã cấu hình | Kiểm tra `forecast_run` ngày hôm sau | Có bản ghi `created_at` trong khoảng 02:00–02:30 | Must |
+
+### AC-06 · Dashboard và cảnh báo tồn thấp (DASH-01, DASH-03, US-09)
+
+| ID | Tiêu đề | Given | When | Then | Mức độ |
+|---|---|---|---|---|---|
+| TC-DASH-01 | Cảnh báo hiện khi khả dụng ≤ ROP | ROP sữa tươi CN1 = 34, khả dụng = 35 | Bán 6 cái → khả dụng = 29 | Dashboard hiện cảnh báo "Tồn thấp" cho sữa tươi CN1 | Must |
+| TC-DASH-02 | Cảnh báo tự đóng khi nhập đủ | Đang có cảnh báo tồn thấp, khả dụng = 29 | Nhập 96 cái → khả dụng = 125 > ROP | Cảnh báo tự đóng, không còn trong danh sách | Must |
+| TC-DASH-03 | Cảnh báo hết hàng khi available = 0 | Khả dụng = 1 | Bán 1 cái → khả dụng = 0 | Dashboard hiện cảnh báo "Hết hàng" (đỏ) | Must |
+| TC-DASH-04 | Mỗi sản phẩm × CN chỉ có 1 cảnh báo mở | Đã có cảnh báo tồn thấp | Bán thêm | Vẫn chỉ 1 cảnh báo, không tạo thêm | Must |
+
+---
+
+## 5. Test cases bổ sung – POS (ORD-01, PAY-01)
 
 | ID | Tiêu đề | Given | When | Then | Mức độ |
 |---|---|---|---|---|---|
 | TC-POS-01 | Bán hàng bình thường – tiền mặt | Sản phẩm X có khả dụng 10, giỏ 2 món | `POST /orders/pos` `payment.method=CASH` | HTTP 201, đơn COMPLETED, khả dụng còn 8, sổ kho SALE -2 | Must |
 | TC-POS-02 | Tính khuyến mại đúng | Giỏ 238.000 đ với KM-GAO và KM-10 | `POST /orders/quote` | `total=200700` trong `Quote` response | Must |
-| TC-POS-03 | Idempotency – bấm đúp | Cùng `Idempotency-Key` header | `POST /orders/pos` gửi 2 lần | HTTP 200 lần 2, trả đơn cũ, chỉ 1 đơn được tạo | Must |
-| TC-POS-04 | Tồn bị lấy đúng lúc hoàn tất | Khả dụng 1, đơn khác lấy trước | `POST /orders/pos` | HTTP 409 `INSUFFICIENT_STOCK`, `details.lines` có dòng thiếu | Must |
-| TC-POS-05 | Thanh toán thẻ thất bại | Giả lập thẻ thất bại | `POST /orders/pos` `payment.method=CARD` | HTTP 422 `PAYMENT_FAILED` | Must |
-| TC-POS-06 | Thanh toán QR quá 60 giây | Giả lập QR timeout | `POST /orders/pos` `payment.method=QR` | HTTP 422 `PAYMENT_TIMEOUT` | Must |
-| TC-POS-07 | Tiền đưa < tổng | `cashReceived` nhỏ hơn `total` | `POST /orders/pos` `payment.cashReceived=1` | HTTP 422 `CASH_INSUFFICIENT`, có `details.total` và `details.cashReceived` | Must |
-| TC-POS-08 | Sản phẩm không tồn tại | Barcode không có trong hệ thống | `GET /products/lookup?code=INVALID&branchId=1` | HTTP 404 `NOT_FOUND` | Must |
-| TC-POS-09 | Sản phẩm ngừng bán | `active=false` | `GET /products/lookup?code=SKU&branchId=1` | HTTP 200, `active=false` → frontend báo lỗi 1a | Must |
-| TC-POS-10 | Tổng tính lại khác expectedTotal | KM hết hạn đúng lúc hoàn tất | `POST /orders/pos` với `expectedTotal` cũ | HTTP 422 `TOTAL_CHANGED`, có `details.quote` mới | Must |
-
-### US-02 · Không bán vượt tồn (INV-07, AC-02)
-
-| ID | Tiêu đề | Given | When | Then | Mức độ |
-|---|---|---|---|---|---|
-| TC-CONC-01 | 100 yêu cầu đồng thời, tồn 5 | Khả dụng = 5, mỗi yêu cầu mua 1 | 100 `POST /orders/pos` song song | Đúng 5 trả HTTP 201, 95 trả HTTP 409 `INSUFFICIENT_STOCK`, `GET /inventory/{branchId}/{productId}` → `available=0` | Must |
-| TC-CONC-02 | Đơn hỗn hợp POS + online | Tồn 5, 50 POS + 50 webhook đồng thời | Gửi đồng thời (v2 webhook) | Tổng thành công ≤ 5, `available` ≥ 0 | Must |
-| TC-CONC-03 | Không deadlock đơn nhiều dòng | Đơn A [P1,P2], đơn B [P2,P1] | 2 `POST /orders/pos` đồng thời | Không deadlock, cả hai thành công nếu đủ tồn | Must |
-| TC-CONC-04 | CHECK constraint DB tồn âm | Update DB trực tiếp vượt tồn | SQL `UPDATE inventory SET on_hand=-1` | DB từ chối, `InventoryItem.available` không bao giờ âm | Must |
-
-### US-03 · Nhận đơn online (ORD-02, SYNC-02)
-
-| ID | Tiêu đề | Given | When | Then | Mức độ |
-|---|---|---|---|---|---|
-| TC-ONL-01 | Đặt hàng hợp lệ – giữ chỗ | Khả dụng 10, đơn 3 cái | `POST /integrations/WEB/orders` HMAC đúng (v2) | HTTP 202, đơn RESERVED, `reserved=3`, `available=7` | Must |
-| TC-ONL-02 | Gửi trùng đơn | Đơn WEB-100 đã nhận | Gửi lại WEB-100 | HTTP 200 trả đơn cũ, không tạo mới, không giữ chỗ thêm | Must |
-| TC-ONL-03 | Chữ ký HMAC sai | Bất kỳ đơn nào | Header `X-Signature` sai | HTTP 401 `UNAUTHORIZED` | Must |
-| TC-ONL-04 | SKU chưa ánh xạ | SKU kênh chưa có trong `channel_product` | Webhook | Đơn REJECTED | Must |
-| TC-ONL-05 | Phân bổ chi nhánh mặc định đủ tồn | CN mặc định đủ hàng | Webhook | Đơn gắn đúng CN mặc định | Must |
-| TC-ONL-06 | Phân bổ CN khác khi CN mặc định không đủ | CN mặc định thiếu, CN2 đủ | Webhook | Đơn gắn CN2 | Must |
-| TC-ONL-07 | Mọi CN đều không đủ | Không CN nào đủ tồn | Webhook | Đơn REJECTED `OUT_OF_STOCK` | Must |
-
-### US-04 · Hết hạn giữ chỗ (ORD-03)
-
-| ID | Tiêu đề | Given | When | Then | Mức độ |
-|---|---|---|---|---|---|
-| TC-EXP-01 | Đơn RESERVED quá 15 phút | Đơn RESERVED giữ 3, lúc 10:00 | Đến 10:15+1 phút | Đơn EXPIRED, reserved giảm 3, kênh nhận tồn mới | Must |
-| TC-EXP-02 | Thanh toán trong hạn | Đơn RESERVED | Thanh toán trước 15 phút | Đơn CONFIRMED, giữ chỗ giữ nguyên | Must |
-
-### US-05 · Đồng bộ tồn ra kênh (SYNC-03)
-
-| ID | Tiêu đề | Given | When | Then | Mức độ |
-|---|---|---|---|---|---|
-| TC-SYNC-01 | Tồn đến kênh sau giao dịch | Tồn thay đổi sau `POST /orders/pos` | Commit giao dịch | Kênh nhận `PUT /mock/{channelCode}/stock` với tồn mới trong 1 phút | Must |
-| TC-SYNC-02 | RabbitMQ dừng 5 phút | RabbitMQ ngắt | Nhiều `POST /orders/pos` xảy ra | Sau khi RabbitMQ chạy lại, outbox gửi bù đủ các cập nhật | Must |
-| TC-SYNC-03 | Bỏ qua bản version cũ | Kênh đã có version 5 | Nhận `stock` version 3 | Kênh bỏ qua theo `BR-15`, `available` không cập nhật lùi | Must |
-
-### US-08 · Phân quyền theo chi nhánh (AUTH-02, AC-04)
-
-| ID | Tiêu đề | Given | When | Then | Mức độ |
-|---|---|---|---|---|---|
-| TC-AUTH-01 | Thu ngân CN1 gọi API CN2 | Thu ngân gán CN1 | `GET /orders?branchId=2` | HTTP 403 `BRANCH_FORBIDDEN` | Must |
-| TC-AUTH-02 | Thu ngân CN1 tạo đơn tại CN2 | Thu ngân gán CN1 | `POST /orders/pos` body `branchId=2` | HTTP 403 `BRANCH_FORBIDDEN` | Must |
-| TC-AUTH-03 | Gọi API không có token | Không có header Authorization | `GET /orders` | HTTP 401 `UNAUTHORIZED` | Must |
-| TC-AUTH-04 | Token hết hạn | JWT hết hạn sau 15 phút | Gọi bất kỳ API | HTTP 401 `UNAUTHORIZED` | Must |
-| TC-AUTH-05 | Refresh token còn hạn | Refresh token 7 ngày | `POST /auth/refresh` body `{refreshToken}` | HTTP 200, nhận `accessToken` mới | Must |
-| TC-AUTH-06 | Đăng nhập sai 5 lần | Sai mật khẩu 5 lần liên tiếp | `POST /auth/login` lần thứ 6 | HTTP 401 `ACCOUNT_LOCKED`, có `details.lockedUntil` | Must |
-| TC-AUTH-07 | Thu ngân không đổi giá | Thu ngân CN1 | `PUT /products/{productId}` với `salePrice` mới | HTTP 403 `FORBIDDEN` | Must |
-| TC-AUTH-08 | Owner truy cập toàn chuỗi | OWNER | `GET /orders` không truyền `branchId` | HTTP 200 trả mọi chi nhánh | Must |
-| TC-AUTH-09 | Nhật ký đăng nhập thất bại | Đăng nhập sai | `POST /auth/login` sai password | HTTP 401, `audit_log` ghi `LOGIN_FAILED` | Must |
-| TC-AUTH-10 | Người lập phiếu không tự duyệt | Thủ kho A lập phiếu | A tự duyệt (v2 – chưa có trong v1) | HTTP 422 (scope v2) | Should |
+| TC-POS-03 | Idempotency – cùng key, cùng body | Cùng `Idempotency-Key`, cùng nội dung | `POST /orders/pos` gửi 2 lần | HTTP 200 lần 2, trả đơn cũ, chỉ 1 đơn được tạo | Must |
+| TC-POS-04 | Idempotency – cùng key, body khác | Cùng `Idempotency-Key`, body khác | `POST /orders/pos` | HTTP 409 `IDEMPOTENCY_CONFLICT` | Must |
+| TC-POS-05 | Tồn bị lấy đúng lúc hoàn tất | Khả dụng 1, đơn khác lấy trước | `POST /orders/pos` | HTTP 409 `INSUFFICIENT_STOCK`, `details.lines` có dòng thiếu | Must |
+| TC-POS-06 | Thanh toán thẻ thất bại | `payment.simulate=FAILED` | `POST /orders/pos` `payment.method=CARD` | HTTP 422 `PAYMENT_FAILED`, không tạo đơn | Must |
+| TC-POS-07 | Thanh toán QR quá 60 giây | `payment.simulate=TIMEOUT` | `POST /orders/pos` `payment.method=QR` | HTTP 422 `PAYMENT_TIMEOUT`, không tạo đơn | Must |
+| TC-POS-08 | Tiền đưa < tổng | `payment.cashReceived=1`, `payment.method=CASH` | `POST /orders/pos` | HTTP 422 `CASH_INSUFFICIENT`, có `details.total` và `details.cashReceived` | Must |
+| TC-POS-09 | Sản phẩm không tồn tại | Barcode không có trong hệ thống | `GET /products/lookup?code=INVALID&branchId=1` | HTTP 404 `NOT_FOUND` | Must |
+| TC-POS-10 | Sản phẩm ngừng bán | `active=false` | `GET /products/lookup?code=SKU&branchId=1` | HTTP 200, `active=false` – frontend hiển thị cảnh báo | Must |
+| TC-POS-11 | Tổng tính lại khác expectedTotal | KM hết hạn đúng lúc hoàn tất | `POST /orders/pos` với `expectedTotal` cũ | HTTP 422 `TOTAL_CHANGED`, có `details.quote` báo giá mới | Must |
 
 ---
 
-## 5. Kiểm thử bảo mật (NFR-05, NFR-06, NFR-07)
+## 6. Kiểm thử bảo mật (NFR-05, NFR-06, NFR-07)
 
-### 5.1 Checklist OWASP cơ bản
-
-| # | Hạng mục | Cách kiểm tra | Kết quả mong đợi |
-|---|---|---|---|
-| S-01 | SQL Injection | Truyền payload `' OR 1=1--` vào các trường tìm kiếm | HTTP 400, không lộ dữ liệu |
-| S-02 | JWT giả mạo | Gửi token tự ký với secret giả | HTTP 401 |
-| S-03 | JWT thiếu chữ ký | Gửi token `algorithm: none` | HTTP 401 |
-| S-04 | Stack trace trong lỗi | Gửi request sai format | Lỗi trả về chỉ có `code`, `message`, không lộ stack trace |
-| S-05 | CORS | Request từ origin không cho phép | CORS header chặn |
-| S-06 | Thông tin nhạy cảm trong log | Xem log staging | Không có password, secret key trong log |
-| S-07 | Secrets trong repo | Chạy `gitleaks detect` | 0 secrets found |
-| S-08 | Mật khẩu hashing | Xem trực tiếp DB | Trường password_hash là BCrypt (bắt đầu `$2`) |
-| S-09 | HMAC webhook | Gửi đơn với signature sai | HTTP 401, không ghi đơn |
-| S-10 | Brute force login | 5 lần sai liên tiếp | Tài khoản khóa 15 phút |
-
-### 5.2 Gitleaks CI
-
-Cấu hình gitleaks chạy trong GitHub Actions khi mở PR vào `develop`.
+Xem chi tiết trong `docs/testing/security-checklist.md`.
 
 ---
 
-## 6. Kiểm thử hiệu năng (NFR-01, NFR-02)
-
-### 6.1 Load test – k6 (tests/load/)
+## 7. Kiểm thử hiệu năng (NFR-01, NFR-02)
 
 | Script | Mục tiêu | Ngưỡng đạt |
 |---|---|---|
 | `load-read-api.js` | `GET /products`, `GET /orders`, `GET /inventory` với 50 VU | p95 < 300 ms |
 | `load-create-order.js` | `POST /orders/pos` với 50 VU | p95 < 500 ms |
-| `concurrency-stock.js` | 100 `POST /orders/pos` đồng thời, tồn 5 | Đúng 5 HTTP 201, không `available` âm |
-
-### 6.2 Integration test timing
+| `concurrency-stock.js` | 100 `POST /orders/pos` đồng thời, tồn 5 | Đúng 5 HTTP 201, `available` không âm |
 
 | Hành vi | Ngưỡng |
 |---|---|
@@ -186,36 +187,36 @@ Cấu hình gitleaks chạy trong GitHub Actions khi mở PR vào `develop`.
 
 ---
 
-## 7. Kế hoạch theo tuần
+## 8. Kế hoạch theo tuần
 
 | Tuần | Việc làm | Deliverable |
 |---|---|---|
-| **1** (28/10 – 03/11) | Viết test plan, tạo cấu trúc thư mục tests, thiết lập Postman collection khung, viết checklist security, khởi tạo k6 skeleton | `docs/testing/test-plan.md`, `tests/api/greenmart.postman_collection.json`, `tests/load/*.js` (skeleton), `docs/testing/security-checklist.md` |
-| **2** (04/11 – 10/11) | Viết Postman test cho AUTH, ORD, INV khi API sẵn sàng; viết script k6 đầy đủ; bắt đầu Playwright skeleton | Collection đầy đủ, k6 scripts, Playwright skeleton |
-| **3** (11/11 – 17/11) | Chạy full test, viết báo cáo lỗi, thực hiện security checklist OWASP, viết ma trận truy vết | `docs/testing/test-report.md`, `docs/testing/traceability-matrix.md` |
-| **4** (18/11 – 24/11) | Regression test, chạy load test cuối, hoàn thiện báo cáo kiểm thử cho demo | Báo cáo kiểm thử cuối |
+| **1** (28/10 – 03/11) | Viết test plan AC-01..06 đầy đủ, checklist security, câu hỏi với nhóm | `docs/testing/test-plan.md`, `docs/testing/security-checklist.md` |
+| **2** (04/11 – 10/11) | Viết Postman test cho AUTH, ORD, INV khi API v1 sẵn sàng; k6 scripts; Playwright skeleton | Collection đầy đủ, k6 scripts, Playwright skeleton |
+| **3** (11/11 – 17/11) | Chạy full test, báo cáo lỗi, security checklist OWASP, ma trận truy vết | `docs/testing/test-report.md`, `docs/testing/traceability-matrix.md` |
+| **4** (18/11 – 24/11) | Regression test, load test cuối, hoàn thiện báo cáo cho demo | Báo cáo kiểm thử cuối |
 
 ---
 
-## 8. Quy trình báo lỗi
+## 9. Quy trình báo lỗi
 
 1. Phát hiện lỗi → mở Issue dùng template `bug.md`.
 2. Gán nhãn `test`, gán milestone tuần, gán người phụ trách module.
-3. Ghi rõ: mô tả, bước tái hiện, kết quả mong đợi, kết quả thực tế, môi trường, mức độ (chặn demo / nghiêm trọng / nhỏ).
-4. Lỗi mức "chặn demo" → báo ngay qua daily hoặc nhắn trực tiếp cho người phụ trách.
+3. Ghi rõ: mô tả, bước tái hiện, kết quả mong đợi, kết quả thực tế, môi trường, mức độ.
+4. Lỗi mức "chặn demo" → báo ngay qua daily.
 5. Sau khi fix → SV08 verify và đóng issue.
 
 ---
 
-## 9. Definition of Done cho QA
+## 10. Definition of Done cho QA
 
-- [ ] Mọi TC must-have trong kế hoạch này đã chạy và pass.
+- [ ] Mọi TC must-have đã chạy và pass.
 - [ ] Không còn lỗi mức "chặn demo" chưa xử lý.
 - [ ] Coverage report module `sales` và `inventory` ≥ 70 %.
-- [ ] Gitleaks CI xanh (không có secrets trong repo).
+- [ ] Gitleaks CI xanh.
 - [ ] Báo cáo kiểm thử cập nhật trong `docs/testing/test-report.md`.
 - [ ] Ma trận truy vết hoàn chỉnh trong `docs/testing/traceability-matrix.md`.
 
 ---
 
-*Tài liệu này sẽ được cập nhật sau mỗi tuần khi có thêm API sẵn sàng để test.*
+*Phiên bản 1.1 – 30/10/2026: bổ sung AC-01, AC-05, AC-06; thêm TC-POS-04 (IDEMPOTENCY_CONFLICT); làm rõ TC-POS-06/07 (payment.simulate); cập nhật tổng 47 test case.*
