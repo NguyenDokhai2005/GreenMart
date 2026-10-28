@@ -37,4 +37,59 @@ Xem [CONTRIBUTING.md](CONTRIBUTING.md). Việc của từng người nằm trong
 
 ## Chạy dự án
 1. Sao chép `.env.example` thành `.env` và điền giá trị.
-2. Chạy `docker compose up` (có sau khi SV07 hoàn thành `docker-compose.yml`, hạn 03/11).
+2. Chạy `docker compose up --build -d --wait` để chạy toàn bộ hệ thống khi đã có
+   Dockerfile backend/frontend và khung ứng dụng từ các PR liên quan.
+
+### Chạy backend từ IDE, hạ tầng bằng Docker
+
+Yêu cầu Docker Engine/Docker Desktop đang chạy và Docker Compose v2. Tại thư mục
+gốc, sao chép `.env.example` thành `.env` nếu chưa có, rồi thay các giá trị
+`change-me`. Không commit `.env`.
+
+```powershell
+docker compose config --quiet
+docker compose up -d --wait postgres redis rabbitmq
+docker compose ps
+```
+
+Compose tự ghép `docker-compose.yml` với `docker-compose.override.yml`. File
+override mở các cổng sau chỉ trên `127.0.0.1` của máy chạy Docker:
+
+| Dịch vụ | Địa chỉ từ máy local |
+| --- | --- |
+| PostgreSQL | `localhost:5432` |
+| Redis | `localhost:6379` |
+| RabbitMQ AMQP | `localhost:5672` |
+| RabbitMQ Management | http://localhost:15672 |
+
+Trong cấu hình Run/Debug của IDE, đặt các biến môi trường sau; thay phần trong
+`<...>` bằng giá trị tương ứng trong `.env` (IDE không tự đọc `.env`):
+
+```dotenv
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/<POSTGRES_DB>
+SPRING_DATASOURCE_USERNAME=<POSTGRES_USER>
+SPRING_DATASOURCE_PASSWORD=<POSTGRES_PASSWORD>
+SPRING_DATA_REDIS_HOST=localhost
+SPRING_DATA_REDIS_PORT=6379
+SPRING_DATA_REDIS_PASSWORD=<REDIS_PASSWORD>
+SPRING_RABBITMQ_HOST=localhost
+SPRING_RABBITMQ_PORT=5672
+SPRING_RABBITMQ_USERNAME=<RABBITMQ_DEFAULT_USER>
+SPRING_RABBITMQ_PASSWORD=<RABBITMQ_DEFAULT_PASS>
+```
+
+Dùng tài khoản `RABBITMQ_DEFAULT_USER` / `RABBITMQ_DEFAULT_PASS` để đăng nhập
+trang quản trị. Nếu backend Docker đang chạy, dừng bằng
+`docker compose stop backend` trước khi chạy backend trong IDE để tránh trùng
+cổng 8080. Backend chạy trong Docker vẫn dùng hostname `postgres`, `redis`,
+`rabbitmq` theo file Compose gốc.
+
+Để chỉ dùng cấu hình gốc, không mở cổng hạ tầng ra máy, chỉ định file rõ ràng:
+
+```powershell
+docker compose -f docker-compose.yml up -d --wait postgres redis rabbitmq
+```
+
+Nếu cổng 5432/6379/5672/15672 đã được dùng, dừng dịch vụ local đang chiếm cổng
+hoặc đổi cổng phía máy trong override và cập nhật cấu hình IDE tương ứng.
+Dừng môi trường bằng `docker compose down`; dữ liệu volume vẫn được giữ lại.
