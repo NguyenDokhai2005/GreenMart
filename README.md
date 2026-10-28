@@ -43,8 +43,8 @@ Yêu cầu: Git, Docker Engine/Docker Desktop đang chạy Linux containers và 
 Compose v2. Dùng PowerShell 7 để chạy script kiểm tra bên dưới. Không cần cài
 Java/Maven/Node trên máy nếu chỉ chạy bằng Docker.
 
-Các phần nền móng được giao ở #122–#126. Cần merge Dockerfile/khung backend
-(#123), Compose (#122) và khung React/Vite của SV04 trước khi chạy đủ 5 service.
+Các phần nền móng được giao ở #122–#126. Còn chờ khung React/Vite của SV04
+(#68) trước khi chạy đủ 5 service.
 Nếu frontend chưa có `package.json` và `package-lock.json`, build frontend sẽ lỗi;
 đây là phụ thuộc chưa hoàn thành, không phải một hệ thống đã nghiệm thu.
 
@@ -112,8 +112,8 @@ docker compose up --build -d --wait backend
 
 Backend scaffold chưa có API nghiệp vụ; `/api/v1` có thể trả 404.
 Migration thuộc SV03; Hibernate dùng `validate`, không tự sinh schema.
-Role `forecast_ro` được tạo lúc DB khởi tạo; SV03 cần cấp quyền ghi đúng ba bảng
-`daily_sales`, `forecast_run`, `forecast_result` và sequence liên quan sau migration.
+Role `forecast_ro` được tạo lúc DB khởi tạo. Quyền ghi cho `forecast_ro` cấp trong
+migration `V2__grant_forecast.sql` (PR #198).
 Tài khoản đăng nhập demo chờ seed từ SV03/SV08; repo hiện chưa cung cấp tài khoản.
 
 ## Dừng, chạy lại và đọc log
@@ -143,7 +143,7 @@ Script backup/restore và seed được bổ sung ở các issue sau.
 
 Không chia sẻ `.env`, `docker inspect` hoặc đầu ra Compose có chứa secrets.
 
-### Chạy backend từ IDE, hạ tầng bằng Docker
+## Chạy backend từ IDE, hạ tầng bằng Docker
 
 Yêu cầu Docker Engine/Docker Desktop đang chạy và Docker Compose v2. Tại thư mục
 gốc, sao chép `.env.example` thành `.env` nếu chưa có, rồi thay các giá trị
