@@ -1,0 +1,9 @@
+{
+  "vhosts": [{"name": "/"}],
+  "exchanges": [
+    {"name": "greenmart.events", "vhost": "/", "type": "topic", "durable": true, "auto_delete": false, "internal": false, "arguments": {}},
+    {"name": "greenmart.dlx", "vhost": "/", "type": "topic", "durable": true, "auto_delete": false, "internal": false, "arguments": {}}
+  ],
+  "queues": [],
+  "bindings": []
+}
