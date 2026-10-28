@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: GreenMart API
-  version: 1.0.0
+  version: 1.1.0
   description: |
     Hợp đồng REST API nội bộ của GreenMart (đề tài DT03). Nguồn nghiệp vụ: `docs/requirements/SRS.md`,
     nguồn dữ liệu: `docs/design/erd`.
@@ -1294,15 +1294,21 @@ components:
               items: { $ref: '#/components/schemas/InventoryItem' }
     InventoryTransaction:
       type: object
-      required: [id, branchId, productId, sku, type, quantity, balanceAfter, refType, refId, createdAt]
+      description: |
+        Mỗi dòng ghi riêng thay đổi tồn thực (`deltaOnHand`) và tồn giữ chỗ (`deltaReserved`), kèm số dư sau giao dịch.
+        Ví dụ: SALE (POS) `deltaOnHand=-2, deltaReserved=0`; RESERVE `0, +3`; RELEASE `0, -3`;
+        hoàn tất đơn online `-3, -3`; IMPORT `+24, 0`. Khả dụng sau giao dịch = `onHandAfter - reservedAfter`.
+      required: [id, branchId, productId, sku, type, deltaOnHand, onHandAfter, deltaReserved, reservedAfter, refType, refId, createdAt]
       properties:
         id: { type: integer, format: int64 }
         branchId: { type: integer, format: int64 }
         productId: { type: integer, format: int64 }
         sku: { type: string }
         type: { $ref: '#/components/schemas/InventoryTransactionType' }
-        quantity: { type: integer, description: 'Âm khi giảm, dương khi tăng' }
-        balanceAfter: { type: integer, description: Tồn thực sau giao dịch }
+        deltaOnHand: { type: integer, description: 'Thay đổi tồn thực; âm khi giảm, 0 với RESERVE/RELEASE' }
+        onHandAfter: { type: integer, minimum: 0, description: Tồn thực sau giao dịch }
+        deltaReserved: { type: integer, description: 'Thay đổi tồn giữ chỗ; 0 với IMPORT/EXPORT/ADJUST và SALE tại quầy' }
+        reservedAfter: { type: integer, minimum: 0, description: Tồn giữ chỗ sau giao dịch }
         refType: { $ref: '#/components/schemas/RefType' }
         refId: { type: integer, format: int64 }
         refCode: { type: string, nullable: true, description: 'Mã chứng từ gốc để hiển thị, ví dụ mã đơn' }
@@ -1317,8 +1323,10 @@ components:
         productId: 205
         sku: SUA-TH-1L
         type: SALE
-        quantity: -2
-        balanceAfter: 33
+        deltaOnHand: -2
+        onHandAfter: 33
+        deltaReserved: 0
+        reservedAfter: 5
         refType: ORDER
         refId: 10231
         refCode: POS-GM001-20261105-0042

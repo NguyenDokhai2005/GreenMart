@@ -11,6 +11,9 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+    # Placeholder cho V2__grant_forecast.sql
+    placeholders:
+      forecast_user: ${FORECAST_DB_USER:forecast_ro}
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
@@ -34,3 +37,10 @@ management:
   endpoint:
     health:
       show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db,redis
+        liveness:
+          include: livenessState

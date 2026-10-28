@@ -384,7 +384,7 @@ Dữ liệu lưu trong PostgreSQL, quản lý schema bằng migration Flyway; ba
 | order\_item | id, order\_id, product\_id, quantity, unit\_price, discount, line\_total, promotion\_id | quantity > 0 |
 | payment | id, order\_id, method, amount, status, paid\_at | amount ≥ 0 |
 | inventory | branch\_id, product\_id, on\_hand, reserved, reorder\_point, version | khóa (branch\_id, product\_id); CHECK on\_hand ≥ 0, reserved ≥ 0, reserved ≤ on\_hand |
-| inventory\_transaction | id, branch\_id, product\_id, type, quantity, balance\_after, ref\_type, ref\_id, created\_by, created\_at | chỉ INSERT |
+| inventory\_transaction | id, branch\_id, product\_id, type, delta\_on\_hand, on\_hand\_after, delta\_reserved, reserved\_after, ref\_type, ref\_id, created\_by, created\_at | chỉ INSERT; ghi riêng thay đổi tồn thực và tồn giữ chỗ; on\_hand\_after ≥ 0, reserved\_after ≥ 0 |
 | stock\_document (+ item) | id, code, type, branch\_id, to\_branch\_id, status, created\_by, approved\_by; dòng: product\_id, quantity, received\_quantity, unit\_cost | approved\_by ≠ created\_by |
 | return\_document (+ item) | id, order\_id, branch\_id, reason, refund\_amount, status; dòng: order\_item\_id, quantity, condition | tổng số trả ≤ số đã mua |
 | audit\_log | id, user\_id, action, entity, entity\_id, detail, created\_at | chỉ INSERT |
@@ -523,3 +523,4 @@ Các giá trị dưới đây đang là giả định của nhóm; khi giảng v
 | Phiên bản | Ngày | Người sửa | Nội dung |
 | --- | --- | --- | --- |
 | 1.0 | 27/10/2026 | BA/Lead | Phiên bản đầu tiên: 42 yêu cầu chức năng, 14 phi chức năng, 19 quy tắc nghiệp vụ, 10 use case, 6 tiêu chí nghiệm thu |
+| 1.1 | 28/10/2026 | BA/Lead | Mục 7.1: `inventory_transaction` ghi riêng `delta_on_hand`/`on_hand_after` và `delta_reserved`/`reserved_after` thay cho `quantity`/`balance_after` (theo migration V1, PR #201) |

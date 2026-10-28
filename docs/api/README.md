@@ -18,6 +18,7 @@ Có thể dán nội dung file vào https://editor.swagger.io để xem nhanh.
 | Phiên bản | Hạn | Phạm vi |
 | --- | --- | --- |
 | v1 | 30/10 | Xác thực, chi nhánh, danh mục, sản phẩm, khách hàng, báo giá và bán tại quầy, xem tồn kho, sổ kho |
+| v1.1 | 28/10 | Phần đầu của v2: `InventoryTransaction` đổi `quantity`/`balanceAfter` thành `deltaOnHand`, `onHandAfter`, `deltaReserved`, `reservedAfter` (khớp migration V1) |
 | v2 | 04/11 | Đơn online (xác nhận, hoàn tất, hủy), webhook kênh, phiếu nhập/xuất/chuyển/kiểm kê, khuyến mại, quản trị người dùng |
 | v3 | tuần 3 | Trả hàng, dashboard, cảnh báo tồn thấp, dự báo và gợi ý nhập, nhật ký đồng bộ |
 
