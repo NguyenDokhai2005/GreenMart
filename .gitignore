@@ -12,6 +12,10 @@ __pycache__/
 *.ipynb_checkpoints
 # Env & IDE
 .env
+.env.*
+!.env.example
+*.pem
+*.key
 *.env.local
 .idea/
 .vscode/
