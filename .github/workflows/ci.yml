@@ -1,0 +1,62 @@
+name: CI
+on:
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        if: hashFiles('backend/pom.xml') != ''
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - run: mvn -B -ntp verify
+        if: hashFiles('backend/pom.xml') != ''
+        working-directory: backend
+      - run: echo 'Backend scaffold not present; build pending SV07 scaffold.'
+        if: hashFiles('backend/pom.xml') == ''
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: hashFiles('frontend/package.json') != ''
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci && npm run lint && npm test --if-present && npm run build
+        if: hashFiles('frontend/package.json') != ''
+        working-directory: frontend
+      - run: echo 'Frontend scaffold not present; build pending SV04.'
+        if: hashFiles('frontend/package.json') == ''
+  forecast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        if: hashFiles('forecast-service/requirements.txt') != ''
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r requirements.txt && python -m pytest
+        if: hashFiles('forecast-service/requirements.txt') != ''
+        working-directory: forecast-service
+      - run: echo 'Forecast scaffold not present; build pending SV06.'
+        if: hashFiles('forecast-service/requirements.txt') == ''
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: docker build -t greenmart-backend:ci backend
+        if: hashFiles('backend/pom.xml', 'backend/Dockerfile') != '' && hashFiles('backend/pom.xml') != '' && hashFiles('backend/Dockerfile') != ''
+      - run: docker build -t greenmart-frontend:ci frontend
+        if: hashFiles('frontend/package.json') != '' && hashFiles('frontend/Dockerfile') != ''
