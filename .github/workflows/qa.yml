@@ -1,0 +1,63 @@
+name: QA – API Test & Security Scan
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop]
+
+jobs:
+  # ──────────────────────────────────────────────────────────────
+  # Job 1: Quét secrets với gitleaks (NFR-07)
+  # ──────────────────────────────────────────────────────────────
+  secrets-scan:
+    name: Gitleaks – Secrets Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Cần full history để gitleaks quét toàn bộ commit
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}  # Bỏ qua nếu dùng bản free
+
+  # ──────────────────────────────────────────────────────────────
+  # Job 2: Newman – API Test (chạy sau khi backend deploy staging)
+  # ──────────────────────────────────────────────────────────────
+  api-test:
+    name: Newman – API Tests
+    runs-on: ubuntu-latest
+    needs: secrets-scan
+    # Chỉ chạy khi staging sẵn sàng (SV07 cần cung cấp STAGING_URL)
+    if: ${{ vars.STAGING_URL != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Newman
+        run: npm install -g newman newman-reporter-htmlextra
+
+      - name: Run Postman Collection
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+        run: |
+          newman run tests/api/greenmart.postman_collection.json \
+            --env-var "baseUrl=$STAGING_URL/api/v1" \
+            --reporters cli,htmlextra \
+            --reporter-htmlextra-export docs/testing/newman-report.html \
+            --bail
+
+      - name: Upload Newman Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newman-report
+          path: docs/testing/newman-report.html
+          retention-days: 14
