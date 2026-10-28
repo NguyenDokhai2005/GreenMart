@@ -1,9 +1,10 @@
 ﻿# Security Checklist – GreenMart (DT03)
 
-**Phiên bản:** 1.1
-**Ngày soạn:** 27/10/2026 · **Cập nhật:** 30/10/2026
-**Người soạn:** SV08 – QA/Security (Huỳnh Phúc Đạt)
-**Tham chiếu:** NFR-05, NFR-06, NFR-07, AUTH-01..04, openapi.yaml v1
+- **Phiên bản:** 1.1
+- **Ngày soạn:** 27/10/2026
+- **Cập nhật:** 28/10/2026
+- **Người soạn:** SV08 – QA/Security (Huỳnh Phúc Đạt)
+- **Tham chiếu:** NFR-05, NFR-06, NFR-07, AUTH-01..04, openapi.yaml v1
 
 ---
 

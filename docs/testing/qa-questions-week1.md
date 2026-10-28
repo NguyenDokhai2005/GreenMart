@@ -1,8 +1,8 @@
 ﻿# Câu hỏi & Giả định cần xác nhận – QA Tuần 1
 
-**Người hỏi:** SV08 – QA/Security (Huỳnh Phúc Đạt)  
-**Ngày:** 27/10/2026  
-**Gửi tới:** Lead (SV01), Backend (SV02, SV03), DevOps (SV07)
+- **Người hỏi:** SV08 – QA/Security (Huỳnh Phúc Đạt)
+- **Ngày:** 27/10/2026
+- **Gửi tới:** Lead (SV01), Backend (SV02, SV03), DevOps (SV07)
 
 ---
 
