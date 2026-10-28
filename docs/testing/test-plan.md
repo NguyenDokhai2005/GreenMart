@@ -1,219 +1,219 @@
-﻿# Kß║┐ hoß║ích kiß╗âm thß╗¡ ΓÇô GreenMart (DT03)
+# Kế hoạch kiểm thử – GreenMart (DT03)
 
-**Phi├¬n bß║ún:** 1.0  
-**Ng├áy soß║ín:** 27/10/2026  
-**Ng╞░ß╗¥i soß║ín:** SV08 ΓÇô QA/Security (Huß╗│nh Ph├║c ─Éß║ít)  
-**Trß║íng th├íi:** Tuß║ºn 1 ΓÇô Bß║ún nh├íp khß╗ƒi tß║ío
-
----
-
-## 1. Mß╗Ñc ti├¬u kiß╗âm thß╗¡
-
-─Éß║úm bß║úo hß╗ç thß╗æng GreenMart ─æ├íp ß╗⌐ng to├án bß╗Ö 6 ti├¬u ch├¡ nghiß╗çm thu (AC-01..AC-06), 14 y├¬u cß║ºu phi chß╗⌐c n─âng (NFR-01..14) v├á kh├┤ng c├│ lß╗ùi thuß╗Öc 19 quy tß║»c nghiß╗çp vß╗Ñ (BR-01..19). Trß╗ìng t├óm ─æß║╖c biß╗çt v├áo:
-
-- **T├¡nh nguy├¬n tß╗¡ cß╗ºa tß╗ôn kho** ΓÇö kh├┤ng tß╗ôn ├óm trong mß╗ìi t├¼nh huß╗æng ─æß╗ông thß╗¥i (AC-02, INV-07).
-- **Ph├ón quyß╗ün v├á bß║úo mß║¡t** ΓÇö mß╗ìi API kiß╗âm tra vai tr├▓ + chi nh├ính ß╗ƒ backend (AC-04, NFR-05/06).
-- **─Éß╗ông bß╗Ö hai chiß╗üu** ΓÇö ─æ╞ín online v├á tß╗ôn kho ─æß║┐n k├¬nh ─æ├║ng v├á kh├┤ng mß║Ñt dß╗» liß╗çu (AC-03).
-- **Chß║Ñt l╞░ß╗úng m├ú** ΓÇö unit test coverage ΓëÑ 70 % tr├¬n module sales v├á inventory (NFR-11).
+**Phiên bản:** 1.0  
+**Ngày soạn:** 27/10/2026  
+**Người soạn:** SV08 – QA/Security (Huỳnh Phúc Đạt)  
+**Trạng thái:** Tuần 1 – Bản nháp khởi tạo
 
 ---
 
-## 2. Phß║ím vi
+## 1. Mục tiêu kiểm thử
 
-### 2.1 Trong phß║ím vi kiß╗âm thß╗¡
+Đảm bảo hệ thống GreenMart đáp ứng toàn bộ 6 tiêu chí nghiệm thu (AC-01..AC-06), 14 yêu cầu phi chức năng (NFR-01..14) và không có lỗi thuộc 19 quy tắc nghiệp vụ (BR-01..19). Trọng tâm đặc biệt vào:
 
-| Khu vß╗▒c | Loß║íi test | C├┤ng cß╗Ñ |
+- **Tính nguyên tử của tồn kho** — không tồn âm trong mọi tình huống đồng thời (AC-02, INV-07).
+- **Phân quyền và bảo mật** — mọi API kiểm tra vai trò + chi nhánh ở backend (AC-04, NFR-05/06).
+- **Đồng bộ hai chiều** — đơn online và tồn kho đến kênh đúng và không mất dữ liệu (AC-03).
+- **Chất lượng mã** — unit test coverage ≥ 70 % trên module sales và inventory (NFR-11).
+
+---
+
+## 2. Phạm vi
+
+### 2.1 Trong phạm vi kiểm thử
+
+| Khu vực | Loại test | Công cụ |
 |---|---|---|
-| API REST (/api/v1) | API test theo luß╗ông nghiß╗çp vß╗Ñ | Postman + Newman |
-| Tß╗ôn kho ─æß╗ông thß╗¥i | Load test / concurrency test | k6 |
-| Ph├ón quyß╗ün (RBAC) | Negative test ΓÇô gß╗ìi sai vai tr├▓/chi nh├ính | Postman |
-| Bß║úo mß║¡t c╞í bß║ún | OWASP Top 10 check c╞í bß║ún | Thß╗º c├┤ng + c├┤ng cß╗Ñ |
-| Luß╗ông E2E giao diß╗çn | B├ín tß║íi quß║ºy, ─æ╞ín online | Playwright |
-| Secrets trong repo | Qu├⌐t gitleaks | CI / gitleaks |
-| Idempotency | Gß╗¡i tr├╣ng ─æ╞ín, idempotency-key | Postman |
-| T├¡ch hß╗úp RabbitMQ | Tß║»t 5 ph├║t, kiß╗âm tra b├╣ sß╗▒ kiß╗çn | Test t├¡ch hß╗úp thß╗º c├┤ng |
+| API REST (/api/v1) | API test theo luồng nghiệp vụ | Postman + Newman |
+| Tồn kho đồng thời | Load test / concurrency test | k6 |
+| Phân quyền (RBAC) | Negative test – gọi sai vai trò/chi nhánh | Postman |
+| Bảo mật cơ bản | OWASP Top 10 check cơ bản | Thủ công + công cụ |
+| Luồng E2E giao diện | Bán tại quầy, đơn online | Playwright |
+| Secrets trong repo | Quét gitleaks | CI / gitleaks |
+| Idempotency | Gửi trùng đơn, idempotency-key | Postman |
+| Tích hợp RabbitMQ | Tắt 5 phút, kiểm tra bù sự kiện | Test tích hợp thủ công |
 
-### 2.2 Ngo├ái phß║ím vi
+### 2.2 Ngoài phạm vi
 
-- Thanh to├ín thß║¡t (ng├ón h├áng, v├¡ ─æiß╗çn tß╗¡)
-- Kß║┐t nß╗æi Shopee, Lazada, TikTok Shop thß║¡t
-- Kiß╗âm thß╗¡ ß╗⌐ng dß╗Ñng di ─æß╗Öng
+- Thanh toán thật (ngân hàng, ví điện tử)
+- Kết nối Shopee, Lazada, TikTok Shop thật
+- Kiểm thử ứng dụng di động
 
 ---
 
-## 3. Chiß║┐n l╞░ß╗úc kiß╗âm thß╗¡
+## 3. Chiến lược kiểm thử
 
-### 3.1 Ph├ón loß║íi
+### 3.1 Phân loại
 
 ```
-Unit test (SV02, SV03 viß║┐t) ΓöÇΓöÇΓû║ Integration test ΓöÇΓöÇΓû║ API test ΓöÇΓöÇΓû║ E2E / Load test
-                                        Γåæ
-                               SV08 phß╗Ñ tr├ích tß╗½ Integration trß╗ƒ l├¬n
+Unit test (SV02, SV03 viết) ──► Integration test ──► API test ──► E2E / Load test
+                                        ↑
+                               SV08 phụ trách từ Integration trở lên
 ```
 
-- **Unit test**: SV02 (backend sales), SV03 (backend inventory) viß║┐t; SV08 review coverage report.
-- **API test (Postman)**: SV08 viß║┐t, chß║íy trong CI vß╗¢i Newman.
-- **Load test (k6)**: SV08 viß║┐t script, chß║íy thß╗º c├┤ng v├á CI.
-- **E2E (Playwright)**: SV08 viß║┐t, chß║íy trong CI.
-- **Security test**: SV08 thß╗▒c hiß╗çn theo checklist OWASP c╞í bß║ún ß╗ƒ tuß║ºn 3.
+- **Unit test**: SV02 (backend sales), SV03 (backend inventory) viết; SV08 review coverage report.
+- **API test (Postman)**: SV08 viết, chạy trong CI với Newman.
+- **Load test (k6)**: SV08 viết script, chạy thủ công và CI.
+- **E2E (Playwright)**: SV08 viết, chạy trong CI.
+- **Security test**: SV08 thực hiện theo checklist OWASP cơ bản ở tuần 3.
 
-### 3.2 M├┤i tr╞░ß╗¥ng
+### 3.2 Môi trường
 
-| M├┤i tr╞░ß╗¥ng | M├┤ tß║ú | Ng╞░ß╗¥i quß║ún l├╜ |
+| Môi trường | Mô tả | Người quản lý |
 |---|---|---|
-| Local | Docker Compose tß╗½ng m├íy dev | Mß╗ùi th├ánh vi├¬n |
-| Staging | Tß╗▒ cß║¡p nhß║¡t khi merge v├áo `develop` | SV07 |
+| Local | Docker Compose từng máy dev | Mỗi thành viên |
+| Staging | Tự cập nhật khi merge vào `develop` | SV07 |
 
-Test tß╗▒ ─æß╗Öng chß║íy tr├¬n staging. Load test chß║íy tr├¬n local tr╞░ß╗¢c khi demo ─æß╗â tr├ính ß║únh h╞░ß╗ƒng m├┤i tr╞░ß╗¥ng.
+Test tự động chạy trên staging. Load test chạy trên local trước khi demo để tránh ảnh hưởng môi trường.
 
-### 3.3 Dß╗» liß╗çu test
+### 3.3 Dữ liệu test
 
-- Sß╗¡ dß╗Ñng seed script (SV06) tß║ío 3 chi nh├ính, 1.000 sß║ún phß║⌐m, 10.000 ─æ╞ín lß╗ïch sß╗¡.
-- T├ái khoß║ún demo 5 vai tr├▓ ├ù 3 chi nh├ính (tß╗½ seed script).
-- Fixture JSON cho Postman v├á Playwright tß║ío ß╗ƒ `tests/api/fixtures/`.
+- Sử dụng seed script (SV06) tạo 3 chi nhánh, 1.000 sản phẩm, 10.000 đơn lịch sử.
+- Tài khoản demo 5 vai trò × 3 chi nhánh (từ seed script).
+- Fixture JSON cho Postman và Playwright tạo ở `tests/api/fixtures/`.
 
 ---
 
 ## 4. Test cases theo User Story
 
-### US-01 ┬╖ B├ín tß║íi quß║ºy (ORD-01, PAY-01)
+### US-01 · Bán tại quầy (ORD-01, PAY-01)
 
-| ID | Ti├¬u ─æß╗ü | Given | When | Then | Mß╗⌐c ─æß╗Ö |
+| ID | Tiêu đề | Given | When | Then | Mức độ |
 |---|---|---|---|---|---|
-| TC-POS-01 | B├ín h├áng b├¼nh th╞░ß╗¥ng ΓÇô tiß╗ün mß║╖t | Sß║ún phß║⌐m X c├│ khß║ú dß╗Ñng 10, giß╗Å 2 m├│n | Thanh to├ín tiß╗ün mß║╖t, ho├án tß║Ñt | ─É╞ín COMPLETED, khß║ú dß╗Ñng c├▓n 8, sß╗ò kho SALE -2 | Must |
-| TC-POS-02 | T├¡nh khuyß║┐n mß║íi ─æ├║ng | Giß╗Å 238.000 ─æ vß╗¢i KM-GAO v├á KM-10 | T├¡nh tiß╗ün | Tß╗òng phß║úi trß║ú 200.700 ─æ | Must |
-| TC-POS-03 | Idempotency ΓÇô bß║Ñm ─æ├║p | C├╣ng Idempotency-Key | Gß╗¡i 2 lß║ºn | Chß╗ë 1 ─æ╞ín ─æ╞░ß╗úc tß║ío | Must |
-| TC-POS-04 | Tß╗ôn bß╗ï lß║Ñy ─æ├║ng l├║c ho├án tß║Ñt | Khß║ú dß╗Ñng 1, ─æ╞ín kh├íc lß║Ñy tr╞░ß╗¢c | Ho├án tß║Ñt | Trß║ú 409 INSUFFICIENT_STOCK, giß╗Å giß╗» nguy├¬n | Must |
-| TC-POS-05 | Thanh to├ín thß║╗ thß║Ñt bß║íi | Giß║ú lß║¡p thß║╗ thß║Ñt bß║íi | Bß║Ñm Ho├án tß║Ñt | Kh├┤ng tß║ío ─æ╞ín, cho chß╗ìn lß║íi | Must |
-| TC-POS-06 | Thanh to├ín QR qu├í 60 gi├óy | Giß║ú lß║¡p QR timeout | Chß╗¥ 60 gi├óy | Kh├┤ng tß║ío ─æ╞ín | Must |
-| TC-POS-07 | Tiß╗ün ─æ╞░a < tß╗òng | Tiß╗ün mß║╖t nhß╗Å h╞ín tß╗òng | Ho├án tß║Ñt | Bß╗ï chß║╖n, th├┤ng b├ío r├╡ | Must |
-| TC-POS-08 | Sß║ún phß║⌐m kh├┤ng tß╗ôn tß║íi / ngß╗½ng b├ín | Qu├⌐t m├ú kh├┤ng c├│ | Qu├⌐t | B├ío lß╗ùi, kh├┤ng th├¬m d├▓ng | Must |
+| TC-POS-01 | Bán hàng bình thường – tiền mặt | Sản phẩm X có khả dụng 10, giỏ 2 món | Thanh toán tiền mặt, hoàn tất | Đơn COMPLETED, khả dụng còn 8, sổ kho SALE -2 | Must |
+| TC-POS-02 | Tính khuyến mại đúng | Giỏ 238.000 đ với KM-GAO và KM-10 | Tính tiền | Tổng phải trả 200.700 đ | Must |
+| TC-POS-03 | Idempotency – bấm đúp | Cùng Idempotency-Key | Gửi 2 lần | Chỉ 1 đơn được tạo | Must |
+| TC-POS-04 | Tồn bị lấy đúng lúc hoàn tất | Khả dụng 1, đơn khác lấy trước | Hoàn tất | Trả 409 INSUFFICIENT_STOCK, giỏ giữ nguyên | Must |
+| TC-POS-05 | Thanh toán thẻ thất bại | Giả lập thẻ thất bại | Bấm Hoàn tất | Không tạo đơn, cho chọn lại | Must |
+| TC-POS-06 | Thanh toán QR quá 60 giây | Giả lập QR timeout | Chờ 60 giây | Không tạo đơn | Must |
+| TC-POS-07 | Tiền đưa < tổng | Tiền mặt nhỏ hơn tổng | Hoàn tất | Bị chặn, thông báo rõ | Must |
+| TC-POS-08 | Sản phẩm không tồn tại / ngừng bán | Quét mã không có | Quét | Báo lỗi, không thêm dòng | Must |
 
-### US-02 ┬╖ Kh├┤ng b├ín v╞░ß╗út tß╗ôn (INV-07, AC-02)
+### US-02 · Không bán vượt tồn (INV-07, AC-02)
 
-| ID | Ti├¬u ─æß╗ü | Given | When | Then | Mß╗⌐c ─æß╗Ö |
+| ID | Tiêu đề | Given | When | Then | Mức độ |
 |---|---|---|---|---|---|
-| TC-CONC-01 | 100 y├¬u cß║ºu ─æß╗ông thß╗¥i, tß╗ôn 5 | Khß║ú dß╗Ñng = 5, mß╗ùi y├¬u cß║ºu mua 1 | 100 request song song | ─É├║ng 5 th├ánh c├┤ng, 95 nhß║¡n 409, khß║ú dß╗Ñng = 0 | Must |
-| TC-CONC-02 | ─É╞ín hß╗ùn hß╗úp POS + online | Tß╗ôn 5, 50 POS + 50 webhook ─æß╗ông thß╗¥i | Gß╗¡i ─æß╗ông thß╗¥i | Tß╗òng th├ánh c├┤ng Γëñ 5, kh├┤ng tß╗ôn ├óm | Must |
-| TC-CONC-03 | Kh├┤ng deadlock ─æ╞ín nhiß╗üu d├▓ng | ─É╞ín A c├│ [P1,P2], ─æ╞ín B c├│ [P2,P1] | Gß╗¡i ─æß╗ông thß╗¥i | Kh├┤ng deadlock, cß║ú hai th├ánh c├┤ng nß║┐u ─æß╗º tß╗ôn | Must |
-| TC-CONC-04 | CHECK constraint DB tß╗ôn ├óm | Trß╗▒c tiß║┐p update DB v╞░ß╗út tß╗ôn | SQL trß╗▒c tiß║┐p | DB tß╗½ chß╗æi vß╗¢i constraint violation | Must |
+| TC-CONC-01 | 100 yêu cầu đồng thời, tồn 5 | Khả dụng = 5, mỗi yêu cầu mua 1 | 100 request song song | Đúng 5 thành công, 95 nhận 409, khả dụng = 0 | Must |
+| TC-CONC-02 | Đơn hỗn hợp POS + online | Tồn 5, 50 POS + 50 webhook đồng thời | Gửi đồng thời | Tổng thành công ≤ 5, không tồn âm | Must |
+| TC-CONC-03 | Không deadlock đơn nhiều dòng | Đơn A có [P1,P2], đơn B có [P2,P1] | Gửi đồng thời | Không deadlock, cả hai thành công nếu đủ tồn | Must |
+| TC-CONC-04 | CHECK constraint DB tồn âm | Trực tiếp update DB vượt tồn | SQL trực tiếp | DB từ chối với constraint violation | Must |
 
-### US-03 ┬╖ Nhß║¡n ─æ╞ín online (ORD-02, SYNC-02)
+### US-03 · Nhận đơn online (ORD-02, SYNC-02)
 
-| ID | Ti├¬u ─æß╗ü | Given | When | Then | Mß╗⌐c ─æß╗Ö |
+| ID | Tiêu đề | Given | When | Then | Mức độ |
 |---|---|---|---|---|---|
-| TC-ONL-01 | ─Éß║╖t h├áng hß╗úp lß╗ç ΓÇô giß╗» chß╗ù | Khß║ú dß╗Ñng 10, ─æ╞ín 3 c├íi | Webhook hß╗úp lß╗ç | ─É╞ín RESERVED, reserved = 3, khß║ú dß╗Ñng = 7 | Must |
-| TC-ONL-02 | Gß╗¡i tr├╣ng ─æ╞ín | ─É╞ín WEB-100 ─æ├ú nhß║¡n | Gß╗¡i lß║íi WEB-100 | Trß║ú ─æ╞ín c┼⌐, kh├┤ng giß╗» chß╗ù th├¬m | Must |
-| TC-ONL-03 | Chß╗» k├╜ HMAC sai | Bß║Ñt kß╗│ ─æ╞ín n├áo | HMAC sai | HTTP 401, kh├┤ng ghi ─æ╞ín | Must |
-| TC-ONL-04 | SKU ch╞░a ├ính xß║í | SKU k├¬nh ch╞░a c├│ ├ính xß║í nß╗Öi bß╗Ö | Webhook | ─É╞ín REJECTED, kh├┤ng giß╗» chß╗ù | Must |
-| TC-ONL-05 | Ph├ón bß╗ò chi nh├ính mß║╖c ─æß╗ïnh ─æß╗º tß╗ôn | CN mß║╖c ─æß╗ïnh ─æß╗º h├áng | Webhook | Ph├ón bß╗ò ─æ├║ng CN mß║╖c ─æß╗ïnh | Must |
-| TC-ONL-06 | Ph├ón bß╗ò CN kh├íc khi CN mß║╖c ─æß╗ïnh kh├┤ng ─æß╗º | CN mß║╖c ─æß╗ïnh thiß║┐u, CN2 ─æß╗º | Webhook | Ph├ón bß╗ò ─æ├║ng CN2 | Must |
-| TC-ONL-07 | Mß╗ìi CN ─æß╗üu kh├┤ng ─æß╗º | Kh├┤ng CN n├áo ─æß╗º tß╗ôn | Webhook | ─É╞ín REJECTED l├╜ do OUT_OF_STOCK | Must |
+| TC-ONL-01 | Đặt hàng hợp lệ – giữ chỗ | Khả dụng 10, đơn 3 cái | Webhook hợp lệ | Đơn RESERVED, reserved = 3, khả dụng = 7 | Must |
+| TC-ONL-02 | Gửi trùng đơn | Đơn WEB-100 đã nhận | Gửi lại WEB-100 | Trả đơn cũ, không giữ chỗ thêm | Must |
+| TC-ONL-03 | Chữ ký HMAC sai | Bất kỳ đơn nào | HMAC sai | HTTP 401, không ghi đơn | Must |
+| TC-ONL-04 | SKU chưa ánh xạ | SKU kênh chưa có ánh xạ nội bộ | Webhook | Đơn REJECTED, không giữ chỗ | Must |
+| TC-ONL-05 | Phân bổ chi nhánh mặc định đủ tồn | CN mặc định đủ hàng | Webhook | Phân bổ đúng CN mặc định | Must |
+| TC-ONL-06 | Phân bổ CN khác khi CN mặc định không đủ | CN mặc định thiếu, CN2 đủ | Webhook | Phân bổ đúng CN2 | Must |
+| TC-ONL-07 | Mọi CN đều không đủ | Không CN nào đủ tồn | Webhook | Đơn REJECTED lý do OUT_OF_STOCK | Must |
 
-### US-04 ┬╖ Hß║┐t hß║ín giß╗» chß╗ù (ORD-03)
+### US-04 · Hết hạn giữ chỗ (ORD-03)
 
-| ID | Ti├¬u ─æß╗ü | Given | When | Then | Mß╗⌐c ─æß╗Ö |
+| ID | Tiêu đề | Given | When | Then | Mức độ |
 |---|---|---|---|---|---|
-| TC-EXP-01 | ─É╞ín RESERVED qu├í 15 ph├║t | ─É╞ín RESERVED giß╗» 3, l├║c 10:00 | ─Éß║┐n 10:15+1 ph├║t | ─É╞ín EXPIRED, reserved giß║úm 3, k├¬nh nhß║¡n tß╗ôn mß╗¢i | Must |
-| TC-EXP-02 | Thanh to├ín trong hß║ín | ─É╞ín RESERVED | Thanh to├ín tr╞░ß╗¢c 15 ph├║t | ─É╞ín CONFIRMED, giß╗» chß╗ù giß╗» nguy├¬n | Must |
+| TC-EXP-01 | Đơn RESERVED quá 15 phút | Đơn RESERVED giữ 3, lúc 10:00 | Đến 10:15+1 phút | Đơn EXPIRED, reserved giảm 3, kênh nhận tồn mới | Must |
+| TC-EXP-02 | Thanh toán trong hạn | Đơn RESERVED | Thanh toán trước 15 phút | Đơn CONFIRMED, giữ chỗ giữ nguyên | Must |
 
-### US-05 ┬╖ ─Éß╗ông bß╗Ö tß╗ôn ra k├¬nh (SYNC-03)
+### US-05 · Đồng bộ tồn ra kênh (SYNC-03)
 
-| ID | Ti├¬u ─æß╗ü | Given | When | Then | Mß╗⌐c ─æß╗Ö |
+| ID | Tiêu đề | Given | When | Then | Mức độ |
 |---|---|---|---|---|---|
-| TC-SYNC-01 | Tß╗ôn ─æß║┐n k├¬nh sau giao dß╗ïch | Tß╗ôn thay ─æß╗òi | Commit giao dß╗ïch | K├¬nh nhß║¡n tß╗ôn mß╗¢i trong 1 ph├║t | Must |
-| TC-SYNC-02 | RabbitMQ dß╗½ng 5 ph├║t | RabbitMQ ngß║»t | Nhiß╗üu giao dß╗ïch xß║úy ra | Sau khi RabbitMQ chß║íy lß║íi, mß╗ìi cß║¡p nhß║¡t ─æ╞░ß╗úc gß╗¡i b├╣ | Must |
-| TC-SYNC-03 | Bß╗Å qua bß║ún version c┼⌐ | K├¬nh ─æ├ú c├│ version 5 | Nhß║¡n version 3 | K├¬nh bß╗Å qua, kh├┤ng cß║¡p nhß║¡t | Must |
+| TC-SYNC-01 | Tồn đến kênh sau giao dịch | Tồn thay đổi | Commit giao dịch | Kênh nhận tồn mới trong 1 phút | Must |
+| TC-SYNC-02 | RabbitMQ dừng 5 phút | RabbitMQ ngắt | Nhiều giao dịch xảy ra | Sau khi RabbitMQ chạy lại, mọi cập nhật được gửi bù | Must |
+| TC-SYNC-03 | Bỏ qua bản version cũ | Kênh đã có version 5 | Nhận version 3 | Kênh bỏ qua, không cập nhật | Must |
 
-### US-08 ┬╖ Ph├ón quyß╗ün theo chi nh├ính (AUTH-02, AC-04)
+### US-08 · Phân quyền theo chi nhánh (AUTH-02, AC-04)
 
-| ID | Ti├¬u ─æß╗ü | Given | When | Then | Mß╗⌐c ─æß╗Ö |
+| ID | Tiêu đề | Given | When | Then | Mức độ |
 |---|---|---|---|---|---|
-| TC-AUTH-01 | Thu ng├ón CN1 gß╗ìi API CN2 | Thu ng├ón g├ín CN1 | GET /orders?branchId=CN2 | HTTP 403 | Must |
-| TC-AUTH-02 | Thu ng├ón CN1 tß║ío ─æ╞ín tß║íi CN2 | Thu ng├ón g├ín CN1 | POST /orders branchId=CN2 | HTTP 403 | Must |
-| TC-AUTH-03 | Gß╗ìi API kh├┤ng c├│ token | Ch╞░a ─æ─âng nhß║¡p | Bß║Ñt kß╗│ protected endpoint | HTTP 401 | Must |
-| TC-AUTH-04 | Token hß║┐t hß║ín | JWT hß║┐t hß║ín 15 ph├║t | Gß╗ìi API | HTTP 401 | Must |
-| TC-AUTH-05 | Refresh token c├▓n hß║ín | Refresh token 7 ng├áy | POST /auth/refresh | Nhß║¡n access token mß╗¢i | Must |
-| TC-AUTH-06 | ─É─âng nhß║¡p sai 5 lß║ºn | Sai mß║¡t khß║⌐u 5 lß║ºn li├¬n tiß║┐p | Lß║ºn thß╗⌐ 6 | T├ái khoß║ún bß╗ï kh├│a 15 ph├║t | Must |
-| TC-AUTH-07 | Thu ng├ón kh├┤ng ─æß╗òi gi├í | Thu ng├ón CN1 | PUT /products/{id}/price | HTTP 403 | Must |
-| TC-AUTH-08 | Owner truy cß║¡p to├án chuß╗ùi | Owner | GET orders mß╗ìi chi nh├ính | HTTP 200 | Must |
-| TC-AUTH-09 | Nhß║¡t k├╜ ─æ─âng nhß║¡p thß║Ñt bß║íi | ─É─âng nhß║¡p sai | Sai mß║¡t khß║⌐u | audit_log c├│ bß║ún ghi | Must |
-| TC-AUTH-10 | Ng╞░ß╗¥i lß║¡p phiß║┐u kh├┤ng tß╗▒ duyß╗çt | Thß╗º kho A lß║¡p phiß║┐u | A tß╗▒ duyß╗çt | HTTP 422 / lß╗ùi nghiß╗çp vß╗Ñ | Must |
+| TC-AUTH-01 | Thu ngân CN1 gọi API CN2 | Thu ngân gán CN1 | GET /orders?branchId=CN2 | HTTP 403 | Must |
+| TC-AUTH-02 | Thu ngân CN1 tạo đơn tại CN2 | Thu ngân gán CN1 | POST /orders branchId=CN2 | HTTP 403 | Must |
+| TC-AUTH-03 | Gọi API không có token | Chưa đăng nhập | Bất kỳ protected endpoint | HTTP 401 | Must |
+| TC-AUTH-04 | Token hết hạn | JWT hết hạn 15 phút | Gọi API | HTTP 401 | Must |
+| TC-AUTH-05 | Refresh token còn hạn | Refresh token 7 ngày | POST /auth/refresh | Nhận access token mới | Must |
+| TC-AUTH-06 | Đăng nhập sai 5 lần | Sai mật khẩu 5 lần liên tiếp | Lần thứ 6 | Tài khoản bị khóa 15 phút | Must |
+| TC-AUTH-07 | Thu ngân không đổi giá | Thu ngân CN1 | PUT /products/{id}/price | HTTP 403 | Must |
+| TC-AUTH-08 | Owner truy cập toàn chuỗi | Owner | GET orders mọi chi nhánh | HTTP 200 | Must |
+| TC-AUTH-09 | Nhật ký đăng nhập thất bại | Đăng nhập sai | Sai mật khẩu | audit_log có bản ghi | Must |
+| TC-AUTH-10 | Người lập phiếu không tự duyệt | Thủ kho A lập phiếu | A tự duyệt | HTTP 422 / lỗi nghiệp vụ | Must |
 
 ---
 
-## 5. Kiß╗âm thß╗¡ bß║úo mß║¡t (NFR-05, NFR-06, NFR-07)
+## 5. Kiểm thử bảo mật (NFR-05, NFR-06, NFR-07)
 
-### 5.1 Checklist OWASP c╞í bß║ún
+### 5.1 Checklist OWASP cơ bản
 
-| # | Hß║íng mß╗Ñc | C├ích kiß╗âm tra | Kß║┐t quß║ú mong ─æß╗úi |
+| # | Hạng mục | Cách kiểm tra | Kết quả mong đợi |
 |---|---|---|---|
-| S-01 | SQL Injection | Truyß╗ün payload `' OR 1=1--` v├áo c├íc tr╞░ß╗¥ng t├¼m kiß║┐m | HTTP 400, kh├┤ng lß╗Ö dß╗» liß╗çu |
-| S-02 | JWT giß║ú mß║ío | Gß╗¡i token tß╗▒ k├╜ vß╗¢i secret giß║ú | HTTP 401 |
-| S-03 | JWT thiß║┐u chß╗» k├╜ | Gß╗¡i token `algorithm: none` | HTTP 401 |
-| S-04 | Stack trace trong lß╗ùi | Gß╗¡i request sai format | Lß╗ùi trß║ú vß╗ü chß╗ë c├│ `code`, `message`, kh├┤ng lß╗Ö stack trace |
-| S-05 | CORS | Request tß╗½ origin kh├┤ng cho ph├⌐p | CORS header chß║╖n |
-| S-06 | Th├┤ng tin nhß║íy cß║úm trong log | Xem log staging | Kh├┤ng c├│ password, secret key trong log |
-| S-07 | Secrets trong repo | Chß║íy `gitleaks detect` | 0 secrets found |
-| S-08 | Mß║¡t khß║⌐u hashing | Xem trß╗▒c tiß║┐p DB | Tr╞░ß╗¥ng password_hash l├á BCrypt (bß║»t ─æß║ºu `$2`) |
-| S-09 | HMAC webhook | Gß╗¡i ─æ╞ín vß╗¢i signature sai | HTTP 401, kh├┤ng ghi ─æ╞ín |
-| S-10 | Brute force login | 5 lß║ºn sai li├¬n tiß║┐p | T├ái khoß║ún kh├│a 15 ph├║t |
+| S-01 | SQL Injection | Truyền payload `' OR 1=1--` vào các trường tìm kiếm | HTTP 400, không lộ dữ liệu |
+| S-02 | JWT giả mạo | Gửi token tự ký với secret giả | HTTP 401 |
+| S-03 | JWT thiếu chữ ký | Gửi token `algorithm: none` | HTTP 401 |
+| S-04 | Stack trace trong lỗi | Gửi request sai format | Lỗi trả về chỉ có `code`, `message`, không lộ stack trace |
+| S-05 | CORS | Request từ origin không cho phép | CORS header chặn |
+| S-06 | Thông tin nhạy cảm trong log | Xem log staging | Không có password, secret key trong log |
+| S-07 | Secrets trong repo | Chạy `gitleaks detect` | 0 secrets found |
+| S-08 | Mật khẩu hashing | Xem trực tiếp DB | Trường password_hash là BCrypt (bắt đầu `$2`) |
+| S-09 | HMAC webhook | Gửi đơn với signature sai | HTTP 401, không ghi đơn |
+| S-10 | Brute force login | 5 lần sai liên tiếp | Tài khoản khóa 15 phút |
 
 ### 5.2 Gitleaks CI
 
-Cß║Ñu h├¼nh gitleaks chß║íy trong GitHub Actions khi mß╗ƒ PR v├áo `develop`.
+Cấu hình gitleaks chạy trong GitHub Actions khi mở PR vào `develop`.
 
 ---
 
-## 6. Kiß╗âm thß╗¡ hiß╗çu n─âng (NFR-01, NFR-02)
+## 6. Kiểm thử hiệu năng (NFR-01, NFR-02)
 
-### 6.1 Load test ΓÇô k6 (tests/load/)
+### 6.1 Load test – k6 (tests/load/)
 
-| Script | Mß╗Ñc ti├¬u | Ng╞░ß╗íng ─æß║ít |
+| Script | Mục tiêu | Ngưỡng đạt |
 |---|---|---|
-| `load-read-api.js` | API ─æß╗ìc vß╗¢i 50 VU ─æß╗ông thß╗¥i | p95 < 300 ms |
-| `load-create-order.js` | API tß║ío ─æ╞ín vß╗¢i 50 VU ─æß╗ông thß╗¥i | p95 < 500 ms |
-| `concurrency-stock.js` | 100 y├¬u cß║ºu ─æß╗ông thß╗¥i, tß╗ôn 5 | ─É├║ng 5 th├ánh c├┤ng, kh├┤ng tß╗ôn ├óm |
+| `load-read-api.js` | API đọc với 50 VU đồng thời | p95 < 300 ms |
+| `load-create-order.js` | API tạo đơn với 50 VU đồng thời | p95 < 500 ms |
+| `concurrency-stock.js` | 100 yêu cầu đồng thời, tồn 5 | Đúng 5 thành công, không tồn âm |
 
 ### 6.2 Integration test timing
 
-| H├ánh vi | Ng╞░ß╗íng |
+| Hành vi | Ngưỡng |
 |---|---|
-| Tß╗ôn mß╗¢i ─æß║┐n k├¬nh sau commit | < 1 ph├║t |
-| ─É╞ín EXPIRED sau 15 ph├║t ch╞░a thanh to├ín | < 1 ph├║t sau mß╗æc 15 ph├║t |
+| Tồn mới đến kênh sau commit | < 1 phút |
+| Đơn EXPIRED sau 15 phút chưa thanh toán | < 1 phút sau mốc 15 phút |
 
 ---
 
-## 7. Kß║┐ hoß║ích theo tuß║ºn
+## 7. Kế hoạch theo tuần
 
-| Tuß║ºn | Viß╗çc l├ám | Deliverable |
+| Tuần | Việc làm | Deliverable |
 |---|---|---|
-| **1** (28/10 ΓÇô 03/11) | Viß║┐t test plan, tß║ío cß║Ñu tr├║c th╞░ mß╗Ñc tests, thiß║┐t lß║¡p Postman collection khung, viß║┐t checklist security, khß╗ƒi tß║ío k6 skeleton | `docs/testing/test-plan.md`, `tests/api/greenmart.postman_collection.json`, `tests/load/*.js` (skeleton), `docs/testing/security-checklist.md` |
-| **2** (04/11 ΓÇô 10/11) | Viß║┐t Postman test cho AUTH, ORD, INV khi API sß║╡n s├áng; viß║┐t script k6 ─æß║ºy ─æß╗º; bß║»t ─æß║ºu Playwright skeleton | Collection ─æß║ºy ─æß╗º, k6 scripts, Playwright skeleton |
-| **3** (11/11 ΓÇô 17/11) | Chß║íy full test, viß║┐t b├ío c├ío lß╗ùi, thß╗▒c hiß╗çn security checklist OWASP, viß║┐t ma trß║¡n truy vß║┐t | `docs/testing/test-report.md`, `docs/testing/traceability-matrix.md` |
-| **4** (18/11 ΓÇô 24/11) | Regression test, chß║íy load test cuß╗æi, ho├án thiß╗çn b├ío c├ío kiß╗âm thß╗¡ cho demo | B├ío c├ío kiß╗âm thß╗¡ cuß╗æi |
+| **1** (28/10 – 03/11) | Viết test plan, tạo cấu trúc thư mục tests, thiết lập Postman collection khung, viết checklist security, khởi tạo k6 skeleton | `docs/testing/test-plan.md`, `tests/api/greenmart.postman_collection.json`, `tests/load/*.js` (skeleton), `docs/testing/security-checklist.md` |
+| **2** (04/11 – 10/11) | Viết Postman test cho AUTH, ORD, INV khi API sẵn sàng; viết script k6 đầy đủ; bắt đầu Playwright skeleton | Collection đầy đủ, k6 scripts, Playwright skeleton |
+| **3** (11/11 – 17/11) | Chạy full test, viết báo cáo lỗi, thực hiện security checklist OWASP, viết ma trận truy vết | `docs/testing/test-report.md`, `docs/testing/traceability-matrix.md` |
+| **4** (18/11 – 24/11) | Regression test, chạy load test cuối, hoàn thiện báo cáo kiểm thử cho demo | Báo cáo kiểm thử cuối |
 
 ---
 
-## 8. Quy tr├¼nh b├ío lß╗ùi
+## 8. Quy trình báo lỗi
 
-1. Ph├ít hiß╗çn lß╗ùi ΓåÆ mß╗ƒ Issue d├╣ng template `bug.md`.
-2. G├ín nh├ún `test`, g├ín milestone tuß║ºn, g├ín ng╞░ß╗¥i phß╗Ñ tr├ích module.
-3. Ghi r├╡: m├┤ tß║ú, b╞░ß╗¢c t├íi hiß╗çn, kß║┐t quß║ú mong ─æß╗úi, kß║┐t quß║ú thß╗▒c tß║┐, m├┤i tr╞░ß╗¥ng, mß╗⌐c ─æß╗Ö (chß║╖n demo / nghi├¬m trß╗ìng / nhß╗Å).
-4. Lß╗ùi mß╗⌐c "chß║╖n demo" ΓåÆ b├ío ngay qua daily hoß║╖c nhß║»n trß╗▒c tiß║┐p cho ng╞░ß╗¥i phß╗Ñ tr├ích.
-5. Sau khi fix ΓåÆ SV08 verify v├á ─æ├│ng issue.
+1. Phát hiện lỗi → mở Issue dùng template `bug.md`.
+2. Gán nhãn `test`, gán milestone tuần, gán người phụ trách module.
+3. Ghi rõ: mô tả, bước tái hiện, kết quả mong đợi, kết quả thực tế, môi trường, mức độ (chặn demo / nghiêm trọng / nhỏ).
+4. Lỗi mức "chặn demo" → báo ngay qua daily hoặc nhắn trực tiếp cho người phụ trách.
+5. Sau khi fix → SV08 verify và đóng issue.
 
 ---
 
 ## 9. Definition of Done cho QA
 
-- [ ] Mß╗ìi TC must-have trong kß║┐ hoß║ích n├áy ─æ├ú chß║íy v├á pass.
-- [ ] Kh├┤ng c├▓n lß╗ùi mß╗⌐c "chß║╖n demo" ch╞░a xß╗¡ l├╜.
-- [ ] Coverage report module `sales` v├á `inventory` ΓëÑ 70 %.
-- [ ] Gitleaks CI xanh (kh├┤ng c├│ secrets trong repo).
-- [ ] B├ío c├ío kiß╗âm thß╗¡ cß║¡p nhß║¡t trong `docs/testing/test-report.md`.
-- [ ] Ma trß║¡n truy vß║┐t ho├án chß╗ënh trong `docs/testing/traceability-matrix.md`.
+- [ ] Mọi TC must-have trong kế hoạch này đã chạy và pass.
+- [ ] Không còn lỗi mức "chặn demo" chưa xử lý.
+- [ ] Coverage report module `sales` và `inventory` ≥ 70 %.
+- [ ] Gitleaks CI xanh (không có secrets trong repo).
+- [ ] Báo cáo kiểm thử cập nhật trong `docs/testing/test-report.md`.
+- [ ] Ma trận truy vết hoàn chỉnh trong `docs/testing/traceability-matrix.md`.
 
 ---
 
-*T├ái liß╗çu n├áy sß║╜ ─æ╞░ß╗úc cß║¡p nhß║¡t sau mß╗ùi tuß║ºn khi c├│ th├¬m API sß║╡n s├áng ─æß╗â test.*
+*Tài liệu này sẽ được cập nhật sau mỗi tuần khi có thêm API sẵn sàng để test.*
