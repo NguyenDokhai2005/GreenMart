@@ -195,8 +195,10 @@ package "Kho" {
     * branch_id : BIGINT <<FK>>
     * product_id : BIGINT <<FK>>
     * type : IMPORT | EXPORT | SALE | RESERVE | RELEASE\n| RETURN | TRANSFER_OUT | TRANSFER_IN | ADJUST
-    * quantity : INT (±)
-    * balance_after : INT
+    * delta_on_hand : INT (±, = 0 khi RESERVE/RELEASE)
+    * on_hand_after : INT (≥ 0)
+    * delta_reserved : INT (±, = 0 khi IMPORT/EXPORT/ADJUST)
+    * reserved_after : INT (≥ 0)
     * ref_type : VARCHAR(30)
     * ref_id : BIGINT
     created_by : BIGINT <<FK>>
