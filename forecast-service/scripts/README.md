@@ -142,7 +142,7 @@ Tài liệu này đặc tả chi tiết toàn bộ các tham số cấu hình tr
 - **Tỷ lệ phát sinh**: Chiếm khoảng 1% đến 2% trên tổng số 10.000 đơn hàng hoàn tất.
 - **Trạng thái đơn hàng khi phát sinh trả hàng**:
   - *Trả toàn bộ đơn hàng*: Toàn bộ các dòng sản phẩm trong đơn được hoàn trả $\rightarrow$ đơn hàng chuyển sang trạng thái `RETURNED` (`sales_order.status = 'RETURNED'`).
-  - *Trả một phần*: Khách hàng chỉ trả một số lượng sản phẩm hoặc một vài dòng hàng $\rightarrow$ đơn hàng vẫn duy trì trạng thái `COMPLETED` (`sales_order.status = 'COMPLETED'`), hệ thống tạo phiếu trả hàng (`return_order`) và dòng trả hàng tương ứng để theo dõi.
+  - *Trả một phần*: Khách hàng chỉ trả một số lượng sản phẩm hoặc một vài dòng hàng $\rightarrow$ đơn hàng vẫn duy trì trạng thái `COMPLETED` (`sales_order.status = 'COMPLETED'`), hệ thống tạo phiếu trả hàng (`return_document`) và các dòng trả hàng (`return_item`) tương ứng để theo dõi.
 - **Ràng buộc trả hàng tươi sống (`FRESH_FOOD`)**: Theo quy định nghiêm ngặt tại **BR-10**, các sản phẩm thuộc ngành hàng thực phẩm tươi sống (`FRESH_FOOD`) chỉ được chấp nhận trả hàng khi có lý do chính đáng về **lỗi chất lượng** (hư hỏng, dập nát, ôi thiu, không đạt tiêu chuẩn vệ sinh an toàn thực phẩm). Khách hàng không được phép trả hàng tươi sống với lý do đổi ý hoặc nhu cầu cá nhân.
 - **Giá trị hoàn tiền**: Số tiền hoàn được tính theo **giá thực trả** của từng dòng sản phẩm. Nếu đơn hàng có áp dụng khuyến mại cấp đơn (`level = ORDER`), phần chiết khấu đơn hàng sẽ được phân bổ đều cho từng dòng sản phẩm theo tỷ lệ giá trị dòng:
   $$\text{Tiền hoàn} = \text{Số lượng trả} \times \left(\text{Đơn giá} - \text{KM dòng} - \frac{\text{KM đơn} \times \text{Thành tiền dòng}}{\text{Tổng tạm tính đơn}}\right)$$
