@@ -1,0 +1,10 @@
+{
+  "id": "greenmart-local",
+  "name": "GreenMart – Local",
+  "values": [
+    { "key": "baseUrl",      "value": "http://localhost:8080/api/v1", "enabled": true },
+    { "key": "mockUrl",      "value": "http://localhost:9090",         "enabled": true },
+    { "key": "WEB_SECRET",   "value": "CHANGE_ME",                    "enabled": true,
+      "description": "Secret HMAC của kênh WEB – lấy từ .env" }
+  ]
+}

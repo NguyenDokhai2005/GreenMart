@@ -1,0 +1,428 @@
+{
+  "info": {
+    "name": "GreenMart API Tests",
+    "description": "Bộ test API cho hệ thống GreenMart (DT03) – SV08 QA/Security.\nChạy với Newman: newman run greenmart.postman_collection.json -e environment.json",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl",     "value": "http://localhost:8080/api/v1" },
+    { "key": "mockUrl",     "value": "http://localhost:9090" },
+    { "key": "adminToken",  "value": "" },
+    { "key": "ownerToken",  "value": "" },
+    { "key": "managerToken","value": "" },
+    { "key": "cashierCN1Token", "value": "" },
+    { "key": "cashierCN2Token", "value": "" },
+    { "key": "storekeeperToken","value": "" }
+  ],
+  "item": [
+
+    {
+      "name": "00 – Setup: Login tất cả vai trò",
+      "item": [
+        {
+          "name": "Login – admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Có accessToken', () => pm.expect(json.accessToken).to.be.a('string'));",
+                  "pm.collectionVariables.set('adminToken', json.accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"admin\", \"password\": \"Admin@123\"}"
+            }
+          }
+        },
+        {
+          "name": "Login – cashier CN1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('cashierCN1Token', pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"cashier_cn1\", \"password\": \"Cashier@123\"}"
+            }
+          }
+        },
+        {
+          "name": "Login – cashier CN2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('cashierCN2Token', pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"cashier_cn2\", \"password\": \"Cashier@123\"}"
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "01 – AUTH: Xác thực và phân quyền",
+      "item": [
+        {
+          "name": "TC-AUTH-03 – Gọi API không có token → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('TC-AUTH-03: 401 khi không có token', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/orders"
+          }
+        },
+        {
+          "name": "TC-AUTH-06 – Brute force lockout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Chạy request này 6 lần liên tiếp; lần cuối phải nhận 429 hoặc 401 lockout",
+                  "const status = pm.response.status;",
+                  "pm.test('TC-AUTH-06: 401 hoặc 429 sau nhiều lần sai', () => {",
+                  "  pm.expect([401, 429]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"cashier_cn1\", \"password\": \"WrongPassword\"}"
+            }
+          }
+        },
+        {
+          "name": "TC-AUTH-01 – Thu ngân CN1 gọi API CN2 → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('TC-AUTH-01: 403 khi truy cập chi nhánh khác', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{cashierCN1Token}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/orders?branchId=2",
+              "host": ["{{baseUrl}}"],
+              "path": ["orders"],
+              "query": [{"key": "branchId", "value": "2"}]
+            }
+          }
+        },
+        {
+          "name": "TC-AUTH-07 – Thu ngân không đổi giá → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('TC-AUTH-07: 403 khi cashier cố đổi giá', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{cashierCN1Token}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": "{{baseUrl}}/products/1",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"salePrice\": 999999}"
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "02 – POS: Bán tại quầy",
+      "item": [
+        {
+          "name": "TC-POS-07 – Tiền mặt < tổng → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('TC-POS-07: 400 hoặc 422 khi tiền đưa < tổng', () => {",
+                  "  pm.expect([400, 422]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{cashierCN1Token}}"},
+              {"key": "Content-Type",  "value": "application/json"},
+              {"key": "Idempotency-Key", "value": "test-pos-07-001"}
+            ],
+            "url": "{{baseUrl}}/orders/pos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"branchId\": 1,\n  \"items\": [{\"productId\": 1, \"quantity\": 1}],\n  \"payment\": {\"method\": \"CASH\", \"amountTendered\": 1}\n}"
+            }
+          }
+        },
+        {
+          "name": "TC-POS-03 – Idempotency: gửi 2 lần cùng key → chỉ 1 đơn",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Chạy request này 2 lần với cùng Idempotency-Key",
+                  "pm.test('TC-POS-03: 200 hoặc 201 (idempotent)', () => {",
+                  "  pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test('Có orderId', () => pm.expect(json.id || json.orderId).to.exist);",
+                  "// Lưu orderId để lần 2 so sánh",
+                  "if (!pm.collectionVariables.get('idempotentOrderId')) {",
+                  "  pm.collectionVariables.set('idempotentOrderId', json.id || json.orderId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization",   "value": "Bearer {{cashierCN1Token}}"},
+              {"key": "Content-Type",    "value": "application/json"},
+              {"key": "Idempotency-Key", "value": "test-idem-key-fixed-001"}
+            ],
+            "url": "{{baseUrl}}/orders/pos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"branchId\": 1,\n  \"items\": [{\"productId\": 1, \"quantity\": 1}],\n  \"payment\": {\"method\": \"CASH\", \"amountTendered\": 999999}\n}"
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "03 – Online: Đơn từ kênh",
+      "item": [
+        {
+          "name": "TC-ONL-03 – Webhook HMAC sai → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('TC-ONL-03: 401 khi HMAC sai', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type",  "value": "application/json"},
+              {"key": "X-Signature",   "value": "sha256=invalidsignaturevalue"}
+            ],
+            "url": "{{baseUrl}}/integrations/WEB/orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"externalOrderId\": \"WEB-TEST-401\",\n  \"items\": [{\"externalSku\": \"SKU-001\", \"quantity\": 1, \"unitPrice\": 10000}],\n  \"customer\": {\"name\": \"Test\", \"phone\": \"0900000001\"},\n  \"paymentMethod\": \"COD\"\n}"
+            }
+          }
+        },
+        {
+          "name": "TC-ONL-02 – Gửi trùng đơn → trả đơn cũ",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Phải gửi đơn WEB-DUPLICATE-001 lần đầu thành công trước, rồi chạy lại request này",
+                  "pm.test('TC-ONL-02: 200 kèm đơn cũ (không tạo mới)', () => {",
+                  "  pm.expect([200]).to.include(pm.response.code);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test('externalOrderId khớp đơn cũ', () => {",
+                  "  pm.expect(json.externalOrderId || json.channelOrderId).to.equal('WEB-DUPLICATE-001');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {
+                "key": "X-Signature",
+                "value": "{{WEB_HMAC_SIGNATURE}}",
+                "description": "Thay bằng HMAC thật hoặc dùng pre-request script"
+              }
+            ],
+            "url": "{{baseUrl}}/integrations/WEB/orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"externalOrderId\": \"WEB-DUPLICATE-001\",\n  \"items\": [{\"externalSku\": \"SKU-001\", \"quantity\": 1, \"unitPrice\": 10000}],\n  \"customer\": {\"name\": \"Test\", \"phone\": \"0900000002\"},\n  \"paymentMethod\": \"COD\"\n}"
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "04 – Security: OWASP cơ bản",
+      "item": [
+        {
+          "name": "S-01 – SQL Injection tìm kiếm sản phẩm",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('S-01: Không lỗi 500 khi SQL injection', () => {",
+                  "  pm.expect(pm.response.code).to.not.equal(500);",
+                  "});",
+                  "pm.test('S-01: Response không chứa stack trace', () => {",
+                  "  const text = pm.response.text();",
+                  "  pm.expect(text).to.not.include('at org.springframework');",
+                  "  pm.expect(text).to.not.include('java.sql');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/products?search=%27+OR+1%3D1--",
+              "host": ["{{baseUrl}}"],
+              "path": ["products"],
+              "query": [{"key": "search", "value": "' OR 1=1--"}]
+            }
+          }
+        },
+        {
+          "name": "S-04 – Stack trace không lộ",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('S-04: Không lộ stack trace', () => {",
+                  "  const text = pm.response.text();",
+                  "  pm.expect(text).to.not.include('at org.springframework');",
+                  "  pm.expect(text).to.not.include('Caused by');",
+                  "});",
+                  "pm.test('S-04: Body có field code và message', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('code');",
+                  "  pm.expect(json).to.have.property('message');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{adminToken}}"},
+              {"key": "Content-Type",  "value": "application/json"}
+            ],
+            "url": "{{baseUrl}}/orders/pos",
+            "body": {
+              "mode": "raw",
+              "raw": "INVALID JSON {"
+            }
+          }
+        },
+        {
+          "name": "I-06 – Số lượng âm trong đơn → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('I-06: 400 khi quantity âm', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization",   "value": "Bearer {{cashierCN1Token}}"},
+              {"key": "Content-Type",    "value": "application/json"},
+              {"key": "Idempotency-Key", "value": "test-neg-qty-001"}
+            ],
+            "url": "{{baseUrl}}/orders/pos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"branchId\": 1,\n  \"items\": [{\"productId\": 1, \"quantity\": -5}],\n  \"payment\": {\"method\": \"CASH\", \"amountTendered\": 0}\n}"
+            }
+          }
+        }
+      ]
+    }
+
+  ]
+}
