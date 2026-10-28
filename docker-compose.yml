@@ -38,6 +38,7 @@ services:
   rabbitmq:
     <<: *common
     image: rabbitmq:3.13.7-management-alpine
+    command: [sh, /etc/rabbitmq/bootstrap.sh]
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?Set RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?Set RABBITMQ_DEFAULT_PASS}
@@ -45,6 +46,7 @@ services:
       - rabbitdata:/var/lib/rabbitmq
       - ./infra/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
       - ./infra/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+      - ./infra/rabbitmq/bootstrap.sh:/etc/rabbitmq/bootstrap.sh:ro
     healthcheck:
       test: [CMD, rabbitmq-diagnostics, -q, ping]
       interval: 10s
