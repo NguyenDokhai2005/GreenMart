@@ -26,7 +26,7 @@ if ($CheckBrokerFailure) {
         docker compose stop rabbitmq
         if ($LASTEXITCODE -ne 0) { throw 'Could not stop RabbitMQ' }
         Assert-Health '/actuator/health' 503 'DOWN'
-        Assert-Health '/actuator/health/readiness' 503 'DOWN'
+        Assert-Health '/actuator/health/readiness' 200 'UP'
         Assert-Health '/actuator/health/liveness' 200 'UP'
     } finally {
         docker compose start rabbitmq
@@ -42,4 +42,5 @@ if ($CheckBrokerFailure) {
     }
     if (-not $recovered) { throw 'Health did not recover after RabbitMQ restart' }
     Assert-Health '/actuator/health' 200 'UP'
+    Assert-Health '/actuator/health/readiness' 200 'UP'
 }

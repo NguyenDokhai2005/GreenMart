@@ -75,9 +75,10 @@ docker compose ps
 pwsh -File scripts/check-health.ps1
 ```
 
-Mong đợi: 5 service `healthy`; health tổng hợp và readiness trả HTTP 200/UP khi
-DB, Redis, RabbitMQ truy cập được. Liveness chỉ kiểm tra tiến trình sống; broker
-lỗi không làm liveness lỗi. Chỉ phơi health/info, `/actuator/env` trả 404.
+Health tổng hợp trả HTTP 200/UP khi DB, Redis, RabbitMQ truy cập được.
+Readiness chỉ gồm `readinessState,db,redis`: RabbitMQ lỗi không làm readiness
+lỗi nếu backend, DB và Redis vẫn sẵn sàng. Liveness chỉ kiểm tra tiến trình sống.
+Chỉ phơi health/info, `/actuator/env` trả 404.
 Không phơi thông tin chi tiết kết nối hoặc stack trace.
 
 Kiểm tra sự cố broker trên môi trường phát triển riêng:
@@ -86,9 +87,20 @@ Kiểm tra sự cố broker trên môi trường phát triển riêng:
 pwsh -File scripts/check-health.ps1 -CheckBrokerFailure
 ```
 
-Script dừng RabbitMQ, kiểm tra health/readiness 503/DOWN và liveness 200/UP,
+Script dừng RabbitMQ, kiểm tra health tổng hợp 503/DOWN nhưng readiness và
+liveness vẫn 200/UP,
 khởi động lại trong `finally`, rồi đợi health phục hồi. Không chạy khi người khác
 đang dùng chung môi trường. Đây chưa phải bài kiểm tra outbox EX-12 (#138).
+
+Theo thiết kế outbox, giao dịch và sự kiện chờ gửi được lưu trong DB; broker
+phục hồi thì bộ gửi xử lý tiếp. Readiness độc lập RabbitMQ không thay thế việc
+triển khai và kiểm thử outbox EX-12.
+
+Sau khi PR #182/#183 được tích hợp, healthcheck backend trong Dockerfile và
+Compose phải dùng `/actuator/health/readiness` để broker lỗi không đánh dấu
+backend `unhealthy`. Các file này chưa có trên nhánh PR #186. Việc gộp cấu hình
+`management.*` vào `application.yml` và xóa `application.properties` (#192) chờ
+PR #182 merge, sau đó rebase nhánh này lên `develop`.
 
 ## Chạy từng phần trong lúc chờ frontend
 
