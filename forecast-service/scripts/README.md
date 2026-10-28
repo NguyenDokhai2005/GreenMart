@@ -1,6 +1,6 @@
 # Hướng dẫn và Đặc tả Tham số Sinh dữ liệu (forecast-service)
 
-Tài liệu này đặc tả chi tiết toàn bộ các tham số cấu hình trong [`config.py`](file:///c:/UTH/HK10/HKDN/GreenMart/forecast-service/scripts/config.py) phục vụ công việc thiết kế tham số sinh dữ liệu giả lập lịch sử 12 tháng của GreenMart (thuộc **Issue #105**), làm tiền đề cho script sinh dữ liệu (thuộc **Issue #106**).
+Tài liệu này đặc tả chi tiết toàn bộ các tham số cấu hình trong [config.py](config.py) phục vụ công việc thiết kế tham số sinh dữ liệu giả lập lịch sử 12 tháng của GreenMart (thuộc **Issue #105**), làm tiền đề cho script sinh dữ liệu (thuộc **Issue #106**).
 
 ---
 
@@ -49,7 +49,7 @@ Tài liệu này đặc tả chi tiết toàn bộ các tham số cấu hình tr
 | `COMPLETED_ONLINE_ORDERS`| `int` | `3_000` | Đã xác nhận | Số đơn online hoàn tất (2.000 đơn WEB + 1.000 đơn MARKET). |
 | `BRANCH_RATIOS` | `Dict[str, float]` | GM-001: 45%, GM-002: 35%, GM-003: 20% | Đã xác nhận | Tỷ lệ phân bổ đơn hàng theo chi nhánh trên toàn chuỗi (tổng = 1.0). |
 | `CHANNEL_SERVICE_BRANCHES` | `Dict[str, List[str]]`| POS, WEB, MARKET: [GM-001, GM-002, GM-003] | Đã xác nhận (ERD `channel_branch`) | Danh sách các chi nhánh có năng lực phục vụ giao hàng cho từng kênh. |
-| `CHANNEL_DEFAULT_BRANCH` | `Dict[str, str]` | WEB: GM-001, MARKET: GM-001 | Giả định thiết kế | Chi nhánh mặc định ưu tiên kiểm tra tồn kho khi đơn hàng online được gửi đến (BR-14). Việc gán tạm thời GM-001 cho cả WEB và MARKET là giả định thiết kế (không thể chỉ dựa vào tỷ trọng đơn hàng 45% để khẳng định là quy định chính thức) và cần SV01/BA xác nhận trước khi Issue #106 chốt seed data. |
+| `CHANNEL_DEFAULT_BRANCH` | `Dict[str, str]` | WEB: GM-001, MARKET: GM-002 | Đã xác nhận (SV01) | Chi nhánh mặc định ưu tiên kiểm tra tồn kho khi đơn hàng online được gửi đến (BR-14): kênh WEB mặc định GM-001 (Quận 1), kênh MARKET mặc định GM-002 (Bình Thạnh) theo quyết định đã được SV01 xác nhận. |
 | `ORDER_ITEMS_RANGE` | `Tuple[int, int]` | `(3, 8)` dòng hàng | Đã xác nhận | Số lượng mặt hàng (line items) trong mỗi giỏ hàng. |
 | `ITEM_QUANTITY_RANGE` | `Tuple[int, int]` | `(1, 5)` sản phẩm | Đã xác nhận | Số lượng sản phẩm mua trên mỗi dòng hàng. |
 
@@ -113,6 +113,11 @@ Tài liệu này đặc tả chi tiết toàn bộ các tham số cấu hình tr
   1. *Hết hàng giữa ngày*: Một SKU bán được một phần nhu cầu trong ngày, sau đó tồn kho thực tế chạm 0 (`on_hand = 0`). Các đơn hàng tiếp theo trong ngày chứa SKU này sẽ không được đáp ứng.
   2. *Cạn kho cả ngày*: Toàn bộ ngày tiếp theo không có doanh số cho SKU đó cho đến khi có phiếu nhập kho (`IMPORT`) hoặc chuyển kho (`TRANSFER_IN`).
 - **Thời lượng và tần suất**: Kéo dài từ 1 đến 3 ngày, chỉ áp dụng cho nhóm 200 SKU bán chạy với tần suất 2%–3% tổng số ngày trong năm (khoảng 7–11 ngày/năm).
+- **Định nghĩa cờ Stockout trong dữ liệu**: Cột `daily_sales.stockout = true` được xác định khi tồn khả dụng ($\text{on\_hand} - \text{reserved}$) của sản phẩm tại chi nhánh chạm 0 tại bất kỳ thời điểm nào trong ngày, được tính toán dựa trên chuỗi biến động số dư trong sổ giao dịch kho `inventory_transaction`.
+- **Ý nghĩa mô hình hóa (Censored Demand)**: Ngày xảy ra stockout đại diện cho hiện tượng **nhu cầu bị cắt cụt (censored demand)** — số lượng bán thực tế ghi nhận được chỉ phản ánh lượng hàng có sẵn trong kho, không phản ánh toàn bộ nhu cầu thực tế của khách hàng. Trong quy trình xây dựng mô hình AI dự báo nhu cầu (Issue #106 trở đi), các bản ghi có `stockout = true` có thể được xử lý bằng cách:
+  - Loại bỏ khỏi tập dữ liệu huấn luyện (training set) để tránh làm mô hình học sai lệch xu hướng nhu cầu;
+  - Hoặc đưa vào mô hình dưới dạng đặc trưng nhị phân (binary feature) để mô hình nhận biết trạng thái đứt gãy nguồn cung.
+  - Tuyệt đối **không diễn giải doanh số thấp trong ngày stockout là nhu cầu thị trường suy giảm**.
 
 ### 3.2 Vòng đời đơn online & Cơ chế tồn kho RESERVE / RELEASE (BR-01, BR-03, BR-04)
 1. **Khởi tạo đơn (`NEW` $\rightarrow$ `RESERVED`)**:
@@ -135,13 +140,19 @@ Tài liệu này đặc tả chi tiết toàn bộ các tham số cấu hình tr
 ### 3.3 Quy tắc trả hàng (BR-10)
 - **Thời hạn hợp lệ**: Khách hàng chỉ được phép trả hàng trong vòng 7 ngày kể từ thời điểm đơn hàng đạt trạng thái `COMPLETED`.
 - **Tỷ lệ phát sinh**: Chiếm khoảng 1% đến 2% trên tổng số 10.000 đơn hàng hoàn tất.
+- **Trạng thái đơn hàng khi phát sinh trả hàng**:
+  - *Trả toàn bộ đơn hàng*: Toàn bộ các dòng sản phẩm trong đơn được hoàn trả $\rightarrow$ đơn hàng chuyển sang trạng thái `RETURNED` (`sales_order.status = 'RETURNED'`).
+  - *Trả một phần*: Khách hàng chỉ trả một số lượng sản phẩm hoặc một vài dòng hàng $\rightarrow$ đơn hàng vẫn duy trì trạng thái `COMPLETED` (`sales_order.status = 'COMPLETED'`), hệ thống tạo phiếu trả hàng (`return_order`) và dòng trả hàng tương ứng để theo dõi.
+- **Ràng buộc trả hàng tươi sống (`FRESH_FOOD`)**: Theo quy định nghiêm ngặt tại **BR-10**, các sản phẩm thuộc ngành hàng thực phẩm tươi sống (`FRESH_FOOD`) chỉ được chấp nhận trả hàng khi có lý do chính đáng về **lỗi chất lượng** (hư hỏng, dập nát, ôi thiu, không đạt tiêu chuẩn vệ sinh an toàn thực phẩm). Khách hàng không được phép trả hàng tươi sống với lý do đổi ý hoặc nhu cầu cá nhân.
 - **Giá trị hoàn tiền**: Số tiền hoàn được tính theo **giá thực trả** của từng dòng sản phẩm. Nếu đơn hàng có áp dụng khuyến mại cấp đơn (`level = ORDER`), phần chiết khấu đơn hàng sẽ được phân bổ đều cho từng dòng sản phẩm theo tỷ lệ giá trị dòng:
   $$\text{Tiền hoàn} = \text{Số lượng trả} \times \left(\text{Đơn giá} - \text{KM dòng} - \frac{\text{KM đơn} \times \text{Thành tiền dòng}}{\text{Tổng tạm tính đơn}}\right)$$
 - **Ràng buộc thời gian**: Không được phép phát sinh phiếu trả hàng có mốc thời gian vượt quá `31/10/2026 23:59:59` (`ALLOW_RETURNS_AFTER_END_DATE = False`). Các đơn hoàn tất vào cuối tháng 10/2026 nếu có trả hàng phải diễn ra trước ranh giới này.
 
 ### 3.4 Quy tắc phân bổ đơn online theo chi nhánh (BR-14)
 Hệ thống xử lý đơn từ kênh WEB và MARKET theo thứ tự ưu tiên nghiêm ngặt (nguyên tắc **không tách đơn**):
-1. **Ưu tiên 1 (Chi nhánh mặc định)**: Kiểm tra tồn khả dụng tại chi nhánh mặc định của kênh (`default_branch_id`). Nếu chi nhánh mặc định có đủ tồn khả dụng cho tất cả các mặt hàng trong đơn $\rightarrow$ phân bổ đơn về chi nhánh này. *(Lưu ý: Việc gán `GM-001` làm chi nhánh mặc định trong cấu hình hiện tại chỉ là giả định thiết kế ban đầu dựa trên quy mô chi nhánh, cần SV01/BA xác nhận chính thức trước khi áp dụng).*
+1. **Ưu tiên 1 (Chi nhánh mặc định)**: Kiểm tra tồn khả dụng tại chi nhánh mặc định của kênh (`default_branch_id`). Nếu chi nhánh mặc định có đủ tồn khả dụng cho tất cả các mặt hàng trong đơn $\rightarrow$ phân bổ đơn về chi nhánh này. Theo quyết định chính thức đã được SV01 xác nhận:
+   - Kênh **WEB** có chi nhánh mặc định là **`GM-001`** (Quận 1).
+   - Kênh **MARKET** (sàn TMĐT) có chi nhánh mặc định là **`GM-002`** (Bình Thạnh).
 2. **Ưu tiên 2 (Chi nhánh phục vụ có tồn khả dụng cao nhất)**: Nếu chi nhánh mặc định không đủ hàng, hệ thống quét danh sách các chi nhánh phục vụ kênh (`channel_branch`) có đủ tồn cho mọi dòng sản phẩm. Chọn chi nhánh có **tổng tồn khả dụng lớn nhất** để tiếp nhận đơn.
 3. **Ưu tiên 3 (Từ chối đơn)**: Nếu trong toàn bộ chuỗi không có bất kỳ chi nhánh nào đáp ứng đủ 100% giỏ hàng $\rightarrow$ đơn bị từ chối với trạng thái `REJECTED`. Hệ thống tuyệt đối không chia nhỏ đơn để giao từ nhiều nơi.
 

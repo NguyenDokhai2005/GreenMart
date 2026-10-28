@@ -150,10 +150,10 @@ CHANNEL_SERVICE_BRANCHES: Dict[str, List[str]] = {
 }
 
 # Chi nhánh mặc định (default_branch_id) cho kênh online khi khởi tạo đơn (BR-14)
-# Lưu ý: Đây là cấu hình giả định thiết kế ưu tiên chi nhánh có năng lực phục vụ lớn nhất
+# Đã được SV01 xác nhận: WEB -> GM-001 (Quận 1), MARKET -> GM-002 (Bình Thạnh)
 CHANNEL_DEFAULT_BRANCH: Dict[str, str] = {
     "WEB": "GM-001",
-    "MARKET": "GM-001",
+    "MARKET": "GM-002",
 }
 
 # Quy cách giỏ hàng trên mỗi đơn:

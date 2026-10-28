@@ -200,6 +200,14 @@ class TestConfig(unittest.TestCase):
             self.assertIn(ch, {"WEB", "MARKET"})
             self.assertIn(default_b, ratios.keys())
 
+        # Xác nhận chính xác mapping chi nhánh mặc định cho kênh online đã được SV01 xác nhận
+        self.assertEqual(
+            config.CHANNEL_DEFAULT_BRANCH,
+            {"WEB": "GM-001", "MARKET": "GM-002"},
+        )
+        self.assertEqual(config.CHANNEL_DEFAULT_BRANCH["WEB"], "GM-001")
+        self.assertEqual(config.CHANNEL_DEFAULT_BRANCH["MARKET"], "GM-002")
+
     def test_failed_online_orders_and_rates(self):
         """Kiểm tra các tham số đơn online thất bại (200 đơn: 80 CANCELLED, 80 EXPIRED, 40 REJECTED)."""
         self.assertEqual(config.FAILED_ONLINE_BASE, "COMPLETED_ONLINE")
