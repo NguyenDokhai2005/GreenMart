@@ -36,5 +36,7 @@ Mỗi thư mục có README ghi rõ nội dung và người phụ trách.
 Xem [CONTRIBUTING.md](CONTRIBUTING.md). Việc của từng người nằm trong Issues, chia theo 4 milestone (tuần).
 
 ## Chạy dự án
+Xem [hướng dẫn quản lý biến môi trường và secrets](docs/operations/SECRETS.md).
+
 1. Sao chép `.env.example` thành `.env` và điền giá trị.
 2. Chạy `docker compose up` (có sau khi SV07 hoàn thành `docker-compose.yml`, hạn 03/11).
