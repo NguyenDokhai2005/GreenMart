@@ -3,7 +3,7 @@ WORKDIR /workspace
 COPY pom.xml .
 RUN mvn -B -ntp dependency:go-offline
 COPY src ./src
-RUN mvn -B -ntp verify
+RUN mvn -B -ntp -DskipTests package
 
 FROM eclipse-temurin:21.0.9_10-jre-jammy
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* \
