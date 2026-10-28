@@ -1,0 +1,1335 @@
+openapi: 3.0.3
+info:
+  title: GreenMart API
+  version: 1.0.0
+  description: |
+    Hợp đồng REST API nội bộ của GreenMart (đề tài DT03). Nguồn nghiệp vụ: `docs/requirements/SRS.md`,
+    nguồn dữ liệu: `docs/design/erd`.
+
+    **Phạm vi v1:** xác thực, chi nhánh, danh mục, sản phẩm, khách hàng, bán tại quầy (POS) và xem tồn kho.
+    Đơn online, webhook kênh, phiếu kho, khuyến mại, trả hàng, báo cáo và dự báo nằm trong v2 (04/11).
+
+    **Quy ước chung (SRS 8.2)**
+    - JSON, tên trường camelCase, thời gian ISO 8601 có múi giờ (`2026-11-05T09:30:00+07:00`).
+    - Tiền là số nguyên VND, không có phần thập phân.
+    - Xác thực bằng header `Authorization: Bearer <accessToken>`; access token 15 phút, refresh token 7 ngày.
+    - Phân trang `?page=0&size=20&sort=field,asc|desc`; `page` bắt đầu từ 0, `size` tối đa 100.
+    - Mọi lỗi dùng chung định dạng `ErrorResponse`; danh sách mã lỗi ở cuối mô tả này.
+
+    **Phân quyền (BR-11, AUTH-02)**
+    - Vai trò cho phép ghi ở `x-roles` của từng endpoint. Không ghi `x-roles` nghĩa là mọi người đã đăng nhập.
+    - Request có `branchId` chỉ hợp lệ với chi nhánh được gán cho người dùng; ADMIN và OWNER dùng được mọi chi nhánh.
+      Sai chi nhánh trả 403 `BRANCH_FORBIDDEN` và được ghi nhật ký.
+    - `costPrice` chỉ trả về cho ADMIN, OWNER, BRANCH_MANAGER; vai trò khác nhận `null`.
+
+    **Mã lỗi (`ErrorResponse.code`)**
+
+    | HTTP | code | Khi nào |
+    | --- | --- | --- |
+    | 400 | VALIDATION_ERROR | Dữ liệu sai định dạng; `details` là danh sách `{field, message}` |
+    | 401 | UNAUTHORIZED | Thiếu token, token sai hoặc hết hạn |
+    | 401 | INVALID_CREDENTIALS | Sai tên đăng nhập hoặc mật khẩu |
+    | 401 | ACCOUNT_LOCKED | Khóa 15 phút sau 5 lần sai; `details.lockedUntil` |
+    | 401 | INVALID_REFRESH_TOKEN | Refresh token sai, hết hạn hoặc đã thu hồi |
+    | 403 | FORBIDDEN | Vai trò không đủ quyền |
+    | 403 | BRANCH_FORBIDDEN | Thao tác trên chi nhánh không được gán |
+    | 404 | NOT_FOUND | Không tìm thấy tài nguyên |
+    | 409 | DUPLICATE_SKU / DUPLICATE_BARCODE / DUPLICATE_PHONE | Trùng giá trị duy nhất |
+    | 409 | INSUFFICIENT_STOCK | Không đủ tồn khả dụng; `details.lines` liệt kê dòng thiếu |
+    | 409 | IDEMPOTENCY_CONFLICT | Cùng `Idempotency-Key` nhưng nội dung khác, hoặc request trước chưa xử lý xong |
+    | 409 | CATEGORY_IN_USE | Xóa danh mục còn sản phẩm hoặc danh mục con |
+    | 422 | PRODUCT_INACTIVE | Bán sản phẩm đã ngừng bán |
+    | 422 | TOTAL_CHANGED | Tổng tính lại khác `expectedTotal` (KM hết hạn/hết lượt, đổi giá); `details.quote` là báo giá mới |
+    | 422 | CASH_INSUFFICIENT | Tiền khách đưa nhỏ hơn tổng |
+    | 422 | PAYMENT_FAILED / PAYMENT_TIMEOUT | Thanh toán thẻ/QR thất bại hoặc quá 60 giây |
+    | 422 | MANUAL_DISCOUNT_FORBIDDEN | Giảm giá tay không phải QL chi nhánh hoặc thiếu lý do (BR-19) |
+    | 422 | CATEGORY_CYCLE | Đặt danh mục cha tạo vòng lặp |
+    | 422 | WRONG_PASSWORD | Mật khẩu hiện tại sai khi đổi mật khẩu |
+  contact:
+    name: SV01 – BA/Lead
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Docker Compose trên máy
+  - url: /api/v1
+    description: Qua nginx của frontend
+tags:
+  - name: Auth
+    description: Đăng nhập, làm mới token, thông tin người dùng (AUTH-01, NFR-05, NFR-06)
+  - name: Branches
+    description: Chi nhánh người dùng được làm việc
+  - name: Categories
+    description: Danh mục cha–con (PRD-01)
+  - name: Products
+    description: Sản phẩm (PRD-01, PRD-02)
+  - name: Customers
+    description: Khách hàng (CUS-01, CUS-02)
+  - name: Orders
+    description: Báo giá, bán tại quầy, tra cứu đơn (ORD-01, ORD-06, ORD-07, PAY-01, PRM-02)
+  - name: Inventory
+    description: Tồn kho và sổ giao dịch kho (INV-01, INV-06)
+security:
+  - bearerAuth: []
+
+paths:
+  # ------------------------------------------------------------------ Auth
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Đăng nhập
+      description: Sai 5 lần liên tiếp thì khóa tài khoản 15 phút; mỗi lần sai được ghi nhật ký (AUTH-03).
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+            example: { username: thungan.gm001, password: 'Demo@123' }
+      responses:
+        '200':
+          description: Đăng nhập thành công
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401':
+          description: INVALID_CREDENTIALS hoặc ACCOUNT_LOCKED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              examples:
+                invalid:
+                  value: { code: INVALID_CREDENTIALS, message: Sai tên đăng nhập hoặc mật khẩu, details: { remainingAttempts: 3 }, traceId: 7f3c2a91 }
+                locked:
+                  value: { code: ACCOUNT_LOCKED, message: Tài khoản tạm khóa do đăng nhập sai nhiều lần, details: { lockedUntil: '2026-11-05T09:45:00+07:00' }, traceId: 7f3c2a92 }
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Làm mới access token
+      description: Trả cặp token mới; refresh token cũ bị thu hồi (xoay vòng).
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200':
+          description: Token mới
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Đăng xuất
+      description: Thu hồi refresh token. Access token hết hạn tự nhiên sau tối đa 15 phút.
+      operationId: logout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '204': { description: Đã đăng xuất }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Thông tin người dùng hiện tại
+      description: Frontend dùng để dựng menu theo vai trò và danh sách chi nhánh được chọn.
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Người dùng hiện tại
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CurrentUser' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Đổi mật khẩu
+      description: Mật khẩu mới tối thiểu 8 ký tự, có chữ và số. Đổi xong thu hồi mọi refresh token của người dùng.
+      operationId: changePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePasswordRequest' }
+      responses:
+        '204': { description: Đã đổi mật khẩu }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/BusinessRule' }
+
+  # ------------------------------------------------------------------ Branches
+  /branches:
+    get:
+      tags: [Branches]
+      summary: Danh sách chi nhánh
+      description: ADMIN, OWNER thấy mọi chi nhánh; vai trò khác chỉ thấy chi nhánh được gán.
+      operationId: listBranches
+      parameters:
+        - name: active
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Danh sách chi nhánh
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Branch' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ------------------------------------------------------------------ Categories
+  /categories:
+    get:
+      tags: [Categories]
+      summary: Danh sách danh mục
+      description: Trả danh sách phẳng có `parentId`; frontend tự dựng cây.
+      operationId: listCategories
+      responses:
+        '200':
+          description: Danh sách danh mục
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Category' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Categories]
+      summary: Tạo danh mục
+      operationId: createCategory
+      x-roles: [OWNER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryRequest' }
+      responses:
+        '201':
+          description: Đã tạo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /categories/{categoryId}:
+    parameters:
+      - $ref: '#/components/parameters/CategoryId'
+    put:
+      tags: [Categories]
+      summary: Sửa danh mục
+      operationId: updateCategory
+      x-roles: [OWNER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryRequest' }
+      responses:
+        '200':
+          description: Đã sửa
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/BusinessRule' }
+    delete:
+      tags: [Categories]
+      summary: Xóa danh mục
+      description: Chỉ xóa được danh mục không còn sản phẩm và không có danh mục con.
+      operationId: deleteCategory
+      x-roles: [OWNER]
+      responses:
+        '204': { description: Đã xóa }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  # ------------------------------------------------------------------ Products
+  /products:
+    get:
+      tags: [Products]
+      summary: Tìm sản phẩm
+      operationId: listProducts
+      parameters:
+        - name: q
+          in: query
+          description: Tìm theo tên, SKU hoặc barcode (không phân biệt hoa thường)
+          schema: { type: string }
+        - name: categoryId
+          in: query
+          description: Gồm cả danh mục con
+          schema: { type: integer, format: int64 }
+        - name: active
+          in: query
+          schema: { type: boolean }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: Trang sản phẩm
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Products]
+      summary: Tạo sản phẩm
+      operationId: createProduct
+      x-roles: [OWNER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductRequest' }
+      responses:
+        '201':
+          description: Đã tạo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /products/lookup:
+    get:
+      tags: [Products]
+      summary: Tra sản phẩm cho POS
+      description: |
+        Dùng khi quét mã vạch hoặc gõ SKU. Khớp chính xác barcode trước, sau đó SKU.
+        Trả kèm tồn khả dụng tại chi nhánh để hiện ngay trên dòng hàng (UC-01 bước 1).
+        Sản phẩm ngừng bán vẫn trả về với `active=false`; frontend báo lỗi 1a.
+      operationId: lookupProduct
+      parameters:
+        - name: code
+          in: query
+          required: true
+          description: Barcode hoặc SKU
+          schema: { type: string }
+        - $ref: '#/components/parameters/BranchIdQueryRequired'
+      responses:
+        '200':
+          description: Sản phẩm và tồn khả dụng
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductLookup' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /products/{productId}:
+    parameters:
+      - $ref: '#/components/parameters/ProductId'
+    get:
+      tags: [Products]
+      summary: Chi tiết sản phẩm
+      operationId: getProduct
+      responses:
+        '200':
+          description: Sản phẩm
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Products]
+      summary: Sửa sản phẩm
+      description: |
+        Đổi `salePrice` được ghi nhật ký (giá cũ, giá mới, người đổi) theo PRD-02.
+        Đơn đã bán giữ giá cũ (BR-12). Ngừng bán bằng `active=false`; không xóa cứng.
+      operationId: updateProduct
+      x-roles: [OWNER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductRequest' }
+      responses:
+        '200':
+          description: Đã sửa
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  # ------------------------------------------------------------------ Customers
+  /customers:
+    get:
+      tags: [Customers]
+      summary: Tìm khách hàng
+      operationId: listCustomers
+      parameters:
+        - name: q
+          in: query
+          description: Tìm theo tên hoặc một phần số điện thoại
+          schema: { type: string }
+        - name: phone
+          in: query
+          description: Khớp chính xác số điện thoại (dùng ở POS)
+          schema: { $ref: '#/components/schemas/Phone' }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: Trang khách hàng
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Customers]
+      summary: Tạo khách hàng
+      description: Thu ngân tạo nhanh tại POS khi số điện thoại chưa có (UC-01 bước 2).
+      operationId: createCustomer
+      x-roles: [OWNER, BRANCH_MANAGER, CASHIER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomerRequest' }
+      responses:
+        '201':
+          description: Đã tạo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /customers/{customerId}:
+    parameters:
+      - $ref: '#/components/parameters/CustomerId'
+    get:
+      tags: [Customers]
+      summary: Chi tiết khách hàng
+      operationId: getCustomer
+      responses:
+        '200':
+          description: Khách hàng
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Customers]
+      summary: Sửa khách hàng
+      operationId: updateCustomer
+      x-roles: [OWNER, BRANCH_MANAGER, CASHIER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomerRequest' }
+      responses:
+        '200':
+          description: Đã sửa
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /customers/{customerId}/orders:
+    get:
+      tags: [Customers]
+      summary: Lịch sử mua hàng của khách
+      description: Đơn trên mọi kênh (CUS-02). Vai trò gắn chi nhánh chỉ thấy đơn của chi nhánh mình.
+      operationId: listCustomerOrders
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Trang đơn hàng, mới nhất trước
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderSummaryPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ------------------------------------------------------------------ Orders
+  /orders/quote:
+    post:
+      tags: [Orders]
+      summary: Tính tiền giỏ hàng
+      description: |
+        Tính tạm tính, khuyến mại có lợi nhất (BR-07) và tổng. Không ghi gì vào CSDL, không giữ tồn.
+        POS gọi sau mỗi thay đổi giỏ hàng (UC-01 bước 3).
+      operationId: quoteOrder
+      x-roles: [BRANCH_MANAGER, CASHIER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QuoteRequest' }
+            example:
+              branchId: 1
+              customerId: 125
+              items:
+                - { productId: 101, quantity: 1 }
+                - { productId: 205, quantity: 2 }
+      responses:
+        '200':
+          description: Báo giá
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Quote' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/BusinessRule' }
+  /orders/pos:
+    post:
+      tags: [Orders]
+      summary: Hoàn tất đơn bán tại quầy
+      description: |
+        Trong **một transaction**: tính lại giá và KM, kiểm tra thanh toán giả lập, trừ tồn từng dòng
+        theo thứ tự `productId` tăng dần (BR-01, BR-02), tạo đơn COMPLETED, ghi thanh toán, ghi sổ kho SALE,
+        tăng lượt dùng KM, ghi outbox `order.completed` và `stock.changed`.
+
+        - Bắt buộc header `Idempotency-Key` (UUID). Gửi lại cùng key và cùng nội dung trong 24 giờ trả **200** kèm đơn cũ.
+        - Tổng tính lại khác `expectedTotal` → 422 `TOTAL_CHANGED`, không tạo đơn (UC-01 5b).
+        - Thiếu tồn lúc hoàn tất → 409 `INSUFFICIENT_STOCK`, không tạo đơn, giỏ hàng giữ nguyên (5a).
+        - Thanh toán thẻ/QR thất bại hoặc quá 60 giây → 422, không tạo đơn (4a).
+      operationId: createPosOrder
+      x-roles: [BRANCH_MANAGER, CASHIER]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PosOrderRequest' }
+            example:
+              branchId: 1
+              customerId: 125
+              items:
+                - { productId: 101, quantity: 1 }
+                - { productId: 205, quantity: 2 }
+              payment: { method: CASH, cashReceived: 250000 }
+              expectedTotal: 200700
+      responses:
+        '201':
+          description: Đơn đã tạo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '200':
+          description: Request lặp lại với cùng Idempotency-Key, trả đơn đã tạo trước đó
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: INSUFFICIENT_STOCK hoặc IDEMPOTENCY_CONFLICT
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              examples:
+                insufficientStock:
+                  value:
+                    code: INSUFFICIENT_STOCK
+                    message: Không đủ hàng cho 1 dòng
+                    details:
+                      lines:
+                        - { productId: 205, sku: SUA-TH-1L, requested: 2, available: 1 }
+                    traceId: a91d07e2
+        '422':
+          description: TOTAL_CHANGED, CASH_INSUFFICIENT, PAYMENT_FAILED, PAYMENT_TIMEOUT, PRODUCT_INACTIVE, MANUAL_DISCOUNT_FORBIDDEN
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              examples:
+                cashInsufficient:
+                  value: { code: CASH_INSUFFICIENT, message: Tiền khách đưa nhỏ hơn tổng phải trả, details: { total: 200700, cashReceived: 200000 }, traceId: b3e8f410 }
+                paymentFailed:
+                  value: { code: PAYMENT_FAILED, message: 'Thanh toán thẻ không thành công, chọn phương thức khác', details: null, traceId: b3e8f411 }
+  /orders:
+    get:
+      tags: [Orders]
+      summary: Tra cứu đơn hàng
+      description: Lọc theo kênh, chi nhánh, trạng thái, khoảng ngày, khách hàng (ORD-06). Mặc định mới nhất trước.
+      operationId: listOrders
+      parameters:
+        - $ref: '#/components/parameters/BranchIdQuery'
+        - name: channel
+          in: query
+          schema: { $ref: '#/components/schemas/ChannelCode' }
+        - name: status
+          in: query
+          description: Có thể lặp để lọc nhiều trạng thái (`status=RESERVED&status=CONFIRMED`)
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/OrderStatus' }
+          style: form
+          explode: true
+        - name: from
+          in: query
+          description: Ngày tạo từ (theo giờ Việt Nam, gồm cả ngày này)
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          description: Ngày tạo đến (gồm cả ngày này)
+          schema: { type: string, format: date }
+        - name: customerId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: q
+          in: query
+          description: Tìm theo mã đơn, mã đơn kênh hoặc số điện thoại khách
+          schema: { type: string }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: Trang đơn hàng
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderSummaryPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /orders/{orderId}:
+    get:
+      tags: [Orders]
+      summary: Chi tiết đơn và hóa đơn
+      description: Đủ thông tin để in hóa đơn sau khi bán (ORD-07).
+      operationId: getOrder
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: Đơn hàng
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ------------------------------------------------------------------ Inventory
+  /inventory:
+    get:
+      tags: [Inventory]
+      summary: Xem tồn kho
+      description: Tồn thực, giữ chỗ, khả dụng theo sản phẩm × chi nhánh (INV-01). Không truyền `branchId` thì trả mọi chi nhánh được phép xem.
+      operationId: listInventory
+      parameters:
+        - $ref: '#/components/parameters/BranchIdQuery'
+        - name: productId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: categoryId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: q
+          in: query
+          description: Tìm theo tên, SKU hoặc barcode
+          schema: { type: string }
+        - name: stockStatus
+          in: query
+          schema: { $ref: '#/components/schemas/StockStatus' }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: Trang tồn kho
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InventoryPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /inventory/{branchId}/{productId}:
+    get:
+      tags: [Inventory]
+      summary: Tồn của một sản phẩm tại một chi nhánh
+      operationId: getInventoryItem
+      parameters:
+        - $ref: '#/components/parameters/BranchIdPath'
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Tồn kho
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InventoryItem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /inventory/transactions:
+    get:
+      tags: [Inventory]
+      summary: Sổ giao dịch kho
+      description: Chỉ đọc; mỗi dòng truy về chứng từ gốc qua `refType` và `refId` (INV-06, BR-06). Mặc định mới nhất trước.
+      operationId: listInventoryTransactions
+      x-roles: [OWNER, BRANCH_MANAGER, STOREKEEPER]
+      parameters:
+        - $ref: '#/components/parameters/BranchIdQuery'
+        - name: productId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: type
+          in: query
+          schema: { $ref: '#/components/schemas/InventoryTransactionType' }
+        - name: refType
+          in: query
+          schema: { $ref: '#/components/schemas/RefType' }
+        - name: refId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Trang giao dịch kho
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InventoryTransactionPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      description: Số trang, bắt đầu từ 0
+      schema: { type: integer, minimum: 0, default: 0 }
+    Size:
+      name: size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Sort:
+      name: sort
+      in: query
+      description: '`field,asc` hoặc `field,desc`, ví dụ `createdAt,desc`'
+      schema: { type: string }
+    BranchIdQuery:
+      name: branchId
+      in: query
+      schema: { type: integer, format: int64 }
+    BranchIdQueryRequired:
+      name: branchId
+      in: query
+      required: true
+      schema: { type: integer, format: int64 }
+    BranchIdPath:
+      name: branchId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    CategoryId:
+      name: categoryId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    ProductId:
+      name: productId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    CustomerId:
+      name: customerId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: UUID do client sinh mỗi lần bấm Hoàn tất mới; bấm lại sau lỗi mạng thì dùng lại key cũ. Lưu 24 giờ.
+      schema: { type: string, format: uuid }
+
+  responses:
+    BadRequest:
+      description: VALIDATION_ERROR
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            code: VALIDATION_ERROR
+            message: Dữ liệu không hợp lệ
+            details:
+              - { field: 'items[0].quantity', message: 'phải lớn hơn 0' }
+            traceId: 4c1f9b20
+    Unauthorized:
+      description: Chưa đăng nhập hoặc token không hợp lệ
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { code: UNAUTHORIZED, message: Phiên đăng nhập đã hết hạn, details: null, traceId: 4c1f9b21 }
+    Forbidden:
+      description: FORBIDDEN hoặc BRANCH_FORBIDDEN
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { code: BRANCH_FORBIDDEN, message: Bạn không được thao tác trên chi nhánh này, details: { branchId: 2 }, traceId: 4c1f9b22 }
+    NotFound:
+      description: NOT_FOUND
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { code: NOT_FOUND, message: Không tìm thấy sản phẩm, details: { productId: 999 }, traceId: 4c1f9b23 }
+    Conflict:
+      description: Trùng dữ liệu hoặc xung đột trạng thái
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { code: DUPLICATE_PHONE, message: Số điện thoại đã thuộc khách hàng khác, details: { phone: '0901234567', customerId: 125 }, traceId: 4c1f9b24 }
+    BusinessRule:
+      description: Vi phạm quy tắc nghiệp vụ
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  schemas:
+    # ---------- Chung
+    ErrorResponse:
+      type: object
+      required: [code, message, traceId]
+      properties:
+        code: { type: string, description: 'Mã lỗi máy đọc, xem bảng trong mô tả API', example: INSUFFICIENT_STOCK }
+        message: { type: string, description: Thông báo tiếng Việt hiển thị được cho người dùng }
+        details:
+          description: Thông tin thêm, cấu trúc tùy mã lỗi (object, danh sách lỗi trường hoặc null)
+        traceId: { type: string, description: 'Correlation ID, trùng với log backend (NFR-08)' }
+    PageMeta:
+      type: object
+      required: [page, size, totalElements, totalPages]
+      properties:
+        page: { type: integer, example: 0 }
+        size: { type: integer, example: 20 }
+        totalElements: { type: integer, format: int64, example: 1000 }
+        totalPages: { type: integer, example: 50 }
+    Money:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Số tiền VND, số nguyên
+      example: 200700
+    Phone:
+      type: string
+      pattern: '^0[0-9]{9,10}$'
+      example: '0901234567'
+    Role:
+      type: string
+      enum: [ADMIN, OWNER, BRANCH_MANAGER, CASHIER, STOREKEEPER]
+    ChannelCode:
+      type: string
+      enum: [POS, WEB, MARKET]
+    OrderStatus:
+      type: string
+      enum: [NEW, RESERVED, CONFIRMED, COMPLETED, CANCELLED, EXPIRED, REJECTED, RETURNED]
+    PaymentMethod:
+      type: string
+      enum: [CASH, CARD, QR]
+    PaymentStatus:
+      type: string
+      enum: [PENDING, PAID, FAILED, REFUNDED]
+    StockStatus:
+      type: string
+      description: OUT khi khả dụng = 0; LOW khi 0 < khả dụng ≤ ROP; OK còn lại (BR-09)
+      enum: [OK, LOW, OUT]
+    InventoryTransactionType:
+      type: string
+      enum: [IMPORT, EXPORT, SALE, RESERVE, RELEASE, RETURN, TRANSFER_OUT, TRANSFER_IN, ADJUST]
+    RefType:
+      type: string
+      description: Loại chứng từ gốc của giao dịch kho
+      enum: [ORDER, STOCK_DOCUMENT, RETURN_DOCUMENT]
+
+    # ---------- Auth
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, maxLength: 60 }
+        password: { type: string, format: password, maxLength: 100 }
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string }
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string, format: password }
+        newPassword: { type: string, format: password, minLength: 8, maxLength: 100 }
+    TokenResponse:
+      type: object
+      required: [accessToken, refreshToken, tokenType, expiresIn, user]
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        tokenType: { type: string, enum: [Bearer] }
+        expiresIn: { type: integer, description: Số giây access token còn hiệu lực, example: 900 }
+        user: { $ref: '#/components/schemas/CurrentUser' }
+    CurrentUser:
+      type: object
+      required: [id, username, fullName, role, branches]
+      properties:
+        id: { type: integer, format: int64, example: 7 }
+        username: { type: string, example: thungan.gm001 }
+        fullName: { type: string, example: Nguyễn Thu Ngân }
+        role: { $ref: '#/components/schemas/Role' }
+        branches:
+          type: array
+          description: Chi nhánh được gán; ADMIN, OWNER nhận mọi chi nhánh đang hoạt động
+          items: { $ref: '#/components/schemas/BranchRef' }
+
+    # ---------- Branch
+    BranchRef:
+      type: object
+      required: [id, code, name]
+      properties:
+        id: { type: integer, format: int64, example: 1 }
+        code: { type: string, example: GM-001 }
+        name: { type: string, example: GreenMart Quận 1 }
+    Branch:
+      allOf:
+        - $ref: '#/components/schemas/BranchRef'
+        - type: object
+          required: [active]
+          properties:
+            address: { type: string, nullable: true }
+            active: { type: boolean }
+
+    # ---------- Category
+    Category:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer, format: int64, example: 3 }
+        name: { type: string, example: Sữa và chế phẩm }
+        parentId: { type: integer, format: int64, nullable: true, example: 1 }
+    CategoryRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        parentId: { type: integer, format: int64, nullable: true }
+
+    # ---------- Product
+    Product:
+      type: object
+      required: [id, sku, name, unit, categoryId, categoryName, salePrice, active]
+      properties:
+        id: { type: integer, format: int64, example: 205 }
+        sku: { type: string, example: SUA-TH-1L }
+        barcode: { type: string, nullable: true, example: '8935217400013' }
+        name: { type: string, example: Sữa tươi TH True Milk 1L }
+        unit: { type: string, example: hộp }
+        categoryId: { type: integer, format: int64, example: 3 }
+        categoryName: { type: string, example: Sữa và chế phẩm }
+        salePrice: { $ref: '#/components/schemas/Money' }
+        costPrice:
+          type: integer
+          format: int64
+          nullable: true
+          description: Chỉ trả cho ADMIN, OWNER, BRANCH_MANAGER
+        active: { type: boolean }
+    ProductRequest:
+      type: object
+      required: [sku, name, unit, categoryId, salePrice, costPrice, active]
+      properties:
+        sku: { type: string, minLength: 1, maxLength: 40, pattern: '^[A-Z0-9-]+$' }
+        barcode: { type: string, maxLength: 40, nullable: true }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        unit: { type: string, minLength: 1, maxLength: 20 }
+        categoryId: { type: integer, format: int64 }
+        salePrice: { $ref: '#/components/schemas/Money' }
+        costPrice: { $ref: '#/components/schemas/Money' }
+        active: { type: boolean, default: true }
+    ProductLookup:
+      type: object
+      required: [product, branchId, available]
+      properties:
+        product: { $ref: '#/components/schemas/Product' }
+        branchId: { type: integer, format: int64 }
+        available: { type: integer, description: Tồn khả dụng tại chi nhánh, example: 12 }
+    ProductPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [content]
+          properties:
+            content:
+              type: array
+              items: { $ref: '#/components/schemas/Product' }
+
+    # ---------- Customer
+    Customer:
+      type: object
+      required: [id, phone, name, createdAt]
+      properties:
+        id: { type: integer, format: int64, example: 125 }
+        phone: { $ref: '#/components/schemas/Phone' }
+        name: { type: string, example: Trần Thị Mai }
+        email: { type: string, format: email, nullable: true }
+        createdAt: { type: string, format: date-time }
+    CustomerRequest:
+      type: object
+      required: [phone, name]
+      properties:
+        phone: { $ref: '#/components/schemas/Phone' }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        email: { type: string, format: email, maxLength: 120, nullable: true }
+    CustomerPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [content]
+          properties:
+            content:
+              type: array
+              items: { $ref: '#/components/schemas/Customer' }
+
+    # ---------- Orders
+    OrderLineRequest:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId: { type: integer, format: int64 }
+        quantity: { type: integer, minimum: 1, maximum: 9999 }
+    ManualDiscount:
+      type: object
+      description: Giảm giá ngoài chương trình, chỉ BRANCH_MANAGER, bắt buộc lý do (BR-19). Trừ sau KM cấp đơn.
+      required: [amount, reason]
+      properties:
+        amount: { $ref: '#/components/schemas/Money' }
+        reason: { type: string, minLength: 5, maxLength: 255 }
+    QuoteRequest:
+      type: object
+      required: [branchId, items]
+      properties:
+        branchId: { type: integer, format: int64 }
+        customerId: { type: integer, format: int64, nullable: true }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          description: Mỗi `productId` xuất hiện một lần; quét lại cùng mã thì client tăng `quantity`
+          items: { $ref: '#/components/schemas/OrderLineRequest' }
+        manualDiscount: { $ref: '#/components/schemas/ManualDiscount' }
+    PromotionRef:
+      type: object
+      required: [id, code, discount]
+      properties:
+        id: { type: integer, format: int64 }
+        code: { type: string, example: DON200K-10 }
+        name: { type: string, nullable: true, example: Giảm 10% đơn từ 200.000 đ }
+        discount: { $ref: '#/components/schemas/Money' }
+    QuoteLine:
+      type: object
+      required: [productId, sku, name, unit, quantity, unitPrice, discount, lineTotal, available, sufficient]
+      properties:
+        productId: { type: integer, format: int64 }
+        sku: { type: string }
+        name: { type: string }
+        unit: { type: string }
+        quantity: { type: integer }
+        unitPrice: { $ref: '#/components/schemas/Money' }
+        discount: { $ref: '#/components/schemas/Money' }
+        lineTotal: { $ref: '#/components/schemas/Money' }
+        promotion:
+          type: object
+          allOf: [{ $ref: '#/components/schemas/PromotionRef' }]
+          nullable: true
+        available: { type: integer, description: Tồn khả dụng tại thời điểm báo giá }
+        sufficient: { type: boolean, description: false khi quantity > available (UC-01 1b) }
+    Quote:
+      type: object
+      description: |
+        `subtotal` = tổng giá gốc; `itemDiscount` = tổng giảm cấp dòng; `orderDiscount` = KM cấp đơn tính trên tổng sau giảm dòng;
+        `discount` = itemDiscount + orderDiscount + manualDiscount; `total` = subtotal − discount. Mọi số tiền giảm làm tròn xuống đến đồng (BR-07).
+      required: [branchId, lines, subtotal, itemDiscount, orderDiscount, manualDiscount, discount, total, canComplete]
+      properties:
+        branchId: { type: integer, format: int64 }
+        customerId: { type: integer, format: int64, nullable: true }
+        lines:
+          type: array
+          items: { $ref: '#/components/schemas/QuoteLine' }
+        orderPromotion:
+          type: object
+          allOf: [{ $ref: '#/components/schemas/PromotionRef' }]
+          nullable: true
+        subtotal: { $ref: '#/components/schemas/Money' }
+        itemDiscount: { $ref: '#/components/schemas/Money' }
+        orderDiscount: { $ref: '#/components/schemas/Money' }
+        manualDiscount: { $ref: '#/components/schemas/Money' }
+        discount: { $ref: '#/components/schemas/Money' }
+        total: { $ref: '#/components/schemas/Money' }
+        canComplete: { type: boolean, description: false khi có dòng thiếu tồn hoặc sản phẩm ngừng bán }
+      example:
+        branchId: 1
+        customerId: 125
+        lines:
+          - { productId: 101, sku: GAO-ST25-5KG, name: Gạo ST25 túi 5kg, unit: túi, quantity: 1, unitPrice: 180000, discount: 15000, lineTotal: 165000, promotion: { id: 11, code: GAO-15K, discount: 15000 }, available: 40, sufficient: true }
+          - { productId: 205, sku: SUA-TH-1L, name: Sữa tươi TH True Milk 1L, unit: hộp, quantity: 2, unitPrice: 29000, discount: 0, lineTotal: 58000, promotion: null, available: 12, sufficient: true }
+        orderPromotion: { id: 12, code: DON200K-10, name: Giảm 10% đơn từ 200.000 đ, discount: 22300 }
+        subtotal: 238000
+        itemDiscount: 15000
+        orderDiscount: 22300
+        manualDiscount: 0
+        discount: 37300
+        total: 200700
+        canComplete: true
+    PaymentRequest:
+      type: object
+      required: [method]
+      properties:
+        method: { $ref: '#/components/schemas/PaymentMethod' }
+        cashReceived:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Bắt buộc khi method = CASH, phải ≥ tổng
+        simulate:
+          type: string
+          enum: [SUCCESS, FAILED, TIMEOUT]
+          default: SUCCESS
+          description: Chỉ dùng cho CARD, QR để giả lập kết quả cổng thanh toán (PAY-01); bị bỏ qua với CASH
+    PosOrderRequest:
+      type: object
+      required: [branchId, items, payment, expectedTotal]
+      properties:
+        branchId: { type: integer, format: int64 }
+        customerId: { type: integer, format: int64, nullable: true }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: '#/components/schemas/OrderLineRequest' }
+        manualDiscount: { $ref: '#/components/schemas/ManualDiscount' }
+        payment: { $ref: '#/components/schemas/PaymentRequest' }
+        expectedTotal:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          description: Tổng client đang hiển thị (từ /orders/quote gần nhất)
+    OrderItem:
+      type: object
+      required: [id, productId, sku, name, unit, quantity, unitPrice, discount, lineTotal]
+      properties:
+        id: { type: integer, format: int64 }
+        productId: { type: integer, format: int64 }
+        sku: { type: string }
+        name: { type: string }
+        unit: { type: string }
+        quantity: { type: integer }
+        unitPrice: { allOf: [{ $ref: '#/components/schemas/Money' }], description: Giá chụp lúc bán (BR-12) }
+        discount: { $ref: '#/components/schemas/Money' }
+        lineTotal: { $ref: '#/components/schemas/Money' }
+        promotion:
+          type: object
+          allOf: [{ $ref: '#/components/schemas/PromotionRef' }]
+          nullable: true
+    Payment:
+      type: object
+      required: [id, method, amount, status]
+      properties:
+        id: { type: integer, format: int64 }
+        method: { $ref: '#/components/schemas/PaymentMethod' }
+        amount: { $ref: '#/components/schemas/Money' }
+        status: { $ref: '#/components/schemas/PaymentStatus' }
+        cashReceived: { type: integer, format: int64, nullable: true }
+        change: { type: integer, format: int64, nullable: true, description: 'Tiền thối, chỉ có với CASH' }
+        providerRef: { type: string, nullable: true, description: 'Mã giao dịch giả lập với CARD, QR' }
+        paidAt: { type: string, format: date-time, nullable: true }
+    UserRef:
+      type: object
+      required: [id, fullName]
+      properties:
+        id: { type: integer, format: int64 }
+        fullName: { type: string }
+    CustomerRef:
+      type: object
+      required: [id, phone, name]
+      properties:
+        id: { type: integer, format: int64 }
+        phone: { type: string }
+        name: { type: string }
+    OrderSummary:
+      type: object
+      required: [id, code, channel, branch, status, total, createdAt]
+      properties:
+        id: { type: integer, format: int64, example: 10231 }
+        code: { type: string, example: POS-GM001-20261105-0042 }
+        channel: { $ref: '#/components/schemas/ChannelCode' }
+        externalOrderId: { type: string, nullable: true, description: 'Mã đơn của kênh, chỉ có với WEB/MARKET' }
+        branch: { $ref: '#/components/schemas/BranchRef' }
+        customer:
+          type: object
+          allOf: [{ $ref: '#/components/schemas/CustomerRef' }]
+          nullable: true
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        itemCount: { type: integer, description: Tổng số lượng hàng trong đơn }
+        total: { $ref: '#/components/schemas/Money' }
+        createdAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time, nullable: true }
+    Order:
+      allOf:
+        - $ref: '#/components/schemas/OrderSummary'
+        - type: object
+          required: [items, payments, subtotal, itemDiscount, orderDiscount, manualDiscount, discount]
+          properties:
+            createdBy:
+              type: object
+              allOf: [{ $ref: '#/components/schemas/UserRef' }]
+              nullable: true
+              description: Thu ngân tạo đơn; null với đơn từ kênh
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/OrderItem' }
+            orderPromotion:
+              type: object
+              allOf: [{ $ref: '#/components/schemas/PromotionRef' }]
+              nullable: true
+            manualDiscountReason: { type: string, nullable: true }
+            subtotal: { $ref: '#/components/schemas/Money' }
+            itemDiscount: { $ref: '#/components/schemas/Money' }
+            orderDiscount: { $ref: '#/components/schemas/Money' }
+            manualDiscount: { $ref: '#/components/schemas/Money' }
+            discount: { $ref: '#/components/schemas/Money' }
+            payments:
+              type: array
+              items: { $ref: '#/components/schemas/Payment' }
+            reservedUntil: { type: string, format: date-time, nullable: true, description: Chỉ có với đơn online RESERVED }
+    OrderSummaryPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [content]
+          properties:
+            content:
+              type: array
+              items: { $ref: '#/components/schemas/OrderSummary' }
+
+    # ---------- Inventory
+    InventoryItem:
+      type: object
+      required: [branch, productId, sku, productName, unit, onHand, reserved, available, stockStatus, version, updatedAt]
+      properties:
+        branch: { $ref: '#/components/schemas/BranchRef' }
+        productId: { type: integer, format: int64 }
+        sku: { type: string }
+        productName: { type: string }
+        unit: { type: string }
+        onHand: { type: integer, minimum: 0, description: Tồn thực }
+        reserved: { type: integer, minimum: 0, description: Đang giữ chỗ cho đơn online }
+        available: { type: integer, minimum: 0, description: onHand − reserved (BR-01) }
+        reorderPoint: { type: integer, nullable: true, description: ROP; null khi chưa có dự báo }
+        stockStatus: { $ref: '#/components/schemas/StockStatus' }
+        version: { type: integer, format: int64, description: Tăng mỗi lần tồn đổi; dùng làm số phiên bản đẩy ra kênh (BR-15) }
+        updatedAt: { type: string, format: date-time }
+      example:
+        branch: { id: 1, code: GM-001, name: GreenMart Quận 1 }
+        productId: 205
+        sku: SUA-TH-1L
+        productName: Sữa tươi TH True Milk 1L
+        unit: hộp
+        onHand: 35
+        reserved: 5
+        available: 30
+        reorderPoint: 34
+        stockStatus: LOW
+        version: 1842
+        updatedAt: '2026-11-05T09:31:12+07:00'
+    InventoryPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [content]
+          properties:
+            content:
+              type: array
+              items: { $ref: '#/components/schemas/InventoryItem' }
+    InventoryTransaction:
+      type: object
+      required: [id, branchId, productId, sku, type, quantity, balanceAfter, refType, refId, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        branchId: { type: integer, format: int64 }
+        productId: { type: integer, format: int64 }
+        sku: { type: string }
+        type: { $ref: '#/components/schemas/InventoryTransactionType' }
+        quantity: { type: integer, description: 'Âm khi giảm, dương khi tăng' }
+        balanceAfter: { type: integer, description: Tồn thực sau giao dịch }
+        refType: { $ref: '#/components/schemas/RefType' }
+        refId: { type: integer, format: int64 }
+        refCode: { type: string, nullable: true, description: 'Mã chứng từ gốc để hiển thị, ví dụ mã đơn' }
+        createdBy:
+          type: object
+          allOf: [{ $ref: '#/components/schemas/UserRef' }]
+          nullable: true
+        createdAt: { type: string, format: date-time }
+      example:
+        id: 88231
+        branchId: 1
+        productId: 205
+        sku: SUA-TH-1L
+        type: SALE
+        quantity: -2
+        balanceAfter: 33
+        refType: ORDER
+        refId: 10231
+        refCode: POS-GM001-20261105-0042
+        createdBy: { id: 7, fullName: Nguyễn Thu Ngân }
+        createdAt: '2026-11-05T09:31:12+07:00'
+    InventoryTransactionPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [content]
+          properties:
+            content:
+              type: array
+              items: { $ref: '#/components/schemas/InventoryTransaction' }
