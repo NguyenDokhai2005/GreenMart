@@ -53,6 +53,11 @@ class GlobalExceptionHandlerTest {
             return "page: " + page;
         }
 
+        @GetMapping("/test/required-param")
+        public String testRequiredParam(@RequestParam("branchId") Long branchId) {
+            return "branchId: " + branchId;
+        }
+
         @GetMapping("/test/required-header")
         public String testRequiredHeader(@RequestHeader("Idempotency-Key") String key) {
             return "key: " + key;
@@ -91,6 +96,17 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.details[0].field").value("page"));
     }
 
+    // Thiếu tham số bắt buộc -> 400
+    @Test
+    void testMissingRequiredParameter_Returns400() throws Exception {
+        mockMvc.perform(get("/test/required-param"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("Thiếu tham số bắt buộc"))
+                .andExpect(jsonPath("$.details[0].field").value("branchId"))
+                .andExpect(jsonPath("$.details[0].message").value("Bắt buộc"));
+    }
+
     // Thiếu header bắt buộc -> 400
     @Test
     void testMissingRequiredHeader_Returns400() throws Exception {
@@ -127,7 +143,7 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.message").value("Không tìm thấy dữ liệu"));
     }
 
-    // Exception bất ngờ (500) -> không lộ stack trace
+    // 9. Exception bất ngờ (500) -> không lộ stack trace
     @Test
     void testUnexpectedException_Returns500WithoutStackTrace() throws Exception {
         mockMvc.perform(get("/test/server-error"))
