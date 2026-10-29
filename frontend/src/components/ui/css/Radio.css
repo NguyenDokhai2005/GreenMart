@@ -1,0 +1,104 @@
+.gm-radio {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.gm-radio__input {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 0 0 18px;
+
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+
+  display: grid;
+  place-content: center;
+
+  background: var(--gm-color-surface);
+  border: 1px solid var(--gm-color-border);
+  border-radius: var(--gm-radius-full);
+
+  cursor: pointer;
+  transition:
+    background-color var(--gm-transition-fast),
+    border-color var(--gm-transition-fast),
+    box-shadow var(--gm-transition-fast);
+}
+
+.gm-radio__input::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: var(--gm-radius-full);
+  background: var(--gm-color-primary);
+  transform: scale(0);
+  transition: transform var(--gm-transition-fast);
+}
+
+.gm-radio__input:checked {
+  background: var(--gm-color-surface);
+  border-color: var(--gm-color-primary);
+  border-width: 2px;
+}
+
+.gm-radio__input:checked::before {
+  transform: scale(1);
+}
+
+.gm-radio__input:hover:not(:disabled):not(:checked) {
+  border-color: var(--gm-color-primary);
+}
+
+.gm-radio__input:focus-visible {
+  outline: 2px solid var(--gm-color-focus);
+  outline-offset: 2px;
+  box-shadow: var(--gm-shadow-focus);
+}
+
+.gm-radio__input:disabled {
+  background: var(--gm-color-surface-disabled);
+  border-color: var(--gm-color-border);
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.gm-radio__input:disabled:checked::before {
+  background: var(--gm-color-text-disabled);
+}
+
+.gm-radio__content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.gm-radio__label {
+  color: var(--gm-color-text);
+  font-family: var(--gm-font-family);
+  font-size: var(--gm-font-size-body);
+  line-height: var(--gm-line-height-body);
+  cursor: pointer;
+}
+
+.gm-radio__description {
+  margin: 0;
+  color: var(--gm-color-text-secondary);
+  font-family: var(--gm-font-family);
+  font-size: var(--gm-font-size-sm);
+  line-height: var(--gm-line-height-sm);
+}
+
+.gm-radio__input:disabled + .gm-radio__content
+.gm-radio__label {
+  color: var(--gm-color-text-disabled);
+  cursor: not-allowed;
+}
+
+.gm-radio__input:disabled + .gm-radio__content
+.gm-radio__description {
+  color: var(--gm-color-text-disabled);
+}

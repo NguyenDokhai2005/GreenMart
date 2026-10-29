@@ -1,0 +1,94 @@
+.gm-field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.gm-field__label {
+  color: var(--gm-color-text);
+  font-family: var(--gm-font-family);
+  font-size: var(--gm-font-size-label);
+  font-weight: 600;
+  line-height: var(--gm-line-height-label);
+}
+
+.gm-field__required {
+  color: var(--gm-color-danger);
+}
+
+.gm-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: var(--gm-control-height);
+  padding: 0 16px;
+
+  color: var(--gm-color-text);
+  background: var(--gm-color-surface);
+  border: var(--gm-border-width) solid var(--gm-color-border);
+  border-radius: var(--gm-control-radius);
+
+  font-family: var(--gm-font-family);
+  font-size: var(--gm-font-size-body);
+  line-height: var(--gm-line-height-body);
+
+  transition:
+    border-color var(--gm-transition-fast),
+    box-shadow var(--gm-transition-fast),
+    background-color var(--gm-transition-fast);
+}
+
+.gm-input::placeholder {
+  color: var(--gm-color-text-secondary);
+  opacity: 1;
+}
+
+.gm-input:hover:not(:disabled):not(:focus) {
+  border-color: var(--gm-color-border-hover);
+}
+
+.gm-input:focus {
+  outline: none;
+  border-color: var(--gm-color-focus);
+  box-shadow: var(--gm-shadow-focus);
+}
+
+.gm-input:focus-visible {
+  outline: 2px solid var(--gm-color-focus);
+  outline-offset: 1px;
+}
+
+.gm-input--error {
+  border-color: var(--gm-color-danger);
+}
+
+.gm-input--error:focus {
+  border-color: var(--gm-color-danger);
+  box-shadow: 0 0 0 3px rgb(180 35 24 / 15%);
+}
+
+.gm-input:disabled {
+  color: var(--gm-color-text-disabled);
+  background: var(--gm-color-surface-disabled);
+  border-color: var(--gm-color-border);
+  cursor: not-allowed;
+}
+
+.gm-field__helper,
+.gm-field__error {
+  margin: 0;
+  font-family: var(--gm-font-family);
+  font-size: var(--gm-font-size-sm);
+  line-height: var(--gm-line-height-sm);
+}
+
+.gm-field__helper {
+  color: var(--gm-color-text-secondary);
+}
+
+.gm-field__error {
+  color: var(--gm-color-danger);
+}
