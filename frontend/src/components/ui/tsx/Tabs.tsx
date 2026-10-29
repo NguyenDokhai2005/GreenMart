@@ -1,7 +1,6 @@
-
-import { useId, useRef, useState } from "react";
-import type { KeyboardEvent, ReactNode } from "react";
-import "../css/Tabs.css";
+import { useId, useRef, useState } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
+import '../css/Tabs.css';
 
 export interface TabItem {
   id: string;
@@ -24,33 +23,24 @@ export default function Tabs({
   defaultActiveId,
   activeId,
   onChange,
-  ariaLabel = "Tabs",
-  className = "",
+  ariaLabel = 'Tabs',
+  className = '',
 }: TabsProps) {
   const generatedId = useId();
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const firstEnabledTab = tabs.find((tab) => !tab.disabled);
   const initialId =
-    defaultActiveId &&
-    tabs.some(
-      (tab) => tab.id === defaultActiveId && !tab.disabled,
-    )
+    defaultActiveId && tabs.some((tab) => tab.id === defaultActiveId && !tab.disabled)
       ? defaultActiveId
-      : firstEnabledTab?.id ?? "";
+      : (firstEnabledTab?.id ?? '');
 
-  const [internalActiveId, setInternalActiveId] =
-    useState(initialId);
+  const [internalActiveId, setInternalActiveId] = useState(initialId);
 
   const isControlled = activeId !== undefined;
-  const selectedId = isControlled
-    ? activeId
-    : internalActiveId;
+  const selectedId = isControlled ? activeId : internalActiveId;
 
-  const selectedTab =
-    tabs.find(
-      (tab) => tab.id === selectedId && !tab.disabled,
-    ) ?? firstEnabledTab;
+  const selectedTab = tabs.find((tab) => tab.id === selectedId && !tab.disabled) ?? firstEnabledTab;
 
   const handleSelect = (id: string) => {
     if (!isControlled) {
@@ -59,10 +49,7 @@ export default function Tabs({
     onChange?.(id);
   };
 
-  const handleKeyDown = (
-    event: KeyboardEvent<HTMLButtonElement>,
-    currentIndex: number,
-  ) => {
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>, currentIndex: number) => {
     const enabledIndices = tabs
       .map((tab, index) => (!tab.disabled ? index : -1))
       .filter((index) => index >= 0);
@@ -73,23 +60,17 @@ export default function Tabs({
     let nextIndex: number | undefined;
 
     switch (event.key) {
-      case "ArrowRight":
-        nextIndex =
-          enabledIndices[
-            (currentPosition + 1) % enabledIndices.length
-          ];
+      case 'ArrowRight':
+        nextIndex = enabledIndices[(currentPosition + 1) % enabledIndices.length];
         break;
-      case "ArrowLeft":
+      case 'ArrowLeft':
         nextIndex =
-          enabledIndices[
-            (currentPosition - 1 + enabledIndices.length) %
-              enabledIndices.length
-          ];
+          enabledIndices[(currentPosition - 1 + enabledIndices.length) % enabledIndices.length];
         break;
-      case "Home":
+      case 'Home':
         nextIndex = enabledIndices[0];
         break;
-      case "End":
+      case 'End':
         nextIndex = enabledIndices[enabledIndices.length - 1];
         break;
       default:
@@ -111,11 +92,7 @@ export default function Tabs({
 
   return (
     <div className={`gm-tabs ${className}`.trim()}>
-      <div
-        className="gm-tabs__list"
-        role="tablist"
-        aria-label={ariaLabel}
-      >
+      <div className="gm-tabs__list" role="tablist" aria-label={ariaLabel}>
         {tabs.map((tab, index) => {
           const isActive = tab.id === selectedTab?.id;
           const tabDomId = `${generatedId}-tab-${tab.id}`;
@@ -130,20 +107,15 @@ export default function Tabs({
               id={tabDomId}
               type="button"
               role="tab"
-              className={[
-                "gm-tabs__tab",
-                isActive ? "gm-tabs__tab--active" : "",
-              ]
+              className={['gm-tabs__tab', isActive ? 'gm-tabs__tab--active' : '']
                 .filter(Boolean)
-                .join(" ")}
+                .join(' ')}
               aria-selected={isActive}
               aria-controls={panelDomId}
               tabIndex={isActive ? 0 : -1}
               disabled={tab.disabled}
               onClick={() => handleSelect(tab.id)}
-              onKeyDown={(event) =>
-                handleKeyDown(event, index)
-              }
+              onKeyDown={(event) => handleKeyDown(event, index)}
             >
               {tab.label}
             </button>

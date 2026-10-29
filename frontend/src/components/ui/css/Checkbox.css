@@ -30,7 +30,7 @@
 }
 
 .gm-checkbox__input::before {
-  content: "";
+  content: '';
   width: 9px;
   height: 5px;
   border: 2px solid currentColor;
@@ -104,13 +104,11 @@
   line-height: var(--gm-line-height-sm);
 }
 
-.gm-checkbox__input:disabled + .gm-checkbox__content
-.gm-checkbox__label {
+.gm-checkbox__input:disabled + .gm-checkbox__content .gm-checkbox__label {
   color: var(--gm-color-text-disabled);
   cursor: not-allowed;
 }
 
-.gm-checkbox__input:disabled + .gm-checkbox__content
-.gm-checkbox__description {
+.gm-checkbox__input:disabled + .gm-checkbox__content .gm-checkbox__description {
   color: var(--gm-color-text-disabled);
 }

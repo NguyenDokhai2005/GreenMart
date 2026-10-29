@@ -1,5 +1,5 @@
-import { useEffect, type ReactNode } from "react";
-import "../css/Dialog.css";
+import { useEffect, type ReactNode } from 'react';
+import '../css/Dialog.css';
 
 export interface DialogProps {
   open: boolean;
@@ -20,8 +20,8 @@ export default function Dialog({
   children,
   onClose,
   onConfirm,
-  confirmText = "Xác nhận",
-  cancelText = "Quay lại",
+  confirmText = 'Xác nhận',
+  cancelText = 'Quay lại',
   destructive = false,
   busy = false,
   confirmDisabled = false,
@@ -30,18 +30,18 @@ export default function Dialog({
     if (!open) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !busy) {
+      if (event.key === 'Escape' && !busy) {
         onClose();
       }
     };
 
-    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener('keydown', handleKeyDown);
 
     const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    document.body.style.overflow = 'hidden';
 
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = previousOverflow;
     };
   }, [open, busy, onClose]);
@@ -52,10 +52,7 @@ export default function Dialog({
     <div
       className="gm-dialog-backdrop"
       onMouseDown={(event) => {
-        if (
-          event.target === event.currentTarget &&
-          !busy
-        ) {
+        if (event.target === event.currentTarget && !busy) {
           onClose();
         }
       }}
@@ -67,10 +64,7 @@ export default function Dialog({
         aria-labelledby="gm-dialog-title"
       >
         <header className="gm-dialog__header">
-          <h2
-            id="gm-dialog-title"
-            className="gm-dialog__title"
-          >
+          <h2 id="gm-dialog-title" className="gm-dialog__title">
             {title}
           </h2>
 
@@ -85,9 +79,7 @@ export default function Dialog({
           </button>
         </header>
 
-        <div className="gm-dialog__body">
-          {children}
-        </div>
+        <div className="gm-dialog__body">{children}</div>
 
         <footer className="gm-dialog__footer">
           <button
@@ -103,14 +95,12 @@ export default function Dialog({
             <button
               type="button"
               className={`gm-dialog__button ${
-                destructive
-                  ? "gm-dialog__button--danger"
-                  : "gm-dialog__button--primary"
+                destructive ? 'gm-dialog__button--danger' : 'gm-dialog__button--primary'
               }`}
               onClick={onConfirm}
               disabled={busy || confirmDisabled}
             >
-              {busy ? "Đang xử lý…" : confirmText}
+              {busy ? 'Đang xử lý…' : confirmText}
             </button>
           )}
         </footer>

@@ -11,7 +11,7 @@
   gap: 8px;
 
   width: 100%;
-  border-bottom: 1px solid #D8E2DC;
+  border-bottom: 1px solid #d8e2dc;
 }
 
 .gm-tabs__tab {
@@ -26,8 +26,7 @@
   color: var(--gm-color-primary);
   background: var(--gm-color-surface);
   border: 1px solid var(--gm-color-border);
-  border-radius: var(--gm-control-radius)
-    var(--gm-control-radius) 0 0;
+  border-radius: var(--gm-control-radius) var(--gm-control-radius) 0 0;
 
   font-family: var(--gm-font-family);
   font-size: var(--gm-font-size-label);
@@ -43,9 +42,7 @@
     border-color var(--gm-transition-fast);
 }
 
-.gm-tabs__tab:hover:not(:disabled):not(
-  .gm-tabs__tab--active
-) {
+.gm-tabs__tab:hover:not(:disabled):not(.gm-tabs__tab--active) {
   background: var(--gm-color-page);
   border-color: var(--gm-color-primary);
 }

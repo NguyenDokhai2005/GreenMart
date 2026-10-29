@@ -59,7 +59,7 @@
 }
 
 .gm-button--secondary:active:not(:disabled) {
-  background: #E8F2EC;
+  background: #e8f2ec;
 }
 
 .gm-button--destructive {

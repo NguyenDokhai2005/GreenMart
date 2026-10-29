@@ -1,11 +1,7 @@
-import type { ReactNode } from "react";
-import "../css/Toast.css";
+import type { ReactNode } from 'react';
+import '../css/Toast.css';
 
-export type ToastVariant =
-  | "info"
-  | "success"
-  | "warning"
-  | "error";
+export type ToastVariant = 'info' | 'success' | 'warning' | 'error';
 
 export interface ToastProps {
   title: string;
@@ -17,39 +13,33 @@ export interface ToastProps {
 }
 
 const defaultIcons: Record<ToastVariant, string> = {
-  info: "ⓘ",
-  success: "✓",
-  warning: "!",
-  error: "×",
+  info: 'ⓘ',
+  success: '✓',
+  warning: '!',
+  error: '×',
 };
 
 export default function Toast({
   title,
   description,
-  variant = "info",
+  variant = 'info',
   icon,
   onClose,
-  className = "",
+  className = '',
 }: ToastProps) {
   return (
     <div
       className={`gm-toast gm-toast--${variant} ${className}`.trim()}
-      role={variant === "error" ? "alert" : "status"}
+      role={variant === 'error' ? 'alert' : 'status'}
     >
       <span className="gm-toast__icon" aria-hidden="true">
         {icon ?? defaultIcons[variant]}
       </span>
 
       <div className="gm-toast__content">
-        <div className="gm-toast__title">
-          {title}
-        </div>
+        <div className="gm-toast__title">{title}</div>
 
-        {description && (
-          <div className="gm-toast__description">
-            {description}
-          </div>
-        )}
+        {description && <div className="gm-toast__description">{description}</div>}
       </div>
 
       {onClose && (

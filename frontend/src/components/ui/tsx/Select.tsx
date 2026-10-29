@@ -1,7 +1,6 @@
-
-import { useId } from "react";
-import type { SelectHTMLAttributes } from "react";
-import "../css/Select.css";
+import { useId } from 'react';
+import type { SelectHTMLAttributes } from 'react';
+import '../css/Select.css';
 
 export interface SelectOption {
   label: string;
@@ -9,8 +8,7 @@ export interface SelectOption {
   disabled?: boolean;
 }
 
-export interface SelectProps
-  extends Omit<SelectHTMLAttributes<HTMLSelectElement>, "children"> {
+export interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'children'> {
   label?: string;
   options: SelectOption[];
   placeholder?: string;
@@ -21,13 +19,13 @@ export interface SelectProps
 export default function Select({
   label,
   options,
-  placeholder = "Vui lòng chọn",
+  placeholder = 'Vui lòng chọn',
   helperText,
   error,
   id,
   required = false,
   disabled = false,
-  className = "",
+  className = '',
   ...props
 }: SelectProps) {
   const generatedId = useId();
@@ -35,35 +33,23 @@ export default function Select({
   const helperId = `${selectId}-helper`;
   const errorId = `${selectId}-error`;
 
-  const describedBy = [
-    helperText ? helperId : undefined,
-    error ? errorId : undefined,
-  ]
-    .filter(Boolean)
-    .join(" ") || undefined;
+  const describedBy =
+    [helperText ? helperId : undefined, error ? errorId : undefined].filter(Boolean).join(' ') ||
+    undefined;
 
-  const selectClasses = [
-    "gm-select",
-    error ? "gm-select--error" : "",
-    className,
-  ]
+  const selectClasses = ['gm-select', error ? 'gm-select--error' : '', className]
     .filter(Boolean)
-    .join(" ");
+    .join(' ');
 
   return (
     <div className="gm-field gm-select-field">
       {label && (
-        <label
-          className="gm-field__label"
-          htmlFor={selectId}
-        >
+        <label className="gm-field__label" htmlFor={selectId}>
           {label}
           {required && (
-            <span
-              className="gm-field__required"
-              aria-hidden="true"
-            >
-              {" "}*
+            <span className="gm-field__required" aria-hidden="true">
+              {' '}
+              *
             </span>
           )}
         </label>
@@ -84,11 +70,7 @@ export default function Select({
           </option>
 
           {options.map((option) => (
-            <option
-              key={option.value}
-              value={option.value}
-              disabled={option.disabled}
-            >
+            <option key={option.value} value={option.value} disabled={option.disabled}>
               {option.label}
             </option>
           ))}
@@ -113,20 +95,13 @@ export default function Select({
       </div>
 
       {helperText && !error && (
-        <p
-          id={helperId}
-          className="gm-field__helper"
-        >
+        <p id={helperId} className="gm-field__helper">
           {helperText}
         </p>
       )}
 
       {error && (
-        <p
-          id={errorId}
-          className="gm-field__error"
-          role="alert"
-        >
+        <p id={errorId} className="gm-field__error" role="alert">
           {error}
         </p>
       )}

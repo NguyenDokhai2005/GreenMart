@@ -1,5 +1,4 @@
-
-@import "./tokens.css";
+@import './tokens.css';
 
 *,
 *::before,
@@ -80,24 +79,24 @@ h1 {
 }
 
 @font-face {
-  font-family: "Idiqlat";
-  src: url("../assets/fonts/Idiqlat-Regular.woff2") format("woff2");
+  font-family: 'Idiqlat';
+  src: url('../assets/fonts/Idiqlat-Regular.woff2') format('woff2');
   font-style: normal;
   font-weight: 400;
   font-display: swap;
 }
 
 @font-face {
-  font-family: "Idiqlat";
-  src: url("../assets/fonts/Idiqlat-Semibold.woff2") format("woff2");
+  font-family: 'Idiqlat';
+  src: url('../assets/fonts/Idiqlat-Semibold.woff2') format('woff2');
   font-style: normal;
   font-weight: 600;
   font-display: swap;
 }
 
 @font-face {
-  font-family: "Idiqlat";
-  src: url("../assets/fonts/Idiqlat-Bold.woff2") format("woff2");
+  font-family: 'Idiqlat';
+  src: url('../assets/fonts/Idiqlat-Bold.woff2') format('woff2');
   font-style: normal;
   font-weight: 700;
   font-display: swap;

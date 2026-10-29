@@ -29,7 +29,7 @@
 }
 
 .gm-radio__input::before {
-  content: "";
+  content: '';
   width: 8px;
   height: 8px;
   border-radius: var(--gm-radius-full);
@@ -92,13 +92,11 @@
   line-height: var(--gm-line-height-sm);
 }
 
-.gm-radio__input:disabled + .gm-radio__content
-.gm-radio__label {
+.gm-radio__input:disabled + .gm-radio__content .gm-radio__label {
   color: var(--gm-color-text-disabled);
   cursor: not-allowed;
 }
 
-.gm-radio__input:disabled + .gm-radio__content
-.gm-radio__description {
+.gm-radio__input:disabled + .gm-radio__content .gm-radio__description {
   color: var(--gm-color-text-disabled);
 }
