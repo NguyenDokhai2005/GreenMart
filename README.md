@@ -43,10 +43,9 @@ Yêu cầu: Git, Docker Engine/Docker Desktop đang chạy Linux containers và 
 Compose v2. Dùng PowerShell 7 để chạy script kiểm tra bên dưới. Không cần cài
 Java/Maven/Node trên máy nếu chỉ chạy bằng Docker.
 
-Các phần nền móng được giao ở #122–#126. Còn chờ khung React/Vite của SV04
-(#68) trước khi chạy đủ 5 service.
-Nếu frontend chưa có `package.json` và `package-lock.json`, build frontend sẽ lỗi;
-đây là phụ thuộc chưa hoàn thành, không phải một hệ thống đã nghiệm thu.
+Các phần nền móng được giao ở #122–#126. Khung React/Vite của SV04 (#68) đã có
+`package.json` và `package-lock.json`; trạng thái CI/PR và tích hợp API nghiệp vụ
+cần được xác nhận riêng trước khi nghiệm thu frontend.
 
 Tại thư mục gốc:
 
@@ -103,7 +102,7 @@ Healthcheck backend trong Dockerfile và Compose dùng
 Cấu hình `management.*` được quản lý trong `application.yml`;
 không dùng file `application.properties` riêng.
 
-## Chạy từng phần trong lúc chờ frontend
+## Chạy backend riêng
 
 ```powershell
 docker compose up -d --wait postgres redis rabbitmq
@@ -135,7 +134,7 @@ Script backup/restore và seed được bổ sung ở các issue sau.
 | --- | --- |
 | Không kết nối Docker Engine | Mở Docker Desktop, chờ Engine sẵn sàng và kiểm tra `docker info` |
 | Thiếu `.env` hoặc biến bắt buộc | Sao chép file mẫu, điền giá trị; chạy `docker compose config --quiet` |
-| Frontend thiếu package/lockfile | Chờ khung SV04; dùng lệnh chạy từng phần ở trên |
+| Frontend không gọi được API khi chạy Vite | Kiểm tra backend tại `localhost:8080`; Vite chuyển tiếp `/api/*` tới backend |
 | Backend unhealthy | Đọc log backend và ba service hạ tầng; kiểm tra mật khẩu/hostname |
 | Đổi mật khẩu DB trong `.env` nhưng không kết nối được | Volume cũ giữ mật khẩu cũ; đổi role có kiểm soát hoặc reset dữ liệu phát triển khi được phép |
 | Chưa có bảng / Flyway lỗi | Phối hợp SV03; không sửa bằng Hibernate auto-create hoặc SQL thủ công |
