@@ -61,6 +61,7 @@ class GlobalExceptionHandlerTest {
 
     public record TestRequest(@NotBlank(message = "Tên không được để trống") String name) {}
 
+    // sai validation -> 400
     @Test
     void testBodyValidationFails_Returns400() throws Exception {
         mockMvc.perform(post("/test/validation")
@@ -71,6 +72,7 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.details[0].field").value("name"));
     }
 
+    // JSON sai cú pháp -> 400
     @Test
     void testInvalidJson_Returns400() throws Exception {
         mockMvc.perform(post("/test/validation")
@@ -80,25 +82,7 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 
-    @Test
-    void testAppException_ReturnsCorrectStatusAndCode() throws Exception {
-        mockMvc.perform(get("/test/app-exception"))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
-                .andExpect(jsonPath("$.message").value("Không tìm thấy dữ liệu"));
-    }
-
-    @Test
-    void testUnexpectedException_Returns500WithoutStackTrace() throws Exception {
-        mockMvc.perform(get("/test/server-error"))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.code").value("INTERNAL_SERVER_ERROR"))
-                .andExpect(jsonPath("$.traceId").exists())
-                .andExpect(jsonPath("$.details").doesNotExist())
-                .andExpect(result -> org.junit.jupiter.api.Assertions.assertFalse(
-                        result.getResponse().getContentAsString().contains("java.lang.RuntimeException")));
-    }
-
+    // Sai kiểu dữ liệu params -> 400
     @Test
     void testTypeMismatch_Returns400() throws Exception {
         mockMvc.perform(get("/test/type-mismatch?page=abc"))
@@ -107,6 +91,7 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.details[0].field").value("page"));
     }
 
+    // Thiếu header bắt buộc -> 400
     @Test
     void testMissingRequiredHeader_Returns400() throws Exception {
         mockMvc.perform(get("/test/required-header"))
@@ -117,10 +102,40 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.details[0].message").value("Bắt buộc"));
     }
 
+    // URL không tồn tại -> 404
+    @Test
+    void testNotFound_Returns404() throws Exception {
+        mockMvc.perform(get("/test/unmapped-endpoint"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+    }
+
+    // Sai HTTP Method -> 405
     @Test
     void testMethodNotSupported_Returns405() throws Exception {
         mockMvc.perform(post("/test/app-exception"))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"));
+    }
+
+    // AppException -> trả đúng HTTP status và code
+    @Test
+    void testAppException_ReturnsCorrectStatusAndCode() throws Exception {
+        mockMvc.perform(get("/test/app-exception"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("Không tìm thấy dữ liệu"));
+    }
+
+    // Exception bất ngờ (500) -> không lộ stack trace
+    @Test
+    void testUnexpectedException_Returns500WithoutStackTrace() throws Exception {
+        mockMvc.perform(get("/test/server-error"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_SERVER_ERROR"))
+                .andExpect(jsonPath("$.traceId").exists())
+                .andExpect(jsonPath("$.details").doesNotExist())
+                .andExpect(result -> org.junit.jupiter.api.Assertions.assertFalse(
+                        result.getResponse().getContentAsString().contains("java.lang.RuntimeException")));
     }
 }
