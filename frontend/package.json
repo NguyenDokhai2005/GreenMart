@@ -5,11 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:mock": "vite --mode mock",
+    "generate:api-types": "npx --yes --package=openapi-typescript@7.13.0 -- openapi-typescript ../docs/api/openapi.yaml -o src/api/schema.ts --default-non-nullable false && prettier --write src/api/schema.ts",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "mock:api": "npx --yes @stoplight/prism-cli@5.16.0 mock ../docs/api/openapi.yaml --host 127.0.0.1 --port 4010",
     "preview": "vite preview",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.tests.json"
   },
   "dependencies": {
     "react": "^19.3.1",
@@ -29,6 +34,7 @@
     "prettier": "^3.9.10",
     "typescript": "~6.0.0",
     "typescript-eslint": "^8.72.0",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "vitest": "5.0.5"
   }
 }

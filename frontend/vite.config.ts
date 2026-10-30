@@ -1,12 +1,20 @@
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 
-// https://vite.dev/config/
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    proxy: {
-      '/api': 'http://localhost:8080',
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), 'GREENMART_');
+  return {
+    plugins: [react()],
+    server: {
+      proxy: {
+        '/api': {
+          target:
+            env.GREENMART_API_PROXY_TARGET ||
+            (mode === 'mock' ? 'http://127.0.0.1:4010' : 'http://localhost:8080'),
+          changeOrigin: true,
+          ...(mode === 'mock' ? { rewrite: (path: string) => path.replace(/^\/api\/v1/, '') } : {}),
+        },
+      },
     },
-  },
+  };
 });
