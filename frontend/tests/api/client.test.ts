@@ -187,7 +187,7 @@ it('preserves 422 details and never automatically retries a checkout', async () 
   );
   await expect(
     request('/orders/pos', 'post', {
-      header: { 'Idempotency-Key': '8f5eeb93-9560-4d7b-bd9b-7930e965bcec' },
+      header: { 'Idempotency-Key': crypto.randomUUID() },
       body: {
         branchId: 1,
         items: [{ productId: 1, quantity: 1 }],

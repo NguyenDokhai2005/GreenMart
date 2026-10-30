@@ -22,7 +22,7 @@ it('quotes, completes and reads an invoice; an explicit retry keeps key and body
     payment: { method: 'CASH', cashReceived: 250000 },
     expectedTotal: result.total,
   };
-  const key = '8f5eeb93-9560-4d7b-bd9b-7930e965bcec';
+  const key = crypto.randomUUID();
   await completePosOrder(body, key);
   await completePosOrder(body, key);
   await getOrder(42);
