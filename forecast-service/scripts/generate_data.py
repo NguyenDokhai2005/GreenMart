@@ -2045,8 +2045,8 @@ def main() -> None:
     print(f"- Phiếu đổi trả: {len(returns)} (tổng số dòng hàng trả return_item: {len(return_items)})")
     print(f"- Tỷ lệ Pareto 200 SKU top: {stats['pareto_share']*100:.2f}% sản lượng bán")
     print(f"- Tỷ lệ ô trống (sparsity) trong daily_sales: {stats['zero_cells_pct']:.2f}%")
-    print(f"- File SQL: {sql_path} ({sql_path.stat().st_size / (1024*1024):.2f} MB)")
-    print(f"- File Stockout JSON: {json_path} ({json_path.stat().st_size / 1024:.2f} KB)")
+    print(f"- File SQL: forecast-service/data/{sql_path.name} ({sql_path.stat().st_size / (1024*1024):.2f} MB)")
+    print(f"- File Stockout JSON: forecast-service/data/{json_path.name} ({json_path.stat().st_size / 1024:.2f} KB)")
     print("Hoàn tất thành công!")
 
 

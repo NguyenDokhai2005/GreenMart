@@ -1,6 +1,6 @@
-# HƯỚNG DẪN ĐỌC HIỂU MÃ NGUỒN `generate_data.py` (DÀNH CHO SV06)
+# HƯỚNG DẪN ĐỌC HIỂU MÃ NGUỒN [generate_data.py](generate_data.py) (DÀNH CHO SV06)
 
-Tài liệu này được biên soạn nhằm giúp bạn (SV06 – phụ trách Data/AI, module `forecast-service`) nắm vững toàn bộ kiến trúc, mục đích, yêu cầu nghiệp vụ và cách tự chạy kiểm thử cho từng hàm trong bộ sinh dữ liệu lịch sử demo GreenMart (`generate_data.py` - Issue #106 / AI-01).
+Tài liệu này được biên soạn nhằm giúp bạn (SV06 – phụ trách Data/AI, module `forecast-service`) nắm vững toàn bộ kiến trúc, mục đích, yêu cầu nghiệp vụ và cách tự chạy kiểm thử cho từng hàm trong bộ sinh dữ liệu lịch sử demo GreenMart ([generate_data.py](generate_data.py) - Issue #106 / AI-01).
 
 ---
 
@@ -53,7 +53,7 @@ Quy trình sinh dữ liệu được điều phối tuần tự qua 5 giai đo�
 
 #### Hàm `generate_categories()`
 - **Mục đích**: Tạo cây danh mục 2 cấp gồm 3 danh mục cha Cấp 1 và 15 danh mục con Cấp 2.
-- **Yêu cầu đáp ứng**: Cấu trúc bảng `category` tự tham chiếu (`parent_id`) và phân loại thành 3 nhóm ngành kinh doanh chính trong `config.py`:
+- **Yêu cầu đáp ứng**: Cấu trúc bảng `category` tự tham chiếu (`parent_id`) và phân loại thành 3 nhóm ngành kinh doanh chính trong [config.py](config.py):
   - `READY_TO_EAT_BEVERAGE`: Thực phẩm chế biến & Đồ uống (5 danh mục con).
   - `FRESH_FOOD`: Thực phẩm tươi sống (5 danh mục con).
   - `DRY_FOOD_FMCG`: Đồ khô & Tiêu dùng nhanh (5 danh mục con).
@@ -187,7 +187,7 @@ Quy trình sinh dữ liệu được điều phối tuần tự qua 5 giai đo�
 #### Hàm `generate_returns(orders, products)`
 - **Mục đích**: Sinh 150 phiếu đổi trả hàng (`return_document`) và 510 dòng hàng trả lại (`return_item`) (gồm 400 dòng trả toàn bộ và 110 dòng trả một phần).
 - **Yêu cầu đáp ứng**:
-  - Tỷ lệ trả hàng: 150 đơn / 10.000 đơn xử lý = 1.5% (nằm trong biên độ 1%–2% của `config.py`).
+  - Tỷ lệ trả hàng: 150 đơn / 10.000 đơn xử lý = 1.5% (nằm trong biên độ 1%–2% của [config.py](config.py)).
   - Phân loại trạng thái:
     - **75 đơn trả toàn bộ**: Trả hết 100% các dòng mua $\rightarrow$ Đơn gốc chuyển trạng thái thành **`RETURNED`**, hoàn trả 100% tổng tiền đơn (`refund_amount == sales_order.total`).
     - **75 đơn trả một phần**: Trả 1–2 sản phẩm $\rightarrow$ Đơn gốc giữ nguyên trạng thái **`COMPLETED`**, hoàn trả tiền theo giá trị thực trả của từng dòng.
