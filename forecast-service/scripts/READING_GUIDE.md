@@ -251,15 +251,15 @@ python -m scripts.generate_data
 ```
 Kết quả in ra màn hình phải thông báo hoàn tất 5 bước và hiển thị bảng thống kê khớp chính xác.
 
-### 3.2. Chạy toàn bộ 37 unit test
+### 3.2. Chạy toàn bộ 41 unit test
 ```powershell
 cd forecast-service
 python -m pytest
 ```
-Kết quả yêu cầu: `37 passed` (100% xanh).
+Kết quả yêu cầu: `41 passed` (100% xanh).
 
 ### 3.3. Kiểm tra tính toàn vẹn mã băm (SHA-256 Checksums)
 Được cố định bằng kiểm thử `test_golden_sha256_checksums` (sinh trực tiếp trong bộ nhớ với `newline='\n'` và `encoding='utf-8'` chuẩn POSIX/Linux):
-- `seed_data.sql`: `7b9784eb29d0ef5cee728ebcdb0b801d3db75f9753b8b6be46733657e597695b`
+- `seed_data.sql`: `68e17e2528c2daacae1552ec6336cefb4d13798d2937082e52780b6656e77680`
 - `stockout_schedule.json`: `d0226a3d258fa87649db164118a5d600052de8f422e94e5beecb8a3e05d1dc91`
 Bất kỳ thay đổi nào làm lệch các giá trị băm này đều sẽ bị unit test cảnh báo ngay lập tức.

@@ -127,8 +127,10 @@ class TestGeneratorStage1(unittest.TestCase):
         self.assertEqual(user_7.role, "CASHIER")
         self.assertEqual(user_7.branch_ids, [1])
 
+        self.assertEqual(len(set(u.password_hash for u in users)), 12, "Mỗi tài khoản demo phải có salt/hash riêng biệt")
         for u in users:
             self.assertTrue(u.password_hash.startswith("$2a$10$"))
+            self.assertEqual(len(u.password_hash), 60)
 
 
 class TestGeneratorStage2(unittest.TestCase):
@@ -149,6 +151,7 @@ class TestGeneratorStage2(unittest.TestCase):
             promotions=cls.promotions,
             stockout_schedule=cls.stockout_schedule,
         )
+        generate_data.adjust_customer_created_at(cls.customers, cls.orders)
 
     def test_customers_integrity(self):
         """Kiểm tra 1.500 khách hàng và tái hiện đúng khách hàng ID 125 Trần Thị Mai."""
@@ -162,6 +165,36 @@ class TestGeneratorStage2(unittest.TestCase):
 
         phones = [c.phone for c in self.customers]
         self.assertEqual(len(set(phones)), len(phones))
+
+    def test_customer_created_at_before_first_order(self):
+        """Kiểm tra thời điểm tạo khách hàng luôn <= thời điểm đơn hàng đầu tiên của khách."""
+        cust_map = {c.id: c for c in self.customers}
+        bad_orders = []
+        for o in self.orders:
+            if o.customer_id:
+                c = cust_map[o.customer_id]
+                if c.created_at > o.created_at:
+                    bad_orders.append((c.id, c.created_at, o.id, o.created_at))
+        self.assertEqual(len(bad_orders), 0, f"Có {len(bad_orders)} đơn hàng xuất hiện trước khi khách hàng được tạo")
+
+    def test_promotions_usage_duration_and_share(self):
+        """Kiểm tra:
+        - Mỗi KM ACTIVE có used_count > 0.
+        - Mọi KM có thời lượng trong khoảng cấu hình (3-7 ngày), trừ đợt Tết 14 ngày.
+        - Tỷ lệ đơn có KM cấp đơn <= 30%.
+        """
+        for p in self.promotions:
+            self.assertGreater(p.used_count, 0, f"Khuyến mại {p.code} ({p.id}) có used_count = 0")
+            dur = (p.end_at.date() - p.start_at.date()).days + 1
+            if p.code == "TET2026-15":
+                self.assertEqual(dur, 14, "Chiến dịch Tết kéo dài đúng 14 ngày")
+            else:
+                self.assertGreaterEqual(dur, config.PROMOTION_CAMPAIGN_DURATION_DAYS_RANGE[0], f"KM {p.code} quá ngắn ({dur} ngày)")
+                self.assertLessEqual(dur, config.PROMOTION_CAMPAIGN_DURATION_DAYS_RANGE[1], f"KM {p.code} quá dài ({dur} ngày)")
+
+        order_promo_count = sum(1 for o in self.orders if o.promotion_id is not None)
+        order_promo_share = order_promo_count / len(self.orders)
+        self.assertLessEqual(order_promo_share, 0.30, f"Tỷ lệ đơn có KM cấp đơn ({order_promo_share:.2%}) vượt quá 30%")
 
     def test_promotions_and_examples(self):
         """Kiểm tra các chương trình khuyến mại trong 12 tháng và mã mẫu GAO-15K, DON200K-10."""
@@ -405,10 +438,12 @@ class TestGeneratorStage2(unittest.TestCase):
         total_in_qty = 0
         total_in_expected_out = 0
 
+        branch_map = {1: "GM-001", 2: "GM-002", 3: "GM-003"}
         for p in item_promos:
             p_start = p.start_at.date()
             p_end = p.end_at.date()
             p_skus = set(p.product_ids)
+            p_b_codes = [branch_map[bid] for bid in p.branch_ids]
 
             in_days = [p_start + timedelta(days=i) for i in range((p_end - p_start).days + 1)]
             out_days = [
@@ -420,7 +455,7 @@ class TestGeneratorStage2(unittest.TestCase):
             out_dow_days = defaultdict(lambda: defaultdict(int))
             for d in out_days:
                 dow = d.weekday()
-                for b_code in ["GM-001", "GM-002", "GM-003"]:
+                for b_code in p_b_codes:
                     for pid in p_skus:
                         out_dow_sum[(b_code, dow)][pid] += daily_sales[(b_code, pid, d)]
                     out_dow_days[(b_code, dow)]["cnt"] += 1
@@ -429,7 +464,7 @@ class TestGeneratorStage2(unittest.TestCase):
                 if tet_start_d <= d <= tet_end_d:
                     continue
                 dow = d.weekday()
-                for b_code in ["GM-001", "GM-002", "GM-003"]:
+                for b_code in p_b_codes:
                     days_cnt = out_dow_days[(b_code, dow)]["cnt"]
                     if days_cnt > 0:
                         for pid in p_skus:
@@ -482,6 +517,11 @@ class TestGeneratorStage3(unittest.TestCase):
             order_id_start=len(cls.processed_orders) + 1,
             item_id_start=sum(len(o.items) for o in cls.processed_orders) + 1,
             payment_id_start=len(cls.processed_orders) + 1,
+        )
+        all_orders = cls.processed_orders + cls.failed_orders
+        generate_data.adjust_customer_created_at(cls.customers, all_orders)
+        cls.inventories, cls.inventory_transactions = generate_data.generate_initial_inventory(
+            cls.products, cls.stockout_schedule
         )
 
     def test_processed_orders_status_split(self):
@@ -590,13 +630,13 @@ class TestGeneratorStage3(unittest.TestCase):
         Yêu cầu:
         - Đơn RETURNED (trả toàn bộ): SL trả = SL mua của TỪNG dòng, tiền hoàn = total đơn.
         - Đơn trả một phần: SL trả <= SL mua của từng dòng, tiền hoàn < total đơn.
-        - Tổng số dòng return_item = 510 (>= 300, gồm 400 dòng full + 110 dòng partial).
+        - Tổng số dòng return_item = 515 (>= 300 dòng theo yêu cầu nghiệp vụ).
         """
         order_map = {o.id: o for o in self.processed_orders}
         order_item_map = {it.id: it for o in self.processed_orders for it in o.items}
 
         self.assertEqual(len(self.returns), 150)
-        self.assertEqual(len(self.return_items), 510)
+        self.assertEqual(len(self.return_items), 515)
         self.assertGreaterEqual(len(self.return_items), 300)
 
         full_returns = [r for r in self.returns if order_map[r.order_id].status == "RETURNED"]
@@ -632,6 +672,61 @@ class TestGeneratorStage3(unittest.TestCase):
                     f"Đơn trả một phần: SL trả ({ri.quantity}) phải <= SL mua ({oit.quantity})",
                 )
 
+    def test_return_condition_and_reason_alignment(self):
+        """Kiểm tra: lý do lỗi sản phẩm/chất lượng -> DAMAGED; chỉ lý do đổi ý/dư dùng mới được RESELLABLE."""
+        doc_map = {r.id: r for r in self.returns}
+        damaged_keywords = ("lỗi", "chất lượng", "hết hạn", "hỏng")
+        resellable_keywords = ("đổi ý", "dư dùng", "không vừa", "mua nhầm")
+        for ri in self.return_items:
+            doc = doc_map[ri.return_id]
+            reason_lower = doc.reason.lower()
+            if any(k in reason_lower for k in damaged_keywords):
+                self.assertEqual(ri.condition, "DAMAGED", f"Phiếu trả #{doc.id} có lý do lỗi '{doc.reason}' nhưng condition là {ri.condition}")
+            if ri.condition == "RESELLABLE":
+                self.assertTrue(
+                    any(k in reason_lower for k in resellable_keywords),
+                    f"Condition RESELLABLE nhưng phiếu #{doc.id} có lý do '{doc.reason}'",
+                )
+
+    def test_inventory_and_transactions_alignment(self):
+        """Kiểm tra tồn kho ban đầu:
+        - 3.000 dòng inventory (3 chi nhánh x 1.000 sản phẩm).
+        - 3.000 dòng inventory_transaction loại IMPORT tương ứng.
+        - Mỗi dòng inventory có đúng 1 giao dịch IMPORT khớp on_hand (delta_on_hand == on_hand_after == on_hand).
+        - Sản phẩm bị FULL_DAY stockout vào ngày cuối (31/10/2026) có on_hand = 0.
+        """
+        self.assertEqual(len(self.inventories), 3000)
+        self.assertEqual(len(self.inventory_transactions), 3000)
+
+        tx_map = {(tx.branch_id, tx.product_id): tx for tx in self.inventory_transactions}
+        self.assertEqual(len(tx_map), 3000)
+
+        last_date = date(2026, 10, 31)
+        full_day_stockouts = {
+            (b_id, p_id)
+            for (b_id, p_id, d), mode in self.stockout_schedule.items()
+            if d == last_date and mode == "FULL_DAY"
+        }
+
+        for inv in self.inventories:
+            self.assertEqual(inv.reserved, 0)
+            self.assertGreaterEqual(inv.on_hand, 0)
+            self.assertGreater(inv.reorder_point, 0)
+
+            # Khớp giao dịch IMPORT
+            key = (inv.branch_id, inv.product_id)
+            self.assertIn(key, tx_map)
+            tx = tx_map[key]
+            self.assertEqual(tx.type, "IMPORT")
+            self.assertEqual(tx.delta_on_hand, inv.on_hand)
+            self.assertEqual(tx.on_hand_after, inv.on_hand)
+            self.assertEqual(tx.delta_reserved, 0)
+            self.assertEqual(tx.reserved_after, 0)
+
+            # FULL_DAY stockout vào ngày cuối
+            if key in full_day_stockouts:
+                self.assertEqual(inv.on_hand, 0, f"Sản phẩm {key} stockout FULL_DAY ngày 31/10 phải có on_hand = 0")
+
 
 class TestGeneratorStage4(unittest.TestCase):
     """Kiểm tra xuất file SQL, file JSON và tính tái lập (Reproducibility)."""
@@ -652,11 +747,14 @@ class TestGeneratorStage4(unittest.TestCase):
 
         # Kiểm tra nội dung SQL
         with open(sql_path, "r", encoding="utf-8") as f:
-            head = f.read(2048)
-            self.assertIn("[CẢNH BÁO: DỮ LIỆU SẼ BỊ PHÁ HỦY", head)
-            self.assertIn("UPDATE sales_channel SET default_branch_id = NULL;", head)
-            self.assertIn("TRUNCATE TABLE", head)
-            self.assertIn("DELETE FROM branch;", head)
+            content = f.read()
+            self.assertIn("[CẢNH BÁO: DỮ LIỆU SẼ BỊ PHÁ HỦY", content)
+            self.assertIn("UPDATE sales_channel SET default_branch_id = NULL;", content)
+            self.assertIn("TRUNCATE TABLE", content)
+            self.assertIn("DELETE FROM branch;", content)
+            self.assertIn("INSERT INTO inventory ", content)
+            self.assertIn("INSERT INTO inventory_transaction ", content)
+            self.assertIn("SELECT setval(pg_get_serial_sequence('inventory_transaction', 'id')", content)
 
         # Kiểm tra JSON
         with open(json_path, "r", encoding="utf-8") as f:
@@ -699,6 +797,8 @@ class TestGeneratorStage4(unittest.TestCase):
             payment_id_start=len(orders) + 1
         )
         all_orders = orders + failed_orders
+        generate_data.adjust_customer_created_at(customers, all_orders)
+        inventories, inventory_transactions = generate_data.generate_initial_inventory(products, stockout_schedule)
 
         # 1. In-memory JSON
         buf_json = io.StringIO()
@@ -712,12 +812,13 @@ class TestGeneratorStage4(unittest.TestCase):
             branches=branches, categories=categories, products=products,
             users=users, customers=customers, promotions=promotions,
             orders=all_orders, returns=returns, audit_logs=audit_logs,
+            inventories=inventories, inventory_transactions=inventory_transactions,
             stream=buf_sql
         )
         sql_bytes = buf_sql.getvalue().encode("utf-8")
         actual_sql_sha = hashlib.sha256(sql_bytes).hexdigest()
 
-        GOLDEN_SQL_SHA256 = "7b9784eb29d0ef5cee728ebcdb0b801d3db75f9753b8b6be46733657e597695b"
+        GOLDEN_SQL_SHA256 = "68e17e2528c2daacae1552ec6336cefb4d13798d2937082e52780b6656e77680"
         GOLDEN_JSON_SHA256 = "d0226a3d258fa87649db164118a5d600052de8f422e94e5beecb8a3e05d1dc91"
 
         self.assertEqual(actual_sql_sha, GOLDEN_SQL_SHA256, "Mã SHA-256 in-memory của SQL không được thay đổi")

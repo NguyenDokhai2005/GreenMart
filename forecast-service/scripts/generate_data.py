@@ -191,6 +191,33 @@ class AuditLog:
     created_at: datetime
 
 
+@dataclass
+class Inventory:
+    branch_id: int
+    product_id: int
+    on_hand: int
+    reserved: int = 0
+    reorder_point: int = 10
+    version: int = 0
+    updated_at: datetime = field(default_factory=lambda: config.END_DATE)
+
+
+@dataclass
+class InventoryTransaction:
+    id: int
+    branch_id: int
+    product_id: int
+    type: str  # IMPORT | EXPORT | SALE | RESERVE | RELEASE | RETURN | TRANSFER_OUT | TRANSFER_IN | ADJUST
+    delta_on_hand: int
+    on_hand_after: int
+    delta_reserved: int = 0
+    reserved_after: int = 0
+    ref_type: str = "INITIAL_STOCK"
+    ref_id: int = 1
+    created_by: Optional[int] = None
+    created_at: datetime = field(default_factory=lambda: config.END_DATE)
+
+
 # ==============================================================================
 # 1. HÀM SINH CHI NHÁNH (BRANCHES)
 # ==============================================================================
@@ -498,7 +525,22 @@ def generate_products() -> Tuple[List[Product], Set[int]]:
 # 4. HÀM SINH TÀI KHOẢN DEMO (APP_USER & USER_BRANCH)
 # ==============================================================================
 
-DEMO_PASSWORD_HASH: str = "$2a$10$3fowtRCmzdjT7xaPRcs1ce56VkstW4G6aCNMp.hinJQj81l9az2MC"
+# 12 mã hash BCrypt chuẩn Spring Security ($2a$10$...) cho mật khẩu 'Demo@123' với 12 salt ngẫu nhiên độc lập
+# được sinh cố định từ RANDOM_SEED = 2026 nhằm đảm bảo tính lặp lại và vượt qua test ID-052
+DEMO_PASSWORD_HASHES: List[str] = [
+    "$2a$10$FjE.62Mj1NKY2hljkX8MYumr9nr/ZWHUt52YaKTRBgWlUUCOG5yOG",
+    "$2a$10$wHIKz5tEvF1.vXXuNOAbD.Ap6Q7tv0sSgKU0aVy8mtF3nSBKQ1VFi",
+    "$2a$10$FClPEVKAyMQtdYzOLUT.UOIescMAi2TXPAl0xKiUfHEOeb.m2hhwW",
+    "$2a$10$8t9rU63e954BmvM3TvYMgOgmrhDu855O1rWF.q6CVGYFNGvl8d9b2",
+    "$2a$10$QijzHMAjrJcRRuZXrT3bbeat8rmao2FyadLBOm2Z3E9bn1T6Mr0RS",
+    "$2a$10$Z/bk3HULd72bZGFLuL0X2.eN8CxZchD2uOYEmaC4uUo0RBvoT.5jG",
+    "$2a$10$dUVofiJWY3Br81oBfK2EiuozXgBySz6Aa61yDD1p3/52whS43biAq",
+    "$2a$10$MaOfyOx0rGVhovo1l0z2H.AeCmZf4t1d2/t2Ax7c9BnH17r8CWfWS",
+    "$2a$10$c8G40cGdmJLypFg05dV68eVVxGSLd4tAEOPEkTKhDTHawgfcoV42C",
+    "$2a$10$gyANXot9RmxKnWAwcq5gXeEnycr2xIYhYZ5yyPACfZH1MU6a0YMo6",
+    "$2a$10$ZhLJzCOAAAYl2Xhzba0D5ORfmXZKhq5qAPbHF6D38Rb7PkENSExKq",
+    "$2a$10$dTxpKyIvdFcAvLL9xk8MoOLrkSYXjAXp1Q354Hph9gf11HmCLAA.O",
+]
 
 
 def generate_demo_users() -> List[AppUser]:
@@ -507,13 +549,13 @@ def generate_demo_users() -> List[AppUser]:
     Khớp chính xác:
     - Thu ngân CN1: ID 7, username 'thungan.gm001', tên 'Nguyễn Thu Ngân'
     - ID 6: Phó chủ chuỗi GreenMart (role OWNER)
-    - Mật khẩu chung: 'Demo@123'
+    - Mật khẩu chung: 'Demo@123', mỗi tài khoản có salt và hash BCrypt riêng biệt (ID-052)
     """
     return [
         AppUser(
             id=1,
             username="admin",
-            password_hash=DEMO_PASSWORD_HASH,
+            password_hash=DEMO_PASSWORD_HASHES[0],
             full_name="Quản trị hệ thống",
             role="ADMIN",
             branch_ids=[1, 2, 3],
@@ -521,7 +563,7 @@ def generate_demo_users() -> List[AppUser]:
         AppUser(
             id=2,
             username="owner",
-            password_hash=DEMO_PASSWORD_HASH,
+            password_hash=DEMO_PASSWORD_HASHES[1],
             full_name="Chủ chuỗi GreenMart",
             role="OWNER",
             branch_ids=[1, 2, 3],
@@ -529,7 +571,7 @@ def generate_demo_users() -> List[AppUser]:
         AppUser(
             id=3,
             username="quanly.gm001",
-            password_hash=DEMO_PASSWORD_HASH,
+            password_hash=DEMO_PASSWORD_HASHES[2],
             full_name="Trần Văn Quản Lý 1",
             role="BRANCH_MANAGER",
             branch_ids=[1],
@@ -537,7 +579,7 @@ def generate_demo_users() -> List[AppUser]:
         AppUser(
             id=4,
             username="quanly.gm002",
-            password_hash=DEMO_PASSWORD_HASH,
+            password_hash=DEMO_PASSWORD_HASHES[3],
             full_name="Lê Thị Quản Lý 2",
             role="BRANCH_MANAGER",
             branch_ids=[2],
@@ -545,7 +587,7 @@ def generate_demo_users() -> List[AppUser]:
         AppUser(
             id=5,
             username="quanly.gm003",
-            password_hash=DEMO_PASSWORD_HASH,
+            password_hash=DEMO_PASSWORD_HASHES[4],
             full_name="Phạm Văn Quản Lý 3",
             role="BRANCH_MANAGER",
             branch_ids=[3],
@@ -553,7 +595,7 @@ def generate_demo_users() -> List[AppUser]:
         AppUser(
             id=6,
             username="owner.pho",
-            password_hash=DEMO_PASSWORD_HASH,
+            password_hash=DEMO_PASSWORD_HASHES[5],
             full_name="Trần Thị Phó Chủ Chuỗi",
             role="OWNER",
             branch_ids=[1, 2, 3],
@@ -561,7 +603,7 @@ def generate_demo_users() -> List[AppUser]:
         AppUser(
             id=7,
             username="thungan.gm001",
-            password_hash=DEMO_PASSWORD_HASH,
+            password_hash=DEMO_PASSWORD_HASHES[6],
             full_name="Nguyễn Thu Ngân",
             role="CASHIER",
             branch_ids=[1],
@@ -569,7 +611,7 @@ def generate_demo_users() -> List[AppUser]:
         AppUser(
             id=8,
             username="thungan.gm002",
-            password_hash=DEMO_PASSWORD_HASH,
+            password_hash=DEMO_PASSWORD_HASHES[7],
             full_name="Vũ Thu Ngân 2",
             role="CASHIER",
             branch_ids=[2],
@@ -577,7 +619,7 @@ def generate_demo_users() -> List[AppUser]:
         AppUser(
             id=9,
             username="thungan.gm003",
-            password_hash=DEMO_PASSWORD_HASH,
+            password_hash=DEMO_PASSWORD_HASHES[8],
             full_name="Đặng Thu Ngân 3",
             role="CASHIER",
             branch_ids=[3],
@@ -585,7 +627,7 @@ def generate_demo_users() -> List[AppUser]:
         AppUser(
             id=10,
             username="thukho.gm001",
-            password_hash=DEMO_PASSWORD_HASH,
+            password_hash=DEMO_PASSWORD_HASHES[9],
             full_name="Hoàng Văn Thủ Kho 1",
             role="STOREKEEPER",
             branch_ids=[1],
@@ -593,7 +635,7 @@ def generate_demo_users() -> List[AppUser]:
         AppUser(
             id=11,
             username="thukho.gm002",
-            password_hash=DEMO_PASSWORD_HASH,
+            password_hash=DEMO_PASSWORD_HASHES[10],
             full_name="Bùi Văn Thủ Kho 2",
             role="STOREKEEPER",
             branch_ids=[2],
@@ -601,7 +643,7 @@ def generate_demo_users() -> List[AppUser]:
         AppUser(
             id=12,
             username="thukho.gm003",
-            password_hash=DEMO_PASSWORD_HASH,
+            password_hash=DEMO_PASSWORD_HASHES[11],
             full_name="Đỗ Văn Thủ Kho 3",
             role="STOREKEEPER",
             branch_ids=[3],
@@ -672,6 +714,22 @@ def generate_customers(count: int = 1500) -> List[Customer]:
     return [cust_dict[i] for i in sorted(cust_dict.keys())]
 
 
+def adjust_customer_created_at(customers: List[Customer], orders: List[SalesOrder]) -> None:
+    """Đảm bảo customer.created_at <= min(sales_order.created_at) cho mọi khách hàng đã phát sinh đơn."""
+    first_order_by_cust: Dict[int, datetime] = {}
+    for o in orders:
+        if o.customer_id is not None:
+            if o.customer_id not in first_order_by_cust or o.created_at < first_order_by_cust[o.customer_id]:
+                first_order_by_cust[o.customer_id] = o.created_at
+
+    for c in customers:
+        if c.id in first_order_by_cust:
+            first_time = first_order_by_cust[c.id]
+            if c.created_at > first_time:
+                offset_mins = (c.id % 45) + 15
+                c.created_at = max(config.START_DATE, first_time - timedelta(minutes=offset_mins))
+
+
 # ==============================================================================
 # 6. HÀM SINH KHUYẾN MẠI (PROMOTIONS - CHẶNG 2)
 # ==============================================================================
@@ -681,11 +739,12 @@ def generate_promotions(products: Optional[List[Product]] = None) -> List[Promot
     """Sinh danh sách các chương trình khuyến mại trong 12 tháng lịch sử.
 
     Bao gồm các mã mẫu và chiến dịch:
-    - ID 11: GAO-15K (Giảm 15.000 đ cho Gạo ST25 5kg - cấp ITEM mẫu OpenAPI, suốt năm)
-    - ID 12: DON200K-10 (Giảm 10% cho đơn từ 200.000 đ, tối đa 30.000 đ - cấp ORDER, suốt năm)
-    - ID 13: TET2026-15 (Giảm 15% cho đơn từ 300.000 đ, tối đa 50.000 đ - dịp Tết Bính Ngọ)
-    - ID 14..25: 12 chiến dịch khuyến mại cấp ITEM hàng tháng (20-50 SKU/đợt, lift 30-80%)
-    - ID 26..37: 12 chiến dịch khuyến mại cấp ORDER hàng tháng (giảm 20.000 đ đơn từ 200k)
+    - ID 11: GAO-15K (Giảm 15.000 đ cho Gạo ST25 5kg - đợt tháng 11, 7 ngày)
+    - ID 12: DON200K-10 (Giảm 10% cho đơn từ 200.000 đ, tối đa 30.000 đ - đợt tháng 11, 6 ngày)
+    - ID 13: TET2026-15 (Giảm 15% cho đơn từ 300.000 đ, tối đa 50.000 đ - dịp Tết Bính Ngọ, 14 ngày)
+    - ID 14..25: 12 chiến dịch khuyến mại cấp ITEM hàng tháng (20-50 SKU/đợt, lift 30-80%, thời lượng 3-7 ngày)
+    - ID 26..37: 12 chiến dịch khuyến mại cấp ORDER hàng tháng (giảm 20.000 đ đơn từ 200k, thời lượng 3-7 ngày)
+    Áp dụng đầy đủ phạm vi SPECIFIC/ALL và POS_ONLY/ONLINE_ONLY theo config.py.
     """
     rng = random.Random(config.RANDOM_SEED)
     promotions: List[Promotion] = []
@@ -698,7 +757,24 @@ def generate_promotions(products: Optional[List[Product]] = None) -> List[Promot
     top_prods = [p for p in prods if p.is_top_sku]
     top_sku_candidates = [p.id for p in top_prods if p.id != 101]
 
-    # 1. Khuyến mại mẫu ID 11: GAO-15K (ITEM, AMOUNT = 15.000đ)
+    branch_options = [
+        [1, 2, 3],  # ALL
+        [1],        # GM-001
+        [2],        # GM-002
+        [1, 2],     # GM-001 & GM-002
+        [3],        # GM-003
+        [1, 2, 3],  # ALL
+    ]
+    channel_options = [
+        ["POS", "WEB", "MARKET"],  # ALL
+        ["POS"],                   # POS_ONLY
+        ["WEB", "MARKET"],          # ONLINE_ONLY
+        ["POS", "WEB", "MARKET"],  # ALL
+    ]
+
+    # 1. Khuyến mại mẫu ID 11: GAO-15K (ITEM, AMOUNT = 15.000đ, đợt 7 ngày tháng 11)
+    s11 = datetime(2025, 11, 10, 0, 0, 0, tzinfo=config.TIMEZONE)
+    e11 = s11 + timedelta(days=7 - 1, hours=23, minutes=59, seconds=59)
     p_rice = Promotion(
         id=11,
         code="GAO-15K",
@@ -708,18 +784,20 @@ def generate_promotions(products: Optional[List[Product]] = None) -> List[Promot
         value=15_000,
         max_discount=None,
         min_order=None,
-        start_at=config.START_DATE,
-        end_at=config.END_DATE,
+        start_at=s11,
+        end_at=e11,
         usage_limit=None,
         status="ACTIVE",
         product_ids=[101],
         branch_ids=[1, 2, 3],
         channel_codes=["POS", "WEB", "MARKET"],
-        demand_lift=0.0,
+        demand_lift=0.50,
     )
     promotions.append(p_rice)
 
-    # 2. Khuyến mại mẫu ID 12: DON200K-10 (ORDER, PERCENT = 10%)
+    # 2. Khuyến mại mẫu ID 12: DON200K-10 (ORDER, PERCENT = 10%, đợt 6 ngày tháng 11)
+    s12 = datetime(2025, 11, 20, 0, 0, 0, tzinfo=config.TIMEZONE)
+    e12 = s12 + timedelta(days=6 - 1, hours=23, minutes=59, seconds=59)
     p_order = Promotion(
         id=12,
         code="DON200K-10",
@@ -729,8 +807,8 @@ def generate_promotions(products: Optional[List[Product]] = None) -> List[Promot
         value=10,  # 10% lưu dạng số nguyên cho cột BIGINT
         max_discount=30_000,
         min_order=200_000,
-        start_at=config.START_DATE,
-        end_at=config.END_DATE,
+        start_at=s12,
+        end_at=e12,
         usage_limit=None,
         status="ACTIVE",
         product_ids=[],
@@ -769,14 +847,16 @@ def generate_promotions(products: Optional[List[Product]] = None) -> List[Promot
         else:
             y, m = 2026, month - 2   # Tháng 1 đến 10 năm 2026
 
-        start_day = rng.randint(4, 8)
+        start_day = rng.randint(3, 7)
         duration = rng.randint(config.PROMOTION_CAMPAIGN_DURATION_DAYS_RANGE[0], config.PROMOTION_CAMPAIGN_DURATION_DAYS_RANGE[1])
         s_dt = datetime(y, m, start_day, 0, 0, 0, tzinfo=config.TIMEZONE)
-        e_dt = s_dt + timedelta(days=duration, hours=23, minutes=59, seconds=59)
+        e_dt = s_dt + timedelta(days=duration - 1, hours=23, minutes=59, seconds=59)
 
         sku_cnt = rng.randint(config.PROMOTION_ITEM_SKU_COUNT_RANGE[0], config.PROMOTION_ITEM_SKU_COUNT_RANGE[1])
         sampled_skus = sorted(rng.sample(top_sku_candidates, sku_cnt))
         pct_val = rng.choice([10, 15, 20])
+        b_scope = branch_options[(month - 1) % len(branch_options)]
+        ch_scope = channel_options[(month - 1) % len(channel_options)]
 
         p_item = Promotion(
             id=promo_id,
@@ -792,8 +872,8 @@ def generate_promotions(products: Optional[List[Product]] = None) -> List[Promot
             usage_limit=None,
             status="ACTIVE",
             product_ids=sampled_skus,
-            branch_ids=[1, 2, 3],
-            channel_codes=["POS", "WEB", "MARKET"],
+            branch_ids=b_scope,
+            channel_codes=ch_scope,
             demand_lift=round(rng.uniform(0.50, 0.70), 2),
         )
         promotions.append(p_item)
@@ -806,10 +886,19 @@ def generate_promotions(products: Optional[List[Product]] = None) -> List[Promot
         else:
             y, m = 2026, month - 2   # Tháng 1 đến 10 năm 2026
 
-        start_day = rng.randint(18, 22)
+        if m == 11 and y == 2025:
+            start_day = 3
+        elif m == 2 and y == 2026:
+            start_day = 20
+        else:
+            start_day = rng.randint(18, 22)
+
         duration = rng.randint(config.PROMOTION_CAMPAIGN_DURATION_DAYS_RANGE[0], config.PROMOTION_CAMPAIGN_DURATION_DAYS_RANGE[1])
         s_dt = datetime(y, m, start_day, 0, 0, 0, tzinfo=config.TIMEZONE)
-        e_dt = s_dt + timedelta(days=duration, hours=23, minutes=59, seconds=59)
+        e_dt = s_dt + timedelta(days=duration - 1, hours=23, minutes=59, seconds=59)
+
+        b_scope = branch_options[month % len(branch_options)]
+        ch_scope = channel_options[month % len(channel_options)]
 
         p_order = Promotion(
             id=promo_id,
@@ -825,8 +914,8 @@ def generate_promotions(products: Optional[List[Product]] = None) -> List[Promot
             usage_limit=500,
             status="ACTIVE",
             product_ids=[],
-            branch_ids=[1, 2, 3],
-            channel_codes=["POS", "WEB", "MARKET"],
+            branch_ids=b_scope,
+            channel_codes=ch_scope,
         )
         promotions.append(p_order)
         promo_id += 1
@@ -1267,10 +1356,14 @@ def generate_returns(
         created_by = branch_cashiers[recv_b_id]
         approved_by = branch_managers[recv_b_id]
 
+        # Quyết định lý do trả hàng nhất quán: lỗi/chất lượng -> DAMAGED, đổi ý -> RESELLABLE (tránh mâu thuẫn)
+        has_fresh_food = any(prod_map[it.product_id].group_code == "FRESH_FOOD" for it in ord.items)
+        is_damaged_reason = has_fresh_food or (rng.random() < 0.30)
+        condition = "DAMAGED" if is_damaged_reason else "RESELLABLE"
+        reason = "Khách hàng trả toàn bộ đơn hàng do lỗi sản phẩm / bao bì" if is_damaged_reason else "Khách hàng đổi ý trả hàng nguyên seal"
+
         ret_items: List[ReturnItem] = []
         for it in ord.items:
-            p = prod_map[it.product_id]
-            condition = "DAMAGED" if p.group_code == "FRESH_FOOD" else ("RESELLABLE" if rng.random() < 0.70 else "DAMAGED")
             r_item = ReturnItem(
                 id=ret_item_id_counter,
                 return_id=ret_id_counter,
@@ -1283,7 +1376,6 @@ def generate_returns(
             ret_item_id_counter += 1
 
         ret_code = f"RET-{recv_b_code}-{ret_dt.strftime('%Y%m%d')}-{ret_id_counter:04d}"
-        reason = "Khách hàng trả toàn bộ đơn hàng do lỗi sản phẩm / bao bì" if any(x.condition == "DAMAGED" for x in ret_items) else "Khách hàng đổi ý trả hàng nguyên seal"
 
         ret_doc = ReturnDocument(
             id=ret_id_counter,
@@ -1324,6 +1416,12 @@ def generate_returns(
         k_items = rng.randint(1, min(2, len(ord.items) - 1))
         chosen_items = rng.sample(ord.items, k_items)
 
+        # Quyết định lý do trả hàng nhất quán: lỗi/chất lượng -> DAMAGED, dư dùng -> RESELLABLE
+        has_fresh_food = any(prod_map[it.product_id].group_code == "FRESH_FOOD" for it in chosen_items)
+        is_damaged_reason = has_fresh_food or (rng.random() < 0.30)
+        condition = "DAMAGED" if is_damaged_reason else "RESELLABLE"
+        reason = "Trả một phần sản phẩm bị lỗi chất lượng" if is_damaged_reason else "Khách hàng đổi trả sản phẩm dư dùng"
+
         subtotal_after_item_disc = sum(x.line_total for x in ord.items)
         order_discount = max(0, ord.discount - sum(x.discount for x in ord.items))
 
@@ -1331,8 +1429,6 @@ def generate_returns(
         doc_refund_amount = 0
 
         for it in chosen_items:
-            p = prod_map[it.product_id]
-            condition = "DAMAGED" if p.group_code == "FRESH_FOOD" else ("RESELLABLE" if rng.random() < 0.70 else "DAMAGED")
             qty_return = rng.randint(1, it.quantity)
 
             # Công thức hoàn tiền chuẩn BA §5.2
@@ -1357,7 +1453,6 @@ def generate_returns(
             ret_item_id_counter += 1
 
         ret_code = f"RET-{recv_b_code}-{ret_dt.strftime('%Y%m%d')}-{ret_id_counter:04d}"
-        reason = "Trả một phần sản phẩm bị lỗi chất lượng" if any(x.condition == "DAMAGED" for x in ret_items) else "Khách hàng đổi trả sản phẩm dư dùng"
 
         ret_doc = ReturnDocument(
             id=ret_id_counter,
@@ -1561,6 +1656,69 @@ def generate_failed_online_orders(
     return orders, audit_logs
 
 
+def generate_initial_inventory(
+    products: List[Product],
+    stockout_schedule: Dict[Tuple[int, int, date], str],
+    seed: int = config.RANDOM_SEED + 103,
+) -> Tuple[List[Inventory], List[InventoryTransaction]]:
+    """Sinh dữ liệu tồn kho khởi tạo cho 1.000 sản phẩm × 3 chi nhánh (3.000 bản ghi)
+    và 3.000 giao dịch sổ kho IMPORT tương ứng.
+
+    Quy tắc:
+    - on_hand đủ bán cho POS/online; riêng sản phẩm đang FULL_DAY stockout vào ngày cuối (31/10/2026) thì on_hand = 0.
+    - reserved = 0 (các đơn trước đó đã chốt sổ).
+    - Mỗi dòng inventory có đúng một giao dịch IMPORT khớp on_hand.
+    """
+    rng = random.Random(seed)
+    inventories: List[Inventory] = []
+    transactions: List[InventoryTransaction] = []
+
+    storekeeper_by_branch = {1: 10, 2: 11, 3: 12}
+    end_date = config.END_DATE.date()
+    import_time = config.END_DATE - timedelta(minutes=15)
+
+    tx_id = 1
+    for b_id in [1, 2, 3]:
+        for p in products:
+            is_full_stockout_today = (b_id, p.id, end_date) in stockout_schedule and stockout_schedule[(b_id, p.id, end_date)] == "FULL_DAY"
+            if is_full_stockout_today:
+                on_hand = 0
+            else:
+                on_hand = rng.randint(40, 90) if p.is_top_sku else rng.randint(15, 45)
+
+            reorder_point = 25 if p.is_top_sku else 10
+
+            inv = Inventory(
+                branch_id=b_id,
+                product_id=p.id,
+                on_hand=on_hand,
+                reserved=0,
+                reorder_point=reorder_point,
+                version=0,
+                updated_at=config.END_DATE,
+            )
+            inventories.append(inv)
+
+            tx = InventoryTransaction(
+                id=tx_id,
+                branch_id=b_id,
+                product_id=p.id,
+                type="IMPORT",
+                delta_on_hand=on_hand,
+                on_hand_after=on_hand,
+                delta_reserved=0,
+                reserved_after=0,
+                ref_type="INITIAL_STOCK",
+                ref_id=tx_id,
+                created_by=storekeeper_by_branch[b_id],
+                created_at=import_time,
+            )
+            transactions.append(tx)
+            tx_id += 1
+
+    return inventories, transactions
+
+
 # ==============================================================================
 # 11. HÀM TÍNH THỐNG KÊ (SALES STATISTICS & SPARSITY)
 # ==============================================================================
@@ -1701,6 +1859,8 @@ def _write_sql_statements(
     orders: List[SalesOrder],
     returns: List[ReturnDocument],
     audit_logs: List[AuditLog],
+    inventories: Optional[List[Inventory]] = None,
+    inventory_transactions: Optional[List[InventoryTransaction]] = None,
 ) -> None:
     """Ghi toàn bộ câu lệnh SQL vào file stream với định dạng chuẩn newline='\\n'."""
     # 1. Header cảnh báo
@@ -1920,8 +2080,33 @@ def _write_sql_statements(
         ]
         f.write(",\n".join(log_lines) + ";\n\n")
 
-    # 15. Reset sequences cho mọi bảng
-    f.write("-- 16. Thiết lập lại sequence cho tất cả các bảng vừa seed\n")
+    # 15. Insert Inventory & Inventory Transactions
+    if inventories:
+        f.write("-- 16. Tồn kho khởi tạo (3.000 bản ghi: 3 chi nhánh x 1.000 sản phẩm)\n")
+        batch_size = 500
+        for i in range(0, len(inventories), batch_size):
+            batch = inventories[i : i + batch_size]
+            val_strs = [
+                f"({inv.branch_id}, {inv.product_id}, {inv.on_hand}, {inv.reserved}, {inv.reorder_point}, {inv.version}, {_sql_dt(inv.updated_at)})"
+                for inv in batch
+            ]
+            f.write("INSERT INTO inventory (branch_id, product_id, on_hand, reserved, reorder_point, version, updated_at) VALUES\n")
+            f.write(",\n".join(val_strs) + ";\n\n")
+
+    if inventory_transactions:
+        f.write("-- 17. Sổ giao dịch kho IMPORT ban đầu (3.000 bản ghi)\n")
+        batch_size = 500
+        for i in range(0, len(inventory_transactions), batch_size):
+            batch = inventory_transactions[i : i + batch_size]
+            val_strs = [
+                f"({tx.id}, {tx.branch_id}, {tx.product_id}, {_sql_str(tx.type)}, {tx.delta_on_hand}, {tx.on_hand_after}, {tx.delta_reserved}, {tx.reserved_after}, {_sql_str(tx.ref_type)}, {tx.ref_id}, {_sql_int(tx.created_by)}, {_sql_dt(tx.created_at)})"
+                for tx in batch
+            ]
+            f.write("INSERT INTO inventory_transaction (id, branch_id, product_id, type, delta_on_hand, on_hand_after, delta_reserved, reserved_after, ref_type, ref_id, created_by, created_at) VALUES\n")
+            f.write(",\n".join(val_strs) + ";\n\n")
+
+    # 16. Reset sequences cho mọi bảng
+    f.write("-- 18. Thiết lập lại sequence cho tất cả các bảng vừa seed\n")
     tables_to_reset = [
         "branch",
         "category",
@@ -1934,6 +2119,7 @@ def _write_sql_statements(
         "payment",
         "return_document",
         "return_item",
+        "inventory_transaction",
         "audit_log",
     ]
     for tbl in tables_to_reset:
@@ -1952,18 +2138,20 @@ def export_to_sql(
     orders: List[SalesOrder],
     returns: List[ReturnDocument],
     audit_logs: List[AuditLog],
+    inventories: Optional[List[Inventory]] = None,
+    inventory_transactions: Optional[List[InventoryTransaction]] = None,
     filepath: Optional[Path] = None,
     stream: Optional[Any] = None,
 ) -> None:
     """Xuất toàn bộ dữ liệu mẫu 12 tháng lịch sử thành file SQL hoàn chỉnh (idempotent, newline='\\n')."""
     if stream is not None:
-        _write_sql_statements(stream, branches, categories, products, users, customers, promotions, orders, returns, audit_logs)
+        _write_sql_statements(stream, branches, categories, products, users, customers, promotions, orders, returns, audit_logs, inventories, inventory_transactions)
     else:
         if filepath is None:
             filepath = Path(__file__).resolve().parent.parent / "data" / "seed_data.sql"
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, "w", encoding="utf-8", newline="\n") as f:
-            _write_sql_statements(f, branches, categories, products, users, customers, promotions, orders, returns, audit_logs)
+            _write_sql_statements(f, branches, categories, products, users, customers, promotions, orders, returns, audit_logs, inventories, inventory_transactions)
 
 
 # ==============================================================================
@@ -2013,6 +2201,12 @@ def main() -> None:
 
     all_orders = processed_orders + failed_orders
 
+    # Đồng bộ mốc thời gian tạo khách hàng trước đơn hàng đầu tiên của họ
+    adjust_customer_created_at(customers, all_orders)
+
+    # Sinh tồn kho khởi tạo cho 3.000 cặp sản phẩm x chi nhánh và sổ kho IMPORT ban đầu
+    inventories, inventory_transactions = generate_initial_inventory(products, stockout_schedule)
+
     # Chặng 4: Xuất SQL và JSON
     print("[5/5] Xuất file seed_data.sql và stockout_schedule.json...")
     base_dir = Path(__file__).resolve().parent.parent / "data"
@@ -2030,6 +2224,8 @@ def main() -> None:
         orders=all_orders,
         returns=returns,
         audit_logs=audit_logs,
+        inventories=inventories,
+        inventory_transactions=inventory_transactions,
         filepath=sql_path,
     )
 
@@ -2043,6 +2239,7 @@ def main() -> None:
     print(f"- Đơn EXPIRED: {sum(1 for o in all_orders if o.status == 'EXPIRED')}")
     print(f"- Đơn REJECTED: {sum(1 for o in all_orders if o.status == 'REJECTED')}")
     print(f"- Phiếu đổi trả: {len(returns)} (tổng số dòng hàng trả return_item: {len(return_items)})")
+    print(f"- Tồn kho khởi tạo (inventory): {len(inventories)} bản ghi (sổ kho IMPORT: {len(inventory_transactions)} giao dịch)")
     print(f"- Tỷ lệ Pareto 200 SKU top: {stats['pareto_share']*100:.2f}% sản lượng bán")
     print(f"- Tỷ lệ ô trống (sparsity) trong daily_sales: {stats['zero_cells_pct']:.2f}%")
     print(f"- File SQL: forecast-service/data/{sql_path.name} ({sql_path.stat().st_size / (1024*1024):.2f} MB)")
