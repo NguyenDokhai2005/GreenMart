@@ -7,6 +7,7 @@ Bao gồm các kiểm tra cho:
 - Các tham số khuyến mại chi tiết (cấp đơn/cấp dòng, trần giảm giá, thời lượng, SKU).
 - Cơ cấu ngành hàng theo chi nhánh, biên độ nhiễu và các ràng buộc nghiệp vụ (BR-03, BR-07, BR-10, BR-14).
 """
+from __future__ import annotations
 
 from datetime import date, datetime
 import math
@@ -174,9 +175,15 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(ratios["MARKET"], 0.10)
         self.assertTrue(math.isclose(sum(ratios.values()), 1.0, rel_tol=1e-9))
 
-        # 10.000 * (0.20 WEB + 0.10 MARKET) = 3.000 đơn online COMPLETED
+        # 10.000 * (0.20 WEB + 0.10 MARKET) = 3.000 đơn online COMPLETED / PROCESSED
+        self.assertEqual(config.TOTAL_PROCESSED_ORDERS, 10_000)
+        self.assertEqual(config.TOTAL_COMPLETED_ORDERS, config.TOTAL_PROCESSED_ORDERS)
+        self.assertEqual(config.PROCESSED_ONLINE_ORDERS, 3_000)
+        self.assertEqual(config.COMPLETED_ONLINE_ORDERS, config.PROCESSED_ONLINE_ORDERS)
+        self.assertEqual(config.MAX_DEMAND_LIFT_CAP, 3.0)
+
         expected_online = int(
-            config.TOTAL_COMPLETED_ORDERS * (ratios["WEB"] + ratios["MARKET"])
+            config.TOTAL_PROCESSED_ORDERS * (ratios["WEB"] + ratios["MARKET"])
         )
         self.assertEqual(config.COMPLETED_ONLINE_ORDERS, 3_000)
         self.assertEqual(config.COMPLETED_ONLINE_ORDERS, expected_online)
@@ -327,6 +334,14 @@ class TestConfig(unittest.TestCase):
         self.assertEqual((ret_min, ret_max), (0.01, 0.02))
         self.assertGreater(ret_min, 0.0)
         self.assertLessEqual(ret_min, ret_max)
+
+        # Tỷ lệ trả toàn bộ vs một phần
+        self.assertEqual(config.FULL_RETURN_RATE_AMONG_RETURNS, 0.50)
+        self.assertEqual(config.PARTIAL_RETURN_RATE_AMONG_RETURNS, 0.50)
+        self.assertEqual(
+            config.FULL_RETURN_RATE_AMONG_RETURNS + config.PARTIAL_RETURN_RATE_AMONG_RETURNS,
+            1.0,
+        )
 
         # Cửa sổ trả hàng trong vòng 7 ngày kể từ khi đơn hoàn tất (BR-10)
         self.assertEqual(config.RETURN_WINDOW_DAYS, 7)
