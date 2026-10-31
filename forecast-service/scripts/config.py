@@ -8,6 +8,7 @@ Quy ước:
 - Chỉ đóng vai trò module tham số thiết kế; không triển khai logic sinh dữ liệu
   của Issue #106 tại đây.
 """
+from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Any, Dict, List, Tuple
@@ -118,10 +119,16 @@ DEMAND_NOISE_RANGE: Tuple[float, float] = (-0.10, 0.10)
 # 2. ĐƠN HÀNG, KÊNH VÀ CHI NHÁNH
 # ==============================================================================
 
-# Tổng số đơn hàng COMPLETED trong 12 tháng trên cả 3 chi nhánh
-TOTAL_COMPLETED_ORDERS: int = 10_000
+# Tổng số đơn hàng đã xử lý thành công trong 12 tháng trên cả 3 chi nhánh (AC-01 & TC-AC01-03)
+# Bao gồm các đơn hoàn tất nguyên vẹn (COMPLETED) và các đơn hoàn trả toàn bộ (RETURNED).
+# 200 đơn online lỗi (CANCELLED, EXPIRED, REJECTED) là phần sinh thêm ngoài 10.000 đơn này.
+TOTAL_PROCESSED_ORDERS: int = 10_000
+TOTAL_COMPLETED_ORDERS: int = TOTAL_PROCESSED_ORDERS  # Alias tương thích ngược
 
-# Tỷ lệ phân bổ đơn hàng theo kênh bán trên 10.000 đơn COMPLETED (tổng = 1.0)
+# Trần hệ số tăng nhu cầu tối đa (Giả định thiết kế: tránh bùng nổ nhu cầu khi lễ/Tết trùng cuối tuần & KM)
+MAX_DEMAND_LIFT_CAP: float = 3.0
+
+# Tỷ lệ phân bổ đơn hàng theo kênh bán trên 10.000 đơn đã xử lý (tổng = 1.0)
 # POS: 70% (7.000 đơn), WEB: 20% (2.000 đơn), MARKET: 10% (1.000 đơn)
 CHANNEL_RATIOS: Dict[str, float] = {
     "POS": 0.70,
@@ -129,10 +136,11 @@ CHANNEL_RATIOS: Dict[str, float] = {
     "MARKET": 0.10,
 }
 
-# Số lượng đơn online COMPLETED mục tiêu (WEB 2.000 + MARKET 1.000)
-COMPLETED_ONLINE_ORDERS: int = int(
-    TOTAL_COMPLETED_ORDERS * (CHANNEL_RATIOS["WEB"] + CHANNEL_RATIOS["MARKET"])
+# Số lượng đơn online đã xử lý mục tiêu (WEB 2.000 + MARKET 1.000)
+PROCESSED_ONLINE_ORDERS: int = int(
+    TOTAL_PROCESSED_ORDERS * (CHANNEL_RATIOS["WEB"] + CHANNEL_RATIOS["MARKET"])
 )
+COMPLETED_ONLINE_ORDERS: int = PROCESSED_ONLINE_ORDERS  # Alias tương thích ngược
 
 # Tỷ lệ phân bổ đơn hàng theo chi nhánh trên 10.000 đơn COMPLETED (tổng = 1.0)
 # GM-001 (Quận 1): 45%, GM-002 (Bình Thạnh): 35%, GM-003 (Tân Bình): 20%
@@ -264,8 +272,14 @@ STOCKOUT_DURATION_DAYS_RANGE: Tuple[int, int] = (1, 3)
 # Tỷ lệ ngày xảy ra stockout ở nhóm 200 SKU bán nhanh: khoảng 2%–3% số ngày
 STOCKOUT_DAYS_RATIO_RANGE: Tuple[float, float] = (0.02, 0.03)
 
-# Tỷ lệ đơn hàng phát sinh trả hàng: 1%–2% số đơn COMPLETED
+# Tỷ lệ đơn hàng phát sinh trả hàng: 1%–2% số đơn đã xử lý (COMPLETED)
 RETURN_RATE_RANGE: Tuple[float, float] = (0.01, 0.02)
+
+# Tỷ lệ trả hàng toàn bộ vs trả một phần trong số các đơn phát sinh trả hàng (Giả định thiết kế):
+# - Trả toàn bộ (FULL): 50% số đơn trả -> sales_order.status chuyển sang 'RETURNED'
+# - Trả một phần (PARTIAL): 50% số đơn trả -> sales_order.status giữ nguyên 'COMPLETED'
+FULL_RETURN_RATE_AMONG_RETURNS: float = 0.50
+PARTIAL_RETURN_RATE_AMONG_RETURNS: float = 0.50
 
 # Cửa sổ thời gian cho phép trả hàng: trong vòng 7 ngày kể từ khi đơn hoàn tất (BR-10)
 RETURN_WINDOW_DAYS: int = 7

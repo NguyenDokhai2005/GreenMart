@@ -10,6 +10,7 @@ dist/
 __pycache__/
 .venv/
 *.ipynb_checkpoints
+forecast-service/data/
 # Env & IDE
 .env
 .env.*
