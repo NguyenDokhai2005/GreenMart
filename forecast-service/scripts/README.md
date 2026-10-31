@@ -118,7 +118,7 @@ Tài liệu này đặc tả chi tiết toàn bộ các tham số cấu hình tr
 | `INVENTORY_MIN_LOW_PER_BRANCH` | `int` | `10` SKU | Giả định thiết kế | Số lượng sản phẩm tồn thấp tối thiểu tại mỗi chi nhánh để phục vụ demo dashboard cảnh báo. |
 | `ANCHOR_MILK_SKU` | `str` | `"SUA-TH-1L"` | Giả định thiết kế | Mã SKU của sản phẩm mốc neo demo (Sữa tươi TH True Milk 1L). |
 | `ANCHOR_MILK_BRANCH_CODE` | `str` | `"GM-001"` | Giả định thiết kế | Chi nhánh áp dụng mốc neo demo (GreenMart Quận 1). |
-| `ANCHOR_MILK_ON_HAND` | `int` | `35` hộp | Giả định thiết kế | Tồn thực ban đầu phục vụ kịch bản kiểm thử TC-DASH-01 (Lưu ý: test-plan dùng khả dụng 35 để bán 6 -> 29 kích hoạt cảnh báo; BA §8.3/openapi dùng 30 sau khi giữ chỗ 5; đang chờ Lead chốt). |
+| `ANCHOR_MILK_ON_HAND` | `int` | `35` hộp | Đã xác nhận (US-09, TC-DASH-01) | Tồn thực ban đầu phục vụ kịch bản kiểm thử TC-DASH-01 và yêu cầu US-09 (SRS mục 4: khả dụng giảm từ 35 xuống 30 kích hoạt cảnh báo; số 30 ở BA §8.3 là trạng thái sau khi bán). |
 | `ANCHOR_MILK_RESERVED` | `int` | `0` hộp | Giả định thiết kế | Lượng tồn giữ chỗ ban đầu của sản phẩm mốc neo. |
 | `ANCHOR_MILK_ROP` | `int` | `34` hộp | Đã xác nhận | Điểm đặt hàng lại chuẩn của sản phẩm sữa tươi theo BA §8.3 và TC-DASH-01. |
 

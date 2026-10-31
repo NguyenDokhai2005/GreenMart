@@ -334,10 +334,9 @@ INVENTORY_MIN_LOW_PER_BRANCH: int = 10
 
 # Mốc neo sản phẩm kiểm thử tự động và demo cảnh báo (Sữa tươi TH True Milk 1L tại GM-001)
 # - SKU và mã chi nhánh được tra cứu động, không hardcode ID
-# - ROP = 34: Đã xác nhận (BA §8.3 / test-plan TC-DASH-01)
-# - on_hand = 35, reserved = 0, available = 35: Giả định thiết kế theo test-plan.md TC-DASH-01
-#   (Lưu ý: test-plan dùng khả dụng = 35 để bán 6 -> 29 kích hoạt cảnh báo; BA §8.3 và openapi.yaml
-#   dùng khả dụng = 30 sau khi giữ chỗ 5. Đang chờ Lead chốt chính thức).
+# - ROP = 34: Đã xác nhận (BA §8.3 / test-plan TC-DASH-01 / US-09)
+# - on_hand = 35, reserved = 0, available = 35: Đã xác nhận (US-09, TC-DASH-01)
+#   (Khớp US-09: khả dụng giảm từ 35 xuống 30 -> kích hoạt cảnh báo; số 30 ở BA §8.3 là trạng thái sau khi bán)
 ANCHOR_MILK_SKU: str = "SUA-TH-1L"
 ANCHOR_MILK_BRANCH_CODE: str = "GM-001"
 ANCHOR_MILK_ON_HAND: int = 35
