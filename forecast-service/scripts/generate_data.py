@@ -8,6 +8,7 @@ Chặng 4: Xuất file SQL hoàn chỉnh (idempotent, setval, update channels) v
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 import json
@@ -192,6 +193,33 @@ class AuditLog:
 
 
 @dataclass
+class StockDocument:
+    id: int
+    code: str
+    type: str  # IMPORT | EXPORT | TRANSFER | ADJUST
+    branch_id: int
+    to_branch_id: Optional[int] = None
+    status: str = "APPROVED"  # DRAFT | APPROVED | IN_TRANSIT | RECEIVED | CANCELLED
+    supplier: Optional[str] = None
+    reason: Optional[str] = None
+    created_by: int = 1
+    approved_by: Optional[int] = None
+    received_by: Optional[int] = None
+    created_at: datetime = field(default_factory=lambda: config.END_DATE)
+
+
+@dataclass
+class StockDocumentItem:
+    id: int
+    document_id: int
+    product_id: int
+    quantity: int
+    received_quantity: Optional[int] = None
+    counted_quantity: Optional[int] = None
+    unit_cost: Optional[int] = None
+
+
+@dataclass
 class Inventory:
     branch_id: int
     product_id: int
@@ -212,7 +240,7 @@ class InventoryTransaction:
     on_hand_after: int
     delta_reserved: int = 0
     reserved_after: int = 0
-    ref_type: str = "INITIAL_STOCK"
+    ref_type: str = "STOCK_DOCUMENT"
     ref_id: int = 1
     created_by: Optional[int] = None
     created_at: datetime = field(default_factory=lambda: config.END_DATE)
@@ -1659,64 +1687,281 @@ def generate_failed_online_orders(
 def generate_initial_inventory(
     products: List[Product],
     stockout_schedule: Dict[Tuple[int, int, date], str],
-    seed: int = config.RANDOM_SEED + 103,
-) -> Tuple[List[Inventory], List[InventoryTransaction]]:
+    branches: Optional[List[Branch]] = None,
+    users: Optional[List[AppUser]] = None,
+    orders: Optional[List[SalesOrder]] = None,
+    returns: Optional[List[ReturnDocument]] = None,
+    seed: int = config.RANDOM_SEED + 107,
+) -> Tuple[List[Inventory], List[InventoryTransaction], List[StockDocument], List[StockDocumentItem]]:
     """Sinh dữ liệu tồn kho khởi tạo cho 1.000 sản phẩm × 3 chi nhánh (3.000 bản ghi)
-    và 3.000 giao dịch sổ kho IMPORT tương ứng.
+    kèm phiếu nhập kho đầu kỳ (stock_document), chi tiết dòng phiếu (stock_document_item)
+    và sổ kho IMPORT (inventory_transaction) tương ứng (Issue #107).
 
     Quy tắc:
-    - on_hand đủ bán cho POS/online; riêng sản phẩm đang FULL_DAY stockout vào ngày cuối (31/10/2026) thì on_hand = 0.
-    - reserved = 0 (các đơn trước đó đã chốt sổ).
-    - Mỗi dòng inventory có đúng một giao dịch IMPORT khớp on_hand.
+    - Mô hình B: Tồn kho khởi tạo tại mốc chốt sổ demo 31/10/2026.
+    - Điểm đặt hàng lại (ROP) tính từ bán ròng (qty_net) 28 ngày cuối theo công thức BA §8.2:
+      ROP = ceil(d_bar * L + SS), SS = ceil(z * sigma_d * sqrt(L)), L = 2 ngày, z = 1.65.
+    - Phân bổ trạng thái demo: ~1% OUT (hết hàng: on_hand=0), ~5% LOW (tồn thấp: 0 < on_hand <= ROP),
+      ~94% OK (bình thường: on_hand > ROP). Mỗi chi nhánh có ít nhất 3 OUT và 10 LOW; ưu tiên nhóm Top-200 SKU.
+    - Mốc neo demo TC-DASH-01: Sữa tươi TH True Milk 1L (SUA-TH-1L) tại GM-001 có on_hand = 35, reserved = 0,
+      ROP = 34 (trạng thái OK sát ngưỡng ROP để demo bán 6 cái tụt xuống 29 kích hoạt cảnh báo).
+    - Cột version: 1 nếu có giao dịch IMPORT (on_hand > 0), 0 nếu on_hand = 0 (không có giao dịch).
+    - Cột updated_at: thời điểm IMPORT (END_DATE - 15 phút) hoặc END_DATE cho dòng không giao dịch.
+    - Dòng on_hand = 0: KHÔNG tạo stock_document_item và KHÔNG tạo giao dịch IMPORT.
+    - Người lập và duyệt phiếu kho: tra cứu động theo chi nhánh (thủ kho lập, quản lý duyệt, SoD BR-13).
+    - Dùng riêng rng = random.Random(seed), không làm thay đổi luồng RNG của các chặng khác.
     """
-    rng = random.Random(seed)
-    inventories: List[Inventory] = []
-    transactions: List[InventoryTransaction] = []
+    if branches is None:
+        branches = generate_branches()
+    if users is None:
+        users = generate_demo_users()
+    if orders is None:
+        orders = []
+    if returns is None:
+        returns = []
 
-    storekeeper_by_branch = {1: 10, 2: 11, 3: 12}
+    rng = random.Random(seed)
     end_date = config.END_DATE.date()
     import_time = config.END_DATE - timedelta(minutes=15)
 
-    tx_id = 1
-    for b_id in [1, 2, 3]:
-        for p in products:
-            is_full_stockout_today = (b_id, p.id, end_date) in stockout_schedule and stockout_schedule[(b_id, p.id, end_date)] == "FULL_DAY"
-            if is_full_stockout_today:
-                on_hand = 0
-            else:
-                on_hand = rng.randint(40, 90) if p.is_top_sku else rng.randint(15, 45)
+    # 1. Tra cứu động thủ kho và quản lý theo chi nhánh (SoD BR-13: created_by != approved_by)
+    storekeepers: Dict[int, int] = {}
+    managers: Dict[int, int] = {}
+    for b in branches:
+        for u in users:
+            if b.id in u.branch_ids:
+                if u.role == "STOREKEEPER" and b.id not in storekeepers:
+                    storekeepers[b.id] = u.id
+                elif u.role == "BRANCH_MANAGER" and b.id not in managers:
+                    managers[b.id] = u.id
+        # Fallback an toàn nếu không tìm thấy
+        if b.id not in storekeepers:
+            storekeepers[b.id] = 10 + (b.id - 1)
+        if b.id not in managers:
+            managers[b.id] = 3 + (b.id - 1)
 
-            reorder_point = 25 if p.is_top_sku else 10
+    # 2. Tạo 3 phiếu nhập kho khởi tạo đầu kỳ (mỗi chi nhánh 1 phiếu)
+    stock_documents: List[StockDocument] = []
+    for b in branches:
+        doc = StockDocument(
+            id=b.id,
+            code=f"NK-INIT-{b.code.replace('-', '')}",
+            type="IMPORT",
+            branch_id=b.id,
+            to_branch_id=None,
+            status="APPROVED",
+            supplier="Khởi tạo tồn đầu kỳ hệ thống",
+            reason="Khởi tạo tồn đầu kỳ hệ thống",
+            created_by=storekeepers[b.id],
+            approved_by=managers[b.id],
+            received_by=None,
+            created_at=import_time,
+        )
+        stock_documents.append(doc)
+    doc_by_branch = {d.branch_id: d for d in stock_documents}
+
+    # 3. Tính toán bán ròng 28 ngày cuối (04/10/2026 - 31/10/2026) cho từng cặp (branch_id, product_id)
+    start_28_date = end_date - timedelta(days=config.ROP_HISTORY_DAYS - 1)
+    history_dates = [start_28_date + timedelta(days=i) for i in range(config.ROP_HISTORY_DAYS)]
+
+    daily_sales: Dict[Tuple[int, int, date], int] = defaultdict(int)
+    order_item_to_product: Dict[int, int] = {}
+    for ord in orders:
+        if ord.status in ("COMPLETED", "RETURNED"):
+            o_date = (ord.completed_at or ord.created_at).date()
+            if start_28_date <= o_date <= end_date:
+                for it in ord.items:
+                    daily_sales[(ord.branch_id, it.product_id, o_date)] += it.quantity
+        for it in ord.items:
+            order_item_to_product[it.id] = it.product_id
+
+    daily_returns: Dict[Tuple[int, int, date], int] = defaultdict(int)
+    for ret in returns:
+        if ret.status == "APPROVED":
+            r_date = ret.created_at.date()
+            if start_28_date <= r_date <= end_date:
+                for ri in getattr(ret, "items", []):
+                    p_id = order_item_to_product.get(ri.order_item_id)
+                    if p_id is not None:
+                        daily_returns[(ret.branch_id, p_id, r_date)] += ri.quantity
+
+    def calculate_rop(b_id: int, p_id: int) -> int:
+        quantities = []
+        for d in history_dates:
+            sold = daily_sales.get((b_id, p_id, d), 0)
+            ret_qty = daily_returns.get((b_id, p_id, d), 0)
+            net_qty = max(0, sold - ret_qty)
+            quantities.append(net_qty)
+
+        total_qty = sum(quantities)
+        if total_qty == 0:
+            return config.ROP_MINIMUM
+
+        n = len(quantities)  # 28
+        d_bar = total_qty / n
+        variance = sum((q - d_bar) ** 2 for q in quantities) / (n - 1)
+        sigma_d = math.sqrt(variance)
+        ss = math.ceil(config.SERVICE_LEVEL_Z * sigma_d * math.sqrt(config.LEAD_TIME_DAYS))
+        rop = math.ceil(d_bar * config.LEAD_TIME_DAYS + ss)
+        return max(rop, config.ROP_MINIMUM)
+
+    # 4. Phân loại sản phẩm mục tiêu (OUT ~1% = 10 SKU/CN, LOW ~5% = 50 SKU/CN, ưu tiên Top-200 SKU)
+    out_skus_by_branch: Dict[int, Set[int]] = {}
+    low_skus_by_branch: Dict[int, Set[int]] = {}
+
+    for b in branches:
+        active_products = [p for p in products if p.is_active]
+
+        # Xác định sản phẩm neo tại chi nhánh (nếu có) để loại trừ khỏi nhóm ngẫu nhiên
+        anchor_p_id = None
+        if b.code == config.ANCHOR_MILK_BRANCH_CODE:
+            for p in active_products:
+                if p.sku == config.ANCHOR_MILK_SKU:
+                    anchor_p_id = p.id
+                    break
+
+        # Ứng viên OUT (đúng 10 SKU/chi nhánh, ưu tiên lịch stockout FULL_DAY ngày cuối)
+        out_candidates: List[int] = []
+        for p in active_products:
+            if anchor_p_id and p.id == anchor_p_id:
+                continue
+            key = (b.id, p.id, end_date)
+            if key in stockout_schedule and stockout_schedule[key] == "FULL_DAY":
+                out_candidates.append(p.id)
+
+        # Bổ sung từ nhóm Top-200 SKU nếu chưa đủ 10
+        remaining_top = [
+            p.id for p in active_products
+            if p.is_top_sku and (not anchor_p_id or p.id != anchor_p_id) and p.id not in out_candidates
+        ]
+        rng.shuffle(remaining_top)
+        for pid in remaining_top:
+            if len(out_candidates) >= 10:
+                break
+            out_candidates.append(pid)
+
+        # Bổ sung từ SKU thường nếu vẫn chưa đủ 10
+        if len(out_candidates) < 10:
+            remaining_normal = [
+                p.id for p in active_products
+                if not p.is_top_sku and (not anchor_p_id or p.id != anchor_p_id) and p.id not in out_candidates
+            ]
+            rng.shuffle(remaining_normal)
+            for pid in remaining_normal:
+                if len(out_candidates) >= 10:
+                    break
+                out_candidates.append(pid)
+
+        branch_out_ids = set(out_candidates[:10])
+        out_skus_by_branch[b.id] = branch_out_ids
+
+        # Ứng viên LOW (đúng 50 SKU/chi nhánh, ưu tiên nhóm Top-200 SKU còn lại)
+        low_candidates: List[int] = []
+        low_top_pool = [
+            p.id for p in active_products
+            if p.is_top_sku and (not anchor_p_id or p.id != anchor_p_id) and p.id not in branch_out_ids
+        ]
+        rng.shuffle(low_top_pool)
+        low_candidates.extend(low_top_pool)
+
+        if len(low_candidates) < 50:
+            low_normal_pool = [
+                p.id for p in active_products
+                if not p.is_top_sku and (not anchor_p_id or p.id != anchor_p_id) and p.id not in branch_out_ids
+            ]
+            rng.shuffle(low_normal_pool)
+            for pid in low_normal_pool:
+                if len(low_candidates) >= 50:
+                    break
+                low_candidates.append(pid)
+
+        branch_low_ids = set(low_candidates[:50])
+        low_skus_by_branch[b.id] = branch_low_ids
+
+    # 5. Khởi tạo danh sách Inventory, StockDocumentItem và InventoryTransaction
+    inventories: List[Inventory] = []
+    stock_document_items: List[StockDocumentItem] = []
+    transactions: List[InventoryTransaction] = []
+
+    tx_id = 1
+    doc_item_id = 1
+
+    for b in branches:
+        doc = doc_by_branch[b.id]
+        out_ids = out_skus_by_branch[b.id]
+        low_ids = low_skus_by_branch[b.id]
+
+        for p in products:
+            is_anchor = (b.code == config.ANCHOR_MILK_BRANCH_CODE and p.sku == config.ANCHOR_MILK_SKU)
+            if is_anchor:
+                rop = config.ANCHOR_MILK_ROP
+                on_hand = config.ANCHOR_MILK_ON_HAND  # 35
+                reserved = config.ANCHOR_MILK_RESERVED  # 0
+            elif p.id in out_ids:
+                rop = calculate_rop(b.id, p.id)
+                on_hand = 0
+                reserved = 0
+            elif p.id in low_ids:
+                rop = calculate_rop(b.id, p.id)
+                # 0 < on_hand <= ROP (trạng thái LOW)
+                on_hand = rng.randint(1, max(1, rop))
+                reserved = 0
+            else:
+                rop = calculate_rop(b.id, p.id)
+                # on_hand > ROP (trạng thái OK)
+                if p.is_top_sku:
+                    on_hand = rop + rng.randint(15, 60)
+                else:
+                    on_hand = rop + rng.randint(5, 30)
+                reserved = 0
+
+            version = 1 if on_hand > 0 else 0
+            updated_at = import_time if on_hand > 0 else config.END_DATE
 
             inv = Inventory(
-                branch_id=b_id,
+                branch_id=b.id,
                 product_id=p.id,
                 on_hand=on_hand,
-                reserved=0,
-                reorder_point=reorder_point,
-                version=0,
-                updated_at=config.END_DATE,
+                reserved=reserved,
+                reorder_point=rop,
+                version=version,
+                updated_at=updated_at,
             )
             inventories.append(inv)
 
-            tx = InventoryTransaction(
-                id=tx_id,
-                branch_id=b_id,
-                product_id=p.id,
-                type="IMPORT",
-                delta_on_hand=on_hand,
-                on_hand_after=on_hand,
-                delta_reserved=0,
-                reserved_after=0,
-                ref_type="INITIAL_STOCK",
-                ref_id=tx_id,
-                created_by=storekeeper_by_branch[b_id],
-                created_at=import_time,
-            )
-            transactions.append(tx)
-            tx_id += 1
+            # Chỉ tạo stock_document_item và inventory_transaction khi on_hand > 0
+            if on_hand > 0:
+                doc_item = StockDocumentItem(
+                    id=doc_item_id,
+                    document_id=doc.id,
+                    product_id=p.id,
+                    quantity=on_hand,
+                    received_quantity=None,
+                    counted_quantity=None,
+                    unit_cost=p.cost_price,
+                )
+                stock_document_items.append(doc_item)
+                doc_item_id += 1
 
-    return inventories, transactions
+                tx = InventoryTransaction(
+                    id=tx_id,
+                    branch_id=b.id,
+                    product_id=p.id,
+                    type="IMPORT",
+                    delta_on_hand=on_hand,
+                    on_hand_after=on_hand,
+                    delta_reserved=0,
+                    reserved_after=0,
+                    ref_type="STOCK_DOCUMENT",
+                    ref_id=doc.id,
+                    created_by=doc.created_by,
+                    created_at=import_time,
+                )
+                transactions.append(tx)
+                tx_id += 1
+
+    return inventories, transactions, stock_documents, stock_document_items
+
 
 
 # ==============================================================================
@@ -1859,6 +2104,8 @@ def _write_sql_statements(
     orders: List[SalesOrder],
     returns: List[ReturnDocument],
     audit_logs: List[AuditLog],
+    stock_documents: Optional[List[StockDocument]] = None,
+    stock_document_items: Optional[List[StockDocumentItem]] = None,
     inventories: Optional[List[Inventory]] = None,
     inventory_transactions: Optional[List[InventoryTransaction]] = None,
 ) -> None:
@@ -2080,9 +2327,30 @@ def _write_sql_statements(
         ]
         f.write(",\n".join(log_lines) + ";\n\n")
 
-    # 15. Insert Inventory & Inventory Transactions
+    # 15. Insert Stock Documents & Stock Document Items (Issue #107)
+    if stock_documents:
+        f.write("-- 16. Phiếu nhập kho khởi tạo đầu kỳ (stock_document: 3 phiếu cho 3 chi nhánh)\n")
+        doc_lines = [
+            f"({d.id}, {_sql_str(d.code)}, {_sql_str(d.type)}, {d.branch_id}, {_sql_int(d.to_branch_id)}, {_sql_str(d.status)}, {_sql_str(d.supplier)}, {_sql_str(d.reason)}, {d.created_by}, {_sql_int(d.approved_by)}, {_sql_int(d.received_by)}, {_sql_dt(d.created_at)})"
+            for d in stock_documents
+        ]
+        f.write("INSERT INTO stock_document (id, code, type, branch_id, to_branch_id, status, supplier, reason, created_by, approved_by, received_by, created_at) VALUES\n")
+        f.write(",\n".join(doc_lines) + ";\n\n")
+
+    if stock_document_items:
+        f.write(f"-- 17. Chi tiết dòng phiếu nhập kho (stock_document_item: {len(stock_document_items)} dòng hàng có on_hand > 0)\n")
+        for i in range(0, len(stock_document_items), batch_size):
+            batch = stock_document_items[i:i + batch_size]
+            item_lines = [
+                f"({di.id}, {di.document_id}, {di.product_id}, {di.quantity}, {_sql_int(di.received_quantity)}, {_sql_int(di.counted_quantity)}, {_sql_int(di.unit_cost)})"
+                for di in batch
+            ]
+            f.write("INSERT INTO stock_document_item (id, document_id, product_id, quantity, received_quantity, counted_quantity, unit_cost) VALUES\n")
+            f.write(",\n".join(item_lines) + ";\n\n")
+
+    # 16. Insert Inventory & Inventory Transactions
     if inventories:
-        f.write("-- 16. Tồn kho khởi tạo (3.000 bản ghi: 3 chi nhánh x 1.000 sản phẩm)\n")
+        f.write("-- 18. Tồn kho khởi tạo (3.000 bản ghi: 3 chi nhánh x 1.000 sản phẩm)\n")
         batch_size = 500
         for i in range(0, len(inventories), batch_size):
             batch = inventories[i : i + batch_size]
@@ -2094,7 +2362,7 @@ def _write_sql_statements(
             f.write(",\n".join(val_strs) + ";\n\n")
 
     if inventory_transactions:
-        f.write("-- 17. Sổ giao dịch kho IMPORT ban đầu (3.000 bản ghi)\n")
+        f.write(f"-- 19. Sổ giao dịch kho IMPORT ban đầu ({len(inventory_transactions)} bản ghi cho các dòng có on_hand > 0)\n")
         batch_size = 500
         for i in range(0, len(inventory_transactions), batch_size):
             batch = inventory_transactions[i : i + batch_size]
@@ -2105,8 +2373,8 @@ def _write_sql_statements(
             f.write("INSERT INTO inventory_transaction (id, branch_id, product_id, type, delta_on_hand, on_hand_after, delta_reserved, reserved_after, ref_type, ref_id, created_by, created_at) VALUES\n")
             f.write(",\n".join(val_strs) + ";\n\n")
 
-    # 16. Reset sequences cho mọi bảng
-    f.write("-- 18. Thiết lập lại sequence cho tất cả các bảng vừa seed\n")
+    # 17. Reset sequences cho mọi bảng
+    f.write("-- 20. Thiết lập lại sequence cho tất cả các bảng vừa seed\n")
     tables_to_reset = [
         "branch",
         "category",
@@ -2119,6 +2387,8 @@ def _write_sql_statements(
         "payment",
         "return_document",
         "return_item",
+        "stock_document",
+        "stock_document_item",
         "inventory_transaction",
         "audit_log",
     ]
@@ -2138,6 +2408,8 @@ def export_to_sql(
     orders: List[SalesOrder],
     returns: List[ReturnDocument],
     audit_logs: List[AuditLog],
+    stock_documents: Optional[List[StockDocument]] = None,
+    stock_document_items: Optional[List[StockDocumentItem]] = None,
     inventories: Optional[List[Inventory]] = None,
     inventory_transactions: Optional[List[InventoryTransaction]] = None,
     filepath: Optional[Path] = None,
@@ -2145,13 +2417,13 @@ def export_to_sql(
 ) -> None:
     """Xuất toàn bộ dữ liệu mẫu 12 tháng lịch sử thành file SQL hoàn chỉnh (idempotent, newline='\\n')."""
     if stream is not None:
-        _write_sql_statements(stream, branches, categories, products, users, customers, promotions, orders, returns, audit_logs, inventories, inventory_transactions)
+        _write_sql_statements(stream, branches, categories, products, users, customers, promotions, orders, returns, audit_logs, stock_documents, stock_document_items, inventories, inventory_transactions)
     else:
         if filepath is None:
             filepath = Path(__file__).resolve().parent.parent / "data" / "seed_data.sql"
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, "w", encoding="utf-8", newline="\n") as f:
-            _write_sql_statements(f, branches, categories, products, users, customers, promotions, orders, returns, audit_logs, inventories, inventory_transactions)
+            _write_sql_statements(f, branches, categories, products, users, customers, promotions, orders, returns, audit_logs, stock_documents, stock_document_items, inventories, inventory_transactions)
 
 
 # ==============================================================================
@@ -2204,8 +2476,15 @@ def main() -> None:
     # Đồng bộ mốc thời gian tạo khách hàng trước đơn hàng đầu tiên của họ
     adjust_customer_created_at(customers, all_orders)
 
-    # Sinh tồn kho khởi tạo cho 3.000 cặp sản phẩm x chi nhánh và sổ kho IMPORT ban đầu
-    inventories, inventory_transactions = generate_initial_inventory(products, stockout_schedule)
+    # Sinh tồn kho khởi tạo cho 3.000 cặp sản phẩm x chi nhánh và sổ kho IMPORT ban đầu (Issue #107)
+    inventories, inventory_transactions, stock_documents, stock_document_items = generate_initial_inventory(
+        products=products,
+        stockout_schedule=stockout_schedule,
+        branches=branches,
+        users=users,
+        orders=all_orders,
+        returns=returns,
+    )
 
     # Chặng 4: Xuất SQL và JSON
     print("[5/5] Xuất file seed_data.sql và stockout_schedule.json...")
@@ -2224,10 +2503,13 @@ def main() -> None:
         orders=all_orders,
         returns=returns,
         audit_logs=audit_logs,
+        stock_documents=stock_documents,
+        stock_document_items=stock_document_items,
         inventories=inventories,
         inventory_transactions=inventory_transactions,
         filepath=sql_path,
     )
+
 
     # Thống kê
     stats = compute_sales_statistics(processed_orders, products, top_sku_ids)
@@ -2239,7 +2521,11 @@ def main() -> None:
     print(f"- Đơn EXPIRED: {sum(1 for o in all_orders if o.status == 'EXPIRED')}")
     print(f"- Đơn REJECTED: {sum(1 for o in all_orders if o.status == 'REJECTED')}")
     print(f"- Phiếu đổi trả: {len(returns)} (tổng số dòng hàng trả return_item: {len(return_items)})")
+    print(f"- Phiếu nhập kho đầu kỳ (stock_document): {len(stock_documents)} phiếu ({len(stock_document_items)} dòng hàng)")
     print(f"- Tồn kho khởi tạo (inventory): {len(inventories)} bản ghi (sổ kho IMPORT: {len(inventory_transactions)} giao dịch)")
+    print(f"  + Hết hàng (OUT): {sum(1 for i in inventories if i.on_hand - i.reserved == 0)} dòng")
+    print(f"  + Tồn thấp (LOW): {sum(1 for i in inventories if 0 < i.on_hand - i.reserved <= i.reorder_point)} dòng")
+    print(f"  + Bình thường (OK): {sum(1 for i in inventories if i.on_hand - i.reserved > i.reorder_point)} dòng")
     print(f"- Tỷ lệ Pareto 200 SKU top: {stats['pareto_share']*100:.2f}% sản lượng bán")
     print(f"- Tỷ lệ ô trống (sparsity) trong daily_sales: {stats['zero_cells_pct']:.2f}%")
     print(f"- File SQL: forecast-service/data/{sql_path.name} ({sql_path.stat().st_size / (1024*1024):.2f} MB)")
