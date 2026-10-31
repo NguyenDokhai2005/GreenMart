@@ -10,7 +10,7 @@ export interface TableColumn<T> {
   align?: 'left' | 'center' | 'right';
 }
 
-export interface TableProps<T extends Record<string, unknown>> {
+export interface TableProps<T extends object> {
   columns: TableColumn<T>[];
   data: T[];
   rowKey: keyof T | ((row: T, index: number) => string | number);
@@ -22,7 +22,7 @@ export interface TableProps<T extends Record<string, unknown>> {
   className?: string;
 }
 
-export default function Table<T extends Record<string, unknown>>({
+export default function Table<T extends object>({
   columns,
   data,
   rowKey,
@@ -80,7 +80,7 @@ export default function Table<T extends Record<string, unknown>>({
     return data.map((row, index) => (
       <tr key={getRowKey(row, index)}>
         {columns.map((column) => {
-          const value = row[String(column.key)];
+          const value = (row as Record<string, unknown>)[String(column.key)];
 
           return (
             <td

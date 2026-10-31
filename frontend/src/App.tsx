@@ -74,14 +74,10 @@ function App() {
   const [activeTab, setActiveTab] = useState('overview');
 
   // Table
-  const [tableState, setTableState] = useState<
-    'normal' | 'loading' | 'empty' | 'error'
-  >('normal');
+  const [tableState, setTableState] = useState<'normal' | 'loading' | 'empty' | 'error'>('normal');
 
   // Toast
-  const [toastType, setToastType] = useState<
-    'info' | 'success' | 'warning' | 'error' | null
-  >(null);
+  const [toastType, setToastType] = useState<'info' | 'success' | 'warning' | 'error' | null>(null);
 
   // Input và Select
   const [productName, setProductName] = useState('');
@@ -112,15 +108,11 @@ function App() {
       {/* HEADER */}
       <header className="gm-preview__header">
         <div>
-          <span className="gm-preview__eyebrow">
-            GREENMART DESIGN SYSTEM
-          </span>
+          <span className="gm-preview__eyebrow">GREENMART DESIGN SYSTEM</span>
 
           <h1>Component Preview</h1>
 
-          <p>
-            Trang kiểm thử các component dùng chung của GreenMart.
-          </p>
+          <p>Trang kiểm thử các component dùng chung của GreenMart.</p>
         </div>
 
         <span className="gm-preview__tag">UI COMPONENTS</span>
@@ -137,17 +129,11 @@ function App() {
         </div>
 
         <div className="gm-preview__content gm-preview__row">
-          <Button variant="primary">
-            Primary
-          </Button>
+          <Button variant="primary">Primary</Button>
 
-          <Button variant="secondary">
-            Secondary
-          </Button>
+          <Button variant="secondary">Secondary</Button>
 
-          <Button variant="destructive">
-            Destructive
-          </Button>
+          <Button variant="destructive">Destructive</Button>
 
           <Button variant="primary" disabled>
             Disabled
@@ -174,23 +160,11 @@ function App() {
             helperText="Nhập tên sản phẩm cần quản lý."
           />
 
-          <Input
-            label="Mã sản phẩm"
-            placeholder="Ví dụ: SP001"
-            defaultValue="SP001"
-          />
+          <Input label="Mã sản phẩm" placeholder="Ví dụ: SP001" defaultValue="SP001" />
 
-          <Input
-            label="Trường bị vô hiệu hóa"
-            placeholder="Không thể nhập"
-            disabled
-          />
+          <Input label="Trường bị vô hiệu hóa" placeholder="Không thể nhập" disabled />
 
-          <Input
-            label="Trường có lỗi"
-            placeholder="Nhập dữ liệu"
-            error="Thông tin không hợp lệ."
-          />
+          <Input label="Trường có lỗi" placeholder="Nhập dữ liệu" error="Thông tin không hợp lệ." />
         </div>
       </section>
 
@@ -263,25 +237,11 @@ function App() {
         </div>
 
         <div className="gm-preview__content gm-preview__stack">
-          <Radio
-            name="delivery"
-            value="standard"
-            label="Giao hàng tiêu chuẩn"
-            defaultChecked
-          />
+          <Radio name="delivery" value="standard" label="Giao hàng tiêu chuẩn" defaultChecked />
 
-          <Radio
-            name="delivery"
-            value="express"
-            label="Giao hàng nhanh"
-          />
+          <Radio name="delivery" value="express" label="Giao hàng nhanh" />
 
-          <Radio
-            name="delivery"
-            value="disabled"
-            label="Không thể chọn"
-            disabled
-          />
+          <Radio name="delivery" value="disabled" label="Không thể chọn" disabled />
         </div>
       </section>
 
@@ -317,31 +277,19 @@ function App() {
 
         <div className="gm-preview__content">
           <div className="gm-preview__row gm-preview__actions">
-            <Button
-              variant="secondary"
-              onClick={() => setTableState('normal')}
-            >
+            <Button variant="secondary" onClick={() => setTableState('normal')}>
               Có dữ liệu
             </Button>
 
-            <Button
-              variant="secondary"
-              onClick={() => setTableState('loading')}
-            >
+            <Button variant="secondary" onClick={() => setTableState('loading')}>
               Loading
             </Button>
 
-            <Button
-              variant="secondary"
-              onClick={() => setTableState('empty')}
-            >
+            <Button variant="secondary" onClick={() => setTableState('empty')}>
               Empty
             </Button>
 
-            <Button
-              variant="secondary"
-              onClick={() => setTableState('error')}
-            >
+            <Button variant="secondary" onClick={() => setTableState('error')}>
               Error
             </Button>
           </div>
@@ -351,11 +299,7 @@ function App() {
             data={tableData}
             rowKey="id"
             loading={tableState === 'loading'}
-            error={
-              tableState === 'error'
-                ? 'Không thể tải dữ liệu sản phẩm.'
-                : null
-            }
+            error={tableState === 'error' ? 'Không thể tải dữ liệu sản phẩm.' : null}
             onRetry={() => setTableState('normal')}
             emptyText="Chưa có sản phẩm nào."
           />
@@ -373,10 +317,7 @@ function App() {
         </div>
 
         <div className="gm-preview__content">
-          <Button
-            variant="primary"
-            onClick={() => setDialogOpen(true)}
-          >
+          <Button variant="primary" onClick={() => setDialogOpen(true)}>
             Mở Dialog
           </Button>
 
@@ -388,13 +329,9 @@ function App() {
             confirmText="Đồng ý"
             cancelText="Hủy"
           >
-            <p>
-              Bạn có chắc chắn muốn thực hiện thao tác này không?
-            </p>
+            <p>Bạn có chắc chắn muốn thực hiện thao tác này không?</p>
 
-            <p>
-              Đây là nội dung mẫu để kiểm tra Dialog của GreenMart.
-            </p>
+            <p>Đây là nội dung mẫu để kiểm tra Dialog của GreenMart.</p>
           </Dialog>
         </div>
       </section>
@@ -411,31 +348,19 @@ function App() {
 
         <div className="gm-preview__content">
           <div className="gm-preview__row">
-            <Button
-              variant="secondary"
-              onClick={() => setToastType('info')}
-            >
+            <Button variant="secondary" onClick={() => setToastType('info')}>
               Info
             </Button>
 
-            <Button
-              variant="secondary"
-              onClick={() => setToastType('success')}
-            >
+            <Button variant="secondary" onClick={() => setToastType('success')}>
               Success
             </Button>
 
-            <Button
-              variant="secondary"
-              onClick={() => setToastType('warning')}
-            >
+            <Button variant="secondary" onClick={() => setToastType('warning')}>
               Warning
             </Button>
 
-            <Button
-              variant="destructive"
-              onClick={() => setToastType('error')}
-            >
+            <Button variant="destructive" onClick={() => setToastType('error')}>
               Error
             </Button>
           </div>
@@ -444,12 +369,14 @@ function App() {
             <div className="gm-preview__toast">
               <Toast
                 variant={toastType}
-                title={{
-                  info: 'Thông tin',
-                  success: 'Thành công',
-                  warning: 'Cảnh báo',
-                  error: 'Đã xảy ra lỗi',
-                }[toastType]}
+                title={
+                  {
+                    info: 'Thông tin',
+                    success: 'Thành công',
+                    warning: 'Cảnh báo',
+                    error: 'Đã xảy ra lỗi',
+                  }[toastType]
+                }
                 description="Đây là thông báo mẫu để kiểm tra Toast."
                 onClose={() => setToastType(null)}
               />
@@ -470,10 +397,7 @@ function App() {
 
         <div className="gm-preview__status-grid">
           {statuses.map((status) => (
-            <div
-              className="gm-preview__status-item"
-              key={status}
-            >
+            <div className="gm-preview__status-item" key={status}>
               <OrderStatusBadge status={status} />
               <span>{status}</span>
             </div>
@@ -482,9 +406,7 @@ function App() {
       </section>
 
       {/* FOOTER */}
-      <footer className="gm-preview__footer">
-        GREENMART · SHARED COMPONENTS · PREVIEW
-      </footer>
+      <footer className="gm-preview__footer">GREENMART · SHARED COMPONENTS · PREVIEW</footer>
     </main>
   );
 }
