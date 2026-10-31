@@ -13,6 +13,17 @@
 > Tất cả test case chỉ chạy được sau khi SV02 tạo seed script và `docker compose up` thành công.
 > Tên tài khoản demo xác nhận từ `forecast-service/scripts/generate_data.py` (issue #209).
 
+**Nạp dữ liệu seed vào DB (chạy 2 bước theo thứ tự):**
+
+```bash
+# Bước 1 – Sinh file SQL từ generate_data.py
+python forecast-service/scripts/generate_data.py
+
+# Bước 2 – Nạp vào PostgreSQL
+docker compose exec -T postgres psql -U greenmart -d greenmart -v ON_ERROR_STOP=1 \
+  < forecast-service/data/seed_data.sql
+```
+
 | Tài khoản | Role | Chi nhánh được gán |
 |---|---|---|
 | `thungan.gm001` / `Demo@123` | CASHIER | CN1 (branch_id=1) |
