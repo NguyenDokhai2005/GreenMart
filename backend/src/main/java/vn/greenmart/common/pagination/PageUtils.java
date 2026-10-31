@@ -8,8 +8,10 @@ import vn.greenmart.common.exception.ErrorCode;
 import vn.greenmart.common.exception.ValidationErrorDetail;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 public final class PageUtils {
@@ -25,9 +27,25 @@ public final class PageUtils {
     public static Pageable createPageable(
             Integer page,
             Integer size,
+            String[] sortParams,
+            Sort defaultSort,
+            Set<String> allowedSortFields) {
+
+        List<String> list = (sortParams != null) ? Arrays.asList(sortParams) : Collections.emptyList();
+        return createPageable(page, size, list, defaultSort, allowedSortFields);
+    }
+
+    /**
+     * Tạo Pageable từ List sortParams, bắt buộc whitelist allowedSortFields.
+     */
+    public static Pageable createPageable(
+            Integer page,
+            Integer size,
             List<String> sortParams,
             Sort defaultSort,
             Set<String> allowedSortFields) {
+
+        Objects.requireNonNull(allowedSortFields, "allowedSortFields không được để null");
 
         int targetPage = (page != null) ? page : DEFAULT_PAGE;
         int targetSize = (size != null) ? size : DEFAULT_SIZE;
@@ -46,19 +64,10 @@ public final class PageUtils {
             Sort defaultSort,
             Set<String> allowedSortFields) {
 
-        List<String> sortParams = (sortParam != null && !sortParam.trim().isEmpty())
+        List<String> sortList = (sortParam != null && !sortParam.trim().isEmpty())
                 ? List.of(sortParam)
                 : Collections.emptyList();
-        return createPageable(page, size, sortParams, defaultSort, allowedSortFields);
-    }
-
-    // Overload không giới hạn trường sort
-    public static Pageable createPageable(Integer page, Integer size, String sortParam, Sort defaultSort) {
-        return createPageable(page, size, sortParam, defaultSort, null);
-    }
-
-    public static Pageable createPageable(Integer page, Integer size, String sortParam) {
-        return createPageable(page, size, sortParam, Sort.unsorted(), null);
+        return createPageable(page, size, sortList, defaultSort, allowedSortFields);
     }
 
     private static void validatePageAndSize(int page, int size) {
@@ -80,61 +89,110 @@ public final class PageUtils {
 
     // Phân giải danh sách chuỗi sort: "field" hoặc "field,asc|desc".
     public static Sort parseSorts(List<String> sortParams, Sort fallbackSort, Set<String> allowedSortFields) {
+        Objects.requireNonNull(allowedSortFields, "allowedSortFields không được để null");
+
         if (sortParams == null || sortParams.isEmpty()) {
             return fallbackSort != null ? fallbackSort : Sort.unsorted();
         }
 
+        // Lọc bỏ chuỗi rỗng
+        List<String> nonBlankParams = sortParams.stream()
+                .filter(p -> p != null && !p.trim().isEmpty())
+                .map(String::trim)
+                .toList();
+
+        if (nonBlankParams.isEmpty()) {
+            return fallbackSort != null ? fallbackSort : Sort.unsorted();
+        }
+
+        // Nếu endpoint có allowedSortFields rỗng thì không cho phép sắp xếp
+        if (allowedSortFields.isEmpty()) {
+            throw new AppException(
+                ErrorCode.VALIDATION_ERROR,
+                "Endpoint này không hỗ trợ sắp xếp",
+                List.of(new ValidationErrorDetail("sort", "Endpoint không hỗ trợ sắp xếp"))
+            );
+        }
+
         List<Sort.Order> orders = new ArrayList<>();
-        for (String param : sortParams) {
-            if (param == null || param.trim().isEmpty()) {
-                continue;
-            }
 
-            String[] parts = param.trim().split(",");
-            if (parts.length > 2) {
-                throw new AppException(
-                    ErrorCode.VALIDATION_ERROR,
-                    "Định dạng sắp xếp không hợp lệ: " + param,
-                    List.of(new ValidationErrorDetail("sort", "Chỉ chấp nhận định dạng 'field' hoặc 'field,asc|desc'"))
-                );
-            }
+        // Xử lý thông minh cho cả 2 tình huống:
+        int i = 0;
+        while (i < nonBlankParams.size()) {
+            String token = nonBlankParams.get(i);
 
-            String property = parts[0].trim();
-            if (property.isEmpty()) {
-                throw new AppException(
-                    ErrorCode.VALIDATION_ERROR,
-                    "Tên trường sắp xếp không được để trống",
-                    List.of(new ValidationErrorDetail("sort", "Tên trường không được để trống"))
-                );
-            }
-
-            if (allowedSortFields != null && !allowedSortFields.isEmpty() && !allowedSortFields.contains(property)) {
-                throw new AppException(
-                    ErrorCode.VALIDATION_ERROR,
-                    "Trường sắp xếp không được phép: " + property,
-                    List.of(new ValidationErrorDetail("sort", "Trường sắp xếp không hợp lệ hoặc không được phép: " + property))
-                );
-            }
-
-            Sort.Direction direction = Sort.Direction.ASC;
-            if (parts.length == 2) {
-                String dirStr = parts[1].trim();
-                if ("asc".equalsIgnoreCase(dirStr)) {
-                    direction = Sort.Direction.ASC;
-                } else if ("desc".equalsIgnoreCase(dirStr)) {
-                    direction = Sort.Direction.DESC;
-                } else {
+            if (token.contains(",")) {
+                // Định dạng token chứa dấu phẩy: "field,direction"
+                String[] parts = token.split(",");
+                if (parts.length > 2) {
                     throw new AppException(
                         ErrorCode.VALIDATION_ERROR,
-                        "Chiều sắp xếp không hợp lệ: " + dirStr,
-                        List.of(new ValidationErrorDetail("sort", "Chiều sắp xếp phải là 'asc' hoặc 'desc'"))
+                        "Định dạng sắp xếp không hợp lệ: " + token,
+                        List.of(new ValidationErrorDetail("sort", "Chỉ chấp nhận định dạng 'field' hoặc 'field,asc|desc'"))
                     );
                 }
-            }
 
-            orders.add(new Sort.Order(direction, property));
+                String property = parts[0].trim();
+                validateProperty(property, allowedSortFields);
+
+                Sort.Direction direction = Sort.Direction.ASC;
+                if (parts.length == 2) {
+                    direction = parseDirection(parts[1].trim());
+                }
+
+                orders.add(new Sort.Order(direction, property));
+                i++;
+            } else {
+                // Token đơn lẻ: có thể là "field" đứng một mình, hoặc "field" đi kèm token sau là "asc/desc"
+                String property = token;
+                validateProperty(property, allowedSortFields);
+
+                Sort.Direction direction = Sort.Direction.ASC;
+                if (i + 1 < nonBlankParams.size()) {
+                    String nextToken = nonBlankParams.get(i + 1).trim();
+                    if ("asc".equalsIgnoreCase(nextToken) || "desc".equalsIgnoreCase(nextToken)) {
+                        direction = parseDirection(nextToken);
+                        i++;
+                    }
+                }
+
+                orders.add(new Sort.Order(direction, property));
+                i++;
+            }
         }
 
         return orders.isEmpty() ? (fallbackSort != null ? fallbackSort : Sort.unsorted()) : Sort.by(orders);
+    }
+
+    private static void validateProperty(String property, Set<String> allowedSortFields) {
+        if (property.isEmpty()) {
+            throw new AppException(
+                ErrorCode.VALIDATION_ERROR,
+                "Tên trường sắp xếp không được để trống",
+                List.of(new ValidationErrorDetail("sort", "Tên trường không được để trống"))
+            );
+        }
+
+        if (!allowedSortFields.contains(property)) {
+            throw new AppException(
+                ErrorCode.VALIDATION_ERROR,
+                "Trường sắp xếp không được phép: " + property,
+                List.of(new ValidationErrorDetail("sort", "Trường sắp xếp không hợp lệ hoặc không được phép: " + property))
+            );
+        }
+    }
+
+    private static Sort.Direction parseDirection(String dirStr) {
+        if ("asc".equalsIgnoreCase(dirStr)) {
+            return Sort.Direction.ASC;
+        } else if ("desc".equalsIgnoreCase(dirStr)) {
+            return Sort.Direction.DESC;
+        } else {
+            throw new AppException(
+                ErrorCode.VALIDATION_ERROR,
+                "Chiều sắp xếp không hợp lệ: " + dirStr,
+                List.of(new ValidationErrorDetail("sort", "Chiều sắp xếp phải là 'asc' hoặc 'desc'"))
+            );
+        }
     }
 }

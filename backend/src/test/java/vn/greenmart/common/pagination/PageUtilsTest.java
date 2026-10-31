@@ -7,6 +7,7 @@ import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
 import vn.greenmart.common.exception.ValidationErrorDetail;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -18,6 +19,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PageUtilsTest {
 
     private static final Set<String> ALLOWED_FIELDS = Set.of("createdAt", "salePrice", "name");
+
+    @SuppressWarnings("unchecked")
+    private List<ValidationErrorDetail> getDetails(AppException ex) {
+        return (List<ValidationErrorDetail>) ex.getDetails();
+    }
 
     @Test
     void testCreatePageable_DefaultValues() {
@@ -66,6 +72,24 @@ class PageUtilsTest {
     }
 
     @Test
+    void testCreatePageable_EmptyAllowedSortFields_Throws400WhenSortProvided() {
+        AppException ex = assertThrows(AppException.class, () ->
+            PageUtils.createPageable(0, 20, "name,asc", null, Collections.emptySet())
+        );
+
+        assertEquals(ErrorCode.VALIDATION_ERROR.name(), ex.getCode());
+        List<ValidationErrorDetail> details = getDetails(ex);
+        assertEquals("sort", details.get(0).field());
+    }
+
+    @Test
+    void testCreatePageable_NullAllowedSortFields_ThrowsNullPointerException() {
+        assertThrows(NullPointerException.class, () ->
+            PageUtils.createPageable(0, 20, "name,asc", null, null)
+        );
+    }
+
+    @Test
     void testCreatePageable_InvalidDirection_Throws400() {
         AppException ex = assertThrows(AppException.class, () ->
             PageUtils.createPageable(0, 20, "name,abc", null, ALLOWED_FIELDS)
@@ -107,10 +131,5 @@ class PageUtilsTest {
         assertEquals(ErrorCode.VALIDATION_ERROR.name(), ex.getCode());
         List<ValidationErrorDetail> details = getDetails(ex);
         assertEquals("size", details.get(0).field());
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<ValidationErrorDetail> getDetails(AppException ex) {
-        return (List<ValidationErrorDetail>) ex.getDetails();
     }
 }

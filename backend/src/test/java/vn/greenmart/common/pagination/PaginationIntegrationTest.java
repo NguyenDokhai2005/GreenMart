@@ -1,11 +1,13 @@
 package vn.greenmart.common.pagination;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.data.util.TypeInformation;
 import org.springframework.test.context.ContextConfiguration;
@@ -41,10 +43,20 @@ class PaginationIntegrationTest {
         public PageResponse<String> getPagedItems(
             @RequestParam(name = "page", required = false) Integer page,
             @RequestParam(name = "size", required = false) Integer size,
-            @RequestParam(name = "sort", required = false) String sort
+            HttpServletRequest request
         ) {
-            Pageable pageable = PageUtils.createPageable(page, size, sort, null, ALLOWED_FIELDS);
+            String[] sortParams = request.getParameterValues("sort");
+            Pageable pageable = PageUtils.createPageable(page, size, sortParams, null, ALLOWED_FIELDS);
+
+            Sort sort = pageable.getSort();
             List<String> items = List.of("Item A", "Item B");
+
+            if (sort.isSorted()) {
+                StringBuilder sortInfo = new StringBuilder();
+                sort.forEach(order -> sortInfo.append(order.getProperty()).append(":").append(order.getDirection()).append(";"));
+                items = List.of(sortInfo.toString());
+            }
+
             Page<String> springPage = new PageImpl<>(items, pageable, 50);
             return PageResponse.from(springPage);
         }
@@ -63,8 +75,21 @@ class PaginationIntegrationTest {
             .andExpect(jsonPath("$.size").value(20))
             .andExpect(jsonPath("$.totalElements").value(50))
             .andExpect(jsonPath("$.totalPages").value(3))
-            .andExpect(jsonPath("$.content[0]").value("Item A"))
-            .andExpect(jsonPath("$.content[1]").value("Item B"));
+            .andExpect(jsonPath("$.content[0]").value("name:ASC;"));
+    }
+
+    @Test
+    void testGetPagination_SingleSortDesc_HttpSuccess() throws Exception {
+        mockMvc.perform(get("/test/pagination?sort=createdAt,desc"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0]").value("createdAt:DESC;"));
+    }
+
+    @Test
+    void testGetPagination_MultipleSortParams_PreservesOrderAndDirection() throws Exception {
+        mockMvc.perform(get("/test/pagination?sort=name,asc&sort=createdAt,desc"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0]").value("name:ASC;createdAt:DESC;"));
     }
 
     @Test
