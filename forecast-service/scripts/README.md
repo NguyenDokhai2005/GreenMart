@@ -104,6 +104,24 @@ Tài liệu này đặc tả chi tiết toàn bộ các tham số cấu hình tr
 | `ALLOW_RETURNS_AFTER_END_DATE` | `bool` | `False` | Đã xác nhận | Ranh giới tuyệt đối: không phát sinh phiếu trả hàng sau mốc chặn `31/10/2026`. |
 | `RANDOM_SEED` | `int` | `2026` | Đã xác nhận | Hạt giống số ngẫu nhiên cố định đảm bảo khả năng tái lập 100% kết quả sinh dữ liệu. |
 
+### 2.8 Tồn kho khởi tạo và Cảnh báo tồn thấp (Issue #107)
+
+| Tên biến | Kiểu dữ liệu | Giá trị | Phân loại | Ý nghĩa nghiệp vụ |
+| :--- | :--- | :--- | :--- | :--- |
+| `LEAD_TIME_DAYS` | `int` | `2` ngày | Giả định của nhóm theo BA §8.2 / §12, chưa giảng viên xác nhận | Thời gian chờ hàng về ($L$) tính bằng ngày phục vụ công thức tính điểm đặt hàng lại (ROP). |
+| `SERVICE_LEVEL_Z` | `float` | `1.65` | Giả định của nhóm theo BA §8.2 / §12, chưa giảng viên xác nhận | Hệ số phân phối chuẩn $z$ tương ứng với mức phục vụ khách hàng 95%. |
+| `ROP_HISTORY_DAYS` | `int` | `28` ngày | Giả định thiết kế | Độ dài cửa sổ lịch sử bán ròng gần nhất (04/10–31/10/2026) dùng để tính trung bình ngày $\bar{d}$ và độ lệch chuẩn $\sigma_d$. |
+| `ROP_MINIMUM` | `int` | `2` đơn vị | Giả định thiết kế | Ngưỡng ROP sàn cho các sản phẩm không phát sinh doanh số trong 28 ngày qua. |
+| `INVENTORY_TARGET_OUT_RATIO` | `float` | `0.01` (1%) | Giả định thiết kế | Tỷ lệ mục tiêu sản phẩm hết hàng (OUT: khả dụng = 0) tại thời điểm chốt sổ demo toàn chuỗi (~30 dòng). |
+| `INVENTORY_TARGET_LOW_RATIO` | `float` | `0.05` (5%) | Giả định thiết kế | Tỷ lệ mục tiêu sản phẩm tồn thấp (LOW: $0 < \text{khả dụng} \le ROP$) tại thời điểm chốt sổ demo toàn chuỗi (~150 dòng). |
+| `INVENTORY_MIN_OUT_PER_BRANCH` | `int` | `3` SKU | Giả định thiết kế | Số lượng sản phẩm hết hàng tối thiểu tại mỗi chi nhánh để phục vụ demo dashboard cảnh báo. |
+| `INVENTORY_MIN_LOW_PER_BRANCH` | `int` | `10` SKU | Giả định thiết kế | Số lượng sản phẩm tồn thấp tối thiểu tại mỗi chi nhánh để phục vụ demo dashboard cảnh báo. |
+| `ANCHOR_MILK_SKU` | `str` | `"SUA-TH-1L"` | Giả định thiết kế | Mã SKU của sản phẩm mốc neo demo (Sữa tươi TH True Milk 1L). |
+| `ANCHOR_MILK_BRANCH_CODE` | `str` | `"GM-001"` | Giả định thiết kế | Chi nhánh áp dụng mốc neo demo (GreenMart Quận 1). |
+| `ANCHOR_MILK_ON_HAND` | `int` | `35` hộp | Giả định thiết kế | Tồn thực ban đầu phục vụ kịch bản kiểm thử TC-DASH-01 (Lưu ý: test-plan dùng khả dụng 35 để bán 6 -> 29 kích hoạt cảnh báo; BA §8.3/openapi dùng 30 sau khi giữ chỗ 5; đang chờ Lead chốt). |
+| `ANCHOR_MILK_RESERVED` | `int` | `0` hộp | Giả định thiết kế | Lượng tồn giữ chỗ ban đầu của sản phẩm mốc neo. |
+| `ANCHOR_MILK_ROP` | `int` | `34` hộp | Đã xác nhận | Điểm đặt hàng lại chuẩn của sản phẩm sữa tươi theo BA §8.3 và TC-DASH-01. |
+
 ---
 
 ## 3. Đặc tả các cơ chế và quy tắc nghiệp vụ trọng yếu
@@ -113,7 +131,7 @@ Tài liệu này đặc tả chi tiết toàn bộ các tham số cấu hình tr
   1. *Hết hàng giữa ngày*: Một SKU bán được một phần nhu cầu trong ngày, sau đó tồn kho thực tế chạm 0 (`on_hand = 0`). Các đơn hàng tiếp theo trong ngày chứa SKU này sẽ không được đáp ứng.
   2. *Cạn kho cả ngày*: Toàn bộ ngày tiếp theo không có doanh số cho SKU đó cho đến khi có phiếu nhập kho (`IMPORT`) hoặc chuyển kho (`TRANSFER_IN`).
 - **Thời lượng và tần suất**: Kéo dài từ 1 đến 3 ngày, chỉ áp dụng cho nhóm 200 SKU bán chạy với tần suất 2%–3% tổng số ngày trong năm (khoảng 7–11 ngày/năm).
-- **Định nghĩa cờ Stockout trong dữ liệu**: Cột `daily_sales.stockout = true` được xác định khi tồn khả dụng ($\text{on\_hand} - \text{reserved}$) của sản phẩm tại chi nhánh chạm 0 tại bất kỳ thời điểm nào trong ngày, được tính toán dựa trên chuỗi biến động số dư trong sổ giao dịch kho `inventory_transaction`.
+- **Định nghĩa cờ Stockout trong dữ liệu**: Cột `daily_sales.stockout = true` của dữ liệu sinh ở #106 được lấy trực tiếp từ lịch stockout mô phỏng (file `stockout_schedule.json`), KHÔNG suy từ sổ giao dịch kho `inventory_transaction`. Theo Mô hình B đã thống nhất (Issue #107), sổ kho `inventory_transaction` chỉ chứa giao dịch IMPORT khởi tạo tồn đầu kỳ tại mốc 31/10/2026, không phát lại chuỗi giao dịch kho cho 10.000 đơn hàng lịch sử 12 tháng qua.
 - **Ý nghĩa mô hình hóa (Censored Demand)**: Ngày xảy ra stockout đại diện cho hiện tượng **nhu cầu bị cắt cụt (censored demand)** — số lượng bán thực tế ghi nhận được chỉ phản ánh lượng hàng có sẵn trong kho, không phản ánh toàn bộ nhu cầu thực tế của khách hàng. Trong quy trình xây dựng mô hình AI dự báo nhu cầu (Issue #106 trở đi), các bản ghi có `stockout = true` có thể được xử lý bằng cách:
   - Loại bỏ khỏi tập dữ liệu huấn luyện (training set) để tránh làm mô hình học sai lệch xu hướng nhu cầu;
   - Hoặc đưa vào mô hình dưới dạng đặc trưng nhị phân (binary feature) để mô hình nhận biết trạng thái đứt gãy nguồn cung.

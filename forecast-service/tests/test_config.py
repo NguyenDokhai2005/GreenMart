@@ -365,6 +365,35 @@ class TestConfig(unittest.TestCase):
         """Kiểm tra random seed cố định là 2026 đảm bảo khả năng tái lập."""
         self.assertEqual(config.RANDOM_SEED, 2026)
 
+    def test_inventory_parameters(self):
+        """Kiểm tra các tham số tồn kho khởi tạo và cảnh báo tồn thấp (Issue #107)."""
+        self.assertEqual(config.LEAD_TIME_DAYS, 2)
+        self.assertGreater(config.LEAD_TIME_DAYS, 0)
+        self.assertEqual(config.SERVICE_LEVEL_Z, 1.65)
+        self.assertGreater(config.SERVICE_LEVEL_Z, 0.0)
+
+        self.assertEqual(config.ROP_HISTORY_DAYS, 28)
+        self.assertGreater(config.ROP_HISTORY_DAYS, 0)
+        self.assertEqual(config.ROP_MINIMUM, 2)
+        self.assertGreater(config.ROP_MINIMUM, 0)
+
+        self.assertEqual(config.INVENTORY_TARGET_OUT_RATIO, 0.01)
+        self.assertEqual(config.INVENTORY_TARGET_LOW_RATIO, 0.05)
+        self.assertTrue(0.0 < config.INVENTORY_TARGET_OUT_RATIO < config.INVENTORY_TARGET_LOW_RATIO < 1.0)
+
+        self.assertGreaterEqual(config.INVENTORY_MIN_OUT_PER_BRANCH, 3)
+        self.assertGreaterEqual(config.INVENTORY_MIN_LOW_PER_BRANCH, 10)
+
+        # Mốc neo sản phẩm sữa tươi TC-DASH-01
+        self.assertEqual(config.ANCHOR_MILK_SKU, "SUA-TH-1L")
+        self.assertEqual(config.ANCHOR_MILK_BRANCH_CODE, "GM-001")
+        self.assertEqual(config.ANCHOR_MILK_ON_HAND, 35)
+        self.assertEqual(config.ANCHOR_MILK_RESERVED, 0)
+        self.assertEqual(config.ANCHOR_MILK_ROP, 34)
+        # Sát ngưỡng ROP (khả dụng 35 > 34) để bán 6 -> 29 kích hoạt cảnh báo
+        self.assertGreater(config.ANCHOR_MILK_ON_HAND - config.ANCHOR_MILK_RESERVED, config.ANCHOR_MILK_ROP)
+
+
 
 if __name__ == "__main__":
     unittest.main()
