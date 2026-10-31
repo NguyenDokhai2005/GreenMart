@@ -166,7 +166,9 @@ package "Bán hàng" {
     * refund_amount : BIGINT
     * status : DRAFT | APPROVED | CANCELLED
     * created_by : BIGINT <<FK>>
-    approved_by : BIGINT <<FK>>
+    approved_by : BIGINT <<FK>> (≠ created_by)
+    * created_at : TIMESTAMPTZ
+    approved_at : TIMESTAMPTZ (ngày trả, BR-18)
   }
   entity "return_item\nDòng trả hàng" as return_item $sales {
     * id : BIGINT <<PK>>
@@ -219,6 +221,8 @@ package "Kho" {
     approved_by : BIGINT <<FK>> (≠ created_by)
     received_by : BIGINT <<FK>>
     * created_at : TIMESTAMPTZ
+    approved_at : TIMESTAMPTZ (tồn thay đổi tại đây)
+    received_at : TIMESTAMPTZ (chuyển kho)
   }
   entity "stock_document_item\nDòng phiếu kho" as stock_item $stock {
     * id : BIGINT <<PK>>
