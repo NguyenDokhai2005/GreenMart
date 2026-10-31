@@ -4,6 +4,7 @@ import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -47,7 +48,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getHttpStatus()).body(response);
     }
 
-    //  Validation trên @RequestParam, @PathVariable
+    // Validation trên @RequestParam, @PathVariable
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
         List<ValidationErrorDetail> details = ex.getConstraintViolations().stream()
@@ -111,6 +112,21 @@ public class GlobalExceptionHandler {
         ErrorResponse response = new ErrorResponse(
             ErrorCode.VALIDATION_ERROR.name(),
             "Thiếu header bắt buộc",
+            details,
+            generateTraceId()
+        );
+        return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getHttpStatus()).body(response);
+    }
+
+    // Tên trường sắp xếp/lọc không tồn tại trong Entity JPA
+    @ExceptionHandler(PropertyReferenceException.class)
+    public ResponseEntity<ErrorResponse> handlePropertyReferenceException(PropertyReferenceException ex) {
+        List<ValidationErrorDetail> details = List.of(
+            new ValidationErrorDetail(ex.getPropertyName(), "Trường không tồn tại: " + ex.getPropertyName())
+        );
+        ErrorResponse response = new ErrorResponse(
+            ErrorCode.VALIDATION_ERROR.name(),
+            "Trường sắp xếp hoặc lọc không hợp lệ",
             details,
             generateTraceId()
         );
@@ -183,6 +199,4 @@ public class GlobalExceptionHandler {
     private String generateTraceId() {
         return UUID.randomUUID().toString().substring(0, 8);
     }
-
-    public record ValidationErrorDetail(String field, String message) {}
 }
