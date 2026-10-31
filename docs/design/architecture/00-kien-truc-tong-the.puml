@@ -1,0 +1,34 @@
+@startuml 00-kien-truc-tong-the
+!include _style.iuml
+top to bottom direction
+title Kiến trúc tổng thể – GreenMart (mức container, chạy bằng Docker Compose)
+
+actor "Người dùng nội bộ\nAdmin · Chủ sở hữu · QL chi nhánh\nThu ngân · Thủ kho" as user
+
+rectangle "Mạng Docker «greenmart»" {
+  component "Frontend\nReact + Vite, phục vụ bằng nginx\ncổng 3000" as fe
+  component "Backend\nSpring Boot 3 · Java 21\nmodular monolith · cổng 8080" as be
+  component "Mock connector\nkênh WEB, MARKET" as mock
+  component "Forecast service\nPython 3.11 · FastAPI · LightGBM\nchạy 02:00 hằng đêm" as fs
+  database "PostgreSQL 16\n28 bảng · Flyway" as pg
+  queue "RabbitMQ 3.13\nsự kiện nội bộ" as mq
+  database "Redis 7.4\ndữ liệu ngắn hạn" as redis
+}
+
+user --> fe : trình duyệt
+fe --> be : REST /api/v1 · JSON\nBearer JWT (openapi.yaml)
+mock --> be : webhook đơn mới\nHMAC-SHA256
+be --> mock : đẩy tồn, trạng thái đơn\nthử lại 5 lần
+be --> pg : JDBC\nbảng nghiệp vụ
+be --> redis : Idempotency-Key 24 giờ
+be --> mq : outbox → order.*, stock.*
+be --> fs : POST /forecast/run\nGET /forecast/runs/{id}
+fs --> pg : đọc (chỉ đọc) · ghi daily_sales,\nforecast_run, forecast_result
+fs --> mq : forecast.completed
+mq --> be : forecast.completed,\norder.*, stock.*
+
+fe -[hidden]right- mock
+mock -[hidden]right- fs
+pg -[hidden]right- mq
+mq -[hidden]right- redis
+@enduml

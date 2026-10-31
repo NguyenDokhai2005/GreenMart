@@ -1,13 +1,16 @@
 openapi: 3.0.3
 info:
   title: GreenMart API
-  version: 1.1.0
+  version: 2.0.0
   description: |
     Hợp đồng REST API nội bộ của GreenMart (đề tài DT03). Nguồn nghiệp vụ: `docs/requirements/SRS.md`,
     nguồn dữ liệu: `docs/design/erd`.
 
-    **Phạm vi v1:** xác thực, chi nhánh, danh mục, sản phẩm, khách hàng, bán tại quầy (POS) và xem tồn kho.
-    Đơn online, webhook kênh, phiếu kho, khuyến mại, trả hàng, báo cáo và dự báo nằm trong v2 (04/11).
+    **Phạm vi**
+    - v1: xác thực, chi nhánh, danh mục, sản phẩm, khách hàng, bán tại quầy (POS), xem tồn kho, sổ kho.
+    - v2: đơn online (hoàn tất, hủy), webhook kênh và callback mock connector, phiếu nhập/xuất hủy/chuyển kho/kiểm kê,
+      khuyến mại, quản trị người dùng.
+    - v3 (tuần 3): trả hàng, dashboard, cảnh báo tồn thấp, dự báo và gợi ý nhập, nhật ký đồng bộ.
 
     **Quy ước chung (SRS 8.2)**
     - JSON, tên trường camelCase, thời gian ISO 8601 có múi giờ (`2026-11-05T09:30:00+07:00`).
@@ -45,6 +48,13 @@ info:
     | 422 | MANUAL_DISCOUNT_FORBIDDEN | Giảm giá tay không phải QL chi nhánh hoặc thiếu lý do (BR-19) |
     | 422 | CATEGORY_CYCLE | Đặt danh mục cha tạo vòng lặp |
     | 422 | WRONG_PASSWORD | Mật khẩu hiện tại sai khi đổi mật khẩu |
+    | 401 | INVALID_SIGNATURE | Webhook thiếu hoặc sai chữ ký HMAC (v2) |
+    | 409 | INVALID_STATUS | Thao tác không hợp lệ với trạng thái hiện tại của đơn, phiếu, khuyến mại; `details.currentStatus` (v2) |
+    | 409 | DUPLICATE_USERNAME / DUPLICATE_PROMOTION_CODE | Trùng tên đăng nhập, mã khuyến mại (v2) |
+    | 422 | UNMAPPED_SKU | Đơn kênh có SKU chưa ánh xạ; đơn lưu ở REJECTED (v2) |
+    | 422 | SELF_APPROVAL_FORBIDDEN | Người lập tự duyệt phiếu của mình (BR-13) (v2) |
+    | 422 | SELF_ACTION_FORBIDDEN | Admin tự khóa hoặc tự đổi vai trò của mình (v2) |
+    | 422 | RECEIVED_QUANTITY_EXCEEDED | Số nhận chuyển kho lớn hơn số xuất (BR-16) (v2) |
   contact:
     name: SV01 – BA/Lead
 servers:
@@ -67,6 +77,18 @@ tags:
     description: Báo giá, bán tại quầy, tra cứu đơn (ORD-01, ORD-06, ORD-07, PAY-01, PRM-02)
   - name: Inventory
     description: Tồn kho và sổ giao dịch kho (INV-01, INV-06)
+  - name: Online orders
+    description: Xử lý đơn online tại chi nhánh (ORD-03, ORD-04, UC-02, UC-03)
+  - name: Channel webhook
+    description: Kênh bán gọi vào backend, ký HMAC (SYNC-02, SRS 8.3)
+  - name: Mock connector callback
+    description: Backend gọi ra mock connector (SYNC-03, SYNC-04); mock connector cài đặt
+  - name: Stock documents
+    description: Phiếu nhập, xuất hủy, chuyển kho, kiểm kê (INV-02..05, UC-05..08, BR-13, BR-16, BR-17)
+  - name: Promotions
+    description: Chương trình khuyến mại (PRM-01, PRM-03, BR-07, BR-08)
+  - name: Users
+    description: Quản trị tài khoản, vai trò, chi nhánh (AUTH-04)
 security:
   - bearerAuth: []
 
@@ -726,6 +748,715 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  # ------------------------------------------------------------------ Đơn online (v2)
+  /orders/{orderId}/complete:
+    post:
+      tags: [Online orders]
+      summary: Hoàn tất đơn online đã bàn giao
+      description: |
+        CONFIRMED → COMPLETED (UC-02 bước 7). Trong một transaction: `commitSale` từng dòng theo `productId` tăng dần
+        (tồn thực và giữ chỗ cùng giảm), ghi sổ SALE, tăng lượt dùng KM, ghi outbox `order.completed`, `stock.changed`.
+        Sau commit báo trạng thái về kênh (SYNC-04).
+      operationId: completeOnlineOrder
+      x-roles: [BRANCH_MANAGER, STOREKEEPER]
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: Đơn sau khi hoàn tất
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidStatus' }
+  /orders/{orderId}/cancel:
+    post:
+      tags: [Online orders]
+      summary: Hủy đơn online chưa giao
+      description: |
+        RESERVED hoặc CONFIRMED → CANCELLED (UC-03, ORD-04): nhả toàn bộ giữ chỗ (RELEASE), hoàn tiền giả lập nếu đã thanh toán
+        (payment → REFUNDED), hoàn lượt dùng KM, ghi `audit_log` (AUTH-03), ghi outbox `order.cancelled`, `stock.changed`, báo về kênh.
+        Đơn POS và đơn đã COMPLETED không hủy được (dùng trả hàng, v3).
+      operationId: cancelOnlineOrder
+      x-roles: [BRANCH_MANAGER]
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CancelOrderRequest' }
+            example: { reason: CUSTOMER_REQUEST, note: Khách gọi điện đổi ý }
+      responses:
+        '200':
+          description: Đơn sau khi hủy
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidStatus' }
+
+  # ------------------------------------------------------------------ Webhook kênh (v2)
+  /integrations/{channelCode}/orders:
+    post:
+      tags: [Channel webhook]
+      summary: Kênh gửi đơn mới
+      description: |
+        Mock connector gọi khi có đơn mới (SRS 8.3, SYNC-02, UC-02). Không dùng JWT; xác thực bằng chữ ký HMAC-SHA256
+        của **nguyên body** với `sales_channel.webhook_secret`, gửi ở header `X-Signature` dạng hex.
+
+        Xử lý: kiểm tra chữ ký → chống trùng theo (kênh, `externalOrderId`) (BR-05) → đổi SKU kênh sang sản phẩm (`channel_product`)
+        → tạo hoặc gắn khách theo số điện thoại → chọn chi nhánh theo BR-14 → giữ chỗ mọi dòng trong một transaction
+        → đơn RESERVED, `reservedUntil` = lúc nhận + 15 phút (BR-03). Đơn `COD` chuyển CONFIRMED ngay.
+
+        - Thiếu tồn ở mọi chi nhánh phục vụ kênh → đơn vẫn được lưu ở REJECTED, trả **409** `INSUFFICIENT_STOCK`.
+        - SKU kênh chưa ánh xạ → đơn lưu ở REJECTED, trả **422** `UNMAPPED_SKU`.
+        - Đơn giá ghi theo giá kênh (khách đã trả giá đó, BA E4); `shippingFee` chỉ để đối chiếu, không lưu (giao vận ngoài phạm vi).
+      operationId: receiveChannelOrder
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ChannelCodePath'
+        - $ref: '#/components/parameters/Signature'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChannelOrderRequest' }
+            example:
+              externalOrderId: WEB-778812
+              orderedAt: '2026-11-05T10:15:00+07:00'
+              customer: { name: Lê Văn Hùng, phone: '0912345678' }
+              items:
+                - { externalSku: W-SUA-TH-1L, quantity: 3, unitPrice: 29000 }
+              shippingFee: 15000
+              paymentMethod: ONLINE
+      responses:
+        '202':
+          description: Đã nhận và giữ chỗ
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChannelOrderAck' }
+        '200':
+          description: Đơn trùng (cùng kênh và `externalOrderId`), trả đơn đã có, không giữ chỗ thêm (BA E1)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChannelOrderAck' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/InvalidSignature' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: INSUFFICIENT_STOCK – không chi nhánh nào đủ tồn; đơn đã lưu ở REJECTED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example:
+                code: INSUFFICIENT_STOCK
+                message: Không chi nhánh nào đủ hàng cho đơn
+                details: { orderId: 10988, status: REJECTED, lines: [{ productId: 205, sku: SUA-TH-1L, requested: 3, available: 1 }] }
+                traceId: c11e0a01
+        '422':
+          description: UNMAPPED_SKU – có SKU kênh chưa ánh xạ; đơn đã lưu ở REJECTED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example:
+                code: UNMAPPED_SKU
+                message: Có mã hàng của kênh chưa được ánh xạ
+                details: { orderId: 10989, status: REJECTED, externalSkus: [W-NUOC-MAM-500] }
+                traceId: c11e0a02
+  /integrations/{channelCode}/orders/{externalOrderId}/events:
+    post:
+      tags: [Channel webhook]
+      summary: Kênh báo thanh toán hoặc hủy đơn
+      description: |
+        Ký HMAC giống webhook đơn mới.
+        - `PAID`: RESERVED → CONFIRMED, ghi payment PAID. Nếu đơn đã EXPIRED (BA E2): thử giữ chỗ lại; đủ → CONFIRMED,
+          không đủ → CANCELLED và hoàn tiền giả lập.
+        - `CANCELLED`: RESERVED/CONFIRMED → CANCELLED, nhả giữ chỗ, hoàn tiền nếu đã trả (lý do `CHANNEL_CANCELLED`).
+        Gửi lại cùng sự kiện cho đơn đã ở trạng thái đích → 200, không làm gì thêm.
+      operationId: receiveChannelOrderEvent
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ChannelCodePath'
+        - name: externalOrderId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 60 }
+        - $ref: '#/components/parameters/Signature'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChannelOrderEvent' }
+            example: { type: PAID, occurredAt: '2026-11-05T10:21:40+07:00', providerRef: VNP-552910 }
+      responses:
+        '200':
+          description: Trạng thái đơn sau sự kiện
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChannelOrderAck' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/InvalidSignature' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidStatus' }
+
+  # ------------------------------------------------------------------ Callback mock connector (v2)
+  /mock/{channelCode}/stock:
+    servers:
+      - url: '{mockBaseUrl}'
+        variables:
+          mockBaseUrl: { default: 'http://mock-connector:8090', description: Địa chỉ mock connector trong mạng Docker (SV07 chốt cổng) }
+    put:
+      tags: [Mock connector callback]
+      summary: Backend đẩy tồn khả dụng ra kênh
+      description: |
+        **Do mock connector (SV07) cài đặt; backend là bên gọi.** Gọi sau mỗi lần tồn đổi (SYNC-03, BR-15):
+        số đẩy = tổng khả dụng các chi nhánh phục vụ kênh − `safety_stock`, không âm. Kênh bỏ qua dòng có `version` cũ hơn bản đã nhận.
+        Lỗi hoặc không phản hồi → thử lại 5 lần (1, 2, 4, 8, 16 giây), ghi `sync_log`.
+      operationId: pushChannelStock
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ChannelCodePath'
+        - $ref: '#/components/parameters/Signature'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChannelStockUpdate' }
+            example: { items: [{ externalSku: W-SUA-TH-1L, available: 41, version: 1843 }] }
+      responses:
+        '204': { description: Kênh đã nhận }
+        '400': { description: 'Dữ liệu không hợp lệ; backend ghi sync_log FAILED, không thử lại' }
+        '401': { description: 'Sai chữ ký; backend ghi sync_log FAILED, không thử lại' }
+  /mock/{channelCode}/orders/{externalOrderId}/status:
+    servers:
+      - url: '{mockBaseUrl}'
+        variables:
+          mockBaseUrl: { default: 'http://mock-connector:8090' }
+    put:
+      tags: [Mock connector callback]
+      summary: Backend báo trạng thái đơn về kênh
+      description: '**Do mock connector cài đặt; backend là bên gọi** mỗi khi trạng thái đơn đổi (SYNC-04). Thử lại như đẩy tồn.'
+      operationId: pushChannelOrderStatus
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ChannelCodePath'
+        - name: externalOrderId
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/Signature'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChannelOrderStatusUpdate' }
+            example: { status: REJECTED, reason: OUT_OF_STOCK, occurredAt: '2026-11-05T10:15:01+07:00' }
+      responses:
+        '204': { description: Kênh đã nhận }
+        '400': { description: 'Dữ liệu không hợp lệ; backend ghi sync_log FAILED, không thử lại' }
+        '401': { description: 'Sai chữ ký; backend ghi sync_log FAILED, không thử lại' }
+
+  # ------------------------------------------------------------------ Phiếu kho (v2)
+  /stock-documents:
+    get:
+      tags: [Stock documents]
+      summary: Danh sách phiếu kho
+      description: |
+        Phiếu nhập, xuất hủy, chuyển kho, kiểm kê. Với chuyển kho, `branchId` khớp cả chi nhánh nguồn lẫn đích
+        (CN đích cần thấy phiếu IN_TRANSIT để nhận). Mặc định mới nhất trước.
+      operationId: listStockDocuments
+      x-roles: [OWNER, BRANCH_MANAGER, STOREKEEPER]
+      parameters:
+        - $ref: '#/components/parameters/BranchIdQuery'
+        - name: type
+          in: query
+          schema: { $ref: '#/components/schemas/StockDocumentType' }
+        - name: status
+          in: query
+          description: Có thể lặp (`status=DRAFT&status=IN_TRANSIT`)
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/StockDocumentStatus' }
+          style: form
+          explode: true
+        - name: from
+          in: query
+          description: Ngày tạo từ (giờ Việt Nam, gồm cả ngày này)
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+        - name: q
+          in: query
+          description: Tìm theo mã phiếu hoặc nhà cung cấp
+          schema: { type: string }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: Trang phiếu kho
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockDocumentSummaryPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Stock documents]
+      summary: Lập phiếu kho (Nháp)
+      description: |
+        Tạo phiếu DRAFT; tồn chưa đổi (BR-13). Theo loại:
+        - `IMPORT` (UC-05): bắt buộc `supplier`, mỗi dòng có `unitCost`.
+        - `EXPORT` (UC-06): bắt buộc `reason`; số lượng ≤ tồn khả dụng lúc tạo (kiểm tra lại khi duyệt).
+        - `TRANSFER` (UC-07): bắt buộc `toBranchId` ≠ `branchId`; số lượng ≤ khả dụng CN nguồn.
+        - `ADJUST` (UC-08): không gửi `quantity`; hệ thống chụp tồn thực hiện tại vào `quantity` (snapshot), Thủ kho nhập `countedQuantity` sau qua PUT.
+      operationId: createStockDocument
+      x-roles: [STOREKEEPER, BRANCH_MANAGER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StockDocumentRequest' }
+            examples:
+              import:
+                value:
+                  type: IMPORT
+                  branchId: 1
+                  supplier: Công ty Sữa TH
+                  items: [{ productId: 205, quantity: 24, unitCost: 23500 }]
+              transfer:
+                value:
+                  type: TRANSFER
+                  branchId: 1
+                  toBranchId: 2
+                  items: [{ productId: 330, quantity: 50 }]
+      responses:
+        '201':
+          description: Phiếu nháp
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockDocument' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /stock-documents/{documentId}:
+    get:
+      tags: [Stock documents]
+      summary: Chi tiết phiếu kho
+      operationId: getStockDocument
+      x-roles: [OWNER, BRANCH_MANAGER, STOREKEEPER]
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      responses:
+        '200':
+          description: Phiếu kho
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockDocument' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Stock documents]
+      summary: Sửa phiếu nháp
+      description: Chỉ phiếu DRAFT. Không đổi được `type`, `branchId`. Với ADJUST, dùng để nhập `countedQuantity`.
+      operationId: updateStockDocument
+      x-roles: [STOREKEEPER, BRANCH_MANAGER]
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StockDocumentUpdateRequest' }
+      responses:
+        '200':
+          description: Phiếu sau khi sửa
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockDocument' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidStatus' }
+  /stock-documents/{documentId}/approve:
+    post:
+      tags: [Stock documents]
+      summary: Duyệt phiếu
+      description: |
+        Người duyệt khác người lập (BR-13, 422 `SELF_APPROVAL_FORBIDDEN`). Trong một transaction, ghi `approvedBy`, `approvedAt` rồi:
+        - `IMPORT`: DRAFT → APPROVED, on_hand tăng (IMPORT), cập nhật giá vốn bình quân.
+        - `EXPORT`: DRAFT → APPROVED, on_hand giảm (EXPORT); không vượt khả dụng → 409 `INSUFFICIENT_STOCK`.
+        - `TRANSFER`: DRAFT → **IN_TRANSIT** (duyệt kèm xác nhận xuất, BA 6.3), on_hand CN nguồn giảm (TRANSFER_OUT).
+        - `ADJUST`: DRAFT → APPROVED, ghi ADJUST bằng chênh lệch `countedQuantity − quantity` (BR-17); mọi dòng phải có `countedQuantity`.
+
+        Ghi `audit_log` (AUTH-03), outbox `stock.changed`.
+      operationId: approveStockDocument
+      x-roles: [BRANCH_MANAGER]
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      responses:
+        '200':
+          description: Phiếu sau khi duyệt
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockDocument' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: INVALID_STATUS hoặc INSUFFICIENT_STOCK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422': { $ref: '#/components/responses/BusinessRule' }
+  /stock-documents/{documentId}/receive:
+    post:
+      tags: [Stock documents]
+      summary: Nhận hàng chuyển kho
+      description: |
+        Chỉ TRANSFER đang IN_TRANSIT; người nhận thuộc **chi nhánh đích**. IN_TRANSIT → RECEIVED, ghi `receivedBy`, `receivedAt`;
+        on_hand CN đích tăng theo `receivedQuantity` (TRANSFER_IN, BR-16). `receivedQuantity` ≤ `quantity` (không nhận thừa);
+        thiếu thì `hasDiscrepancy = true`, phần thiếu vào báo cáo hao hụt.
+      operationId: receiveStockTransfer
+      x-roles: [STOREKEEPER, BRANCH_MANAGER]
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReceiveTransferRequest' }
+            example: { items: [{ itemId: 5521, receivedQuantity: 48 }] }
+      responses:
+        '200':
+          description: Phiếu sau khi nhận
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockDocument' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidStatus' }
+  /stock-documents/{documentId}/cancel:
+    post:
+      tags: [Stock documents]
+      summary: Hủy phiếu nháp
+      description: Chỉ phiếu DRAFT; tồn không đổi. Phiếu đã duyệt muốn sửa thì lập phiếu điều chỉnh (BR-06).
+      operationId: cancelStockDocument
+      x-roles: [STOREKEEPER, BRANCH_MANAGER]
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 3, maxLength: 255 }
+      responses:
+        '200':
+          description: Phiếu đã hủy
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockDocument' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidStatus' }
+
+  # ------------------------------------------------------------------ Khuyến mại (v2)
+  /promotions:
+    get:
+      tags: [Promotions]
+      summary: Danh sách chương trình khuyến mại
+      operationId: listPromotions
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/PromotionStatus' }
+          style: form
+          explode: true
+        - name: level
+          in: query
+          schema: { $ref: '#/components/schemas/PromotionLevel' }
+        - name: activeAt
+          in: query
+          description: Chỉ lấy chương trình hiệu lực tại thời điểm này
+          schema: { type: string, format: date-time }
+        - $ref: '#/components/parameters/BranchIdQuery'
+        - name: channel
+          in: query
+          schema: { $ref: '#/components/schemas/ChannelCode' }
+        - name: q
+          in: query
+          description: Tìm theo mã
+          schema: { type: string }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: Trang khuyến mại
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PromotionPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Promotions]
+      summary: Tạo chương trình (Nháp)
+      description: Tạo ở DRAFT (PRM-01). `productIds` bắt buộc với `level = ITEM`. `branchIds`, `channels` rỗng = áp mọi chi nhánh/kênh.
+      operationId: createPromotion
+      x-roles: [OWNER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PromotionRequest' }
+            example:
+              code: DON200K-10
+              type: PERCENT
+              level: ORDER
+              value: 10
+              maxDiscount: 30000
+              minOrder: 200000
+              startAt: '2026-11-18T00:00:00+07:00'
+              endAt: '2026-11-24T23:59:59+07:00'
+              usageLimit: 500
+              branchIds: []
+              channels: [POS, WEB]
+      responses:
+        '201':
+          description: Chương trình đã tạo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Promotion' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /promotions/{promotionId}:
+    get:
+      tags: [Promotions]
+      summary: Chi tiết chương trình
+      operationId: getPromotion
+      parameters:
+        - $ref: '#/components/parameters/PromotionId'
+      responses:
+        '200':
+          description: Chương trình
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Promotion' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Promotions]
+      summary: Sửa chương trình
+      description: Chỉ khi DRAFT hoặc PAUSED. Không giảm `usageLimit` xuống dưới `usedCount`.
+      operationId: updatePromotion
+      x-roles: [OWNER]
+      parameters:
+        - $ref: '#/components/parameters/PromotionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PromotionRequest' }
+      responses:
+        '200':
+          description: Chương trình sau khi sửa
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Promotion' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidStatus' }
+  /promotions/{promotionId}/status:
+    post:
+      tags: [Promotions]
+      summary: Đổi trạng thái chương trình
+      description: |
+        DRAFT → ACTIVE; ACTIVE ⇄ PAUSED; ACTIVE/PAUSED → ENDED (không quay lại). Chỉ ACTIVE trong thời gian hiệu lực mới được áp (BR-07).
+        Đơn đang mở báo giá với KM vừa tạm dừng sẽ nhận 422 `TOTAL_CHANGED` khi hoàn tất.
+      operationId: changePromotionStatus
+      x-roles: [OWNER]
+      parameters:
+        - $ref: '#/components/parameters/PromotionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [ACTIVE, PAUSED, ENDED] }
+      responses:
+        '200':
+          description: Chương trình sau khi đổi trạng thái
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Promotion' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidStatus' }
+
+  # ------------------------------------------------------------------ Quản trị người dùng (v2)
+  /users:
+    get:
+      tags: [Users]
+      summary: Danh sách tài khoản
+      operationId: listUsers
+      x-roles: [ADMIN]
+      parameters:
+        - name: role
+          in: query
+          schema: { $ref: '#/components/schemas/Role' }
+        - $ref: '#/components/parameters/BranchIdQuery'
+        - name: active
+          in: query
+          schema: { type: boolean }
+        - name: q
+          in: query
+          description: Tìm theo tên đăng nhập hoặc họ tên
+          schema: { type: string }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: Trang tài khoản
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Users]
+      summary: Tạo tài khoản
+      description: |
+        AUTH-04. Mật khẩu ban đầu tối thiểu 8 ký tự, có chữ và số; lưu BCrypt (NFR-05). CASHIER, STOREKEEPER, BRANCH_MANAGER
+        phải có ít nhất 1 chi nhánh; ADMIN, OWNER bỏ qua `branchIds` (dùng mọi chi nhánh). Ghi `audit_log`.
+      operationId: createUser
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserCreateRequest' }
+            example: { username: thungan.gm004, fullName: Phạm Thu Ngân, role: CASHIER, branchIds: [1], password: 'Demo@123' }
+      responses:
+        '201':
+          description: Tài khoản đã tạo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /users/{userId}:
+    get:
+      tags: [Users]
+      summary: Chi tiết tài khoản
+      operationId: getUser
+      x-roles: [ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Tài khoản
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Users]
+      summary: Sửa tài khoản, vai trò, chi nhánh, khóa/mở
+      description: |
+        `active = false` khóa tài khoản: thu hồi mọi refresh token, đăng nhập trả `INVALID_CREDENTIALS`.
+        Admin không tự khóa hoặc tự đổi vai trò của chính mình (422 `SELF_ACTION_FORBIDDEN`). Ghi `audit_log`.
+      operationId: updateUser
+      x-roles: [ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserUpdateRequest' }
+      responses:
+        '200':
+          description: Tài khoản sau khi sửa
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/BusinessRule' }
+  /users/{userId}/unlock:
+    post:
+      tags: [Users]
+      summary: Mở khóa đăng nhập
+      description: Xóa khóa 15 phút do sai mật khẩu (`failed_login_count = 0`, `locked_until = null`). Ghi `audit_log`.
+      operationId: unlockUser
+      x-roles: [ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204': { description: Đã mở khóa }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /users/{userId}/reset-password:
+    post:
+      tags: [Users]
+      summary: Đặt lại mật khẩu
+      description: Admin đặt mật khẩu mới; thu hồi mọi refresh token của tài khoản. Ghi `audit_log`.
+      operationId: resetUserPassword
+      x-roles: [ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [newPassword]
+              properties:
+                newPassword: { type: string, format: password, minLength: 8, maxLength: 100 }
+      responses:
+        '204': { description: Đã đặt lại }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -789,6 +1520,34 @@ components:
       description: UUID do client sinh mỗi lần bấm Hoàn tất mới; bấm lại sau lỗi mạng thì dùng lại key cũ. Lưu 24 giờ.
       schema: { type: string, format: uuid }
 
+    ChannelCodePath:
+      name: channelCode
+      in: path
+      required: true
+      description: Chỉ kênh online
+      schema: { type: string, enum: [WEB, MARKET] }
+    Signature:
+      name: X-Signature
+      in: header
+      required: true
+      description: HMAC-SHA256 của nguyên body (byte gốc, UTF-8) với `webhook_secret` của kênh, dạng hex chữ thường
+      schema: { type: string, pattern: '^[0-9a-f]{64}$' }
+    DocumentId:
+      name: documentId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    PromotionId:
+      name: promotionId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+
   responses:
     BadRequest:
       description: VALIDATION_ERROR
@@ -830,6 +1589,19 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    InvalidStatus:
+      description: INVALID_STATUS – thao tác không hợp lệ với trạng thái hiện tại
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { code: INVALID_STATUS, message: Chỉ hủy được đơn đang giữ hàng hoặc đã xác nhận, details: { currentStatus: COMPLETED, allowed: [RESERVED, CONFIRMED] }, traceId: 4c1f9b25 }
+    InvalidSignature:
+      description: INVALID_SIGNATURE – thiếu hoặc sai chữ ký HMAC; không ghi gì vào CSDL
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { code: INVALID_SIGNATURE, message: Chữ ký không hợp lệ, details: null, traceId: 4c1f9b26 }
 
   schemas:
     # ---------- Chung
@@ -1243,6 +2015,11 @@ components:
               type: array
               items: { $ref: '#/components/schemas/Payment' }
             reservedUntil: { type: string, format: date-time, nullable: true, description: Chỉ có với đơn online RESERVED }
+            statusReason:
+              type: string
+              nullable: true
+              description: 'CANCELLED: CUSTOMER_REQUEST, OUT_OF_STOCK_ACTUAL, WRONG_INFO, CHANNEL_CANCELLED, OTHER; REJECTED: OUT_OF_STOCK, UNMAPPED_SKU. Lấy từ audit_log của lần đổi trạng thái (v2)'
+            statusNote: { type: string, nullable: true, description: Ghi chú kèm khi hủy với lý do OTHER (v2) }
     OrderSummaryPage:
       allOf:
         - $ref: '#/components/schemas/PageMeta'
@@ -1341,3 +2118,345 @@ components:
             content:
               type: array
               items: { $ref: '#/components/schemas/InventoryTransaction' }
+
+    # ---------- Đơn online (v2)
+    CancelOrderRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          description: Lý do hủy (BA 5.1). Khi kênh báo hủy, hệ thống tự ghi `CHANNEL_CANCELLED`
+          enum: [CUSTOMER_REQUEST, OUT_OF_STOCK_ACTUAL, WRONG_INFO, OTHER]
+        note: { type: string, maxLength: 255, description: Bắt buộc khi reason = OTHER }
+    RejectReason:
+      type: string
+      enum: [OUT_OF_STOCK, UNMAPPED_SKU]
+    ChannelPaymentMethod:
+      type: string
+      description: ONLINE – khách trả qua kênh, chờ sự kiện PAID; COD – thu khi giao, CONFIRMED ngay sau giữ chỗ
+      enum: [ONLINE, COD]
+    ChannelOrderRequest:
+      type: object
+      required: [externalOrderId, orderedAt, customer, items, paymentMethod]
+      properties:
+        externalOrderId: { type: string, minLength: 1, maxLength: 60 }
+        orderedAt: { type: string, format: date-time }
+        customer:
+          type: object
+          required: [name, phone]
+          properties:
+            name: { type: string, minLength: 1, maxLength: 120 }
+            phone: { $ref: '#/components/schemas/Phone' }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: object
+            required: [externalSku, quantity, unitPrice]
+            properties:
+              externalSku: { type: string, maxLength: 60 }
+              quantity: { type: integer, minimum: 1, maximum: 9999 }
+              unitPrice: { $ref: '#/components/schemas/Money' }
+        shippingFee: { allOf: [{ $ref: '#/components/schemas/Money' }], description: 'Chỉ để đối chiếu, không lưu' }
+        paymentMethod: { $ref: '#/components/schemas/ChannelPaymentMethod' }
+    ChannelOrderAck:
+      type: object
+      required: [orderId, code, externalOrderId, status]
+      properties:
+        orderId: { type: integer, format: int64, example: 10987 }
+        code: { type: string, example: WEB-GM001-20261105-0007 }
+        externalOrderId: { type: string, example: WEB-778812 }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        branch:
+          type: object
+          allOf: [{ $ref: '#/components/schemas/BranchRef' }]
+          nullable: true
+          description: Chi nhánh được phân bổ (BR-14); null khi REJECTED
+        reservedUntil: { type: string, format: date-time, nullable: true }
+        rejectReason:
+          type: string
+          allOf: [{ $ref: '#/components/schemas/RejectReason' }]
+          nullable: true
+    ChannelOrderEvent:
+      type: object
+      required: [type, occurredAt]
+      properties:
+        type: { type: string, enum: [PAID, CANCELLED] }
+        occurredAt: { type: string, format: date-time }
+        providerRef: { type: string, maxLength: 60, description: Mã giao dịch thanh toán của kênh (PAID) }
+        reason: { type: string, maxLength: 255, description: Lý do kênh hủy (CANCELLED) }
+    ChannelStockUpdate:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [externalSku, available, version]
+            properties:
+              externalSku: { type: string }
+              available: { type: integer, minimum: 0, description: 'Σ khả dụng các CN phục vụ kênh − safety_stock, không âm (BR-15)' }
+              version: { type: integer, format: int64, description: Kênh bỏ qua bản có version cũ hơn }
+    ChannelOrderStatusUpdate:
+      type: object
+      required: [status, occurredAt]
+      properties:
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        reason: { type: string, nullable: true, description: 'Lý do như Order.statusReason' }
+        occurredAt: { type: string, format: date-time }
+
+    # ---------- Phiếu kho (v2)
+    StockDocumentType:
+      type: string
+      enum: [IMPORT, EXPORT, TRANSFER, ADJUST]
+    StockDocumentStatus:
+      type: string
+      description: IMPORT, EXPORT, ADJUST đi DRAFT → APPROVED; TRANSFER đi DRAFT → IN_TRANSIT → RECEIVED; DRAFT → CANCELLED
+      enum: [DRAFT, APPROVED, IN_TRANSIT, RECEIVED, CANCELLED]
+    ExportReason:
+      type: string
+      description: Lý do xuất hủy bắt buộc (BA 6.2); OTHER cần `note`
+      enum: [EXPIRED, DAMAGED, LOST, OTHER]
+    StockDocumentItemRequest:
+      type: object
+      required: [productId]
+      properties:
+        productId: { type: integer, format: int64 }
+        quantity: { type: integer, minimum: 1, maximum: 99999, description: Bắt buộc trừ ADJUST }
+        unitCost: { allOf: [{ $ref: '#/components/schemas/Money' }], description: Bắt buộc với IMPORT }
+        countedQuantity: { type: integer, minimum: 0, description: 'Chỉ ADJUST, nhập qua PUT' }
+    StockDocumentRequest:
+      type: object
+      required: [type, branchId, items]
+      properties:
+        type: { $ref: '#/components/schemas/StockDocumentType' }
+        branchId: { type: integer, format: int64, description: Chi nhánh lập phiếu (CN nguồn với TRANSFER) }
+        toBranchId: { type: integer, format: int64, description: Bắt buộc và khác branchId với TRANSFER; bỏ trống với loại khác }
+        supplier: { type: string, maxLength: 120, description: Bắt buộc với IMPORT }
+        exportReason: { $ref: '#/components/schemas/ExportReason' }
+        note: { type: string, maxLength: 255 }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 500
+          description: Mỗi `productId` một dòng. ADJUST có thể truyền danh sách sản phẩm cần kiểm kê
+          items: { $ref: '#/components/schemas/StockDocumentItemRequest' }
+    StockDocumentUpdateRequest:
+      type: object
+      required: [items]
+      properties:
+        toBranchId: { type: integer, format: int64 }
+        supplier: { type: string, maxLength: 120 }
+        exportReason: { $ref: '#/components/schemas/ExportReason' }
+        note: { type: string, maxLength: 255 }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items: { $ref: '#/components/schemas/StockDocumentItemRequest' }
+    ReceiveTransferRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          description: Đủ mọi dòng của phiếu
+          items:
+            type: object
+            required: [itemId, receivedQuantity]
+            properties:
+              itemId: { type: integer, format: int64 }
+              receivedQuantity: { type: integer, minimum: 0, description: '≤ quantity (không nhận thừa)' }
+    StockDocumentItem:
+      type: object
+      required: [id, productId, sku, productName, unit, quantity]
+      properties:
+        id: { type: integer, format: int64 }
+        productId: { type: integer, format: int64 }
+        sku: { type: string }
+        productName: { type: string }
+        unit: { type: string }
+        quantity: { type: integer, minimum: 0, description: Số trên phiếu; với ADJUST là tồn thực đã chụp lúc tạo }
+        unitCost: { type: integer, format: int64, nullable: true }
+        receivedQuantity: { type: integer, nullable: true }
+        countedQuantity: { type: integer, nullable: true }
+        difference:
+          type: integer
+          nullable: true
+          description: 'TRANSFER: receivedQuantity − quantity; ADJUST: countedQuantity − quantity'
+    StockDocumentSummary:
+      type: object
+      required: [id, code, type, branch, status, itemCount, createdBy, createdAt]
+      properties:
+        id: { type: integer, format: int64, example: 812 }
+        code: { type: string, example: CK-GM001-20261105-003 }
+        type: { $ref: '#/components/schemas/StockDocumentType' }
+        branch: { $ref: '#/components/schemas/BranchRef' }
+        toBranch:
+          type: object
+          allOf: [{ $ref: '#/components/schemas/BranchRef' }]
+          nullable: true
+        status: { $ref: '#/components/schemas/StockDocumentStatus' }
+        itemCount: { type: integer }
+        hasDiscrepancy: { type: boolean, description: TRANSFER đã nhận có dòng nhận thiếu }
+        createdBy: { $ref: '#/components/schemas/UserRef' }
+        createdAt: { type: string, format: date-time }
+        approvedAt: { type: string, format: date-time, nullable: true }
+        receivedAt: { type: string, format: date-time, nullable: true }
+    StockDocument:
+      allOf:
+        - $ref: '#/components/schemas/StockDocumentSummary'
+        - type: object
+          required: [items]
+          properties:
+            supplier: { type: string, nullable: true }
+            exportReason:
+              type: string
+              allOf: [{ $ref: '#/components/schemas/ExportReason' }]
+              nullable: true
+            note: { type: string, nullable: true }
+            approvedBy:
+              type: object
+              allOf: [{ $ref: '#/components/schemas/UserRef' }]
+              nullable: true
+            receivedBy:
+              type: object
+              allOf: [{ $ref: '#/components/schemas/UserRef' }]
+              nullable: true
+            totalCost:
+              type: integer
+              format: int64
+              nullable: true
+              description: 'IMPORT: Σ quantity × unitCost; EXPORT: giá trị hủy theo giá vốn (chỉ OWNER, BRANCH_MANAGER)'
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/StockDocumentItem' }
+    StockDocumentSummaryPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [content]
+          properties:
+            content:
+              type: array
+              items: { $ref: '#/components/schemas/StockDocumentSummary' }
+
+    # ---------- Khuyến mại (v2)
+    PromotionLevel:
+      type: string
+      enum: [ORDER, ITEM]
+    PromotionType:
+      type: string
+      enum: [PERCENT, AMOUNT]
+    PromotionStatus:
+      type: string
+      description: DRAFT → ACTIVE ⇄ PAUSED → ENDED
+      enum: [DRAFT, ACTIVE, PAUSED, ENDED]
+    PromotionRequest:
+      type: object
+      required: [code, type, level, value, startAt, endAt]
+      properties:
+        code: { type: string, minLength: 2, maxLength: 30, pattern: '^[A-Z0-9-]+$' }
+        type: { $ref: '#/components/schemas/PromotionType' }
+        level: { $ref: '#/components/schemas/PromotionLevel' }
+        value:
+          type: integer
+          format: int64
+          minimum: 1
+          description: 'PERCENT: 1–100 (%); AMOUNT: số tiền VND'
+        maxDiscount: { type: integer, format: int64, minimum: 1, nullable: true, description: 'Mức giảm tối đa, chỉ với PERCENT' }
+        minOrder: { type: integer, format: int64, minimum: 0, nullable: true, description: 'Tổng sau giảm dòng tối thiểu, chỉ với ORDER' }
+        startAt: { type: string, format: date-time }
+        endAt: { type: string, format: date-time, description: Phải sau startAt }
+        usageLimit: { type: integer, minimum: 1, nullable: true, description: Tổng lượt dùng tối đa (BR-08); null = không giới hạn }
+        productIds:
+          type: array
+          items: { type: integer, format: int64 }
+          description: Bắt buộc, ít nhất 1 với ITEM; bỏ trống với ORDER
+        branchIds:
+          type: array
+          items: { type: integer, format: int64 }
+          description: Rỗng = mọi chi nhánh
+        channels:
+          type: array
+          items: { $ref: '#/components/schemas/ChannelCode' }
+          description: Rỗng = mọi kênh
+    Promotion:
+      type: object
+      required: [id, code, type, level, value, startAt, endAt, usedCount, status, productIds, branchIds, channels]
+      properties:
+        id: { type: integer, format: int64 }
+        code: { type: string }
+        type: { $ref: '#/components/schemas/PromotionType' }
+        level: { $ref: '#/components/schemas/PromotionLevel' }
+        value: { type: integer, format: int64 }
+        maxDiscount: { type: integer, format: int64, nullable: true }
+        minOrder: { type: integer, format: int64, nullable: true }
+        startAt: { type: string, format: date-time }
+        endAt: { type: string, format: date-time }
+        usageLimit: { type: integer, nullable: true }
+        usedCount: { type: integer, minimum: 0 }
+        status: { $ref: '#/components/schemas/PromotionStatus' }
+        productIds: { type: array, items: { type: integer, format: int64 } }
+        branchIds: { type: array, items: { type: integer, format: int64 } }
+        channels: { type: array, items: { $ref: '#/components/schemas/ChannelCode' } }
+    PromotionPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [content]
+          properties:
+            content:
+              type: array
+              items: { $ref: '#/components/schemas/Promotion' }
+
+    # ---------- Người dùng (v2)
+    User:
+      type: object
+      required: [id, username, fullName, role, active, branches, locked]
+      properties:
+        id: { type: integer, format: int64 }
+        username: { type: string }
+        fullName: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        active: { type: boolean, description: false = Admin đã khóa tài khoản }
+        branches:
+          type: array
+          items: { $ref: '#/components/schemas/BranchRef' }
+        locked: { type: boolean, description: Đang bị khóa 15 phút do sai mật khẩu }
+        lockedUntil: { type: string, format: date-time, nullable: true }
+    UserCreateRequest:
+      type: object
+      required: [username, fullName, role, password]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 60, pattern: '^[a-z0-9._]+$' }
+        fullName: { type: string, minLength: 1, maxLength: 120 }
+        role: { $ref: '#/components/schemas/Role' }
+        branchIds:
+          type: array
+          items: { type: integer, format: int64 }
+          description: Bắt buộc ít nhất 1 với CASHIER, STOREKEEPER, BRANCH_MANAGER
+        password: { type: string, format: password, minLength: 8, maxLength: 100, description: Có chữ và số }
+    UserUpdateRequest:
+      type: object
+      required: [fullName, role, active]
+      properties:
+        fullName: { type: string, minLength: 1, maxLength: 120 }
+        role: { $ref: '#/components/schemas/Role' }
+        branchIds:
+          type: array
+          items: { type: integer, format: int64 }
+        active: { type: boolean }
+    UserPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [content]
+          properties:
+            content:
+              type: array
+              items: { $ref: '#/components/schemas/User' }

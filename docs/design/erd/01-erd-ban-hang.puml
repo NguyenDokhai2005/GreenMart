@@ -138,7 +138,9 @@ package "Bán hàng" {
     * refund_amount : BIGINT
     * status : DRAFT | APPROVED | CANCELLED
     * created_by : BIGINT <<FK>>
-    approved_by : BIGINT <<FK>>
+    approved_by : BIGINT <<FK>> (≠ created_by)
+    * created_at : TIMESTAMPTZ
+    approved_at : TIMESTAMPTZ (ngày trả, BR-18)
   }
   entity "return_item\nDòng trả hàng" as return_item {
     * id : BIGINT <<PK>>
