@@ -5,7 +5,7 @@
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgb(15 35 29 / 48%);
+  background: var(--gm-overlay);
 }
 
 .gm-dialog {
@@ -16,7 +16,7 @@
   border-radius: var(--gm-radius-lg, 12px);
   background: var(--gm-color-surface, #fff);
   color: var(--gm-color-text, #172b26);
-  box-shadow: 0 24px 70px rgb(0 0 0 / 20%);
+  box-shadow: var(--gm-shadow-dialog);
 }
 
 .gm-dialog__header {
