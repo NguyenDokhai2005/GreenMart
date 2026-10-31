@@ -202,7 +202,7 @@ Hệ thống có 42 yêu cầu chức năng chia theo 10 nhóm; 33 yêu cầu m�
 
 ## 4. User story và tiêu chí chấp nhận
 
-10 user story dưới đây bao các chức năng cốt lõi; tiêu chí dạng Given/When/Then được dùng trực tiếp làm test case. User story cho các yêu cầu còn lại nằm trong từng issue trên GitHub.
+10 user story dưới đây bao các chức năng cốt lõi; tiêu chí dạng Given/When/Then được dùng trực tiếp làm test case. User story cho các yêu cầu còn lại nằm trong từng issue nhãn `must` trên GitHub và được tổng hợp ở [`user-stories.md`](user-stories.md).
 
 **US-01 · Bán tại quầy (ORD-01, PAY-01)** Là thu ngân, tôi muốn quét hàng và thu tiền trong một màn hình để khách không phải chờ.
 
