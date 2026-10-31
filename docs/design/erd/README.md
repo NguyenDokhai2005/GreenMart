@@ -22,7 +22,8 @@ ERD mức logic của toàn hệ thống, là bản chuẩn để viết migrati
 | inventory | `on_hand >= 0`, `reserved >= 0`, `reserved <= on_hand` | Không tồn âm (BR-01, AC-02) |
 | sales_order | `UNIQUE (channel_id, external_order_id)` | Chống trùng đơn từ kênh (BR-05) |
 | channel_product | `UNIQUE (channel_id, external_sku)` | Một SKU kênh chỉ ứng với một sản phẩm |
-| stock_document | `approved_by <> created_by` | Người lập không tự duyệt (BR-13) |
+| stock_document, return_document | `approved_by <> created_by` | Người lập không tự duyệt (BR-13) |
+| stock_document, return_document | `approved_at` có giá trị khi và chỉ khi `status` đã duyệt (`APPROVED` trở đi) | Biết thời điểm tồn thay đổi và ngày trả hàng (BR-18) |
 | inventory_transaction, audit_log | Chỉ INSERT, không UPDATE/DELETE | Truy vết (BR-06) |
 | product, customer, app_user | Không xóa cứng khi đã có giao dịch, dùng `is_active` | Giữ lịch sử |
 | Tiền | `BIGINT` (VND), không dùng số thực | Tránh sai số làm tròn |
@@ -36,8 +37,9 @@ ERD mức logic của toàn hệ thống, là bản chuẩn để viết migrati
 - `promotion_product`, `promotion_branch`, `promotion_channel`: tách phạm vi khuyến mại thành bảng liên kết thay vì lưu danh sách trong một cột.
 - `channel_branch`: danh sách chi nhánh phục vụ mỗi kênh, dùng cho phân bổ đơn (BR-14) và tính tồn đẩy ra kênh (BR-15).
 - Thêm cột: `app_user.failed_login_count`, `locked_until` (khóa sau 5 lần sai); `stock_document.received_by`, `reason`; `stock_document_item.counted_quantity`; `payment.status`.
+- Thêm cột thời gian (31/10, SRS 1.2, migration V4): `return_document.created_at`, `approved_at`; `stock_document.approved_at`, `received_at`.
 
-SRS sẽ được cập nhật theo ở phiên bản 1.1.
+SRS đã cập nhật theo ở phiên bản 1.1 và 1.2.
 
 ## Sửa ERD
 
