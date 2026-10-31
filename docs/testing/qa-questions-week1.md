@@ -89,6 +89,6 @@ Mỗi điểm có giả định tạm thời; nếu giả định đúng thì kh
 | Q-25 | Tên `action` ghi vào `audit_log` khi đăng nhập thất bại là gì? (`LOGIN_FAILED`?) | ID-080 |
 | Q-26 | Tên `action` khi tài khoản bị khóa là gì? (`ACCOUNT_LOCKED`?) | ID-081 |
 | Q-27 | Tên `action` khi truy cập sai chi nhánh là gì? (`BRANCH_FORBIDDEN`?) | ID-082 |
-| Q-28 | Seed script module identity (user, branch) chạy bằng lệnh gì? Tên tài khoản demo và password? | ✅ Xác nhận từ #209 – chạy `python forecast-service/scripts/generate_data.py`; tài khoản: `admin`, `owner`, `quanly.gm001..003`, `thungan.gm001..003`, `thukho.gm001..003`; mật khẩu chung `Demo@123` |
+| Q-28 | Seed script module identity (user, branch) chạy bằng lệnh gì? Tên tài khoản demo và password? | ✅ Xác nhận từ #209 – chạy 2 bước:<br>1. `python forecast-service/scripts/generate_data.py`<br>2. `docker compose exec -T postgres psql -U greenmart -d greenmart -v ON_ERROR_STOP=1 < forecast-service/data/seed_data.sql`<br>Tài khoản: `admin`, `owner`, `quanly.gm001..003`, `thungan.gm001..003`, `thukho.gm001..003`; mật khẩu chung `Demo@123` |
 
 **Tag:** @t-boai (SV02 – Backend Identity)
