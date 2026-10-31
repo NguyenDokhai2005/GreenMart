@@ -1,0 +1,36 @@
+@startuml 01-module-backend
+!include _style.iuml
+left to right direction
+title Module backend và luồng gọi chính (package vn.greenmart.*)
+
+rectangle "Backend · Spring Boot (modular monolith)" {
+  component "identity\nđăng nhập, JWT, RBAC,\nlọc chi nhánh (BR-11)" as id
+  component "catalog\ndanh mục, sản phẩm" as cat
+  component "customer\nkhách hàng" as cus
+  component "promotion\nkhuyến mại (BR-07)" as pro
+  component "sales\nbáo giá, POS, đơn online,\ntrả hàng" as sal
+  component "inventory\ntồn, phiếu kho, sổ kho,\nchống bán vượt tồn (BR-01)" as inv
+  component "integration\nwebhook kênh, outbox,\nđẩy tồn và trạng thái" as itg
+  component "reporting\ndashboard, cảnh báo tồn thấp" as rep
+  component "forecast\nđọc kết quả, ROP, gợi ý nhập" as fc
+  component "common\nErrorCode, ErrorResponse,\nphân trang, lọc ngày" as com
+}
+queue "RabbitMQ" as mq
+
+sal --> pro : tính khuyến mại
+sal --> cat : giá, trạng thái sản phẩm
+sal --> cus : tra cứu khách
+sal --> inv : reserve / release /\ncommitSale / sellDirect\n(cùng transaction)
+itg --> sal : tạo đơn từ kênh
+inv --> itg : ghi outbox stock.changed
+sal --> itg : ghi outbox order.*
+itg --> mq : đẩy sự kiện
+mq --> rep : order.*, stock.*
+mq --> fc : forecast.completed
+fc --> inv : cập nhật reorder_point
+
+note bottom of com
+  Mọi module dùng common cho lỗi và phân trang.
+  identity chặn mọi request trước khi vào module khác.
+end note
+@enduml
