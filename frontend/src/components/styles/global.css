@@ -1,0 +1,91 @@
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--gm-font-family);
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--gm-color-page);
+  color: var(--gm-color-text);
+  font-family: var(--gm-font-family);
+  font-size: var(--gm-font-size-body);
+  line-height: var(--gm-line-height-body);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  font-size: var(--gm-font-size-title);
+  line-height: var(--gm-line-height-title);
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--gm-color-focus);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgb(4 120 87 / 18%);
+  color: var(--gm-color-text);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('../../assets/fonts/InterVariable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  font-family: 'Inter', sans-serif;
+}

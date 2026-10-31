@@ -1,0 +1,89 @@
+.gm-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  min-height: var(--gm-control-height);
+  padding: 0 20px;
+
+  border: 1px solid transparent;
+  border-radius: var(--gm-control-radius);
+
+  font-family: var(--gm-font-family);
+  font-size: var(--gm-font-size-label);
+  font-weight: 600;
+  line-height: var(--gm-line-height-label);
+  text-align: center;
+  white-space: nowrap;
+
+  transition:
+    background-color var(--gm-transition-fast),
+    border-color var(--gm-transition-fast),
+    color var(--gm-transition-fast),
+    box-shadow var(--gm-transition-fast);
+}
+
+.gm-button:focus-visible {
+  outline: 2px solid var(--gm-color-focus);
+  outline-offset: 2px;
+  box-shadow: var(--gm-shadow-focus);
+}
+
+.gm-button--primary {
+  color: var(--gm-color-text-inverse);
+  background: var(--gm-color-primary);
+  border-color: var(--gm-color-primary);
+}
+
+.gm-button--primary:hover:not(:disabled) {
+  background: var(--gm-color-primary-hover);
+  border-color: var(--gm-color-primary-hover);
+}
+
+.gm-button--primary:active:not(:disabled) {
+  background: var(--gm-color-primary-active);
+  border-color: var(--gm-color-primary-active);
+}
+
+.gm-button--secondary {
+  color: var(--gm-color-primary);
+  background: var(--gm-color-surface);
+  border-color: var(--gm-color-border);
+}
+
+.gm-button--secondary:hover:not(:disabled) {
+  color: var(--gm-color-primary-hover);
+  background: var(--gm-color-page);
+  border-color: var(--gm-color-primary);
+}
+
+.gm-button--secondary:active:not(:disabled) {
+  background: #e8f2ec;
+}
+
+.gm-button--destructive {
+  color: var(--gm-color-text-inverse);
+  background: var(--gm-color-danger);
+  border-color: var(--gm-color-danger);
+}
+
+.gm-button--destructive:hover:not(:disabled) {
+  background: var(--gm-color-danger-hover);
+  border-color: var(--gm-color-danger-hover);
+}
+
+.gm-button:disabled {
+  color: var(--gm-color-text-inverse);
+  background: var(--gm-color-text-disabled);
+  border-color: var(--gm-color-text-disabled);
+  box-shadow: none;
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.gm-button--secondary:disabled {
+  color: var(--gm-color-text-disabled);
+  background: var(--gm-color-surface-disabled);
+  border-color: var(--gm-color-border);
+}
