@@ -93,6 +93,14 @@ class PaginationIntegrationTest {
     }
 
     @Test
+    void testGetPagination_SeparateNameAndDescTokens_Returns400WithSortField() throws Exception {
+        mockMvc.perform(get("/test/pagination?sort=name&sort=desc"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+            .andExpect(jsonPath("$.details[0].field").value("sort"));
+    }
+
+    @Test
     void testGetPagination_SizeExceedsMax_Returns400WithDetails() throws Exception {
         mockMvc.perform(get("/test/pagination?page=0&size=150"))
             .andExpect(status().isBadRequest())
