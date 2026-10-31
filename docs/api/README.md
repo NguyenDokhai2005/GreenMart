@@ -19,7 +19,7 @@ Có thể dán nội dung file vào https://editor.swagger.io để xem nhanh.
 | --- | --- | --- |
 | v1 | 30/10 | Xác thực, chi nhánh, danh mục, sản phẩm, khách hàng, báo giá và bán tại quầy, xem tồn kho, sổ kho |
 | v1.1 | 28/10 | Phần đầu của v2: `InventoryTransaction` đổi `quantity`/`balanceAfter` thành `deltaOnHand`, `onHandAfter`, `deltaReserved`, `reservedAfter` (khớp migration V1) |
-| v2 | 04/11 | Đơn online (xác nhận, hoàn tất, hủy), webhook kênh, phiếu nhập/xuất/chuyển/kiểm kê, khuyến mại, quản trị người dùng |
+| v2 (2.0.0) | 04/11 | Đơn online: hoàn tất, hủy (xác nhận đến từ sự kiện `PAID` của kênh hoặc COD); webhook kênh `POST /integrations/{channelCode}/orders` và `/events` ký HMAC; callback mock connector (đẩy tồn, trạng thái); phiếu nhập/xuất hủy/chuyển kho/kiểm kê (lập, sửa nháp, duyệt, nhận, hủy); khuyến mại (tạo, sửa, đổi trạng thái); quản trị người dùng (tạo, sửa, khóa, mở khóa, đặt lại mật khẩu). Mã lỗi mới: `INVALID_SIGNATURE`, `INVALID_STATUS`, `DUPLICATE_USERNAME`, `DUPLICATE_PROMOTION_CODE`, `UNMAPPED_SKU`, `SELF_APPROVAL_FORBIDDEN`, `SELF_ACTION_FORBIDDEN`, `RECEIVED_QUANTITY_EXCEEDED` |
 | v3 | tuần 3 | Trả hàng, dashboard, cảnh báo tồn thấp, dự báo và gợi ý nhập, nhật ký đồng bộ |
 
 ## Đổi hợp đồng
