@@ -1,0 +1,113 @@
+:root {
+  /* Font */
+  --gm-font-family: 'Inter', Arial, sans-serif;
+
+  /* Brand */
+  --gm-color-primary: #047857;
+  --gm-color-primary-hover: #065f46;
+  --gm-color-primary-active: #064e3b;
+
+  /* Text */
+  --gm-color-text: #172b26;
+  --gm-color-text-secondary: #52665e;
+  --gm-color-text-disabled: #73877b;
+  --gm-color-text-inverse: #ffffff;
+
+  /* Background */
+  --gm-color-page: #f5f8f6;
+  --gm-color-surface: #ffffff;
+  --gm-color-surface-disabled: #f5f8f6;
+
+  /* Border */
+  --gm-color-border: #73877b;
+  --gm-color-border-hover: #52665e;
+
+  /* Feedback - base */
+  --gm-color-danger: #b42318;
+  --gm-color-danger-hover: #912018;
+  --gm-color-success: #047857;
+  --gm-color-warning: #b54708;
+  --gm-color-info: #175cd3;
+
+  /* Order status */
+  --gm-status-reserved-text: #175cd3;
+  --gm-status-reserved-bg: #eff8ff;
+
+  --gm-status-confirmed-text: #047857;
+  --gm-status-confirmed-bg: #ecfdf3;
+
+  --gm-status-completed-text: #027a48;
+  --gm-status-completed-bg: #d1fadf;
+
+  --gm-status-cancelled-text: #b42318;
+  --gm-status-cancelled-bg: #fef3f2;
+
+  --gm-status-expired-text: #b54708;
+  --gm-status-expired-bg: #fffaeb;
+
+  /* Notification - info */
+  --gm-toast-info-text: #175cd3;
+  --gm-toast-info-bg: #eff8ff;
+  --gm-toast-info-border: #b2ddff;
+
+  /* Notification - success */
+  --gm-toast-success-text: #027a48;
+  --gm-toast-success-bg: #ecfdf3;
+  --gm-toast-success-border: #abefc6;
+
+  /* Notification - warning */
+  --gm-toast-warning-text: #b54708;
+  --gm-toast-warning-bg: #fffaeb;
+  --gm-toast-warning-border: #fedf89;
+
+  /* Notification - error */
+  --gm-toast-error-text: #b42318;
+  --gm-toast-error-bg: #fef3f2;
+  --gm-toast-error-border: #fecdca;
+
+  /* Table */
+  --gm-table-row-hover: rgb(4 120 87 / 4%);
+
+  /* Focus */
+  --gm-color-focus: #047857;
+  --gm-focus-ring: 0 0 0 3px rgb(4 120 87 / 18%);
+
+  /* Radius */
+  --gm-radius-sm: 4px;
+  --gm-radius-md: 8px;
+  --gm-radius-lg: 12px;
+  --gm-radius-full: 9999px;
+
+  /* Spacing */
+  --gm-space-1: 4px;
+  --gm-space-2: 8px;
+  --gm-space-3: 12px;
+  --gm-space-4: 16px;
+  --gm-space-5: 20px;
+  --gm-space-6: 24px;
+  --gm-space-8: 32px;
+
+  /* Typography */
+  --gm-font-size-xs: 12px;
+  --gm-font-size-sm: 13px;
+  --gm-font-size-label: 14px;
+  --gm-font-size-body: 16px;
+  --gm-font-size-title: 36px;
+
+  --gm-line-height-xs: 16px;
+  --gm-line-height-sm: 16px;
+  --gm-line-height-label: 17px;
+  --gm-line-height-body: 19px;
+  --gm-line-height-title: 44px;
+
+  /* Controls */
+  --gm-control-height: 44px;
+  --gm-control-radius: 8px;
+  --gm-button-width-reference: 220px;
+  --gm-input-width-reference: 600px;
+
+  /* Borders and shadows */
+  --gm-border-width: 1px;
+  --gm-shadow-focus: var(--gm-focus-ring);
+  --gm-transition-fast: 150ms ease;
+}

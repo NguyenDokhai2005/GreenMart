@@ -1,0 +1,82 @@
+.gm-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(15 35 29 / 48%);
+}
+
+.gm-dialog {
+  width: min(100%, 640px);
+  max-height: min(90vh, 800px);
+  overflow: auto;
+  border: 1px solid var(--gm-color-border, #d4e0d9);
+  border-radius: var(--gm-radius-lg, 12px);
+  background: var(--gm-color-surface, #fff);
+  color: var(--gm-color-text, #172b26);
+  box-shadow: 0 24px 70px rgb(0 0 0 / 20%);
+}
+
+.gm-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--gm-color-border, #d4e0d9);
+}
+
+.gm-dialog__title {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.gm-dialog__close {
+  border: 0;
+  background: transparent;
+  color: var(--gm-color-text-secondary, #52665e);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.gm-dialog__body {
+  padding: 24px;
+}
+
+.gm-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 0 24px 24px;
+}
+
+.gm-dialog__close:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.gm-dialog__close:focus-visible {
+  outline: 2px solid var(--gm-color-focus, #047857);
+  outline-offset: 3px;
+}
+
+@media (max-width: 480px) {
+  .gm-dialog__header,
+  .gm-dialog__body {
+    padding: 16px;
+  }
+
+  .gm-dialog__footer {
+    padding: 0 16px 16px;
+    flex-wrap: wrap;
+  }
+
+  .gm-dialog__button {
+    flex: 1;
+  }
+}
