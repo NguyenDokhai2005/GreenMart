@@ -10,7 +10,11 @@
   <groupId>vn.greenmart</groupId>
   <artifactId>backend</artifactId>
   <version>0.1.0-SNAPSHOT</version>
-  <properties><java.version>21</java.version></properties>
+  <properties>
+    <java.version>21</java.version>
+    <!-- Keep all Testcontainers modules aligned; 1.21.4 supports newer Docker Engine APIs. -->
+    <testcontainers.version>1.21.4</testcontainers.version>
+  </properties>
   <dependencies>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
@@ -43,6 +47,44 @@
           </excludes>
         </configuration>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>org.projectlombok</groupId>
+              <artifactId>lombok</artifactId>
+            </path>
+          </annotationProcessorPaths>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
+
+  <!--
+    Profile local-dev: kích hoạt khi dev chạy test trên Windows Docker Desktop.
+    CI (Linux) không cần profile này vì Ryuk chạy được bình thường.
+    Dùng: mvn test -P local-dev
+  -->
+  <profiles>
+    <profile>
+      <id>local-dev</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <environmentVariables>
+                <!-- Ryuk không chạy được privileged trên Windows Docker Desktop Linux engine -->
+                <TESTCONTAINERS_RYUK_DISABLED>true</TESTCONTAINERS_RYUK_DISABLED>
+              </environmentVariables>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
 </project>
