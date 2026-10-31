@@ -1,6 +1,6 @@
 # SRS – Hệ thống GreenMart (DT03)
 
-**Phiên bản:** 1.0 · **Ngày:** 27/10/2026 · **Người soạn:** Nguyễn Đỗ Khải (BA/Lead)
+**Phiên bản:** 1.2 · **Ngày:** 31/10/2026 · **Người soạn:** Nguyễn Đỗ Khải (BA/Lead)
 
 Tài liệu này đặc tả toàn bộ yêu cầu của hệ thống GreenMart: là căn cứ để 8 thành viên phát triển, để QA viết test và để hội đồng nghiệm thu. Mọi yêu cầu có mã định danh, độ ưu tiên và tiêu chí kiểm chứng; mọi thay đổi phải qua BA/Lead và được ghi vào lịch sử phiên bản ở cuối tài liệu.
 
@@ -385,8 +385,8 @@ Dữ liệu lưu trong PostgreSQL, quản lý schema bằng migration Flyway; ba
 | payment | id, order\_id, method, amount, status, paid\_at | amount ≥ 0 |
 | inventory | branch\_id, product\_id, on\_hand, reserved, reorder\_point, version | khóa (branch\_id, product\_id); CHECK on\_hand ≥ 0, reserved ≥ 0, reserved ≤ on\_hand |
 | inventory\_transaction | id, branch\_id, product\_id, type, delta\_on\_hand, on\_hand\_after, delta\_reserved, reserved\_after, ref\_type, ref\_id, created\_by, created\_at | chỉ INSERT; ghi riêng thay đổi tồn thực và tồn giữ chỗ; on\_hand\_after ≥ 0, reserved\_after ≥ 0 |
-| stock\_document (+ item) | id, code, type, branch\_id, to\_branch\_id, status, created\_by, approved\_by; dòng: product\_id, quantity, received\_quantity, unit\_cost | approved\_by ≠ created\_by |
-| return\_document (+ item) | id, order\_id, branch\_id, reason, refund\_amount, status; dòng: order\_item\_id, quantity, condition | tổng số trả ≤ số đã mua |
+| stock\_document (+ item) | id, code, type, branch\_id, to\_branch\_id, status, created\_by, approved\_by, received\_by, created\_at, approved\_at, received\_at; dòng: product\_id, quantity, received\_quantity, unit\_cost | approved\_by ≠ created\_by; approved\_at có khi và chỉ khi đã duyệt; received\_at chỉ với TRANSFER đã nhận |
+| return\_document (+ item) | id, order\_id, branch\_id, reason, refund\_amount, status, created\_by, approved\_by, created\_at, approved\_at; dòng: order\_item\_id, quantity, condition | tổng số trả ≤ số đã mua; approved\_by ≠ created\_by; approved\_at là ngày trả dùng cho BR-18; created\_at ≤ completed\_at của đơn + 7 ngày (BR-10) |
 | audit\_log | id, user\_id, action, entity, entity\_id, detail, created\_at | chỉ INSERT |
 | outbox\_event, sync\_log | sự kiện chờ gửi; nhật ký đồng bộ với kênh |  |
 | daily\_sales | sale\_date, branch\_id, product\_id, qty\_sold, qty\_returned, qty\_net, revenue, promo\_flag, promo\_discount\_pct, stockout | khóa (sale\_date, branch\_id, product\_id) |
@@ -524,3 +524,4 @@ Các giá trị dưới đây đang là giả định của nhóm; khi giảng v
 | --- | --- | --- | --- |
 | 1.0 | 27/10/2026 | BA/Lead | Phiên bản đầu tiên: 42 yêu cầu chức năng, 14 phi chức năng, 19 quy tắc nghiệp vụ, 10 use case, 6 tiêu chí nghiệm thu |
 | 1.1 | 28/10/2026 | BA/Lead | Mục 7.1: `inventory_transaction` ghi riêng `delta_on_hand`/`on_hand_after` và `delta_reserved`/`reserved_after` thay cho `quantity`/`balance_after` (theo migration V1, PR #201) |
+| 1.2 | 31/10/2026 | BA/Lead | Mục 7.1: `return_document` thêm `created_at`, `approved_at` (kiểm tra hạn trả 7 ngày BR-10, ghi nhận ngày trả cho BR-18); `stock_document` thêm `approved_at`, `received_at`. Áp dụng bằng migration V4 |
