@@ -26,8 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * — đảm bảo mapping và query hoạt động đúng với schema triển khai, không phải schema
  * do Hibernate tự tạo.
  * <p>
- * Sau mỗi @Modifying UPDATE, dùng {@code em.flush() + em.clear()} để evict Hibernate L1 cache
- * mà không detach entity của caller (không dùng clearAutomatically = true).
+ * Bulk UPDATE flush và clear persistence context; đọc lại để kiểm tra dữ liệu DB.
  * <p>
  * Không test đồng thời (thuộc issue #51).
  */
@@ -37,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class InventoryRepositoryTest {
 
     @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17-alpine")
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(vn.greenmart.inventory.PostgresTestImage.IMAGE)
             .withDatabaseName("greenmart_test")
             .withUsername("greenmart")
             .withPassword("test");
@@ -105,7 +104,7 @@ class InventoryRepositoryTest {
 
     /**
      * Reload entity từ DB sau UPDATE, bỏ qua Hibernate L1 cache.
-     * Dùng em.clear() thay vì clearAutomatically=true để không detach entity của caller.
+     * em.clear() cũng detach toàn bộ entity đang được quản lý trong test.
      */
     private Inventory reload() {
         em.flush();

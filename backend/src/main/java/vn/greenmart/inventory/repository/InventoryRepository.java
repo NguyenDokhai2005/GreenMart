@@ -18,11 +18,14 @@ import vn.greenmart.inventory.domain.Inventory;
  */
 public interface InventoryRepository extends JpaRepository<Inventory, Inventory.InventoryId> {
 
+    @Query(value = "SELECT sku FROM product WHERE id = :productId", nativeQuery = true)
+    java.util.Optional<String> findProductSku(@Param("productId") Long productId);
+
     /**
      * Giữ chỗ: tăng reserved khi available = (on_hand − reserved) >= qty.
      * on_hand không đổi.
      */
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             UPDATE Inventory i
             SET i.reserved  = i.reserved + :qty,
@@ -41,7 +44,7 @@ public interface InventoryRepository extends JpaRepository<Inventory, Inventory.
      * Nhả giữ chỗ: giảm reserved khi reserved >= qty.
      * on_hand không đổi.
      */
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             UPDATE Inventory i
             SET i.reserved  = i.reserved - :qty,
@@ -60,7 +63,7 @@ public interface InventoryRepository extends JpaRepository<Inventory, Inventory.
      * Hoàn tất bán online: giảm đồng thời on_hand và reserved trong 1 UPDATE.
      * Dùng khi đơn CONFIRMED → COMPLETED (UC-02).
      */
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             UPDATE Inventory i
             SET i.onHand    = i.onHand   - :qty,
@@ -81,7 +84,7 @@ public interface InventoryRepository extends JpaRepository<Inventory, Inventory.
      * Bán POS: giảm on_hand khi available >= qty.
      * Không ăn vào phần reserved của đơn online (BR-02).
      */
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             UPDATE Inventory i
             SET i.onHand    = i.onHand - :qty,

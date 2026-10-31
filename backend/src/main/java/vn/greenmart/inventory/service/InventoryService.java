@@ -9,6 +9,9 @@ package vn.greenmart.inventory.service;
  *   <li>Mở {@code @Transactional} bao ngoài.</li>
  *   <li>Với đơn nhiều dòng: sort theo productId ASC trước khi gọi để tránh deadlock.</li>
  *   <li>Cung cấp đúng qty đã reserve khi gọi release/commitSale.</li>
+ *   <li>Bulk updates flush rồi clear toàn bộ persistence context theo thiết kế
+ *       đã thống nhất trong review. Entity caller đã load sẽ bị detach;
+ *       cần load lại trước khi tiếp tục sửa qua dirty checking.</li>
  * </ul>
  */
 public interface InventoryService {

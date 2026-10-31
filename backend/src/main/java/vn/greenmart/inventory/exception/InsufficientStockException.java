@@ -2,9 +2,9 @@ package vn.greenmart.inventory.exception;
 
 /**
  * Ném khi tồn khả dụng (on_hand - reserved) < số lượng yêu cầu.
- * Caller (SalesService) bắt và chuyển thành HTTP 409 INSUFFICIENT_STOCK.
+ * GlobalExceptionHandler chuyển thành HTTP 409 INSUFFICIENT_STOCK.
  */
-public class InsufficientStockException extends RuntimeException {
+public class InsufficientStockException extends vn.greenmart.common.exception.AppException {
 
     private static final long serialVersionUID = 1L;
 
@@ -13,10 +13,13 @@ public class InsufficientStockException extends RuntimeException {
     private final int requested;
     private final int available;
 
-    public InsufficientStockException(long branchId, long productId, int requested, int available) {
-        super(String.format(
+    public InsufficientStockException(long branchId, long productId, String sku, int requested, int available) {
+        super(vn.greenmart.common.exception.ErrorCode.INSUFFICIENT_STOCK, String.format(
                 "Không đủ tồn: branch=%d, product=%d, yêu cầu=%d, khả dụng=%d",
-                branchId, productId, requested, available));
+                branchId, productId, requested, available),
+                java.util.Map.of("lines", java.util.List.of(java.util.Map.of(
+                        "productId", productId, "sku", sku,
+                        "requested", requested, "available", available))));
         this.branchId  = branchId;
         this.productId = productId;
         this.requested = requested;

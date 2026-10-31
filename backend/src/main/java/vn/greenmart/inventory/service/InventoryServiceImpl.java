@@ -27,8 +27,7 @@ public class InventoryServiceImpl implements InventoryService {
 
     private final InventoryRepository inventoryRepository;
 
-    /** Sentinel: dùng khi không biết chính xác available (không SELECT trước). */
-    private static final int UNKNOWN_AVAILABLE = -1;
+
 
     /**
      *      WHERE (on_hand - reserved) >= qty
@@ -39,9 +38,9 @@ public class InventoryServiceImpl implements InventoryService {
         validateQty(qty);
         int rows = inventoryRepository.reserve(branchId, productId, qty);
         if (rows == 0) {
-            // Không SELECT trước nên không biết available chính xác; truyền -1.
-            // Caller fetch lại nếu cần hiển thị số cụ thể cho người dùng.
-            throw new InsufficientStockException(branchId, productId, qty, UNKNOWN_AVAILABLE);
+            // Read diagnostics only after the conditional update has failed.
+
+            throw insufficientStock(branchId, productId, qty);
         }
         log.debug("reserve: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
         // TODO(#50): ghi inventory_transaction type=RESERVE, delta_on_hand=0, delta_reserved=+qty
@@ -58,7 +57,7 @@ public class InventoryServiceImpl implements InventoryService {
         validateQty(qty);
         int rows = inventoryRepository.release(branchId, productId, qty);
         if (rows == 0) {
-            // 0 dòng = reserved < qty hoặc row không tồn tại — lỗi logic của caller
+            log.error("release failed: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
             throw new IllegalStateException(String.format(
                     "release thất bại: branch=%d product=%d qty=%d — reserved < qty hoặc row không tồn tại",
                     branchId, productId, qty));
@@ -78,6 +77,7 @@ public class InventoryServiceImpl implements InventoryService {
         validateQty(qty);
         int rows = inventoryRepository.commitSale(branchId, productId, qty);
         if (rows == 0) {
+            log.error("commitSale failed: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
             throw new IllegalStateException(String.format(
                     "commitSale thất bại: branch=%d product=%d qty=%d — on_hand hoặc reserved < qty",
                     branchId, productId, qty));
@@ -97,7 +97,7 @@ public class InventoryServiceImpl implements InventoryService {
         validateQty(qty);
         int rows = inventoryRepository.sellDirect(branchId, productId, qty);
         if (rows == 0) {
-            throw new InsufficientStockException(branchId, productId, qty, UNKNOWN_AVAILABLE);
+            throw insufficientStock(branchId, productId, qty);
         }
         log.debug("sellDirect: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
         // TODO(#50): ghi inventory_transaction type=SALE, delta_on_hand=-qty, delta_reserved=0
@@ -106,6 +106,14 @@ public class InventoryServiceImpl implements InventoryService {
     // -----------------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------------
+
+    private InsufficientStockException insufficientStock(Long branchId, Long productId, int qty) {
+        int available = inventoryRepository.findById(
+                new vn.greenmart.inventory.domain.Inventory.InventoryId(branchId, productId))
+                .map(vn.greenmart.inventory.domain.Inventory::getAvailable).orElse(0);
+        String sku = inventoryRepository.findProductSku(productId).orElse("");
+        return new InsufficientStockException(branchId, productId, sku, qty, available);
+    }
 
     private void validateQty(int qty) {
         if (qty <= 0) {

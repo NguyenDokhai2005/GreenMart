@@ -21,8 +21,8 @@ import vn.greenmart.inventory.exception.InsufficientStockException;
 
 /**
  * Kiểm tra ranh giới transaction của InventoryService (P2 — review issue #49).
- * Dùng @SpringBootTest để load Spring proxy — @DataJpaTest không load proxy nên
- * @Transactional(MANDATORY) không được kiểm tra khi dùng @InjectMocks Mockito.
+ * Dùng @SpringBootTest để load Spring proxy. Mockito @InjectMocks không qua proxy;
+ * @DataJpaTest có thể import service để kiểm tra proxy trong context nhỏ hơn.
  *
  * Xác minh:
  * 1. Gọi service không có transaction bị từ chối (MANDATORY → IllegalTransactionStateException).
@@ -42,7 +42,7 @@ import vn.greenmart.inventory.exception.InsufficientStockException;
 class InventoryServiceTransactionTest {
 
     @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17-alpine")
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(vn.greenmart.inventory.PostgresTestImage.IMAGE)
             .withDatabaseName("greenmart_tx_test")
             .withUsername("greenmart")
             .withPassword("test");
@@ -193,6 +193,113 @@ class InventoryServiceTransactionTest {
 
 
 
+    @Autowired
+    private vn.greenmart.inventory.repository.InventoryRepository repository;
+
+    @Test
+    @Transactional
+    void bulkUpdate_refreshesPreviouslyLoadedInventory() {
+        insertFixtures(PRODUCT_ID, 5, 0);
+        var id = new vn.greenmart.inventory.domain.Inventory.InventoryId(BRANCH_ID, PRODUCT_ID);
+        assertThat(repository.findById(id).orElseThrow().getOnHand()).isEqualTo(5);
+        inventoryService.sellDirect(BRANCH_ID, PRODUCT_ID, 2, 3001L);
+        assertThat(repository.findById(id).orElseThrow().getOnHand()).isEqualTo(3);
+    }
+
+    @Test
+    @Transactional
+    void insufficientStock_containsApiDetailsAndActualAvailable() {
+        insertFixtures(PRODUCT_ID, 5, 3);
+        assertThatThrownBy(() -> inventoryService.sellDirect(BRANCH_ID, PRODUCT_ID, 3, 3002L))
+                .isInstanceOfSatisfying(InsufficientStockException.class, ex -> {
+                    assertThat(ex.getStatus().value()).isEqualTo(409);
+                    assertThat(ex.getCode()).isEqualTo("INSUFFICIENT_STOCK");
+                    assertThat(ex.getAvailable()).isEqualTo(2);
+                    assertThat(ex.getDetails()).isEqualTo(java.util.Map.of("lines", java.util.List.of(
+                            java.util.Map.of("productId", PRODUCT_ID, "sku", "TX-SKU-50",
+                                    "requested", 3, "available", 2))));
+                });
+    }
+
+    @Test
+    void concurrentDirectSales() throws Exception { concurrentStockChanges(0); }
+
+    @Test
+    @Transactional
+    void missingInventory_reportsZeroAvailable() {
+        insertFixtures(PRODUCT_ID, 5, 0);
+        jdbc.update("DELETE FROM inventory WHERE branch_id=? AND product_id=?", BRANCH_ID, PRODUCT_ID);
+        assertThatThrownBy(() -> inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 1, 3003L))
+                .isInstanceOfSatisfying(InsufficientStockException.class, ex -> {
+                    assertThat(ex.getAvailable()).isZero();
+                    assertThat(ex.getCode()).isEqualTo("INSUFFICIENT_STOCK");
+                });
+    }
+
+    @Test
+    void concurrentReservations() throws Exception { concurrentStockChanges(1); }
+
+    @Test
+    void concurrentMixedSalesAndReservations() throws Exception { concurrentStockChanges(2); }
+
+    private void concurrentStockChanges(int mode) throws Exception {
+        var tx = new TransactionTemplate(txManager);
+        tx.executeWithoutResult(status -> insertFixtures(PRODUCT_ID, 5, 0));
+        var executor = java.util.concurrent.Executors.newFixedThreadPool(10);
+        var ready = new java.util.concurrent.CountDownLatch(10);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        var futures = new java.util.ArrayList<java.util.concurrent.Future<Boolean>>();
+        try {
+            for (int i = 0; i < 10; i++) {
+                final boolean reserve = mode == 1 || (mode == 2 && i % 2 == 0);
+                futures.add(executor.submit(() -> {
+                    ready.countDown();
+                    if (!start.await(10, java.util.concurrent.TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("Start barrier timed out");
+                    }
+                    try {
+                        new TransactionTemplate(txManager).executeWithoutResult(status -> {
+                            if (reserve) inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 1, 4001L);
+                            else inventoryService.sellDirect(BRANCH_ID, PRODUCT_ID, 1, 4001L);
+                        });
+                        return true;
+                    } catch (InsufficientStockException expected) {
+                        return false;
+                    }
+                }));
+            }
+            assertThat(ready.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            int successes = 0;
+            for (var future : futures) {
+                if (future.get(30, java.util.concurrent.TimeUnit.SECONDS)) successes++;
+            }
+            assertThat(successes).isEqualTo(5);
+            tx.executeWithoutResult(status -> {
+                var row = jdbc.queryForMap("SELECT on_hand,reserved,version FROM inventory WHERE branch_id=? AND product_id=?",
+                        BRANCH_ID, PRODUCT_ID);
+                int onHand = ((Number) row.get("on_hand")).intValue();
+                int reserved = ((Number) row.get("reserved")).intValue();
+                assertThat(onHand - reserved).isZero();
+                assertThat(reserved).isBetween(0, onHand);
+                assertThat(((Number) row.get("version")).longValue()).isEqualTo(5);
+                if (mode == 0) assertThat(onHand).isZero();
+                if (mode == 1) assertThat(reserved).isEqualTo(5);
+            });
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+            if (!executor.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS)) {
+                throw new IllegalStateException("Workers did not terminate");
+            }
+            tx.executeWithoutResult(status -> {
+                jdbc.update("DELETE FROM inventory WHERE branch_id=? AND product_id=?", BRANCH_ID, PRODUCT_ID);
+                jdbc.update("DELETE FROM product WHERE id=?", PRODUCT_ID);
+                jdbc.update("DELETE FROM branch WHERE id=?", BRANCH_ID);
+                jdbc.update("DELETE FROM category WHERE id=?", 98);
+            });
+        }
+    }
     private void insertFixtures(long productId, int onHand, int reserved) {
         // Xóa theo thứ tự FK: inventory trước, rồi product
         // Branch và category chỉ xóa nếu không còn inventory nào tham chiếu

@@ -7,7 +7,7 @@ import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
+
 
 import java.io.Serializable;
 import java.time.OffsetDateTime;
@@ -18,13 +18,13 @@ import java.util.Objects;
  * <p>
  * Khóa chính tổng hợp (branchId, productId).
  * Không dùng {@code @Version} JPA vì cập nhật bảo vệ bằng conditional UPDATE.
- * Cột {@code version} giữ để audit; không annotate {@code @Version}.
+ * Cột {@code version} tăng sau mỗi cập nhật để đồng bộ tồn ra kênh.
  */
 @Entity
 @Table(name = "inventory")
 @IdClass(Inventory.InventoryId.class)
 @Getter
-@Setter
+
 @NoArgsConstructor
 public class Inventory {
 
