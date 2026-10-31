@@ -110,4 +110,8 @@
   --gm-border-width: 1px;
   --gm-shadow-focus: var(--gm-focus-ring);
   --gm-transition-fast: 150ms ease;
+
+  /* Dialog */
+  --gm-overlay: rgb(15 35 29 / 48%);
+  --gm-shadow-dialog: 0 24px 70px rgb(0 0 0 / 20%);
 }

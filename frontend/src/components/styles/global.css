@@ -80,8 +80,12 @@ h1 {
 
 @font-face {
   font-family: 'Inter';
-  src: url('../../assets/fonts/Inter-Variable.ttf') format('truetype');
-  font-style: normal;
+  src: url('../../assets/fonts/InterVariable.woff2') format('woff2');
   font-weight: 100 900;
+  font-style: normal;
   font-display: swap;
+}
+
+:root {
+  font-family: 'Inter', sans-serif;
 }
