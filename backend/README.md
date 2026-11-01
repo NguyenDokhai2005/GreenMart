@@ -3,11 +3,11 @@
 Java 21 · Spring Boot 3 · Maven · PostgreSQL · Redis · RabbitMQ · Flyway.
 Kiến trúc modular monolith: mỗi module là một package trong `vn.greenmart`, chỉ gọi nhau qua interface service hoặc sự kiện.
 
-| Thư mục | Nội dung |
-| --- | --- |
+| Thư mục                               | Nội dung                                                                          |
+| ------------------------------------- | --------------------------------------------------------------------------------- |
 | `src/main/java/vn/greenmart/<module>` | Mỗi module có `api` (controller, DTO), `service`, `domain` (entity), `repository` |
-| `src/main/resources/db/migration` | Migration Flyway: `V1__init.sql`, `V2__...` (SV03 quản lý) |
-| `src/test/java/vn/greenmart` | Unit test và integration test (Testcontainers) |
+| `src/main/resources/db/migration`     | Migration Flyway: `V1__init.sql`, `V2__...` (SV03 quản lý)                        |
+| `src/test/java/vn/greenmart`          | Unit test và integration test (Testcontainers)                                    |
 
 Khung dự án (pom.xml, Application.java) do SV07 khởi tạo trong tuần 1.
 
@@ -44,21 +44,8 @@ V5 chặn UPDATE/DELETE sổ kho bằng trigger (BR-06). Sửa sai bằng một 
 điều chỉnh mới. TRUNCATE bằng tài khoản quản trị vẫn là thao tác bảo trì đặc quyền;
 test chỉ dùng nó để dọn dữ liệu trong PostgreSQL container riêng.
 
-## Test 100 yêu cầu cạnh tranh tồn (#51, EX-01)
+## Lưu ý Bảo mật & Phân quyền
 
-Trong `backend/`, chạy:
-
-```sh
-mvn -B -ntp test -P local-dev -Dtest=InventoryServiceTransactionTest#hundredMixedRequestsCannotOversellFiveAvailableUnits,InsufficientStockApiTest
-```
-
-100 worker cùng xuất phát: 50 bán POS, 50 giữ chỗ online, mỗi worker một
-transaction và mã tham chiếu riêng. Với khả dụng ban đầu 5, test yêu cầu đúng
-5 transaction commit và 95 lỗi `INSUFFICIENT_STOCK` có status 409; khả dụng
-cuối bằng 0, sổ kho có đúng 5 dòng khớp các thao tác thành công.
-
-Đây là integration test lõi InventoryService trên PostgreSQL/Flyway thật.
-`InsufficientStockApiTest` kiểm tra ánh xạ lỗi HTTP riêng; chưa thay thế bài k6
-qua API bán POS/online đầy đủ cho nghiệm thu AC-02 khi Sales/Identity sẵn sàng.
-Barrier đặt trước lúc mở transaction để worker đang chờ không chiếm connection.
-Pool DB có giới hạn; 100 worker không có nghĩa 100 SQL thực thi cùng lúc.
+- `SecurityConfig` hiện tại cấu hình `anyRequest().permitAll()` để không chặn các endpoint đọc công khai (`GET /api/v1/products`, `/categories`, `/products/lookup`) trong khi module `identity` đang hoàn thiện.
+- Các thao tác ghi (POST, PUT, DELETE) được kiểm soát vai trò chặt chẽ tại tầng Service thông qua `SecurityUtils.requireRole(...)
+- Kế hoạch hoàn thiện: Issue #146 sẽ tích hợp JWT Filter và chuyển sang `anyRequest().authenticated()` trên chính `SecurityConfig` này.
