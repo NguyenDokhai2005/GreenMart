@@ -9,6 +9,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import vn.greenmart.inventory.exception.InsufficientStockException;
 import vn.greenmart.inventory.repository.InventoryRepository;
+import vn.greenmart.inventory.repository.InventoryTransactionWriter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,6 +28,9 @@ class InventoryServiceImplTest {
 
     @Mock
     private InventoryRepository inventoryRepository;
+
+    @Mock
+    private InventoryTransactionWriter transactionWriter;
 
     @InjectMocks
     private InventoryServiceImpl inventoryService;

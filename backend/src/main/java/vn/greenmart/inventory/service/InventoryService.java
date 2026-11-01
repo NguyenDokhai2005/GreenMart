@@ -3,7 +3,8 @@ package vn.greenmart.inventory.service;
 /**
  * Lõi chống bán vượt tồn (INV-07, BR-01).
  * <p>
- * Mỗi phương thức thực hiện đúng 1 conditional UPDATE nguyên tử.
+ * Mỗi phương thức thực hiện đúng 1 conditional UPDATE nguyên tử và ghi 1 dòng
+ * sổ kho trong cùng transaction; lỗi ghi sổ sẽ rollback cả cập nhật tồn.
  * Caller (SalesService) chịu trách nhiệm:
  * <ul>
  *   <li>Mở {@code @Transactional} bao ngoài.</li>
@@ -23,7 +24,7 @@ public interface InventoryService {
      * @param branchId  id chi nhánh
      * @param productId id sản phẩm
      * @param qty       số lượng cần giữ (phải > 0)
-     * @param refId     id đơn hàng tham chiếu (dành cho inventory_transaction ở #50)
+     * @param refId     id đơn hàng tham chiếu bắt buộc, ghi sổ với refType=ORDER
      * @throws vn.greenmart.inventory.exception.InsufficientStockException
      *         nếu available = (on_hand − reserved) &lt; qty
      */
