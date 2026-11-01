@@ -27,3 +27,19 @@ Khung dự án (pom.xml, Application.java) do SV07 khởi tạo trong tuần 1.
 `DocumentTimestampsMigrationTest` kiểm tra schema mới, nâng cấp từ V3 với
 150 phiếu trả đã duyệt, backfill các trạng thái phiếu kho, chạy lại Flyway và
 các trường hợp timestamp không hợp lệ trên PostgreSQL 16.10.
+
+## Sổ kho cùng transaction (#50)
+
+`reserve`, `release`, `commitSale`, `sellDirect` ghi đúng một dòng
+`inventory_transaction` sau mỗi conditional UPDATE thành công, cùng transaction
+của caller. `refId` bắt buộc là ID đơn gốc (`ref_type=ORDER`). Ghi sổ thất bại
+hoặc caller rollback thì cả tồn và sổ đều rollback.
+
+Writer chỉ cung cấp thao tác thêm mới. `INSERT ... SELECT` chụp tồn sau cập nhật;
+row lock từ UPDATE được giữ đến commit nên không chụp nhầm tồn của giao dịch khác.
+`created_by` hiện để NULL theo schema vì chưa tích hợp Identity; chưa ghi người
+thực hiện, không dùng một ID giả thay cho người đăng nhập.
+
+V5 chặn UPDATE/DELETE sổ kho bằng trigger (BR-06). Sửa sai bằng một giao dịch
+điều chỉnh mới. TRUNCATE bằng tài khoản quản trị vẫn là thao tác bảo trì đặc quyền;
+test chỉ dùng nó để dọn dữ liệu trong PostgreSQL container riêng.

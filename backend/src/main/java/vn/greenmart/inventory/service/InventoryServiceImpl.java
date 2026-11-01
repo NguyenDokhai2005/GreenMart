@@ -7,6 +7,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import vn.greenmart.inventory.exception.InsufficientStockException;
 import vn.greenmart.inventory.repository.InventoryRepository;
+import vn.greenmart.inventory.repository.InventoryTransactionWriter;
+import vn.greenmart.inventory.repository.InventoryTransactionWriter.Type;
 
 /**
  * Triển khai InventoryService dùng conditional UPDATE pattern (BR-01).
@@ -26,6 +28,7 @@ import vn.greenmart.inventory.repository.InventoryRepository;
 public class InventoryServiceImpl implements InventoryService {
 
     private final InventoryRepository inventoryRepository;
+    private final InventoryTransactionWriter transactionWriter;
 
 
 
@@ -43,7 +46,7 @@ public class InventoryServiceImpl implements InventoryService {
             throw insufficientStock(branchId, productId, qty);
         }
         log.debug("reserve: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
-        // TODO(#50): ghi inventory_transaction type=RESERVE, delta_on_hand=0, delta_reserved=+qty
+        transactionWriter.appendOrder(branchId, productId, Type.RESERVE, 0, qty, refId);
     }
 
     /**
@@ -63,7 +66,7 @@ public class InventoryServiceImpl implements InventoryService {
                     branchId, productId, qty));
         }
         log.debug("release: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
-        // TODO(#50): ghi inventory_transaction type=RELEASE, delta_on_hand=0, delta_reserved=-qty
+        transactionWriter.appendOrder(branchId, productId, Type.RELEASE, 0, -qty, refId);
     }
 
     /**
@@ -83,7 +86,7 @@ public class InventoryServiceImpl implements InventoryService {
                     branchId, productId, qty));
         }
         log.debug("commitSale: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
-        // TODO(#50): ghi inventory_transaction type=SALE, delta_on_hand=-qty, delta_reserved=-qty
+        transactionWriter.appendOrder(branchId, productId, Type.SALE, -qty, -qty, refId);
     }
 
     /**
@@ -100,7 +103,7 @@ public class InventoryServiceImpl implements InventoryService {
             throw insufficientStock(branchId, productId, qty);
         }
         log.debug("sellDirect: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
-        // TODO(#50): ghi inventory_transaction type=SALE, delta_on_hand=-qty, delta_reserved=0
+        transactionWriter.appendOrder(branchId, productId, Type.SALE, -qty, 0, refId);
     }
 
     // -----------------------------------------------------------------------
