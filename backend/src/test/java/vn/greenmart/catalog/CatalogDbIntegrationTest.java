@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -66,14 +67,23 @@ class CatalogDbIntegrationTest {
     @Autowired
     private ProductService productService;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     private Category catRoot;
     private Category catChild;
 
     @BeforeEach
     void setupData() {
+        auditLogRepository.deleteAll();
         productRepository.deleteAll();
         categoryRepository.deleteAll();
-        auditLogRepository.deleteAll();
+
+        jdbcTemplate.execute("""
+            INSERT INTO app_user (id, username, password_hash, full_name, role, is_active)
+            VALUES (1, 'owner_demo', '$2a$10$abcdefghijklmnopqrstuvwxyz123456', 'Chủ Cửa Hàng', 'OWNER', true)
+            ON CONFLICT (id) DO NOTHING
+        """);
 
         catRoot = new Category();
         catRoot.setName("Đồ uống");
