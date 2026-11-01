@@ -1787,7 +1787,8 @@ def generate_initial_inventory(
     daily_returns: Dict[Tuple[int, int, date], int] = defaultdict(int)
     for ret in returns:
         if ret.status == "APPROVED":
-            r_date = ret.created_at.date()
+            # BR-18: Ngày trả hàng được ghi nhận theo ngày duyệt phiếu (approved_at)
+            r_date = (ret.approved_at or ret.created_at).date()
             if start_28_date <= r_date <= end_date:
                 for ri in getattr(ret, "items", []):
                     p_id = order_item_to_product.get(ri.order_item_id)

@@ -834,6 +834,29 @@ class TestGeneratorStage3(unittest.TestCase):
             self.assertIsNone(doc.received_at, "chk_stock_received_at: chỉ status = 'RECEIVED' mới có received_at")
             self.assertNotEqual(doc.created_by, doc.approved_by, "BR-13: approved_by <> created_by")
 
+    def test_overnight_approved_returns_br18(self):
+        """Kiểm tra BR-18: Các phiếu trả duyệt qua nửa đêm được ghi nhận ngày trả theo approved_at."""
+        overnight_returns = [
+            r for r in self.returns
+            if r.approved_at and r.approved_at.date() > r.created_at.date()
+        ]
+        # Có đúng 4 phiếu tạo muộn (23:38-23:59) và duyệt qua nửa đêm hôm sau (00:08-00:29)
+        self.assertEqual(len(overnight_returns), 4)
+        expected_codes = {
+            "RET-GM-001-20260519-0016",
+            "RET-GM-003-20260504-0020",
+            "RET-GM-001-20260711-0079",
+            "RET-GM-002-20260127-0120",
+        }
+        actual_codes = {r.code for r in overnight_returns}
+        self.assertEqual(actual_codes, expected_codes)
+
+        for r in overnight_returns:
+            # Ngày trả theo BR-18 phải là ngày của approved_at, không phải created_at
+            r_date_br18 = (r.approved_at or r.created_at).date()
+            self.assertEqual(r_date_br18, r.approved_at.date())
+            self.assertGreater(r_date_br18, r.created_at.date())
+
 
 
 class TestGeneratorStage4(unittest.TestCase):
