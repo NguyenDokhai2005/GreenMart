@@ -445,7 +445,7 @@ def print_database_fingerprint(service_name: str) -> None:
     print("=" * 78)
 
 
-def parse_arguments() -> argparse.Namespace:
+def parse_arguments(args: Optional[List[str]] = None) -> argparse.Namespace:
     """Xây dựng và phân tích các tham số dòng lệnh CLI."""
     parser = argparse.ArgumentParser(
         description="Bộ điều phối nạp dữ liệu một lệnh (Seed Orchestrator) cho GreenMart DT03."
@@ -491,7 +491,15 @@ def parse_arguments() -> argparse.Namespace:
         action="store_true",
         help="Hiển thị chi tiết dấu vết lỗi (stack trace) khi xảy ra sự cố ngoại lệ.",
     )
-    return parser.parse_args()
+    parsed_args = parser.parse_args(args)
+    
+    # Kiểm tra các cờ chế độ xung đột nhau
+    modes = [parsed_args.generate_only, parsed_args.load_only, parsed_args.verify_only]
+    if sum(1 for m in modes if m) > 1:
+        parser.error(
+            "Xung đột cờ chế độ: Không thể kết hợp đồng thời --generate-only, --load-only hoặc --verify-only."
+        )
+    return parsed_args
 
 
 def main() -> None:
