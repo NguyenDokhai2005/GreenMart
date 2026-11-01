@@ -71,53 +71,19 @@ docker compose exec postgres psql -U greenmart -d greenmart -c \
 
 ---
 
-## 1. Đăng nhập – `POST /api/v1/auth/login`
+## 1–4 và TC JWT trong mục 5: Xem `auth-login-jwt-test-cases.md`
 
-Tham chiếu openapi.yaml: response `INVALID_CREDENTIALS` → `details.remainingAttempts`; `ACCOUNT_LOCKED` → `details.lockedUntil`.
+Toàn bộ test case cho đăng nhập, refresh token, logout, `GET /auth/me` và bảo vệ JWT (TC-AUTH01-01..35) đã được tập trung tại `docs/testing/auth-login-jwt-test-cases.md` (issue #145) để tránh trùng lặp.
 
-| ID | Tiêu đề | Given | When | Then | Mức độ |
-|---|---|---|---|---|---|
-| ID-001 | Đăng nhập thành công | `thungan.gm001` tồn tại, password đúng | `POST /auth/login` `{"username":"thungan.gm001","password":"Demo@123"}` | HTTP 200; body có `accessToken` (string), `refreshToken` (string), `tokenType=Bearer`, `expiresIn=900`, `user.role=CASHIER`, `user.branches` là array chứa CN1 | Must |
-| ID-002 | Sai mật khẩu – lần đầu | Tài khoản tồn tại, `failed_login_count=0`, password sai | `POST /auth/login` password sai | HTTP 401 `INVALID_CREDENTIALS`; `details.remainingAttempts=4` (còn 4 lần trước khi khóa) | Must |
-| ID-003 | Username không tồn tại | Username không có trong `app_user` | `POST /auth/login` | HTTP 401 `INVALID_CREDENTIALS` – **cùng thông báo** với sai password, không lộ username có tồn tại hay không | Must |
-| ID-004 | Khóa ngay ở lần sai thứ 5 | Đã sai 4 lần (`failed_login_count=4`) | Lần sai thứ 5 | HTTP 401 `ACCOUNT_LOCKED`; `details.lockedUntil` là timestamp ISO 8601 cách hiện tại ~15 phút; cột `locked_until` trong DB được ghi | Must |
-| ID-004b | Trong thời gian khóa – nhập đúng password | `locked_until` chưa qua | `POST /auth/login` password đúng | HTTP 401 `ACCOUNT_LOCKED`; không mở khóa sớm | Must |
-| ID-005 | Mở khóa sau khi hết thời gian | Tua thời gian: `docker compose exec postgres psql -U greenmart -d greenmart -c "UPDATE app_user SET locked_until = NOW() - INTERVAL '1 minute' WHERE username = 'thungan.gm001';"` | `POST /auth/login` password đúng | HTTP 200; `failed_login_count` reset về 0 | Must |
-| ID-006 | Thiếu field bắt buộc | Body `{}` hoặc thiếu `password` | `POST /auth/login` | HTTP 400 `VALIDATION_ERROR`; `details` liệt kê field thiếu | Must |
-| ID-007 | Tài khoản bị vô hiệu hóa (`is_active=false`) | Admin đã set `is_active=false` | `POST /auth/login` password đúng | HTTP 401 `INVALID_CREDENTIALS` | Must |
+Các TC tương đương:
 
----
-
-## 2. Làm mới token – `POST /api/v1/auth/refresh`
-
-| ID | Tiêu đề | Given | When | Then | Mức độ |
-|---|---|---|---|---|---|
-| ID-010 | Refresh token hợp lệ | Refresh token còn trong hạn 7 ngày | `POST /auth/refresh` `{"refreshToken":"..."}` | HTTP 200; nhận `TokenResponse` mới; refresh token cũ bị thu hồi (xoay vòng) | Must |
-| ID-011 | Refresh token cũ bị thu hồi sau khi xoay | Đã gọi ID-010 | Gửi lại refresh token cũ | HTTP 401 `INVALID_REFRESH_TOKEN` | Must |
-| ID-012 | Refresh token hết hạn | Token cũ hơn 7 ngày | `POST /auth/refresh` | HTTP 401 `INVALID_REFRESH_TOKEN` | Must |
-| ID-013 | Refresh token sai định dạng | Chuỗi ngẫu nhiên không hợp lệ | `POST /auth/refresh` | HTTP 401 `INVALID_REFRESH_TOKEN` | Must |
-
----
-
-## 3. Đăng xuất – `POST /api/v1/auth/logout`
-
-| ID | Tiêu đề | Given | When | Then | Mức độ |
-|---|---|---|---|---|---|
-| ID-020 | Đăng xuất thành công | Đang đăng nhập, có refresh token | `POST /auth/logout` `{"refreshToken":"..."}` | HTTP 204; refresh token bị thu hồi | Must |
-| ID-021 | Dùng lại refresh token sau logout | Đã logout | Gửi lại refresh token vừa logout | HTTP 401 `INVALID_REFRESH_TOKEN` | Must |
-
----
-
-## 4. Thông tin người dùng – `GET /api/v1/auth/me`
-
-Response schema `CurrentUser`: `id`, `username`, `fullName`, `role`, `branches` (array of `BranchRef`).
-
-| ID | Tiêu đề | Given | When | Then | Mức độ |
-|---|---|---|---|---|---|
-| ID-030 | Trả đúng role và branches | Đăng nhập `thungan.gm001` (CASHIER, gán CN1) | `GET /auth/me` | HTTP 200; `role=CASHIER`; `branches` là array chỉ chứa CN1 (`id`, `code`, `name`) | Must |
-| ID-031 | OWNER nhận mọi chi nhánh đang hoạt động | Đăng nhập `owner` (OWNER, branch_ids=1,2,3 theo `generate_data.py`) | `GET /auth/me` | HTTP 200; `branches` chứa cả 3 chi nhánh có `active=true` | Must |
-| ID-032 | Không có token | Không có header `Authorization` | `GET /auth/me` | HTTP 401 `UNAUTHORIZED` | Must |
-| ID-033 | Access token hết hạn (sau 15 phút) | JWT `exp` đã qua | `GET /auth/me` | HTTP 401 `UNAUTHORIZED` | Must |
+| Nhóm | Xem tại `auth-login-jwt-test-cases.md` |
+|---|---|
+| Đăng nhập | TC-AUTH01-01..09 |
+| Refresh token | TC-AUTH01-10..13 |
+| Logout | TC-AUTH01-20..22 |
+| `GET /auth/me` | TC-AUTH01-01 (role/branches), TC-AUTH01-30..31 (401) |
+| JWT giả mạo / `alg:none` | TC-AUTH01-32..35 |
 
 ---
 
@@ -131,9 +97,9 @@ Response schema `CurrentUser`: `id`, `username`, `fullName`, `role`, `branches` 
 | ID-043 | ADMIN xem tồn mọi chi nhánh | `admin` (ADMIN, branch_ids=1,2,3 theo `generate_data.py`) | `GET /api/v1/inventory?branchId=2` | HTTP 200 | Must |
 | ID-044 | OWNER xem mọi chi nhánh | `owner` (OWNER, branch_ids=1,2,3 theo `generate_data.py`) | `GET /api/v1/orders` không truyền `branchId` | HTTP 200; thấy đơn mọi chi nhánh | Must |
 | ID-045 | CASHIER không đổi giá sản phẩm | `thungan.gm001` (CASHIER) | `PUT /api/v1/products/{productId}` với `salePrice` mới | HTTP 403 `FORBIDDEN` | Must |
-| ID-046 | Gọi API không có token | Không có header `Authorization` | Bất kỳ protected endpoint | HTTP 401 `UNAUTHORIZED` | Must |
-| ID-047 | JWT ký bằng secret sai | Token tạo với secret khác | Bất kỳ protected endpoint | HTTP 401 `UNAUTHORIZED` | Must |
-| ID-048 | JWT algorithm `none` | `NONE_TOKEN` tạo bằng biến shell (xem lệnh 4 ở trên) | `GET /api/v1/auth/me` | HTTP 401 `UNAUTHORIZED` | Must |
+| ID-046 | Gọi API không có token | Không có header `Authorization` | Bất kỳ protected endpoint | HTTP 401 `UNAUTHORIZED` – xem chi tiết tại TC-AUTH01-30 trong `auth-login-jwt-test-cases.md` | Must |
+
+> **TC JWT giả mạo** (JWT secret sai, `alg:none`): xem TC-AUTH01-32..34 trong `auth-login-jwt-test-cases.md`.
 
 ---
 
@@ -191,4 +157,4 @@ Mô tả endpoint: **"Mật khẩu mới tối thiểu 8 ký tự, có chữ và
 
 ---
 
-*Tổng: **44 test case** – chạy được sau khi SV02 implement module identity, seed user/branch và `docker compose up` thành công.*
+*Tổng: **22 test case** trong file này – mục 5 (phân quyền chi nhánh, BCrypt, đổi mật khẩu, chi nhánh, audit log). Toàn bộ TC xác thực JWT xem tại `auth-login-jwt-test-cases.md`.*
