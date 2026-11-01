@@ -6,12 +6,10 @@
 - **Tham chiếu:** AUTH-01..04, NFR-05, NFR-06, BR-11, `openapi.yaml` 2.0.0, `V1__init_schema.sql`
 - **Phạm vi:** bảng `app_user`, `user_branch`, `branch`, BCrypt, phân quyền chi nhánh, đổi mật khẩu, audit log
 
-> **Trạng thái phụ thuộc – PR #211 (chưa merge):**
+> **Trạng thái phụ thuộc – PR #211 (đã merge vào `develop`):**
 > Toàn bộ TC đăng nhập, refresh token, logout, `GET /auth/me` và bảo vệ JWT đã được tách sang
-> `docs/testing/auth-login-jwt-test-cases.md` (issue #145) để tránh trùng lặp.
-> File đó **chỉ tồn tại sau khi PR #211 merge vào `develop`**.
-> Mọi tham chiếu đến `auth-login-jwt-test-cases.md` trong file này sẽ hoạt động sau khi #211 merge.
-> Nếu #204 merge trước #211, nhánh này cần rebase và kiểm tra lại các tham chiếu đó.
+> `docs/testing/auth-login-jwt-test-cases.md` (issue #145, PR #211 — **đã merge**).
+> Mọi tham chiếu đến `auth-login-jwt-test-cases.md` trong file này đều hoạt động.
 
 ---
 
@@ -80,8 +78,8 @@ docker compose exec postgres psql -U greenmart -d greenmart -c \
 
 ## 1. Phân quyền theo chi nhánh (BR-11, AUTH-02)
 
-> TC gọi API không có token và TC JWT giả mạo đã tách sang `auth-login-jwt-test-cases.md` (#145, PR #211 — chưa merge).
-> Sau khi #211 merge, tra cứu tại: TC-AUTH01-30 (không có token), TC-AUTH01-32..34 (JWT giả mạo).
+> TC gọi API không có token và TC JWT giả mạo đã tách sang `auth-login-jwt-test-cases.md` (#145, PR #211 — đã merge).
+> Tra cứu tại: TC-AUTH01-30 (không có token), TC-AUTH01-32..34 (JWT giả mạo).
 
 | ID | Tiêu đề | Given | When | Then | Mức độ |
 |---|---|---|---|---|---|
@@ -155,4 +153,4 @@ Mô tả endpoint: **"Mật khẩu mới tối thiểu 8 ký tự, có chữ và
 ---
 
 *Tổng: **24 test case** (ID-040..046: 7, ID-050..053: 4, ID-060..066: 7, ID-070..072: 3, ID-080..082: 3).
-Toàn bộ TC đăng nhập, refresh token, logout, JWT xem tại `auth-login-jwt-test-cases.md` sau khi PR #211 merge.*
+Toàn bộ TC đăng nhập, refresh token, logout, JWT xem tại `auth-login-jwt-test-cases.md` (PR #211 đã merge).*
