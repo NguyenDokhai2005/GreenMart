@@ -99,7 +99,7 @@ Mỗi điểm có giả định tạm thời; nếu giả định đúng thì kh
 
 | # | Câu hỏi | Ảnh hưởng test case |
 |---|---|---|
-| Q-29 | Refresh token lưu ở đâu (Redis, DB, hay in-memory)? Cách giả lập hết hạn 7 ngày khi test cục bộ? | TC hết hạn refresh token trong `auth-login-jwt-test-cases.md` (#211). Lưu ý: TC-AUTH01-12 trong PR #211 là "Refresh token sai/giả mạo", không phải TC hết hạn — TC hết hạn chưa có mã, đã yêu cầu bổ sung tại #211. |
+| Q-29 | Refresh token lưu ở đâu (Redis, DB, hay in-memory)? Cách giả lập hết hạn 7 ngày khi test cục bộ? | **TC-AUTH01-15** trong `auth-login-jwt-test-cases.md` (PR #211 đã merge). TC-AUTH01-12 là "Refresh token sai/giả mạo" — không phải TC hết hạn. |
 | Q-30 | SV02 có implement `AuthenticationEntryPoint` riêng không? Nếu không thì 401 do Spring Security filter không có `traceId` theo định dạng `ErrorResponse` | TC-AUTH01-30, TC-AUTH01-35 |
 
 **Tag:** @t-boai (SV02 – Backend Auth)
