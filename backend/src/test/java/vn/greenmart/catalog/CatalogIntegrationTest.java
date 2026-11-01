@@ -143,4 +143,18 @@ class CatalogIntegrationTest {
             .andExpect(jsonPath("$.content[0].salePrice").value(29000))
             .andExpect(jsonPath("$.content[0].costPrice").doesNotExist());
     }
+
+    @Test
+    void testUpdateProduct_Unauthenticated_Returns401() throws Exception {
+        ProductRequest req = new ProductRequest("SUA-TH-1L", null, "Sữa TH", "hộp", 1L, 31000L, 23000L, true);
+
+        when(productService.updateProduct(eq(1L), any(ProductRequest.class)))
+            .thenThrow(new AppException(ErrorCode.UNAUTHORIZED, "Chưa đăng nhập"));
+
+        mockMvc.perform(put("/api/v1/products/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
 }

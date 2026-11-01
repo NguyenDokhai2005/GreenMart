@@ -41,7 +41,7 @@ class CatalogDbIntegrationTest {
 
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
-            org.testcontainers.utility.DockerImageName.parse("postgres:16-alpine")
+            vn.greenmart.inventory.PostgresTestImage.IMAGE
     );
 
     @DynamicPropertySource
@@ -220,5 +220,24 @@ class CatalogDbIntegrationTest {
         PageResponse<ProductResponse> page = productService.listProducts(null, catRoot.getId(), null, 0, 20, null);
         assertEquals(1, page.content().size());
         assertEquals("SUA-TH-1L", page.content().get(0).sku());
+    }
+
+    // Chưa đăng nhập gọi sửa sản phẩm -> 401 UNAUTHORIZED
+    @Test
+    void testUpdateProduct_Unauthenticated_ThrowsUnauthorized() {
+        Product p = new Product();
+        p.setSku("SUA-TH-1L");
+        p.setName("Sữa TH");
+        p.setUnit("hộp");
+        p.setCategoryId(catChild.getId());
+        p.setSalePrice(29000L);
+        p.setCostPrice(23000L);
+        p = productRepository.save(p);
+
+        ProductRequest req = new ProductRequest("SUA-TH-1L", null, "Sữa TH", "hộp", catChild.getId(), 31000L, 23000L, true);
+        Long pId = p.getId();
+
+        AppException ex = assertThrows(AppException.class, () -> productService.updateProduct(pId, req));
+        assertEquals(ErrorCode.UNAUTHORIZED.name(), ex.getCode());
     }
 }
