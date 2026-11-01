@@ -92,3 +92,14 @@ Mỗi điểm có giả định tạm thời; nếu giả định đúng thì kh
 | Q-28 | Seed script module identity (user, branch) chạy bằng lệnh gì? Tên tài khoản demo và password? | ✅ Xác nhận từ #209 – chạy 2 bước:<br>1. `python forecast-service/scripts/generate_data.py`<br>2. `docker compose exec -T postgres psql -U greenmart -d greenmart -v ON_ERROR_STOP=1 < forecast-service/data/seed_data.sql`<br>Tài khoản: `admin`, `owner`, `quanly.gm001..003`, `thungan.gm001..003`, `thukho.gm001..003`; mật khẩu chung `Demo@123` |
 
 **Tag:** @t-boai (SV02 – Backend Identity)
+
+---
+
+## 7. Kỹ thuật kiểm thử JWT (cần SV02 xác nhận)
+
+| # | Câu hỏi | Ảnh hưởng test case |
+|---|---|---|
+| Q-29 | Refresh token lưu ở đâu (Redis, DB, hay in-memory)? Cách giả lập hết hạn 7 ngày khi test cục bộ? | TC-AUTH01-12 trong `auth-login-jwt-test-cases.md` |
+| Q-30 | SV02 có implement `AuthenticationEntryPoint` riêng không? Nếu không thì 401 do Spring Security filter không có `traceId` theo định dạng `ErrorResponse` | TC-AUTH01-30, TC-AUTH01-35 |
+
+**Tag:** @t-boai (SV02 – Backend Auth)
