@@ -1,14 +1,18 @@
 package vn.greenmart.catalog.service;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.test.context.support.WithMockUser;
 import vn.greenmart.catalog.domain.Category;
 import vn.greenmart.catalog.dto.CategoryRequest;
 import vn.greenmart.catalog.dto.CategoryResponse;
@@ -17,6 +21,7 @@ import vn.greenmart.catalog.repository.ProductRepository;
 import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -38,13 +43,28 @@ class CategoryServiceTest {
     private CategoryServiceImpl categoryService;
 
     @BeforeEach
-    void setUp() {
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("X-User-Role", "OWNER");
-        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+    void setUp(TestInfo testInfo) {
+        SecurityContextHolder.clearContext();
+        testInfo.getTestMethod().ifPresent(method -> {
+            WithMockUser withMockUser = method.getAnnotation(WithMockUser.class);
+            if (withMockUser != null) {
+                String role = withMockUser.roles().length > 0 ? withMockUser.roles()[0] : "USER";
+                String username = withMockUser.username().isEmpty() ? "1" : withMockUser.username();
+                Authentication auth = new UsernamePasswordAuthenticationToken(
+                    username, null, List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                );
+                SecurityContextHolder.getContext().setAuthentication(auth);
+            }
+        });
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
+    @WithMockUser(roles = "OWNER")
     void testCreateCategory_Success() {
         CategoryRequest req = new CategoryRequest("Sữa và chế phẩm", null);
         Category saved = new Category();
@@ -61,6 +81,7 @@ class CategoryServiceTest {
     }
 
     @Test
+    @WithMockUser(roles = "OWNER")
     void testUpdateCategory_SelfParent_ThrowsCategoryCycle() {
         Category cat = new Category();
         cat.setId(2L);
@@ -75,6 +96,7 @@ class CategoryServiceTest {
     }
 
     @Test
+    @WithMockUser(roles = "OWNER")
     void testUpdateCategory_CircularCycle_ThrowsCategoryCycle() {
         Category catA = new Category();
         catA.setId(1L);
@@ -96,6 +118,7 @@ class CategoryServiceTest {
     }
 
     @Test
+    @WithMockUser(roles = "OWNER")
     void testDeleteCategory_HasChildren_ThrowsCategoryInUse() {
         when(categoryRepository.existsById(1L)).thenReturn(true);
         when(categoryRepository.existsByParentId(1L)).thenReturn(true);
@@ -105,6 +128,7 @@ class CategoryServiceTest {
     }
 
     @Test
+    @WithMockUser(roles = "OWNER")
     void testDeleteCategory_HasProducts_ThrowsCategoryInUse() {
         when(categoryRepository.existsById(1L)).thenReturn(true);
         when(categoryRepository.existsByParentId(1L)).thenReturn(false);
@@ -115,11 +139,8 @@ class CategoryServiceTest {
     }
 
     @Test
+    @WithMockUser(roles = "CASHIER")
     void testCreateCategory_NonOwner_ThrowsForbidden() {
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("X-User-Role", "CASHIER");
-        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
-
         CategoryRequest req = new CategoryRequest("Rau củ", null);
 
         AppException ex = assertThrows(AppException.class, () -> categoryService.createCategory(req));

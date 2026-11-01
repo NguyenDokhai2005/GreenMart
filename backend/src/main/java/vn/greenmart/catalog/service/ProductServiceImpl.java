@@ -21,8 +21,7 @@ import vn.greenmart.common.exception.ErrorCode;
 import vn.greenmart.common.pagination.PageResponse;
 import vn.greenmart.common.pagination.PageUtils;
 import vn.greenmart.common.security.SecurityUtils;
-import vn.greenmart.inventory.domain.Inventory;
-import vn.greenmart.inventory.repository.InventoryRepository;
+import vn.greenmart.inventory.service.InventoryService;
 
 import java.util.ArrayDeque;
 import java.util.HashSet;
@@ -31,6 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -41,7 +41,7 @@ public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final AuditLogRepository auditLogRepository;
-    private final InventoryRepository inventoryRepository;
+    private final InventoryService inventoryService;
 
     @Override
     @Transactional(readOnly = true)
@@ -57,8 +57,15 @@ public class ProductServiceImpl implements ProductService {
         Page<Product> productPage = productRepository.searchProducts(categoryIds, active, q, pageable);
         boolean canViewCost = SecurityUtils.canViewCostPrice();
 
+        Set<Long> catIds = productPage.getContent().stream()
+                .map(Product::getCategoryId)
+                .collect(Collectors.toSet());
+
+        Map<Long, String> categoryNameMap = categoryRepository.findAllById(catIds).stream()
+                .collect(Collectors.toMap(Category::getId, Category::getName));
+
         List<ProductResponse> dtos = productPage.getContent().stream()
-                .map(p -> ProductResponse.of(p, getCategoryName(p.getCategoryId()), canViewCost))
+                .map(p -> ProductResponse.of(p, categoryNameMap.getOrDefault(p.getCategoryId(), ""), canViewCost))
                 .toList();
 
         return PageResponse.of(dtos, productPage);
@@ -69,11 +76,13 @@ public class ProductServiceImpl implements ProductService {
     public ProductResponse createProduct(ProductRequest request) {
         SecurityUtils.requireRole("OWNER");
 
-        if (productRepository.existsBySku(request.sku())) {
+        String sku = request.sku().trim();
+        if (productRepository.existsBySku(sku)) {
             throw new AppException(ErrorCode.DUPLICATE_SKU, "Mã SKU đã tồn tại trên hệ thống");
         }
 
-        if (request.barcode() != null && !request.barcode().trim().isEmpty() && productRepository.existsByBarcode(request.barcode().trim())) {
+        String barcode = (request.barcode() != null && !request.barcode().trim().isEmpty()) ? request.barcode().trim() : null;
+        if (barcode != null && productRepository.existsByBarcode(barcode)) {
             throw new AppException(ErrorCode.DUPLICATE_BARCODE, "Mã vạch đã tồn tại trên hệ thống");
         }
 
@@ -81,8 +90,8 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy danh mục với id: " + request.categoryId()));
 
         Product p = new Product();
-        p.setSku(request.sku().trim());
-        p.setBarcode((request.barcode() != null && !request.barcode().trim().isEmpty()) ? request.barcode().trim() : null);
+        p.setSku(sku);
+        p.setBarcode(barcode);
         p.setName(request.name().trim());
         p.setUnit(request.unit().trim());
         p.setCategoryId(category.getId());
@@ -99,7 +108,8 @@ public class ProductServiceImpl implements ProductService {
     public ProductResponse getProduct(Long id) {
         Product p = productRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy sản phẩm với id: " + id));
-        return ProductResponse.of(p, getCategoryName(p.getCategoryId()), SecurityUtils.canViewCostPrice());
+        String categoryName = categoryRepository.findById(p.getCategoryId()).map(Category::getName).orElse("");
+        return ProductResponse.of(p, categoryName, SecurityUtils.canViewCostPrice());
     }
 
     @Override
@@ -110,7 +120,8 @@ public class ProductServiceImpl implements ProductService {
         Product p = productRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy sản phẩm với id: " + id));
 
-        if (productRepository.existsBySkuAndIdNot(request.sku(), id)) {
+        String sku = request.sku().trim();
+        if (productRepository.existsBySkuAndIdNot(sku, id)) {
             throw new AppException(ErrorCode.DUPLICATE_SKU, "Mã SKU đã thuộc về sản phẩm khác");
         }
 
@@ -133,7 +144,7 @@ public class ProductServiceImpl implements ProductService {
             auditLogRepository.save(log);
         }
 
-        p.setSku(request.sku().trim());
+        p.setSku(sku);
         p.setBarcode(barcode);
         p.setName(request.name().trim());
         p.setUnit(request.unit().trim());
@@ -156,22 +167,16 @@ public class ProductServiceImpl implements ProductService {
         }
         String searchCode = code.trim();
 
-        // Ưu tiên barcode trước, sau đó tới SKU
         Product p = productRepository.findByBarcode(searchCode)
                 .or(() -> productRepository.findBySku(searchCode))
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy sản phẩm với mã: " + searchCode));
 
-        // Lấy tồn khả dụng tại chi nhánh
-        int available = inventoryRepository.findById(new Inventory.InventoryId(branchId, p.getId()))
-                .map(Inventory::getAvailable)
-                .orElse(0);
+        // Gọi qua interface InventoryService
+        int available = inventoryService.getAvailable(branchId, p.getId());
 
-        ProductResponse productDto = ProductResponse.of(p, getCategoryName(p.getCategoryId()), SecurityUtils.canViewCostPrice());
+        String categoryName = categoryRepository.findById(p.getCategoryId()).map(Category::getName).orElse("");
+        ProductResponse productDto = ProductResponse.of(p, categoryName, SecurityUtils.canViewCostPrice());
         return new ProductLookupResponse(productDto, branchId, available);
-    }
-
-    private String getCategoryName(Long categoryId) {
-        return categoryRepository.findById(categoryId).map(Category::getName).orElse("");
     }
 
     private Set<Long> getAllSubCategoryIds(Long rootCategoryId) {

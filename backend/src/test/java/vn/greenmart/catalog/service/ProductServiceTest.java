@@ -1,14 +1,18 @@
 package vn.greenmart.catalog.service;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.test.context.support.WithMockUser;
 import vn.greenmart.catalog.domain.Category;
 import vn.greenmart.catalog.domain.Product;
 import vn.greenmart.catalog.dto.ProductLookupResponse;
@@ -20,10 +24,9 @@ import vn.greenmart.common.audit.AuditLog;
 import vn.greenmart.common.audit.AuditLogRepository;
 import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
-import vn.greenmart.inventory.domain.Inventory;
-import vn.greenmart.inventory.repository.InventoryRepository;
+import vn.greenmart.inventory.service.InventoryService;
 
-import java.lang.reflect.Field;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -47,19 +50,34 @@ class ProductServiceTest {
     private AuditLogRepository auditLogRepository;
 
     @Mock
-    private InventoryRepository inventoryRepository;
+    private InventoryService inventoryService;
 
     @InjectMocks
     private ProductServiceImpl productService;
 
     @BeforeEach
-    void setUp() {
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("X-User-Role", "OWNER");
-        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+    void setUp(TestInfo testInfo) {
+        SecurityContextHolder.clearContext();
+        testInfo.getTestMethod().ifPresent(method -> {
+            WithMockUser withMockUser = method.getAnnotation(WithMockUser.class);
+            if (withMockUser != null) {
+                String role = withMockUser.roles().length > 0 ? withMockUser.roles()[0] : "USER";
+                String username = withMockUser.username().isEmpty() ? "1" : withMockUser.username();
+                Authentication auth = new UsernamePasswordAuthenticationToken(
+                    username, null, List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                );
+                SecurityContextHolder.getContext().setAuthentication(auth);
+            }
+        });
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
+    @WithMockUser(roles = "OWNER")
     void testCreateProduct_DuplicateSku_Throws409() {
         ProductRequest req = new ProductRequest("SUA-TH-1L", "8935217400013", "Sữa TH", "hộp", 1L, 29000L, 23000L, true);
         when(productRepository.existsBySku("SUA-TH-1L")).thenReturn(true);
@@ -69,6 +87,7 @@ class ProductServiceTest {
     }
 
     @Test
+    @WithMockUser(username = "1", roles = "OWNER")
     void testUpdateProduct_PriceChanged_SavesAuditLog() {
         Product existing = new Product();
         existing.setId(205L);
@@ -94,11 +113,8 @@ class ProductServiceTest {
     }
 
     @Test
+    @WithMockUser(roles = "CASHIER")
     void testGetProduct_CashierRole_CostPriceIsNull() {
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("X-User-Role", "CASHIER");
-        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
-
         Product p = new Product();
         p.setId(101L);
         p.setSku("GAO-ST25");
@@ -122,7 +138,8 @@ class ProductServiceTest {
     }
 
     @Test
-    void testLookupProduct_Success() throws Exception {
+    @WithMockUser(roles = "CASHIER")
+    void testLookupProduct_Success() {
         Product p = new Product();
         p.setId(205L);
         p.setSku("SUA-TH-1L");
@@ -135,23 +152,12 @@ class ProductServiceTest {
 
         when(productRepository.findByBarcode("8935217400013")).thenReturn(Optional.of(p));
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(new Category()));
-
-        Inventory inv = new Inventory();
-        setPrivateField(inv, "onHand", 15);
-        setPrivateField(inv, "reserved", 3);
-
-        when(inventoryRepository.findById(any(Inventory.InventoryId.class))).thenReturn(Optional.of(inv));
+        when(inventoryService.getAvailable(1L, 205L)).thenReturn(12);
 
         ProductLookupResponse res = productService.lookupProduct("8935217400013", 1L);
 
         assertNotNull(res);
-        assertEquals(12, res.available()); 
+        assertEquals(12, res.available());
         assertEquals("SUA-TH-1L", res.product().sku());
-    }
-
-    private void setPrivateField(Object obj, String fieldName, Object val) throws Exception {
-        Field f = obj.getClass().getDeclaredField(fieldName);
-        f.setAccessible(true);
-        f.set(obj, val);
     }
 }

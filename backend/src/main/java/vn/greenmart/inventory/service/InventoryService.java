@@ -55,4 +55,14 @@ public interface InventoryService {
      *         nếu available &lt; qty
      */
     void sellDirect(Long branchId, Long productId, int qty, Long refId);
+
+    /**
+     * Lấy tồn khả dụng (available = on_hand - reserved) của sản phẩm tại chi nhánh.
+     * Trả về 0 nếu chưa có bản ghi tồn kho.
+     *
+     * @param branchId  id chi nhánh
+     * @param productId id sản phẩm
+     * @return số lượng tồn khả dụng
+     */
+    int getAvailable(Long branchId, Long productId);
 }
