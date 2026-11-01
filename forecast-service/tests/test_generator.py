@@ -520,8 +520,15 @@ class TestGeneratorStage3(unittest.TestCase):
         )
         all_orders = cls.processed_orders + cls.failed_orders
         generate_data.adjust_customer_created_at(cls.customers, all_orders)
-        cls.inventories, cls.inventory_transactions = generate_data.generate_initial_inventory(
-            cls.products, cls.stockout_schedule
+        cls.branches = generate_data.generate_branches()
+        cls.users = generate_data.generate_demo_users()
+        cls.inventories, cls.inventory_transactions, cls.stock_documents, cls.stock_document_items = generate_data.generate_initial_inventory(
+            products=cls.products,
+            stockout_schedule=cls.stockout_schedule,
+            branches=cls.branches,
+            users=cls.users,
+            orders=all_orders,
+            returns=cls.returns,
         )
 
     def test_processed_orders_status_split(self):
@@ -535,7 +542,7 @@ class TestGeneratorStage3(unittest.TestCase):
         self.assertEqual(completed_cnt + returned_cnt, 10_000)
 
     def test_returns_integrity_and_ba_refund_formula(self):
-        """Kiểm tra 150 phiếu trả hàng, SoD và công thức hoàn tiền BA §5.2."""
+        """Kiểm tra 150 phiếu trả hàng, SoD, thời hạn BR-10, timestamps V4 và công thức hoàn tiền BA §5.2."""
         self.assertEqual(len(self.returns), 150)
 
         for r in self.returns:
@@ -544,10 +551,15 @@ class TestGeneratorStage3(unittest.TestCase):
             self.assertGreater(r.refund_amount, 0)
             self.assertLessEqual(r.created_at, config.MAX_EVENT_DATETIME)
 
+            # Ràng buộc thời gian V4 (#215 / PR #220)
+            self.assertIsNotNone(r.approved_at, "Phiếu trả APPROVED bắt buộc có approved_at (chk_return_approved_at)")
+            self.assertGreaterEqual(r.approved_at, r.created_at, "approved_at >= created_at (chk_return_time_order)")
+
             # Tìm đơn hàng gốc
             ord = next(o for o in self.processed_orders if o.id == r.order_id)
+            self.assertGreater(r.created_at, ord.completed_at, "Phiếu trả tạo sau khi đơn hoàn tất")
             diff_days = (r.created_at - ord.completed_at).total_seconds() / (24 * 3600)
-            self.assertLessEqual(diff_days, 7.0, "Thời hạn đổi trả không quá 7 ngày")
+            self.assertLessEqual(diff_days, 7.0, "Thời hạn đổi trả không quá 7 ngày (BR-10)")
 
             if ord.status == "RETURNED":
                 self.assertEqual(r.refund_amount, ord.total, "Đơn trả toàn bộ thì hoàn 100% số tiền đơn")
@@ -689,43 +701,162 @@ class TestGeneratorStage3(unittest.TestCase):
                 )
 
     def test_inventory_and_transactions_alignment(self):
-        """Kiểm tra tồn kho ban đầu:
-        - 3.000 dòng inventory (3 chi nhánh x 1.000 sản phẩm).
-        - 3.000 dòng inventory_transaction loại IMPORT tương ứng.
-        - Mỗi dòng inventory có đúng 1 giao dịch IMPORT khớp on_hand (delta_on_hand == on_hand_after == on_hand).
-        - Sản phẩm bị FULL_DAY stockout vào ngày cuối (31/10/2026) có on_hand = 0.
+        """Kiểm tra toàn diện tồn kho khởi tạo, phiếu kho đầu kỳ và sổ giao dịch kho (Issue #107):
+        - Đủ đúng 3.000 dòng inventory (3 chi nhánh x 1.000 sản phẩm).
+        - Đủ đúng 3 phiếu nhập kho stock_document (mỗi chi nhánh 1 phiếu, type=IMPORT, status=APPROVED, SoD BR-13).
+        - Đúng 2.970 dòng stock_document_item và 2.970 dòng inventory_transaction (chỉ cho các dòng on_hand > 0).
+        - Bất biến version: 1 nếu on_hand > 0, 0 nếu on_hand = 0 (không có giao dịch).
+        - Bất biến updated_at: mốc IMPORT nếu on_hand > 0, mốc chốt sổ END_DATE nếu on_hand = 0.
+        - Khớp sổ kho: delta_on_hand == on_hand_after == on_hand; ref_type='STOCK_DOCUMENT', ref_id trỏ đúng stock_document cùng CN.
+        - Phân bổ trạng thái: đúng 30 dòng OUT (~1%), đúng 150 dòng LOW (~5%), đúng 2.820 dòng OK (~94%).
+        - Mỗi chi nhánh có đúng 10 dòng OUT (>= 3) và đúng 50 dòng LOW (>= 10).
+        - Mốc neo TC-DASH-01: SUA-TH-1L tại GM-001 có on_hand=35, reserved=0, available=35, ROP=34 (OK sát ngưỡng).
         """
+        # 1. Số lượng bản ghi
         self.assertEqual(len(self.inventories), 3000)
-        self.assertEqual(len(self.inventory_transactions), 3000)
+        self.assertEqual(len(self.stock_documents), 3)
+        self.assertEqual(len(self.stock_document_items), 2970)
+        self.assertEqual(len(self.inventory_transactions), 2970)
 
+        # 2. Kiểm tra phiếu nhập kho đầu kỳ (stock_document)
+        doc_map = {d.branch_id: d for d in self.stock_documents}
+        self.assertEqual(len(doc_map), 3)
+        for b_id, doc in doc_map.items():
+            self.assertEqual(doc.type, "IMPORT")
+            self.assertEqual(doc.status, "APPROVED")
+            self.assertIsNone(doc.to_branch_id)
+            self.assertIsNone(doc.received_by)
+            self.assertNotEqual(doc.created_by, doc.approved_by, "BR-13 SoD: thủ kho lập, quản lý duyệt")
+            self.assertIn("Khởi tạo tồn đầu kỳ", doc.supplier)
+            self.assertIn("Khởi tạo tồn đầu kỳ", doc.reason)
+
+        # 3. Bản đồ tra cứu giao dịch và dòng phiếu theo (branch_id, product_id)
         tx_map = {(tx.branch_id, tx.product_id): tx for tx in self.inventory_transactions}
-        self.assertEqual(len(tx_map), 3000)
+        doc_item_map = {(d_id, item.product_id): item for item in self.stock_document_items for d_id in [item.document_id]}
+        prod_map = {p.id: p for p in self.products}
 
-        last_date = date(2026, 10, 31)
-        full_day_stockouts = {
-            (b_id, p_id)
-            for (b_id, p_id, d), mode in self.stockout_schedule.items()
-            if d == last_date and mode == "FULL_DAY"
-        }
+        # 4. Kiểm tra từng dòng tồn kho
+        import_time = config.END_DATE - timedelta(minutes=15)
+        branch_status_counts = defaultdict(lambda: defaultdict(int))
 
         for inv in self.inventories:
-            self.assertEqual(inv.reserved, 0)
+            # CHECK constraints DB
             self.assertGreaterEqual(inv.on_hand, 0)
-            self.assertGreater(inv.reorder_point, 0)
+            self.assertGreaterEqual(inv.reserved, 0)
+            self.assertLessEqual(inv.reserved, inv.on_hand)
+            self.assertEqual(inv.reserved, 0, "Toàn bộ tồn giữ chỗ ban đầu bằng 0")
+            available = inv.on_hand - inv.reserved
+            self.assertGreaterEqual(available, 0)
+            self.assertGreaterEqual(inv.reorder_point, config.ROP_MINIMUM)
 
-            # Khớp giao dịch IMPORT
             key = (inv.branch_id, inv.product_id)
-            self.assertIn(key, tx_map)
-            tx = tx_map[key]
-            self.assertEqual(tx.type, "IMPORT")
-            self.assertEqual(tx.delta_on_hand, inv.on_hand)
-            self.assertEqual(tx.on_hand_after, inv.on_hand)
-            self.assertEqual(tx.delta_reserved, 0)
-            self.assertEqual(tx.reserved_after, 0)
+            doc = doc_map[inv.branch_id]
 
-            # FULL_DAY stockout vào ngày cuối
-            if key in full_day_stockouts:
-                self.assertEqual(inv.on_hand, 0, f"Sản phẩm {key} stockout FULL_DAY ngày 31/10 phải có on_hand = 0")
+            if inv.on_hand == 0:
+                # Dòng OUT: không có giao dịch và không có dòng phiếu nhập
+                branch_status_counts[inv.branch_id]["OUT"] += 1
+                self.assertEqual(inv.version, 0, "Dòng on_hand=0 phải có version=0")
+                self.assertEqual(inv.updated_at, config.END_DATE, "Dòng on_hand=0 có updated_at=END_DATE")
+                self.assertNotIn(key, tx_map, "Dòng on_hand=0 KHÔNG được có inventory_transaction")
+                self.assertNotIn((doc.id, inv.product_id), doc_item_map, "Dòng on_hand=0 KHÔNG được có stock_document_item")
+            else:
+                # Dòng có tồn > 0: có đúng 1 giao dịch IMPORT và 1 dòng stock_document_item
+                self.assertEqual(inv.version, 1, "Dòng on_hand>0 phải có version=1")
+                self.assertEqual(inv.updated_at, import_time, "Dòng on_hand>0 có updated_at=import_time")
+
+                if available <= inv.reorder_point:
+                    branch_status_counts[inv.branch_id]["LOW"] += 1
+                else:
+                    branch_status_counts[inv.branch_id]["OK"] += 1
+
+                # Kiểm tra giao dịch IMPORT
+                self.assertIn(key, tx_map)
+                tx = tx_map[key]
+                self.assertEqual(tx.type, "IMPORT")
+                self.assertEqual(tx.delta_on_hand, inv.on_hand)
+                self.assertEqual(tx.on_hand_after, inv.on_hand)
+                self.assertEqual(tx.delta_reserved, 0)
+                self.assertEqual(tx.reserved_after, 0)
+                self.assertEqual(tx.ref_type, "STOCK_DOCUMENT")
+                self.assertEqual(tx.ref_id, doc.id, "ref_id phải trỏ đúng stock_document của chi nhánh đó")
+                self.assertEqual(tx.created_by, doc.created_by)
+
+                # Kiểm tra dòng phiếu nhập stock_document_item
+                self.assertIn((doc.id, inv.product_id), doc_item_map)
+                d_item = doc_item_map[(doc.id, inv.product_id)]
+                self.assertEqual(d_item.quantity, inv.on_hand)
+                self.assertEqual(d_item.unit_cost, prod_map[inv.product_id].cost_price)
+
+        # 5. Phân bổ mục tiêu toàn chuỗi và từng chi nhánh
+        total_out = sum(branch_status_counts[b]["OUT"] for b in [1, 2, 3])
+        total_low = sum(branch_status_counts[b]["LOW"] for b in [1, 2, 3])
+        total_ok = sum(branch_status_counts[b]["OK"] for b in [1, 2, 3])
+
+        self.assertEqual(total_out, 30, "Toàn chuỗi phải có đúng 30 dòng OUT (~1%)")
+        self.assertEqual(total_low, 150, "Toàn chuỗi phải có đúng 150 dòng LOW (~5%)")
+        self.assertEqual(total_ok, 2820, "Toàn chuỗi phải có đúng 2820 dòng OK (~94%)")
+
+        for b_id in [1, 2, 3]:
+            self.assertGreaterEqual(branch_status_counts[b_id]["OUT"], config.INVENTORY_MIN_OUT_PER_BRANCH)
+            self.assertGreaterEqual(branch_status_counts[b_id]["LOW"], config.INVENTORY_MIN_LOW_PER_BRANCH)
+
+        # 6. Kiểm tra mốc neo Sữa tươi TH True Milk 1L (TC-DASH-01)
+        anchor_inv = next(
+            i for i in self.inventories
+            if i.branch_id == 1 and prod_map[i.product_id].sku == config.ANCHOR_MILK_SKU
+        )
+        self.assertEqual(anchor_inv.on_hand, config.ANCHOR_MILK_ON_HAND)
+        self.assertEqual(anchor_inv.reserved, config.ANCHOR_MILK_RESERVED)
+        self.assertEqual(anchor_inv.reorder_point, config.ANCHOR_MILK_ROP)
+        self.assertGreater(
+            anchor_inv.on_hand - anchor_inv.reserved,
+            anchor_inv.reorder_point,
+            "Sữa tươi tại GM-001 phải ở trạng thái OK sát ngưỡng ROP để demo TC-DASH-01"
+        )
+
+    def test_document_lifecycle_timestamps_v4(self):
+        """Kiểm tra toàn diện các ràng buộc thời gian V4 (#215 / PR #220) cho return_document và stock_document."""
+        # 1. return_document: 150 phiếu
+        for r in self.returns:
+            self.assertEqual(r.status, "APPROVED")
+            self.assertIsNotNone(r.created_at)
+            self.assertIsNotNone(r.approved_at, "chk_return_approved_at: APPROVED bắt buộc approved_at IS NOT NULL")
+            self.assertGreaterEqual(r.approved_at, r.created_at, "chk_return_time_order: approved_at >= created_at")
+            self.assertNotEqual(r.created_by, r.approved_by, "BR-13: approved_by <> created_by")
+
+        # 2. stock_document: 3 phiếu đầu kỳ
+        for doc in self.stock_documents:
+            self.assertEqual(doc.status, "APPROVED")
+            self.assertEqual(doc.type, "IMPORT")
+            self.assertIsNotNone(doc.created_at)
+            self.assertIsNotNone(doc.approved_at, "chk_stock_approved_at: APPROVED bắt buộc approved_at IS NOT NULL")
+            self.assertGreaterEqual(doc.approved_at, doc.created_at, "chk_stock_time_order: approved_at >= created_at")
+            self.assertIsNone(doc.received_at, "chk_stock_received_at: chỉ status = 'RECEIVED' mới có received_at")
+            self.assertNotEqual(doc.created_by, doc.approved_by, "BR-13: approved_by <> created_by")
+
+    def test_overnight_approved_returns_br18(self):
+        """Kiểm tra BR-18: Các phiếu trả duyệt qua nửa đêm được ghi nhận ngày trả theo approved_at."""
+        overnight_returns = [
+            r for r in self.returns
+            if r.approved_at and r.approved_at.date() > r.created_at.date()
+        ]
+        # Có đúng 4 phiếu tạo muộn (23:38-23:59) và duyệt qua nửa đêm hôm sau (00:08-00:29)
+        self.assertEqual(len(overnight_returns), 4)
+        expected_codes = {
+            "RET-GM-001-20260519-0016",
+            "RET-GM-003-20260504-0020",
+            "RET-GM-001-20260711-0079",
+            "RET-GM-002-20260127-0120",
+        }
+        actual_codes = {r.code for r in overnight_returns}
+        self.assertEqual(actual_codes, expected_codes)
+
+        for r in overnight_returns:
+            # Ngày trả theo BR-18 phải là ngày của approved_at, không phải created_at
+            r_date_br18 = (r.approved_at or r.created_at).date()
+            self.assertEqual(r_date_br18, r.approved_at.date())
+            self.assertGreater(r_date_br18, r.created_at.date())
+
 
 
 class TestGeneratorStage4(unittest.TestCase):
@@ -752,8 +883,12 @@ class TestGeneratorStage4(unittest.TestCase):
             self.assertIn("UPDATE sales_channel SET default_branch_id = NULL;", content)
             self.assertIn("TRUNCATE TABLE", content)
             self.assertIn("DELETE FROM branch;", content)
+            self.assertIn("INSERT INTO stock_document ", content)
+            self.assertIn("INSERT INTO stock_document_item ", content)
             self.assertIn("INSERT INTO inventory ", content)
             self.assertIn("INSERT INTO inventory_transaction ", content)
+            self.assertIn("SELECT setval(pg_get_serial_sequence('stock_document', 'id')", content)
+            self.assertIn("SELECT setval(pg_get_serial_sequence('stock_document_item', 'id')", content)
             self.assertIn("SELECT setval(pg_get_serial_sequence('inventory_transaction', 'id')", content)
 
         # Kiểm tra JSON
@@ -773,6 +908,19 @@ class TestGeneratorStage4(unittest.TestCase):
         s1 = generate_data.get_stockout_schedule(p1, top1)
         s2 = generate_data.get_stockout_schedule(p2, top2)
         self.assertEqual(s1, s2)
+
+        # Kiểm tra tính tái lập của hàm sinh tồn kho khởi tạo
+        inv1, tx1, doc1, item1 = generate_data.generate_initial_inventory(p1, s1, seed=config.RANDOM_SEED + 107)
+        inv2, tx2, doc2, item2 = generate_data.generate_initial_inventory(p2, s2, seed=config.RANDOM_SEED + 107)
+
+        self.assertEqual(
+            [(i.branch_id, i.product_id, i.on_hand, i.reserved, i.reorder_point, i.version) for i in inv1],
+            [(i.branch_id, i.product_id, i.on_hand, i.reserved, i.reorder_point, i.version) for i in inv2],
+            "Hai lần sinh tồn kho với cùng seed phải cho kết quả giống nhau 100%"
+        )
+        self.assertEqual([t.id for t in tx1], [t.id for t in tx2])
+        self.assertEqual([d.code for d in doc1], [d.code for d in doc2])
+        self.assertEqual([di.quantity for di in item1], [di.quantity for di in item2])
 
     def test_golden_sha256_checksums(self):
         """Khóa mốc SHA-256 vàng in-memory (newline='\\n', utf-8) để bảo vệ refactor không đổi dữ liệu.
@@ -798,7 +946,14 @@ class TestGeneratorStage4(unittest.TestCase):
         )
         all_orders = orders + failed_orders
         generate_data.adjust_customer_created_at(customers, all_orders)
-        inventories, inventory_transactions = generate_data.generate_initial_inventory(products, stockout_schedule)
+        inventories, inventory_transactions, stock_documents, stock_document_items = generate_data.generate_initial_inventory(
+            products=products,
+            stockout_schedule=stockout_schedule,
+            branches=branches,
+            users=users,
+            orders=all_orders,
+            returns=returns,
+        )
 
         # 1. In-memory JSON
         buf_json = io.StringIO()
@@ -812,13 +967,14 @@ class TestGeneratorStage4(unittest.TestCase):
             branches=branches, categories=categories, products=products,
             users=users, customers=customers, promotions=promotions,
             orders=all_orders, returns=returns, audit_logs=audit_logs,
+            stock_documents=stock_documents, stock_document_items=stock_document_items,
             inventories=inventories, inventory_transactions=inventory_transactions,
             stream=buf_sql
         )
         sql_bytes = buf_sql.getvalue().encode("utf-8")
         actual_sql_sha = hashlib.sha256(sql_bytes).hexdigest()
 
-        GOLDEN_SQL_SHA256 = "68e17e2528c2daacae1552ec6336cefb4d13798d2937082e52780b6656e77680"
+        GOLDEN_SQL_SHA256 = "715e12e22c904926ab3a505ad7898fae0acbc31e1a6045852fb70b9bedb51c13"
         GOLDEN_JSON_SHA256 = "d0226a3d258fa87649db164118a5d600052de8f422e94e5beecb8a3e05d1dc91"
 
         self.assertEqual(actual_sql_sha, GOLDEN_SQL_SHA256, "Mã SHA-256 in-memory của SQL không được thay đổi")

@@ -294,3 +294,52 @@ ALLOW_RETURNS_AFTER_END_DATE: bool = False
 
 # Random seed cố định đảm bảo khả năng tái lập 100%
 RANDOM_SEED: int = 2026
+
+
+# ==============================================================================
+# 8. THAM SỐ TỒN KHO KHỞI TẠO VÀ CẢNH BÁO TỒN THẤP (ISSUE #107)
+# ==============================================================================
+
+# Thời gian chờ hàng về (Lead time) tính bằng ngày (BA §8.2 / SRS AI-05)
+# Phân loại: Giả định của nhóm theo BA §8.2 / §12, chưa giảng viên xác nhận
+LEAD_TIME_DAYS: int = 2
+
+# Hệ số phục vụ z ứng với mức phục vụ chuỗi bán lẻ 95% (BA §8.2)
+# Phân loại: Giả định của nhóm theo BA §8.2 / §12, chưa giảng viên xác nhận
+SERVICE_LEVEL_Z: float = 1.65
+
+# Số ngày lịch sử bán gần nhất để tính xấp xỉ nhu cầu trung bình d_bar và độ lệch chuẩn sigma_d
+# Phân loại: Giả định thiết kế
+ROP_HISTORY_DAYS: int = 28
+
+# Ngưỡng ROP tối thiểu cho sản phẩm bán rất chậm hoặc không phát sinh bán trong 28 ngày
+# Phân loại: Giả định thiết kế
+ROP_MINIMUM: int = 2
+
+# Tỷ lệ mục tiêu sản phẩm HẾT HÀNG (OUT: khả dụng = 0) tại thời điểm chốt sổ demo
+# Phân loại: Giả định thiết kế
+INVENTORY_TARGET_OUT_RATIO: float = 0.01
+
+# Tỷ lệ mục tiêu sản phẩm TỒN THẤP (LOW: 0 < khả dụng <= ROP) tại thời điểm chốt sổ demo
+# Phân loại: Giả định thiết kế
+INVENTORY_TARGET_LOW_RATIO: float = 0.05
+
+# Số lượng sản phẩm HẾT HÀNG (OUT) tối thiểu tại mỗi chi nhánh
+# Phân loại: Giả định thiết kế
+INVENTORY_MIN_OUT_PER_BRANCH: int = 3
+
+# Số lượng sản phẩm TỒN THẤP (LOW) tối thiểu tại mỗi chi nhánh
+# Phân loại: Giả định thiết kế
+INVENTORY_MIN_LOW_PER_BRANCH: int = 10
+
+# Mốc neo sản phẩm kiểm thử tự động và demo cảnh báo (Sữa tươi TH True Milk 1L tại GM-001)
+# - SKU và mã chi nhánh được tra cứu động, không hardcode ID
+# - ROP = 34: Đã xác nhận (BA §8.3 / test-plan TC-DASH-01 / US-09)
+# - on_hand = 35, reserved = 0, available = 35: Đã xác nhận (US-09, TC-DASH-01)
+#   (Khớp US-09: khả dụng giảm từ 35 xuống 30 -> kích hoạt cảnh báo; số 30 ở BA §8.3 là trạng thái sau khi bán)
+ANCHOR_MILK_SKU: str = "SUA-TH-1L"
+ANCHOR_MILK_BRANCH_CODE: str = "GM-001"
+ANCHOR_MILK_ON_HAND: int = 35
+ANCHOR_MILK_RESERVED: int = 0
+ANCHOR_MILK_ROP: int = 34
+
