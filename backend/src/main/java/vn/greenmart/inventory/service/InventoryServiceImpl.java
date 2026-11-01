@@ -30,8 +30,6 @@ public class InventoryServiceImpl implements InventoryService {
     private final InventoryRepository inventoryRepository;
     private final InventoryTransactionWriter transactionWriter;
 
-
-
     /**
      *      WHERE (on_hand - reserved) >= qty
      */
@@ -104,6 +102,21 @@ public class InventoryServiceImpl implements InventoryService {
         }
         log.debug("sellDirect: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
         transactionWriter.appendOrder(branchId, productId, Type.SALE, -qty, 0, refId);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public int getAvailable(Long branchId, Long productId) {
+        if (branchId == null || productId == null) {
+            return 0;
+        }
+        return inventoryRepository.findById(
+                new vn.greenmart.inventory.domain.Inventory.InventoryId(branchId, productId))
+                .map(vn.greenmart.inventory.domain.Inventory::getAvailable)
+                .orElse(0);
     }
 
     // -----------------------------------------------------------------------
