@@ -204,3 +204,85 @@ Khi triển khai script sinh dữ liệu trong Issue #106:
    > - Công thức trên là **công thức đề xuất thiết kế mang tính minh họa**, KHÔNG phải công thức đã được BA/SRS chính thức xác nhận.
    > - Nếu nhân trực tiếp đồng thời các hệ số (ví dụ: ngày lễ/Tết trùng cuối tuần, đang có khuyến mại và rơi vào ngành hàng trọng điểm), nhu cầu bán có thể bị nhân dồn tăng rất mạnh (có thể gấp 4–6 lần nhu cầu cơ bản).
    > - Cách thức kết hợp cụ thể (dùng phép nhân, phép cộng, thứ tự ưu tiên hay giới hạn trần) chưa có căn cứ chốt trong Issue #105 và **sẽ được thống nhất chính thức khi triển khai Issue #106**. Không tự ý áp dụng quy tắc cứng khi chưa có quyết định từ BA/Lead.
+
+
+---
+
+## 4. Bộ điều phối Seed một lệnh (Issue #108)
+
+Bộ điều phối `seed.py` cung cấp cơ chế sinh dữ liệu, nạp vào cơ sở dữ liệu PostgreSQL và kiểm đếm tiêu chí AC-01 hoàn toàn tự động chỉ với **MỘT lệnh duy nhất**. Quá trình đảm bảo tính xác định tuyệt đối (Deterministic & Idempotent: chạy nhiều lần vẫn cho ra cùng một kết quả giống hệt nhau).
+
+### 4.1 Điều kiện tiên quyết
+1. **Docker Desktop**: Phải đang chạy.
+2. **Hạ tầng & Flyway Migration**: Các dịch vụ PostgreSQL, Redis, RabbitMQ và Backend đã được khởi động, Flyway đã hoàn tất migration từ V1 đến V4:
+   ```bash
+   docker compose up -d --wait postgres redis rabbitmq
+   docker compose up --build -d --wait backend
+   ```
+
+### 4.2 Lệnh thực thi
+
+Tùy theo môi trường, bạn có thể thực thi từ thư mục gốc của repository:
+
+- **Bằng Python trực tiếp**:
+  ```bash
+  python forecast-service/scripts/seed.py [TÙY_CHỌN]
+  ```
+- **Bằng Bash Script (Linux / macOS / Git Bash)**:
+  ```bash
+  ./scripts/seed.sh [TÙY_CHỌN]
+  ```
+- **Bằng PowerShell (Windows)**:
+  ```powershell
+  .\scripts\seed.ps1 [TÙY_CHỌN]
+  ```
+
+### 4.3 Bảng tham số dòng lệnh (CLI Flags)
+
+| Tham số | Ý nghĩa & Hành vi |
+| :--- | :--- |
+| *(Mặc định)* | Chạy toàn bộ quy trình: Kiểm tra Docker & Flyway $\rightarrow$ Sinh dữ liệu $\rightarrow$ Ghi SHA256SUMS $\rightarrow$ Hỏi xác nhận $\rightarrow$ Nạp SQL $\rightarrow$ Kiểm đếm AC-01 $\rightarrow$ Xuất Fingerprint. |
+| `--generate-only` | Chỉ sinh file SQL + JSON và cập nhật `SHA256SUMS`, không nạp DB. Phù hợp cho CI hoặc môi trường không có Docker. |
+| `--load-only` | Bỏ qua bước sinh dữ liệu, nạp ngay file `seed_data.sql` có sẵn vào database và kiểm đếm. |
+| `--verify-only` | Chỉ chạy kiểm đếm AC-01 (`verify_seed.sql`) trên database hiện tại và in bảng Fingerprint. |
+| `--check-golden` | Đọc động mốc vàng từ `test_generator.py` bằng AST để đối chiếu SHA-256 (cảnh báo nếu khác). |
+| `-y`, `--yes` | Tự động đồng ý xóa dữ liệu cũ (TRUNCATE) mà không dừng lại hỏi xác nhận tương tác `y/N`. |
+| `--skip-verify` | Nạp dữ liệu xong nhưng bỏ qua bước chạy `verify_seed.sql`. |
+| `--db-service <NAME>`| Tên dịch vụ PostgreSQL container trong Docker Compose (mặc định: `postgres`). |
+| `--debug` | Hiển thị chi tiết dấu vết ngăn xếp (stack trace) khi phát sinh lỗi ngoại lệ. |
+
+### 4.4 Các bước thực hiện nội bộ của `seed.py`
+1. **Kiểm tra Docker**: Xác nhận Docker daemon đang chạy và container `postgres` đang ở trạng thái `running`.
+2. **Kiểm tra Flyway (V1 - V4)**: Kiểm tra bảng `flyway_schema_history` phải có đủ 4 bản ghi thành công (`success = true`).
+3. **Sinh dữ liệu mẫu**: Kích hoạt `generate_data.py` xuất `seed_data.sql` (5.69 MB) và `stockout_schedule.json`.
+4. **Quản lý Checksum (`SHA256SUMS`)**: Băm SHA-256, so sánh với bản lưu trước đó (in `KHỚP 100%` hoặc `KHÁC BIỆT`), ghi đè file `forecast-service/data/SHA256SUMS`.
+5. **Cảnh báo an toàn dữ liệu**: Đếm số dòng trong `sales_order`. Nếu $> 0$, hiển thị cảnh báo sắp TRUNCATE và yêu cầu gõ `y/N` (bỏ qua nếu có `--yes`).
+6. **Nạp SQL vào PostgreSQL**: Mở file ở chế độ nhị phân (`open(..., "rb")`) truyền trực tiếp vào `psql -v ON_ERROR_STOP=1` thông qua stdin, quản lý transaction bằng `BEGIN; ... COMMIT;` trong file.
+7. **Kiểm đếm AC-01 (`verify_seed.sql`)**: Thực thi kiểm đếm tự khẳng định bằng PL/pgSQL, in toàn bộ thống kê `RAISE NOTICE`, bắt mã thoát để kết luận PASS/FAIL.
+8. **Mã vân tay cơ sở dữ liệu (Database Fingerprint)**: Lặp qua 22 bảng, tính `count(*)` và `md5(string_agg(t::text, '|' ORDER BY t::text))` và in bảng đối chiếu.
+
+### 4.5 Ý nghĩa SHA256SUMS và Database Fingerprint
+- **File SHA256SUMS**: Bảo chứng tính xác định (deterministic) ở tầng tệp văn bản. Cùng một seed ngẫu nhiên sẽ luôn tạo ra 2 file SQL và JSON có mã băm SHA-256 giống hệt nhau:
+  - `seed_data.sql`: `715e12e22c904926ab3a505ad7898fae0acbc31e1a6045852fb70b9bedb51c13`
+  - `stockout_schedule.json`: `d0226a3d258fa87649db164118a5d600052de8f422e94e5beecb8a3e05d1dc91`
+- **Database Fingerprint**: Bảo chứng tính tái lập (idempotent) ở tầng cơ sở dữ liệu. Sau khi seed 2 lần liên tiếp, mã MD5 trên toàn bộ dữ liệu của từng bảng phải trùng khớp 100%.
+
+### 4.6 Cách đọc kết quả PASS / FAIL
+- **Thành công (PASS)**:
+  - Terminal hiển thị: `[PASS] Xác minh tự động: TẤT CẢ CÁC TIÊU CHÍ CỨNG AC-01 ĐẠT 100%!`.
+  - Hiển thị đầy đủ bảng Fingerprint của 22 bảng.
+  - Mã thoát tiến trình (Exit code) là `0`.
+- **Thất bại (FAIL)**:
+  - Script dừng ngay lập tức tại điểm lỗi, hiển thị `[LỖI] <Nội dung chi tiết>` kèm `[GỢI Ý KHẮC PHỤC]`.
+  - Nếu lỗi trong `verify_seed.sql`, khối `RAISE EXCEPTION` sẽ in rõ nguyên nhân (ví dụ: cơ cấu kênh lệch, tồn âm, mốc neo sữa tươi sai).
+  - Mã thoát tiến trình là `1`.
+
+### 4.7 Xử lý các sự cố thường gặp
+- **Lỗi Docker daemon chưa bật**:
+  - *Hiện tượng*: `[LỖI] Docker Compose không phản hồi hoặc Docker daemon chưa khởi động.`
+  - *Khắc phục*: Khởi động ứng dụng Docker Desktop, chờ biểu tượng chuyển sang màu xanh rồi chạy lại lệnh.
+- **Lỗi Flyway chưa hoàn tất**:
+  - *Hiện tượng*: `[LỖI] Cơ sở dữ liệu chưa hoàn tất migration Flyway (chỉ có 3/4 migration V1-V4 thành công).`
+  - *Khắc phục*: Chạy lệnh `docker compose up --build -d --wait backend` để Spring Boot build lại và nạp migration V4.
+- **Lỗi mã hóa tiếng Việt trên Windows Console**:
+  - `seed.py` đã tự động gọi `sys.stdout.reconfigure(encoding="utf-8")`. Nếu sử dụng Windows Command Prompt cũ (cmd.exe) bị lỗi hiển thị font chữ, hãy chuyển sang dùng **PowerShell 7** hoặc **Windows Terminal** với font hỗ trợ Unicode (Consolas, Cascadia Code).
