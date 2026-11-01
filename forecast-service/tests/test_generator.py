@@ -542,7 +542,7 @@ class TestGeneratorStage3(unittest.TestCase):
         self.assertEqual(completed_cnt + returned_cnt, 10_000)
 
     def test_returns_integrity_and_ba_refund_formula(self):
-        """Kiểm tra 150 phiếu trả hàng, SoD và công thức hoàn tiền BA §5.2."""
+        """Kiểm tra 150 phiếu trả hàng, SoD, thời hạn BR-10, timestamps V4 và công thức hoàn tiền BA §5.2."""
         self.assertEqual(len(self.returns), 150)
 
         for r in self.returns:
@@ -551,10 +551,15 @@ class TestGeneratorStage3(unittest.TestCase):
             self.assertGreater(r.refund_amount, 0)
             self.assertLessEqual(r.created_at, config.MAX_EVENT_DATETIME)
 
+            # Ràng buộc thời gian V4 (#215 / PR #220)
+            self.assertIsNotNone(r.approved_at, "Phiếu trả APPROVED bắt buộc có approved_at (chk_return_approved_at)")
+            self.assertGreaterEqual(r.approved_at, r.created_at, "approved_at >= created_at (chk_return_time_order)")
+
             # Tìm đơn hàng gốc
             ord = next(o for o in self.processed_orders if o.id == r.order_id)
+            self.assertGreater(r.created_at, ord.completed_at, "Phiếu trả tạo sau khi đơn hoàn tất")
             diff_days = (r.created_at - ord.completed_at).total_seconds() / (24 * 3600)
-            self.assertLessEqual(diff_days, 7.0, "Thời hạn đổi trả không quá 7 ngày")
+            self.assertLessEqual(diff_days, 7.0, "Thời hạn đổi trả không quá 7 ngày (BR-10)")
 
             if ord.status == "RETURNED":
                 self.assertEqual(r.refund_amount, ord.total, "Đơn trả toàn bộ thì hoàn 100% số tiền đơn")
@@ -809,6 +814,26 @@ class TestGeneratorStage3(unittest.TestCase):
             "Sữa tươi tại GM-001 phải ở trạng thái OK sát ngưỡng ROP để demo TC-DASH-01"
         )
 
+    def test_document_lifecycle_timestamps_v4(self):
+        """Kiểm tra toàn diện các ràng buộc thời gian V4 (#215 / PR #220) cho return_document và stock_document."""
+        # 1. return_document: 150 phiếu
+        for r in self.returns:
+            self.assertEqual(r.status, "APPROVED")
+            self.assertIsNotNone(r.created_at)
+            self.assertIsNotNone(r.approved_at, "chk_return_approved_at: APPROVED bắt buộc approved_at IS NOT NULL")
+            self.assertGreaterEqual(r.approved_at, r.created_at, "chk_return_time_order: approved_at >= created_at")
+            self.assertNotEqual(r.created_by, r.approved_by, "BR-13: approved_by <> created_by")
+
+        # 2. stock_document: 3 phiếu đầu kỳ
+        for doc in self.stock_documents:
+            self.assertEqual(doc.status, "APPROVED")
+            self.assertEqual(doc.type, "IMPORT")
+            self.assertIsNotNone(doc.created_at)
+            self.assertIsNotNone(doc.approved_at, "chk_stock_approved_at: APPROVED bắt buộc approved_at IS NOT NULL")
+            self.assertGreaterEqual(doc.approved_at, doc.created_at, "chk_stock_time_order: approved_at >= created_at")
+            self.assertIsNone(doc.received_at, "chk_stock_received_at: chỉ status = 'RECEIVED' mới có received_at")
+            self.assertNotEqual(doc.created_by, doc.approved_by, "BR-13: approved_by <> created_by")
+
 
 
 class TestGeneratorStage4(unittest.TestCase):
@@ -926,7 +951,7 @@ class TestGeneratorStage4(unittest.TestCase):
         sql_bytes = buf_sql.getvalue().encode("utf-8")
         actual_sql_sha = hashlib.sha256(sql_bytes).hexdigest()
 
-        GOLDEN_SQL_SHA256 = "5c4c2cbc57a3df34ee26abb69fbe4eb87101710626a9998a9e99e9bc179f08d0"
+        GOLDEN_SQL_SHA256 = "715e12e22c904926ab3a505ad7898fae0acbc31e1a6045852fb70b9bedb51c13"
         GOLDEN_JSON_SHA256 = "d0226a3d258fa87649db164118a5d600052de8f422e94e5beecb8a3e05d1dc91"
 
         self.assertEqual(actual_sql_sha, GOLDEN_SQL_SHA256, "Mã SHA-256 in-memory của SQL không được thay đổi")

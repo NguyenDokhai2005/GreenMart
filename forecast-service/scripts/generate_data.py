@@ -177,7 +177,8 @@ class ReturnDocument:
     status: str  # DRAFT | APPROVED | CANCELLED
     created_by: int
     approved_by: int
-    created_at: datetime  # Giữ trên model Python phục vụ kiểm tra nghiệp vụ và migration V4
+    created_at: datetime  # Thời điểm khách mang hàng đến quầy trả
+    approved_at: Optional[datetime] = None  # Thời điểm quản lý duyệt phiếu (BR-18, V4)
     items: List[ReturnItem] = field(default_factory=list)
 
 
@@ -206,6 +207,8 @@ class StockDocument:
     approved_by: Optional[int] = None
     received_by: Optional[int] = None
     created_at: datetime = field(default_factory=lambda: config.END_DATE)
+    approved_at: Optional[datetime] = None
+    received_at: Optional[datetime] = None
 
 
 @dataclass
@@ -1404,6 +1407,7 @@ def generate_returns(
             ret_item_id_counter += 1
 
         ret_code = f"RET-{recv_b_code}-{ret_dt.strftime('%Y%m%d')}-{ret_id_counter:04d}"
+        app_dt = max(ret_dt, min(ret_dt + timedelta(minutes=30), config.MAX_EVENT_DATETIME))
 
         ret_doc = ReturnDocument(
             id=ret_id_counter,
@@ -1416,6 +1420,7 @@ def generate_returns(
             created_by=created_by,
             approved_by=approved_by,
             created_at=ret_dt,
+            approved_at=app_dt,
             items=ret_items,
         )
         returns.append(ret_doc)
@@ -1481,6 +1486,7 @@ def generate_returns(
             ret_item_id_counter += 1
 
         ret_code = f"RET-{recv_b_code}-{ret_dt.strftime('%Y%m%d')}-{ret_id_counter:04d}"
+        app_dt = max(ret_dt, min(ret_dt + timedelta(minutes=30), config.MAX_EVENT_DATETIME))
 
         ret_doc = ReturnDocument(
             id=ret_id_counter,
@@ -1493,6 +1499,7 @@ def generate_returns(
             created_by=created_by,
             approved_by=approved_by,
             created_at=ret_dt,
+            approved_at=app_dt,
             items=ret_items,
         )
         returns.append(ret_doc)
@@ -1756,6 +1763,8 @@ def generate_initial_inventory(
             approved_by=managers[b.id],
             received_by=None,
             created_at=import_time,
+            approved_at=import_time,
+            received_at=None,
         )
         stock_documents.append(doc)
     doc_by_branch = {d.branch_id: d for d in stock_documents}
@@ -2295,11 +2304,11 @@ def _write_sql_statements(
         f.write(",\n".join(pay_lines) + ";\n\n")
 
     # 13. Insert Return Documents & Return Items
-    f.write("-- 14. Phiếu đổi trả hàng (150 phiếu) và dòng hàng trả lại\n")
+    f.write("-- 14. Phiếu đổi trả hàng (150 phiếu) và dòng hàng trả lại (tương thích migration V4 #215)\n")
     if returns:
-        f.write("INSERT INTO return_document (id, code, order_id, branch_id, reason, refund_amount, status, created_by, approved_by) VALUES\n")
+        f.write("INSERT INTO return_document (id, code, order_id, branch_id, reason, refund_amount, status, created_by, approved_by, created_at, approved_at) VALUES\n")
         ret_lines = [
-            f"({r.id}, {_sql_str(r.code)}, {r.order_id}, {r.branch_id}, {_sql_str(r.reason)}, {r.refund_amount}, {_sql_str(r.status)}, {r.created_by}, {_sql_int(r.approved_by)})"
+            f"({r.id}, {_sql_str(r.code)}, {r.order_id}, {r.branch_id}, {_sql_str(r.reason)}, {r.refund_amount}, {_sql_str(r.status)}, {r.created_by}, {_sql_int(r.approved_by)}, {_sql_dt(r.created_at)}, {_sql_dt(r.approved_at)})"
             for r in returns
         ]
         f.write(",\n".join(ret_lines) + ";\n\n")
@@ -2329,12 +2338,12 @@ def _write_sql_statements(
 
     # 15. Insert Stock Documents & Stock Document Items (Issue #107)
     if stock_documents:
-        f.write("-- 16. Phiếu nhập kho khởi tạo đầu kỳ (stock_document: 3 phiếu cho 3 chi nhánh)\n")
+        f.write("-- 16. Phiếu nhập kho khởi tạo đầu kỳ (stock_document: 3 phiếu cho 3 chi nhánh, tương thích V4)\n")
         doc_lines = [
-            f"({d.id}, {_sql_str(d.code)}, {_sql_str(d.type)}, {d.branch_id}, {_sql_int(d.to_branch_id)}, {_sql_str(d.status)}, {_sql_str(d.supplier)}, {_sql_str(d.reason)}, {d.created_by}, {_sql_int(d.approved_by)}, {_sql_int(d.received_by)}, {_sql_dt(d.created_at)})"
+            f"({d.id}, {_sql_str(d.code)}, {_sql_str(d.type)}, {d.branch_id}, {_sql_int(d.to_branch_id)}, {_sql_str(d.status)}, {_sql_str(d.supplier)}, {_sql_str(d.reason)}, {d.created_by}, {_sql_int(d.approved_by)}, {_sql_int(d.received_by)}, {_sql_dt(d.created_at)}, {_sql_dt(d.approved_at)}, {_sql_dt(d.received_at)})"
             for d in stock_documents
         ]
-        f.write("INSERT INTO stock_document (id, code, type, branch_id, to_branch_id, status, supplier, reason, created_by, approved_by, received_by, created_at) VALUES\n")
+        f.write("INSERT INTO stock_document (id, code, type, branch_id, to_branch_id, status, supplier, reason, created_by, approved_by, received_by, created_at, approved_at, received_at) VALUES\n")
         f.write(",\n".join(doc_lines) + ";\n\n")
 
     if stock_document_items:
