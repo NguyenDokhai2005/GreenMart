@@ -4,6 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -71,6 +75,85 @@ class InventoryServiceTransactionTest {
     // Product thứ hai để test rollback multi-row
     private static final Long PRODUCT_ID_2 = 51L;
 
+    @ParameterizedTest
+    @CsvSource({
+            "reserve,RESERVE,3,0,3,10,7",
+            "release,RELEASE,3,0,-3,10,1",
+            "commitSale,SALE,3,-3,-3,7,1",
+            "sellDirect,SALE,2,-2,0,8,4"
+    })
+    @Transactional
+    void writesExactlyOneLedgerEntryWithPostUpdateBalances(String operation, String type,
+            int qty, int deltaOnHand, int deltaReserved, int onHandAfter, int reservedAfter) {
+        insertFixtures(PRODUCT_ID, 10, 4);
+        switch (operation) {
+            case "reserve" -> inventoryService.reserve(BRANCH_ID, PRODUCT_ID, qty, 5001L);
+            case "release" -> inventoryService.release(BRANCH_ID, PRODUCT_ID, qty, 5001L);
+            case "commitSale" -> inventoryService.commitSale(BRANCH_ID, PRODUCT_ID, qty, 5001L);
+            case "sellDirect" -> inventoryService.sellDirect(BRANCH_ID, PRODUCT_ID, qty, 5001L);
+            default -> throw new IllegalArgumentException(operation);
+        }
+        var entries = jdbc.queryForList("SELECT * FROM inventory_transaction WHERE ref_id=5001");
+        assertThat(entries).hasSize(1);
+        assertThat(entries.getFirst()).containsEntry("type", type)
+                .containsEntry("branch_id", BRANCH_ID).containsEntry("product_id", PRODUCT_ID)
+                .containsEntry("ref_type", "ORDER").containsEntry("ref_id", 5001L)
+                .containsEntry("delta_on_hand", deltaOnHand).containsEntry("delta_reserved", deltaReserved)
+                .containsEntry("on_hand_after", onHandAfter).containsEntry("reserved_after", reservedAfter);
+        assertThat(entries.getFirst().get("created_at")).isNotNull();
+    }
+
+    @Test
+    void ledgerInsertFailureRollsBackInventoryAndEarlierLedgerEntries() {
+        var tx = new TransactionTemplate(txManager);
+        tx.executeWithoutResult(status -> insertFixtures(PRODUCT_ID, 5, 0));
+        try {
+            assertThatThrownBy(() -> tx.executeWithoutResult(status -> {
+                inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 1, 5002L);
+                // NOT NULL ref_id fails after the second inventory UPDATE succeeds.
+                inventoryService.sellDirect(BRANCH_ID, PRODUCT_ID, 2, null);
+            })).isInstanceOf(DataIntegrityViolationException.class);
+            assertThat(jdbc.queryForMap("SELECT on_hand,reserved,version FROM inventory WHERE branch_id=? AND product_id=?",
+                    BRANCH_ID, PRODUCT_ID)).containsEntry("on_hand", 5)
+                    .containsEntry("reserved", 0).containsEntry("version", 0L);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_transaction", Integer.class)).isZero();
+        } finally {
+            cleanupCommittedFixture();
+        }
+    }
+
+    @Test
+    void ledgerRejectsSqlUpdateAndDeleteAfterCommit() {
+        var tx = new TransactionTemplate(txManager);
+        tx.executeWithoutResult(status -> {
+            insertFixtures(PRODUCT_ID, 5, 0);
+            inventoryService.sellDirect(BRANCH_ID, PRODUCT_ID, 2, 5003L);
+        });
+        try {
+            for (String sql : java.util.List.of(
+                    "UPDATE inventory_transaction SET delta_on_hand=0 WHERE ref_id=5003",
+                    "DELETE FROM inventory_transaction WHERE ref_id=5003")) {
+                assertThatThrownBy(() -> tx.executeWithoutResult(status -> jdbc.update(sql)))
+                        .isInstanceOf(DataAccessException.class).hasMessageContaining("append-only");
+            }
+            assertThat(jdbc.queryForObject("SELECT delta_on_hand FROM inventory_transaction WHERE ref_id=5003",
+                    Integer.class)).isEqualTo(-2);
+        } finally {
+            cleanupCommittedFixture();
+        }
+    }
+
+    private void cleanupCommittedFixture() {
+        new TransactionTemplate(txManager).executeWithoutResult(status -> {
+            // Test-only cleanup on an isolated container; no business delete API.
+            jdbc.execute("TRUNCATE inventory_transaction");
+            jdbc.update("DELETE FROM inventory WHERE branch_id=? AND product_id=?", BRANCH_ID, PRODUCT_ID);
+            jdbc.update("DELETE FROM product WHERE id=?", PRODUCT_ID);
+            jdbc.update("DELETE FROM branch WHERE id=?", BRANCH_ID);
+            jdbc.update("DELETE FROM category WHERE id=98");
+        });
+    }
+
     // -------------------------------------------------------------------------
     // Test 1: MANDATORY — gọi không có transaction phải bị từ chối bởi Spring proxy
     // -------------------------------------------------------------------------
@@ -106,6 +189,7 @@ class InventoryServiceTransactionTest {
                 "SELECT reserved FROM inventory WHERE branch_id=? AND product_id=?",
                 Integer.class, BRANCH_ID, PRODUCT_ID);
         assertThat(reserved).isEqualTo(0);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_transaction", Integer.class)).isZero();
     }
 
     @Test
@@ -176,12 +260,14 @@ class InventoryServiceTransactionTest {
             assertThat(reserved2)
                     .as("reserved của p2 phải giữ nguyên 0")
                     .isEqualTo(0);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_transaction", Integer.class)).isZero();
             return null;
         });
 
         // Dọn fixture vì đã commit (không có @Transactional tự rollback)
         TransactionTemplate cleanup = new TransactionTemplate(txManager);
         cleanup.execute(status -> {
+            jdbc.execute("TRUNCATE inventory_transaction");
             jdbc.update("DELETE FROM inventory WHERE branch_id=? AND product_id=?", BRANCH_ID, PRODUCT_ID);
             jdbc.update("DELETE FROM inventory WHERE branch_id=? AND product_id=?", BRANCH_ID, PRODUCT_ID_2);
             jdbc.update("DELETE FROM product WHERE id=? OR id=?", PRODUCT_ID, PRODUCT_ID_2);
@@ -285,6 +371,18 @@ class InventoryServiceTransactionTest {
                 assertThat(((Number) row.get("version")).longValue()).isEqualTo(5);
                 if (mode == 0) assertThat(onHand).isZero();
                 if (mode == 1) assertThat(reserved).isEqualTo(5);
+                var ledger = jdbc.queryForList("SELECT * FROM inventory_transaction ORDER BY id");
+                assertThat(ledger).hasSize(5);
+                int runningOnHand = 5;
+                int runningReserved = 0;
+                for (var entry : ledger) {
+                    runningOnHand += ((Number) entry.get("delta_on_hand")).intValue();
+                    runningReserved += ((Number) entry.get("delta_reserved")).intValue();
+                    assertThat(entry).containsEntry("on_hand_after", runningOnHand)
+                            .containsEntry("reserved_after", runningReserved);
+                }
+                assertThat(runningOnHand).isEqualTo(onHand);
+                assertThat(runningReserved).isEqualTo(reserved);
             });
         } finally {
             start.countDown();
@@ -293,6 +391,7 @@ class InventoryServiceTransactionTest {
                 throw new IllegalStateException("Workers did not terminate");
             }
             tx.executeWithoutResult(status -> {
+                jdbc.execute("TRUNCATE inventory_transaction");
                 jdbc.update("DELETE FROM inventory WHERE branch_id=? AND product_id=?", BRANCH_ID, PRODUCT_ID);
                 jdbc.update("DELETE FROM product WHERE id=?", PRODUCT_ID);
                 jdbc.update("DELETE FROM branch WHERE id=?", BRANCH_ID);

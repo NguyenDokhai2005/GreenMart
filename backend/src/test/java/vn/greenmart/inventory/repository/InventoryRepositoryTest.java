@@ -69,7 +69,7 @@ class InventoryRepositoryTest {
     void setUp() {
         // Xóa dữ liệu cũ theo thứ tự FK
         jdbc.execute("DELETE FROM inventory");
-        jdbc.execute("DELETE FROM inventory_transaction");
+        jdbc.execute("TRUNCATE inventory_transaction");
         jdbc.execute("DELETE FROM return_item");
         jdbc.execute("DELETE FROM order_item");
         jdbc.execute("DELETE FROM payment");

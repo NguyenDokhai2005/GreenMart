@@ -126,7 +126,7 @@ class DocumentTimestampsMigrationTest {
         schema = "fresh_" + UUID.randomUUID().toString().replace("-", "");
         migrate("4");
         Flyway.configure().dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
-                .schemas(schema).defaultSchema(schema)
+                .schemas(schema).defaultSchema(schema).target("4")
                 .placeholders(Map.of("forecast_user", "forecast_ro"))
                 .load().validate();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema=? "
