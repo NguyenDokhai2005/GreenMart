@@ -328,39 +328,65 @@ class InventoryServiceTransactionTest {
     @Test
     void concurrentMixedSalesAndReservations() throws Exception { concurrentStockChanges(2); }
 
+    @Test
+    @DisplayName("EX-01: 100 yêu cầu POS/online tranh 5 tồn → 5 thành công, 95 lỗi 409")
+    void hundredMixedRequestsCannotOversellFiveAvailableUnits() throws Exception {
+        concurrentStockChanges(2, 100);
+    }
+
     private void concurrentStockChanges(int mode) throws Exception {
+        concurrentStockChanges(mode, 10);
+    }
+
+    private void concurrentStockChanges(int mode, int requestCount) throws Exception {
         var tx = new TransactionTemplate(txManager);
         tx.executeWithoutResult(status -> insertFixtures(PRODUCT_ID, 5, 0));
-        var executor = java.util.concurrent.Executors.newFixedThreadPool(10);
-        var ready = new java.util.concurrent.CountDownLatch(10);
+        var executor = java.util.concurrent.Executors.newFixedThreadPool(requestCount);
+        var ready = new java.util.concurrent.CountDownLatch(requestCount);
         var start = new java.util.concurrent.CountDownLatch(1);
         var futures = new java.util.ArrayList<java.util.concurrent.Future<Boolean>>();
+        var successfulReservations = new java.util.concurrent.atomic.AtomicInteger();
+        var successfulSales = new java.util.concurrent.atomic.AtomicInteger();
         try {
-            for (int i = 0; i < 10; i++) {
+            for (int i = 0; i < requestCount; i++) {
                 final boolean reserve = mode == 1 || (mode == 2 && i % 2 == 0);
+                final long orderId = 4001L + i;
                 futures.add(executor.submit(() -> {
                     ready.countDown();
-                    if (!start.await(10, java.util.concurrent.TimeUnit.SECONDS)) {
+                    // Wait before opening a transaction: waiting workers must not hold DB connections.
+                    if (!start.await(30, java.util.concurrent.TimeUnit.SECONDS)) {
                         throw new IllegalStateException("Start barrier timed out");
                     }
                     try {
                         new TransactionTemplate(txManager).executeWithoutResult(status -> {
-                            if (reserve) inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 1, 4001L);
-                            else inventoryService.sellDirect(BRANCH_ID, PRODUCT_ID, 1, 4001L);
+                            if (reserve) inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 1, orderId);
+                            else inventoryService.sellDirect(BRANCH_ID, PRODUCT_ID, 1, orderId);
                         });
+                        // Count only after the transaction has committed successfully.
+                        if (reserve) successfulReservations.incrementAndGet();
+                        else successfulSales.incrementAndGet();
                         return true;
                     } catch (InsufficientStockException expected) {
+                        assertThat(expected.getStatus().value()).isEqualTo(409);
+                        assertThat(expected.getCode()).isEqualTo("INSUFFICIENT_STOCK");
+                        assertThat(expected.getAvailable()).isZero();
                         return false;
                     }
                 }));
             }
-            assertThat(ready.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            assertThat(ready.await(30, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
             start.countDown();
             int successes = 0;
+            int insufficientStockFailures = 0;
+            long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(60);
             for (var future : futures) {
-                if (future.get(30, java.util.concurrent.TimeUnit.SECONDS)) successes++;
+                long remaining = deadline - System.nanoTime();
+                assertThat(remaining).as("All stock requests must finish within 60 seconds").isPositive();
+                if (future.get(remaining, java.util.concurrent.TimeUnit.NANOSECONDS)) successes++;
+                else insufficientStockFailures++;
             }
             assertThat(successes).isEqualTo(5);
+            assertThat(insufficientStockFailures).isEqualTo(requestCount - 5);
             tx.executeWithoutResult(status -> {
                 var row = jdbc.queryForMap("SELECT on_hand,reserved,version FROM inventory WHERE branch_id=? AND product_id=?",
                         BRANCH_ID, PRODUCT_ID);
@@ -373,6 +399,13 @@ class InventoryServiceTransactionTest {
                 if (mode == 1) assertThat(reserved).isEqualTo(5);
                 var ledger = jdbc.queryForList("SELECT * FROM inventory_transaction ORDER BY id");
                 assertThat(ledger).hasSize(5);
+                assertThat(ledger.stream().map(entry -> entry.get("ref_id")).distinct().count()).isEqualTo(5);
+                assertThat(ledger.stream().filter(entry -> "SALE".equals(entry.get("type"))).count())
+                        .isEqualTo(successfulSales.get());
+                assertThat(ledger.stream().filter(entry -> "RESERVE".equals(entry.get("type"))).count())
+                        .isEqualTo(successfulReservations.get());
+                assertThat(onHand).isEqualTo(5 - successfulSales.get());
+                assertThat(reserved).isEqualTo(successfulReservations.get());
                 int runningOnHand = 5;
                 int runningReserved = 0;
                 for (var entry : ledger) {

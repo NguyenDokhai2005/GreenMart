@@ -43,3 +43,22 @@ thực hiện, không dùng một ID giả thay cho người đăng nhập.
 V5 chặn UPDATE/DELETE sổ kho bằng trigger (BR-06). Sửa sai bằng một giao dịch
 điều chỉnh mới. TRUNCATE bằng tài khoản quản trị vẫn là thao tác bảo trì đặc quyền;
 test chỉ dùng nó để dọn dữ liệu trong PostgreSQL container riêng.
+
+## Test 100 yêu cầu cạnh tranh tồn (#51, EX-01)
+
+Trong `backend/`, chạy:
+
+```sh
+mvn -B -ntp test -P local-dev -Dtest=InventoryServiceTransactionTest#hundredMixedRequestsCannotOversellFiveAvailableUnits,InsufficientStockApiTest
+```
+
+100 worker cùng xuất phát: 50 bán POS, 50 giữ chỗ online, mỗi worker một
+transaction và mã tham chiếu riêng. Với khả dụng ban đầu 5, test yêu cầu đúng
+5 transaction commit và 95 lỗi `INSUFFICIENT_STOCK` có status 409; khả dụng
+cuối bằng 0, sổ kho có đúng 5 dòng khớp các thao tác thành công.
+
+Đây là integration test lõi InventoryService trên PostgreSQL/Flyway thật.
+`InsufficientStockApiTest` kiểm tra ánh xạ lỗi HTTP riêng; chưa thay thế bài k6
+qua API bán POS/online đầy đủ cho nghiệm thu AC-02 khi Sales/Identity sẵn sàng.
+Barrier đặt trước lúc mở transaction để worker đang chờ không chiếm connection.
+Pool DB có giới hạn; 100 worker không có nghĩa 100 SQL thực thi cùng lúc.
