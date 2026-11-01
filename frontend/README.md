@@ -23,16 +23,54 @@ request có đường dẫn `/api/*` được Vite chuyển tiếp tới backend
 Backend hiện chưa có đầy đủ API nghiệp vụ; các endpoint chưa được triển khai có
 thể trả 404. Không dùng dữ liệu demo để kết luận tích hợp API đã hoàn tất.
 
+## API client và mock
+
+`src/api/schema.ts` được sinh từ hợp đồng `../docs/api/openapi.yaml`; không sửa
+file này trực tiếp. Khi hợp đồng thay đổi, chạy:
+
+```sh
+npm run generate:api-types
+npm run typecheck
+```
+
+Chạy Prism và Vite ở hai terminal riêng:
+
+```sh
+npm run mock:api
+npm run dev:mock
+```
+
+Prism đọc trực tiếp OpenAPI contract trên cổng `4010` và phục vụ routes từ `/`;
+Vite bỏ prefix `/api/v1` khi chuyển tiếp `/api/v1/*` tới mock ở chế độ
+`dev:mock`. Chạy `npm run dev` vẫn chuyển tiếp tới backend tại
+`http://localhost:8080` mà không đổi path. Có thể đặt
+`GREENMART_API_PROXY_TARGET` để ghi đè đích proxy; `VITE_API_BASE_URL` để ghi đè
+base URL của client.
+
+Prism dùng ví dụ tĩnh trong OpenAPI, đặc biệt quote mẫu không được tính theo
+giỏ hàng được gửi. Vì vậy mock chỉ kiểm tra transport/request-response shape,
+không chứng minh giá, tồn kho, thanh toán hoặc tích hợp backend thật chính xác.
+Prism 5.16.0 cũng ghi `sl-violations` cho `lines[1].promotion: null` trong quote
+mẫu dù schema khai báo `nullable: true`; HTTP response vẫn là 200. Contract không
+được sửa trong task này, cần Lead xác nhận cách xử lý khác biệt validator này.
+
+Client lưu cả access token và refresh token trong `sessionStorage` để phiên
+không tồn tại sau khi đóng tab. JavaScript chạy cùng origin có thể đọc chúng;
+XSS vì thế có thể làm lộ token. Cần giảm thiểu XSS và cân nhắc cookie `HttpOnly`,
+`Secure`, `SameSite` khi backend hỗ trợ.
+
 ## Kiểm tra
 
 ```sh
+npm run generate:api-types
+npm run typecheck
 npm run lint
 npm run format:check
+npm test -- --run
 npm run build
 ```
 
-CI chạy các kiểm tra trên cùng với `npm test --if-present`. Hiện scaffold chưa
-có test runner hoặc test giao diện.
+Test API trong `tests/api/` không yêu cầu backend đang chạy.
 
 ## Cấu trúc
 
@@ -48,7 +86,7 @@ có test runner hoặc test giao diện.
 | `src/features/dashboard` | Dashboard, cảnh báo, dự báo                                       | SV05       |
 | `src/layouts`            | Layout khu POS và khu Operations                                  | SV04, SV05 |
 | `src/hooks`, `src/utils` | Hook và hàm tiện ích dùng chung                                   |            |
-| `tests`                  | Unit test giao diện                                               |            |
+| `tests/api`              | Unit test API client và luồng gọi API bán hàng                    |            |
 
 `../docs/api/openapi.yaml` là hợp đồng API dùng chung. Chỉ thay đổi hợp đồng
 thông qua quy trình được mô tả trong `../docs/api/README.md`.
