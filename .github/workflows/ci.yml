@@ -29,7 +29,11 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: npm ci && npm run lint && npm run format:check && npm test --if-present && npm run build
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run generate:api-types && git diff --exit-code -- src/api/schema.ts
+        working-directory: frontend
+      - run: npm run typecheck && npm run lint && npm run format:check && npm test -- --run && npm run build
         working-directory: frontend
   forecast:
     runs-on: ubuntu-latest
