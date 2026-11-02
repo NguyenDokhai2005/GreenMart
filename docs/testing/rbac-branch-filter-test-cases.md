@@ -167,10 +167,12 @@ docker compose exec postgres psql -U greenmart -d greenmart -c \
 | ID | Tiêu đề | Given | When | Then | Mức độ |
 |---|---|---|---|---|---|
 | TC-AUTH02-40 | BRANCH_FORBIDDEN ghi audit_log | `thungan.gm001` gán CN1 | `GET /api/v1/orders?branchId=2` → 403 | `audit_log` có bản ghi: `user_id` của `thungan.gm001`; `action='BRANCH_FORBIDDEN'`; `entity_id` là VARCHAR chứa branch_id bị từ chối; `detail` JSONB chứa thông tin chi nhánh | Must |
-| TC-AUTH02-41 | FORBIDDEN (sai role) không ghi audit_log | `thungan.gm001` (CASHIER) | `POST /api/v1/products` → 403 `FORBIDDEN` | `audit_log` **không** có bản ghi mới cho thao tác này (chỉ BRANCH_FORBIDDEN mới ghi – AC-04) | Should |
+| TC-AUTH02-41 | FORBIDDEN (sai role) – kiểm tra audit_log | `thungan.gm001` (CASHIER) | `POST /api/v1/products` → 403 `FORBIDDEN` | Kiểm tra `audit_log` xem có ghi không — kết quả mong đợi chờ SV02 xác nhận _(xem Q-31 trong `qa-questions-week1.md`)_ | Should |
 
 ---
 
-*Tổng: **24 test case** (TC-AUTH02-01..08: 8, TC-AUTH02-10..15: 6, TC-AUTH02-20..22: 3, TC-AUTH02-30..33: 4, TC-AUTH02-40..41: 2).*
+*Tổng: **23 test case** (TC-AUTH02-01..08: 8, TC-AUTH02-10..15: 6, TC-AUTH02-20..22: 3, TC-AUTH02-30..33: 4, TC-AUTH02-40..41: 2).*
 
-*Câu hỏi mở: Q-27 trong `docs/testing/qa-questions-week1.md` — tên `action` chính xác khi ghi `audit_log` cho BRANCH_FORBIDDEN cần SV02 xác nhận trước khi chạy TC-AUTH02-40.*
+*Câu hỏi mở:*
+- *Q-27 trong `docs/testing/qa-questions-week1.md` — tên `action` chính xác khi ghi `audit_log` cho BRANCH_FORBIDDEN cần SV02 xác nhận trước khi chạy TC-AUTH02-40.*
+- *Q-31 trong `docs/testing/qa-questions-week1.md` — 403 `FORBIDDEN` (sai role) có ghi `audit_log` không? Kết quả của TC-AUTH02-41 phụ thuộc câu trả lời này.*

@@ -103,3 +103,13 @@ Mỗi điểm có giả định tạm thời; nếu giả định đúng thì kh
 | Q-30 | SV02 có implement `AuthenticationEntryPoint` riêng không? Nếu không thì 401 do Spring Security filter không có `traceId` theo định dạng `ErrorResponse` | TC-AUTH01-30, TC-AUTH01-35 |
 
 **Tag:** @t-boai (SV02 – Backend Auth)
+
+---
+
+## 8. RBAC và audit_log khi FORBIDDEN (cần SV02 xác nhận)
+
+| # | Câu hỏi | Ảnh hưởng test case |
+|---|---|---|
+| Q-31 | Khi 403 `FORBIDDEN` do sai role (`x-roles`), backend có ghi `audit_log` không? Nếu có thì `action` là gì? | TC-AUTH02-41 trong `rbac-branch-filter-test-cases.md` |
+
+**Tag:** @t-boai (SV02 – Backend Auth/Security)

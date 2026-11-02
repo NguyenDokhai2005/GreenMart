@@ -4,12 +4,11 @@
 - **Hạn:** 30/10/2026 · **Tuần:** 1
 - **Nhãn:** `security`, `test`, `milestone-week1`
 - **Tham chiếu:** AUTH-01..04, NFR-05, NFR-06, BR-11, `openapi.yaml` 2.0.0, `V1__init_schema.sql`
-- **Phạm vi:** bảng `app_user`, `user_branch`, `branch`, BCrypt, phân quyền chi nhánh, đổi mật khẩu, audit log
+- **Phạm vi:** bảng `app_user`, `user_branch`, `branch`, BCrypt, đổi mật khẩu, audit log đăng nhập
 
-> **Trạng thái phụ thuộc – PR #211 (đã merge vào `develop`):**
-> Toàn bộ TC đăng nhập, refresh token, logout, `GET /auth/me` và bảo vệ JWT đã được tách sang
-> `docs/testing/auth-login-jwt-test-cases.md` (issue #145, PR #211 — **đã merge**).
-> Mọi tham chiếu đến `auth-login-jwt-test-cases.md` trong file này đều hoạt động.
+> **Trạng thái phụ thuộc:**
+> - PR #211 (đã merge): TC đăng nhập, refresh token, logout, `GET /auth/me`, bảo vệ JWT → `docs/testing/auth-login-jwt-test-cases.md`
+> - PR #146 (đã push): TC phân quyền chi nhánh RBAC, lọc `branchId`, `costPrice`, `audit_log` khi BRANCH_FORBIDDEN → `docs/testing/rbac-branch-filter-test-cases.md`
 
 ---
 
@@ -59,37 +58,28 @@ docker compose exec postgres psql -U greenmart -d greenmart -c \
 docker compose exec postgres psql -U greenmart -d greenmart -c \
   "SELECT username, LEFT(password_hash, 7) AS hash_prefix FROM app_user;"
 
-# 3. Kiểm tra phân quyền chi nhánh – phải trả 403
-CASHIER_TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"thungan.gm001","password":"Demo@123"}' | jq -r .accessToken)
-
-curl -s -o /dev/null -w "%{http_code}" \
-  -H "Authorization: Bearer $CASHIER_TOKEN" \
-  "http://localhost:8080/api/v1/orders?branchId=2"
-# → phải là 403
-
-# 4. Kiểm tra audit_log ghi thao tác nhạy cảm
+# 3. Kiểm tra audit_log ghi thao tác nhạy cảm
 docker compose exec postgres psql -U greenmart -d greenmart -c \
   "SELECT action, detail, created_at FROM audit_log ORDER BY created_at DESC LIMIT 5;"
 ```
 
 ---
 
-## 1. Phân quyền theo chi nhánh (BR-11, AUTH-02)
+## 1. Phân quyền chi nhánh và RBAC
 
-> TC gọi API không có token và TC JWT giả mạo đã tách sang `auth-login-jwt-test-cases.md` (#145, PR #211 — đã merge).
-> Tra cứu tại: TC-AUTH01-30 (không có token), TC-AUTH01-32..34 (JWT giả mạo).
-
-| ID | Tiêu đề | Given | When | Then | Mức độ |
-|---|---|---|---|---|---|
-| ID-040 | CASHIER CN1 không xem đơn CN2 | `thungan.gm001` chỉ có CN1 trong `user_branch` | `GET /api/v1/orders?branchId=2` | HTTP 403 `BRANCH_FORBIDDEN` | Must |
-| ID-041 | CASHIER CN1 không tạo đơn tại CN2 | `thungan.gm001` gán CN1 | `POST /api/v1/orders/pos` body `branchId=2` | HTTP 403 `BRANCH_FORBIDDEN` | Must |
-| ID-042 | CASHIER không xem tồn CN khác | `thungan.gm001` gán CN1 | `GET /api/v1/inventory/{branchId}/{productId}` với `branchId=2` | HTTP 403 `BRANCH_FORBIDDEN` | Must |
-| ID-043 | ADMIN xem tồn mọi chi nhánh | `admin` (ADMIN, branch_ids=1,2,3) | `GET /api/v1/inventory?branchId=2` | HTTP 200 | Must |
-| ID-044 | OWNER xem mọi chi nhánh | `owner` (OWNER, branch_ids=1,2,3) | `GET /api/v1/orders` không truyền `branchId` | HTTP 200; thấy đơn mọi chi nhánh | Must |
-| ID-045 | CASHIER không đổi giá sản phẩm | `thungan.gm001` (CASHIER) | `PUT /api/v1/products/{productId}` với `salePrice` mới | HTTP 403 `FORBIDDEN` | Must |
-| ID-046 | Gọi API không có token | Không có header `Authorization` | Bất kỳ protected endpoint | HTTP 401 `UNAUTHORIZED` | Must |
+> Các TC phân quyền chi nhánh (BRANCH_FORBIDDEN), RBAC theo x-roles, OWNER/ADMIN toàn chuỗi,
+> costPrice ẩn theo vai trò, và ghi `audit_log` khi BRANCH_FORBIDDEN đã được tập trung tại
+> `docs/testing/rbac-branch-filter-test-cases.md` (issue #146) để tránh trùng lặp.
+>
+> Tra cứu tại:
+> - TC-AUTH02-01..08 (lọc chi nhánh BRANCH_FORBIDDEN)
+> - TC-AUTH02-10..15 (RBAC x-roles FORBIDDEN)
+> - TC-AUTH02-20..22 (OWNER/ADMIN toàn chuỗi)
+> - TC-AUTH02-30..33 (costPrice ẩn theo role)
+> - TC-AUTH02-40..41 (ghi audit_log khi BRANCH_FORBIDDEN)
+>
+> TC gọi API không có token: xem `auth-login-jwt-test-cases.md` TC-AUTH01-30 (PR #211 đã merge).
+> TC JWT giả mạo: xem `auth-login-jwt-test-cases.md` TC-AUTH01-32..34.
 
 ---
 
@@ -140,17 +130,20 @@ Mô tả endpoint: **"Mật khẩu mới tối thiểu 8 ký tự, có chữ và
 
 ## 5. Nhật ký thao tác nhạy cảm – bảng `audit_log` (AUTH-03)
 
+> TC ghi log khi truy cập sai chi nhánh (BRANCH_FORBIDDEN) đã chuyển sang
+> `rbac-branch-filter-test-cases.md` (TC-AUTH02-40, issue #146).
+>
 > ⚠️ **Câu hỏi mở Q-25..27** (xem `docs/testing/qa-questions-week1.md`):
 > Tên `action` chính xác chưa có trong SRS hay openapi.yaml — cần SV02 xác nhận trước khi chạy test.
-> Giá trị dưới đây là giả định tạm thời.
+> Giá trị dưới đây là giả định tạm thời. Q-27 (tên action BRANCH_FORBIDDEN) đã chuyển sang TC-AUTH02-40 tại `rbac-branch-filter-test-cases.md`.
 
 | ID | Tiêu đề | Hành động | Kiểm tra DB | Mức độ |
 |---|---|---|---|---|
 | ID-080 | Ghi log đăng nhập thất bại | Đăng nhập sai password | `SELECT action, created_at FROM audit_log WHERE action='LOGIN_FAILED' ORDER BY created_at DESC LIMIT 1` → có bản ghi | Must |
 | ID-081 | Ghi log khi tài khoản bị khóa | Sai đủ 5 lần | `audit_log` có bản ghi `action='ACCOUNT_LOCKED'` | Must |
-| ID-082 | Ghi log khi truy cập sai chi nhánh | CASHIER CN1 gọi `GET /orders?branchId=2` | `audit_log` có bản ghi `action='BRANCH_FORBIDDEN'` | Must |
 
 ---
 
-*Tổng: **24 test case** (ID-040..046: 7, ID-050..053: 4, ID-060..066: 7, ID-070..072: 3, ID-080..082: 3).
-Toàn bộ TC đăng nhập, refresh token, logout, JWT xem tại `auth-login-jwt-test-cases.md` (PR #211 đã merge).*
+*Tổng: **16 test case** (ID-050..053: 4, ID-060..066: 7, ID-070..072: 3, ID-080..081: 2).
+TC phân quyền chi nhánh, RBAC và audit_log BRANCH_FORBIDDEN: xem `rbac-branch-filter-test-cases.md` (issue #146).
+TC đăng nhập, refresh token, logout, JWT: xem `auth-login-jwt-test-cases.md` (issue #145, PR #211 đã merge).*
