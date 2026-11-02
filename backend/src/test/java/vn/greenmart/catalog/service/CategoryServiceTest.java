@@ -26,9 +26,10 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class CategoryServiceTest {
@@ -64,6 +65,20 @@ class CategoryServiceTest {
     }
 
     @Test
+    void testListCategories_Success() {
+        Category cat = new Category();
+        cat.setId(1L);
+        cat.setName("Thực phẩm");
+
+        when(categoryRepository.findAll()).thenReturn(List.of(cat));
+
+        List<CategoryResponse> list = categoryService.listCategories();
+        assertNotNull(list);
+        assertEquals(1, list.size());
+        assertEquals("Thực phẩm", list.get(0).name());
+    }
+
+    @Test
     @WithMockUser(roles = "OWNER")
     void testCreateCategory_Success() {
         CategoryRequest req = new CategoryRequest("Sữa và chế phẩm", null);
@@ -78,6 +93,34 @@ class CategoryServiceTest {
         assertNotNull(res);
         assertEquals(1L, res.id());
         assertEquals("Sữa và chế phẩm", res.name());
+        assertNull(res.parentId());
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
+    void testCreateCategory_ParentNotFound_ThrowsNotFound() {
+        CategoryRequest req = new CategoryRequest("Rau củ", 999L);
+        when(categoryRepository.existsById(999L)).thenReturn(false);
+
+        AppException ex = assertThrows(AppException.class, () -> categoryService.createCategory(req));
+        assertEquals(ErrorCode.NOT_FOUND.name(), ex.getCode());
+        verify(categoryRepository, never()).save(any());
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
+    void testUpdateCategory_Success() {
+        Category cat = new Category();
+        cat.setId(1L);
+        cat.setName("Tên cũ");
+
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(cat));
+        when(categoryRepository.save(any(Category.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CategoryRequest req = new CategoryRequest("Tên mới", null);
+        CategoryResponse res = categoryService.updateCategory(1L, req);
+
+        assertEquals("Tên mới", res.name());
     }
 
     @Test
@@ -125,6 +168,7 @@ class CategoryServiceTest {
 
         AppException ex = assertThrows(AppException.class, () -> categoryService.deleteCategory(1L));
         assertEquals(ErrorCode.CATEGORY_IN_USE.name(), ex.getCode());
+        verify(categoryRepository, never()).deleteById(any());
     }
 
     @Test
@@ -136,6 +180,27 @@ class CategoryServiceTest {
 
         AppException ex = assertThrows(AppException.class, () -> categoryService.deleteCategory(1L));
         assertEquals(ErrorCode.CATEGORY_IN_USE.name(), ex.getCode());
+        verify(categoryRepository, never()).deleteById(any());
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
+    void testDeleteCategory_NotFound_ThrowsNotFound() {
+        when(categoryRepository.existsById(99L)).thenReturn(false);
+
+        AppException ex = assertThrows(AppException.class, () -> categoryService.deleteCategory(99L));
+        assertEquals(ErrorCode.NOT_FOUND.name(), ex.getCode());
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
+    void testDeleteCategory_Success() {
+        when(categoryRepository.existsById(1L)).thenReturn(true);
+        when(categoryRepository.existsByParentId(1L)).thenReturn(false);
+        when(productRepository.existsByCategoryId(1L)).thenReturn(false);
+
+        categoryService.deleteCategory(1L);
+        verify(categoryRepository, times(1)).deleteById(1L);
     }
 
     @Test
