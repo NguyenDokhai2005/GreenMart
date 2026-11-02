@@ -2,6 +2,8 @@ package vn.greenmart.customer.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,14 +15,20 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import vn.greenmart.common.pagination.PageResponse;
+import vn.greenmart.common.pagination.PageUtils;
 import vn.greenmart.customer.dto.CustomerRequest;
 import vn.greenmart.customer.dto.CustomerResponse;
-import vn.greenmart.customer.dto.OrderSummaryResponse;
 import vn.greenmart.customer.service.CustomerService;
+import vn.greenmart.sales.dto.OrderSummaryResponse;
+
+import java.util.Collections;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/customers")
 public class CustomerController {
+
+    private static final Set<String> ALLOWED_CUSTOMER_SORT_FIELDS = Set.of("id", "name", "phone", "createdAt");
 
     private final CustomerService customerService;
 
@@ -32,12 +40,19 @@ public class CustomerController {
     public ResponseEntity<PageResponse<CustomerResponse>> listCustomers(
         @RequestParam(name = "q", required = false) String q,
         @RequestParam(name = "phone", required = false) String phone,
-        @RequestParam(name = "page", defaultValue = "0") int page,
-        @RequestParam(name = "size", defaultValue = "20") int size,
+        @RequestParam(name = "page", required = false) Integer page,
+        @RequestParam(name = "size", required = false) Integer size,
         HttpServletRequest request
     ) {
         String[] sort = request.getParameterValues("sort");
-        return ResponseEntity.ok(customerService.listCustomers(q, phone, page, size, sort));
+        Pageable pageable = PageUtils.createPageable(
+            page,
+            size,
+            sort,
+            Sort.by(Sort.Direction.DESC, "createdAt"),
+            ALLOWED_CUSTOMER_SORT_FIELDS
+        );
+        return ResponseEntity.ok(customerService.listCustomers(q, phone, pageable));
     }
 
     @PostMapping
@@ -62,9 +77,16 @@ public class CustomerController {
     @GetMapping("/{customerId}/orders")
     public ResponseEntity<PageResponse<OrderSummaryResponse>> listCustomerOrders(
         @PathVariable("customerId") Long customerId,
-        @RequestParam(name = "page", defaultValue = "0") int page,
-        @RequestParam(name = "size", defaultValue = "20") int size
+        @RequestParam(name = "page", required = false) Integer page,
+        @RequestParam(name = "size", required = false) Integer size
     ) {
-        return ResponseEntity.ok(customerService.listCustomerOrders(customerId, page, size));
+        Pageable pageable = PageUtils.createPageable(
+            page,
+            size,
+            (String[]) null,
+            Sort.by(Sort.Direction.DESC, "createdAt"),
+            Collections.emptySet()
+        );
+        return ResponseEntity.ok(customerService.listCustomerOrders(customerId, pageable));
     }
 }

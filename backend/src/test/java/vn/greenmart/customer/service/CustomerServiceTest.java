@@ -16,6 +16,7 @@ import vn.greenmart.customer.domain.Customer;
 import vn.greenmart.customer.dto.CustomerRequest;
 import vn.greenmart.customer.dto.CustomerResponse;
 import vn.greenmart.customer.repository.CustomerRepository;
+import vn.greenmart.sales.service.OrderQueryService;
 
 import java.util.List;
 import java.util.Optional;
@@ -33,13 +34,16 @@ class CustomerServiceTest {
     private CustomerRepository customerRepository;
 
     @Mock
+    private OrderQueryService orderQueryService;
+
+    @Mock
     private JdbcTemplate jdbcTemplate;
 
     private CustomerService customerService;
 
     @BeforeEach
     void setUp() {
-        customerService = new CustomerServiceImpl(customerRepository, jdbcTemplate);
+        customerService = new CustomerServiceImpl(customerRepository, orderQueryService, jdbcTemplate);
     }
 
     @AfterEach

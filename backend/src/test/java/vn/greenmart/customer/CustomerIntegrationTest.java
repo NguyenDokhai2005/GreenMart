@@ -6,9 +6,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
@@ -23,6 +23,7 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -44,7 +45,6 @@ class CustomerIntegrationTest {
     @MockitoBean
     private CustomerService customerService;
 
-    // Tạo khách hàng thành công -> 201 Created
     @Test
     void testCreateCustomer_Success_Returns201() throws Exception {
         CustomerRequest req = new CustomerRequest("0901234567", "Trần Thị Mai", "mai@gmail.com");
@@ -60,7 +60,6 @@ class CustomerIntegrationTest {
             .andExpect(jsonPath("$.phone").value("0901234567"));
     }
 
-    // Trùng số điện thoại -> 409 DUPLICATE_PHONE, details.customerId
     @Test
     void testCreateCustomer_DuplicatePhone_Returns409() throws Exception {
         CustomerRequest req = new CustomerRequest("0901234567", "Trần Thị Mai", null);
@@ -81,7 +80,6 @@ class CustomerIntegrationTest {
             .andExpect(jsonPath("$.details.customerId").value(125));
     }
 
-    // SĐT sai định dạng (12345) -> 400 VALIDATION_ERROR, details[0].field = phone
     @Test
     void testCreateCustomer_InvalidPhone_Returns400() throws Exception {
         CustomerRequest req = new CustomerRequest("12345", "Trần Thị Mai", null);
@@ -92,5 +90,23 @@ class CustomerIntegrationTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
             .andExpect(jsonPath("$.details[0].field").value("phone"));
+    }
+
+    // size=101 -> 400, details[0].field = size
+    @Test
+    void testListCustomerOrders_InvalidSize_Returns400() throws Exception {
+        mockMvc.perform(get("/customers/1/orders").param("size", "101"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+            .andExpect(jsonPath("$.details[0].field").value("size"));
+    }
+
+    // page=-1 -> 400, details[0].field = page
+    @Test
+    void testListCustomerOrders_InvalidPage_Returns400() throws Exception {
+        mockMvc.perform(get("/customers/1/orders").param("page", "-1"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+            .andExpect(jsonPath("$.details[0].field").value("page"));
     }
 }
