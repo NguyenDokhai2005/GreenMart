@@ -1,5 +1,6 @@
 package vn.greenmart.common.security;
 
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -7,6 +8,7 @@ import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public final class SecurityUtils {
@@ -63,5 +65,32 @@ public final class SecurityUtils {
             return false;
         }
         return List.of("ADMIN", "OWNER", "BRANCH_MANAGER").contains(currentRole);
+    }
+
+    /**
+     * Lấy danh sách ID chi nhánh mà người dùng hiện tại có quyền truy cập.
+     * @return null nếu là ADMIN hoặc OWNER (truy cập toàn bộ chi nhánh),
+     *         hoặc danh sách List<Long> chi nhánh được phân quyền qua user_branch.
+     */
+    public static List<Long> getAccessibleBranchIds(JdbcTemplate jdbcTemplate) {
+        String currentRole = getCurrentRole();
+        if (currentRole == null) {
+            throw new AppException(ErrorCode.UNAUTHORIZED, "Chưa đăng nhập");
+        }
+
+        if ("ADMIN".equalsIgnoreCase(currentRole) || "OWNER".equalsIgnoreCase(currentRole)) {
+            return null;
+        }
+
+        Long userId = getCurrentUserId();
+        if (userId == null) {
+            return Collections.emptyList();
+        }
+
+        return jdbcTemplate.query(
+                "SELECT branch_id FROM user_branch WHERE user_id = ?",
+                (rs, rowNum) -> rs.getLong("branch_id"),
+                userId
+        );
     }
 }
