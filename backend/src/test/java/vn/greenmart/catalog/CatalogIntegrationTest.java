@@ -1,6 +1,7 @@
 package vn.greenmart.catalog;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -13,6 +14,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import vn.greenmart.catalog.controller.CategoryController;
 import vn.greenmart.catalog.controller.ProductController;
 import vn.greenmart.catalog.dto.CategoryRequest;
+import vn.greenmart.catalog.dto.CategoryResponse;
+import vn.greenmart.catalog.dto.ProductLookupResponse;
 import vn.greenmart.catalog.dto.ProductRequest;
 import vn.greenmart.catalog.dto.ProductResponse;
 import vn.greenmart.catalog.service.CategoryService;
@@ -28,6 +31,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -45,6 +49,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     SecurityConfig.class
 })
 @Import(WebMvcConfig.class)
+@DisplayName("CatalogIntegrationTest - WebMvc Tests")
 class CatalogIntegrationTest {
 
     @Autowired
@@ -90,6 +95,47 @@ class CatalogIntegrationTest {
     }
 
     @Test
+    @WithMockUser(roles = "OWNER")
+    void testCreateProduct_DuplicateBarcode_Returns409() throws Exception {
+        ProductRequest req = new ProductRequest("SUA-TH-NEW", "8935217400013", "Sữa TH", "hộp", 1L, 29000L, 23000L, true);
+
+        when(productService.createProduct(any(ProductRequest.class)))
+            .thenThrow(new AppException(ErrorCode.DUPLICATE_BARCODE, "Mã barcode đã tồn tại"));
+
+        mockMvc.perform(post("/api/v1/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("DUPLICATE_BARCODE"));
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
+    void testCreateProduct_InvalidSkuRegex_Returns400() throws Exception {
+        ProductRequest req = new ProductRequest("sua-th", "8935217400013", "Sữa TH", "hộp", 1L, 29000L, 23000L, true);
+
+        mockMvc.perform(post("/api/v1/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+            .andExpect(jsonPath("$.details[0].field").value("sku"));
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
+    void testCreateProduct_NegativeSalePrice_Returns400() throws Exception {
+        ProductRequest req = new ProductRequest("SUA-TH-1L", "8935217400013", "Sữa TH", "hộp", 1L, -1000L, 23000L, true);
+
+        mockMvc.perform(post("/api/v1/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+            .andExpect(jsonPath("$.details[0].field").value("salePrice"));
+    }
+
+    @Test
     @WithMockUser(roles = "CASHIER")
     void testAC3_UpdateProduct_CashierRole_Returns403() throws Exception {
         ProductRequest req = new ProductRequest("SUA-TH-1L", null, "Sữa TH", "hộp", 1L, 31000L, 23000L, true);
@@ -106,6 +152,82 @@ class CatalogIntegrationTest {
 
     @Test
     @WithMockUser(roles = "OWNER")
+    void testUpdateProduct_Success_Returns200() throws Exception {
+        ProductRequest req = new ProductRequest("SUA-TH-1L", "8935217400013", "Sữa TH Mới", "hộp", 1L, 32000L, 23000L, true);
+        ProductResponse res = new ProductResponse(1L, "SUA-TH-1L", "8935217400013", "Sữa TH Mới", "hộp", 1L, "Sữa", 32000L, 23000L, true);
+
+        when(productService.updateProduct(eq(1L), any(ProductRequest.class))).thenReturn(res);
+
+        mockMvc.perform(put("/api/v1/products/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.name").value("Sữa TH Mới"));
+    }
+
+    @Test
+    @WithMockUser(roles = "CASHIER")
+    void testGetProduct_Success_Returns200() throws Exception {
+        ProductResponse res = new ProductResponse(1L, "SUA-TH-1L", "8935217400013", "Sữa TH", "hộp", 1L, "Sữa", 29000L, null, true);
+        when(productService.getProduct(1L)).thenReturn(res);
+
+        mockMvc.perform(get("/api/v1/products/1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(1));
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
+    void testListCategories_Returns200() throws Exception {
+        when(categoryService.listCategories()).thenReturn(List.of(new CategoryResponse(1L, "Đồ uống", null)));
+
+        mockMvc.perform(get("/api/v1/categories"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].name").value("Đồ uống"));
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
+    void testCreateCategory_Success_Returns201() throws Exception {
+        CategoryRequest req = new CategoryRequest("Rau sạch", null);
+        when(categoryService.createCategory(any(CategoryRequest.class))).thenReturn(new CategoryResponse(5L, "Rau sạch", null));
+
+        mockMvc.perform(post("/api/v1/categories")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.id").value(5));
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
+    void testCreateCategory_BlankName_Returns400() throws Exception {
+        CategoryRequest req = new CategoryRequest("   ", null);
+
+        mockMvc.perform(post("/api/v1/categories")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+            .andExpect(jsonPath("$.details[0].field").value("name"));
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
+    void testUpdateCategory_Success_Returns200() throws Exception {
+        CategoryRequest req = new CategoryRequest("Rau quả hữu cơ", null);
+        when(categoryService.updateCategory(eq(1L), any(CategoryRequest.class)))
+            .thenReturn(new CategoryResponse(1L, "Rau quả hữu cơ", null));
+
+        mockMvc.perform(put("/api/v1/categories/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.name").value("Rau quả hữu cơ"));
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
     void testAC5_UpdateCategory_Cycle_Returns422() throws Exception {
         CategoryRequest req = new CategoryRequest("A", 2L);
 
@@ -117,6 +239,15 @@ class CatalogIntegrationTest {
                 .content(objectMapper.writeValueAsString(req)))
             .andExpect(status().isUnprocessableEntity())
             .andExpect(jsonPath("$.code").value("CATEGORY_CYCLE"));
+    }
+
+    @Test
+    @WithMockUser(roles = "OWNER")
+    void testDeleteCategory_Success_Returns204() throws Exception {
+        doNothing().when(categoryService).deleteCategory(1L);
+
+        mockMvc.perform(delete("/api/v1/categories/1"))
+            .andExpect(status().isNoContent());
     }
 
     @Test
@@ -142,6 +273,22 @@ class CatalogIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content[0].salePrice").value(29000))
             .andExpect(jsonPath("$.content[0].costPrice").doesNotExist());
+    }
+
+    @Test
+    @WithMockUser(roles = "CASHIER")
+    void testLookupProduct_Returns200() throws Exception {
+        ProductResponse p = new ProductResponse(1L, "SUA-TH-1L", "8935217400013", "Sữa TH", "hộp", 1L, "Sữa", 29000L, null, true);
+        ProductLookupResponse res = new ProductLookupResponse(p, 1L, 10);
+
+        when(productService.lookupProduct("8935217400013", 1L)).thenReturn(res);
+
+        mockMvc.perform(get("/api/v1/products/lookup")
+                .param("code", "8935217400013")
+                .param("branchId", "1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.available").value(10))
+            .andExpect(jsonPath("$.product.sku").value("SUA-TH-1L"));
     }
 
     @Test
