@@ -98,3 +98,61 @@ Kiểm tra với JDK 21 và Docker:
 `mvn -B -ntp test -Dtest=StockDocumentDraftApiTest,StockImportTransactionTest`.
 Test dùng PostgreSQL thật; HTTP tests dựng danh tính trong SecurityContext, concurrency
 chạy transaction độc lập với hai worker, có giới hạn thời gian chờ.
+
+## Đăng nhập JWT (#241)
+
+Cấu hình `JWT_SECRET` ngẫu nhiên ít nhất 32 byte trong `.env`. Backend từ chối secret
+ngắn hoặc placeholder `change-me...`; không có secret mặc định cho production.
+Maven tests dùng khóa chỉ dành cho test trong `src/test/resources/application.properties`.
+Seed tài khoản theo `forecast-service/scripts/README.md`; bảng 12 tài khoản ở README gốc.
+
+Ví dụ PowerShell sau khi backend/seed sẵn sàng:
+
+```powershell
+$session = Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/v1/auth/login `
+  -ContentType 'application/json' -Body '{"username":"thungan.gm001","password":"Demo@123"}'
+$headers = @{ Authorization = "Bearer $($session.accessToken)" }
+Invoke-RestMethod -Uri http://localhost:8080/api/v1/auth/me -Headers $headers
+$payload = @{ refreshToken = $session.refreshToken } | ConvertTo-Json
+$session = Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/v1/auth/refresh `
+  -ContentType 'application/json' -Body $payload
+```
+
+Access token HS256 hạn 900 giây; refresh token hạn 7 ngày, xoay khi refresh. Token
+refresh dạng `<userId>.<32-byte-random-base64url>`; userId chỉ để tìm key, phần random
+mới là bí mật xác thực. Redis key `auth:refresh:{userId}` là sorted set chỉ chứa SHA-256
+hash, score = thời điểm hết hạn từng token (epoch milliseconds), key TTL 7 ngày kể từ
+lần cấp gần nhất. Lua loại token hết hạn và đổi hash cũ lấy hash mới nguyên tử.
+Không lưu token gốc trong Redis; không log token/password.
+
+Mọi API cần xác thực, trừ POST login/refresh và actuator health. Các URL auth có
+prefix `/api/v1`. JWT filter đặt principal userId và authority ROLE_<role>, kiểm tra
+user còn hoạt động/role hiện tại. Mock SecurityContext vẫn dùng được khi test không
+truyền Authorization. Lỗi filter 401/403 dùng ErrorResponse và traceId chung.
+
+Login sai cập nhật counter dưới khóa user; lần thứ 5 khóa 15 phút, trả ACCOUNT_LOCKED.
+Lỗi login được chuyển sang HTTP sau commit để counter/audit không rollback.
+Audit action hiện triển khai: LOGIN_FAILED, ACCOUNT_LOCKED, CHANGE_PASSWORD;
+đây là hợp đồng code để SV08 đối chiếu Q-25/Q-26 (Q-27 trong tài liệu QA là truy cập
+sai chi nhánh, không phải login). Q-29 lưu Redis và Q-30 JSON handlers theo issue #241.
+
+Logout (cần access token) thu hồi một refresh token thuộc user; access token còn dùng
+đến khi hết hạn. Đổi mật khẩu cần mật khẩu hiện tại đúng, mật khẩu mới ít nhất 8 ký tự,
+có chữ và số, thu hồi toàn bộ refresh. Login/refresh/logout/change-password cùng khóa
+user để tránh refresh đồng thời thoát revoke. Redis lỗi thì không trả token thành công;
+PostgreSQL và Redis không có commit nguyên tử chung: nếu DB commit thất bại sau revoke,
+phiên có thể đã bị thu hồi và người dùng cần đăng nhập lại.
+
+Kiểm tra JDK 21 + Docker: `mvn -B -ntp test -Dtest=AuthApiTest,CatalogIntegrationTest`,
+sau đó `mvn -B -ntp verify`. AuthApiTest dùng PostgreSQL 16.10 + Redis 7.4.6 thật,
+đồng hồ test để kiểm tra hết hạn/khóa mà không đợi thực tế; không thay thế QA API thật #242.
+
+Theo quyết định leader được người dùng xác nhận, mật khẩu mới áp dụng giới hạn BCrypt **72 byte UTF-8**, không yêu cầu hỗ trợ đủ 100 ký tự. Vượt giới hạn trả 400 VALIDATION_ERROR trước khi đổi mật khẩu hoặc thu hồi phiên; không cắt mật khẩu và không tự thêm pre-hash. Ký tự tiếng Việt có thể chiếm nhiều byte. Câu hỏi gốc: https://github.com/NguyenDokhai2005/GreenMart/issues/241#issuecomment-6624570873. OpenAPI hiện còn maxLength 100 ký tự; phần mô tả giới hạn byte của hợp đồng API do lead cập nhật, code áp dụng giới hạn byte đã chốt.
+
+Tối ưu xác thực: filter chỉ truy vấn `role` của user đang hoạt động qua Identity service,
+không lấy hash mật khẩu hoặc danh sách chi nhánh cho mỗi request. `/auth/me` vẫn trả đủ
+branches theo contract. User đổi role hoặc bị vô hiệu hóa phải lấy token phù hợp mới.
+Access token có UUID `jti`, nên login/refresh cùng một giây vẫn nhận token khác nhau;
+token bị từ chối ngay tại thời điểm `now == exp`. Login vào tài khoản đang khóa không
+chạy BCrypt lại, nhưng vẫn ghi audit; tài khoản không tồn tại/inactive vẫn có bước kiểm
+tra hash để giảm khác biệt thời gian phản hồi.

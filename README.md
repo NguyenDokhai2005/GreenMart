@@ -109,11 +109,31 @@ docker compose up -d --wait postgres redis rabbitmq
 docker compose up --build -d --wait backend
 ```
 
-Backend scaffold chưa có API nghiệp vụ; `/api/v1` có thể trả 404.
+Backend cung cấp API nghiệp vụ dưới `/api/v1`; API cần Bearer token lấy qua `/api/v1/auth/login`.
 Migration thuộc SV03; Hibernate dùng `validate`, không tự sinh schema.
 Role `forecast_ro` được tạo lúc DB khởi tạo. Quyền ghi cho `forecast_ro` cấp trong
 migration `V2__grant_forecast.sql` (PR #198).
-Tài khoản đăng nhập demo chờ seed từ SV03/SV08; repo hiện chưa cung cấp tài khoản.
+Sau khi chạy seed theo [hướng dẫn](forecast-service/scripts/README.md), có 12 tài khoản
+dưới đây (nguồn: `generate_demo_users()` của generator). Mật khẩu demo chung: `Demo@123`.
+Đây là dữ liệu demo; không dùng cho môi trường production.
+
+| Tài khoản | Vai trò | Chi nhánh |
+| --- | --- | --- |
+| `admin` | ADMIN | Mọi chi nhánh hoạt động |
+| `owner` | OWNER | Mọi chi nhánh hoạt động |
+| `owner.pho` | OWNER | Mọi chi nhánh hoạt động |
+| `quanly.gm001` | BRANCH_MANAGER | GM-001 |
+| `quanly.gm002` | BRANCH_MANAGER | GM-002 |
+| `quanly.gm003` | BRANCH_MANAGER | GM-003 |
+| `thungan.gm001` | CASHIER | GM-001 |
+| `thungan.gm002` | CASHIER | GM-002 |
+| `thungan.gm003` | CASHIER | GM-003 |
+| `thukho.gm001` | STOREKEEPER | GM-001 |
+| `thukho.gm002` | STOREKEEPER | GM-002 |
+| `thukho.gm003` | STOREKEEPER | GM-003 |
+
+Cấu hình `JWT_SECRET` ngẫu nhiên ít nhất 32 byte trong `.env`, thay placeholder;
+xem [hướng dẫn gọi API bằng token](backend/README.md#đăng-nhập-jwt-241).
 
 ## Dừng, chạy lại và đọc log
 
