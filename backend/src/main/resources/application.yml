@@ -42,6 +42,10 @@ server:
   error:
     include-stacktrace: never
     include-message: never
+logging:
+  structured:
+    format:
+      console: logstash
 management:
   endpoints:
     web:

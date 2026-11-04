@@ -40,6 +40,7 @@ public enum ErrorCode {
     MANUAL_DISCOUNT_FORBIDDEN(HttpStatus.UNPROCESSABLE_ENTITY, "Không có quyền giảm giá thủ công hoặc thiếu lý do"),
     CATEGORY_CYCLE(HttpStatus.UNPROCESSABLE_ENTITY, "Danh mục cha tạo vòng lặp không hợp lệ"),
     WRONG_PASSWORD(HttpStatus.UNPROCESSABLE_ENTITY, "Mật khẩu hiện tại không chính xác"),
+    UNMAPPED_SKU(HttpStatus.UNPROCESSABLE_ENTITY, "Mã hàng của kênh chưa được ánh xạ"),
 
     // 500
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Đã có lỗi hệ thống xảy ra, vui lòng thử lại sau");
