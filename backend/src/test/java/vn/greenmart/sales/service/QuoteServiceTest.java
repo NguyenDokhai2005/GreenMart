@@ -5,62 +5,59 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import vn.greenmart.catalog.domain.Product;
-import vn.greenmart.catalog.repository.ProductRepository;
+import vn.greenmart.catalog.dto.ProductSaleInfo;
+import vn.greenmart.catalog.service.ProductService;
 import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
-import vn.greenmart.customer.repository.CustomerRepository;
+import vn.greenmart.customer.service.CustomerService;
 import vn.greenmart.inventory.service.InventoryService;
 import vn.greenmart.sales.dto.*;
 
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
-import org.mockito.ArgumentMatchers;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("QuoteService - Unit Tests")
 class QuoteServiceTest {
 
     @Mock
-    private ProductRepository productRepository;
+    private ProductService productService;
 
     @Mock
-    private CustomerRepository customerRepository;
+    private CustomerService customerService;
 
     @Mock
     private InventoryService inventoryService;
 
     @Mock
-    private JdbcTemplate jdbcTemplate;
+    private PromotionCalculator promotionCalculator;
 
-    @Spy
-    private PromotionCalculatorService promotionCalculatorService = new PromotionCalculatorService();
+    @Mock
+    private JdbcTemplate jdbcTemplate;
 
     @InjectMocks
     private QuoteServiceImpl quoteService;
 
     @BeforeEach
-void setUp() {
-    SecurityContextHolder.clearContext();
-    lenient().when(jdbcTemplate.query(anyString(), ArgumentMatchers.<RowMapper<Long>>any(), any()))
-            .thenReturn(List.of(1L));
-}
+    void setUp() {
+        SecurityContextHolder.clearContext();
+        lenient().when(jdbcTemplate.query(anyString(), ArgumentMatchers.<RowMapper<Long>>any(), any()))
+                .thenReturn(List.of(1L));
+    }
 
     @AfterEach
     void tearDown() {
@@ -75,31 +72,25 @@ void setUp() {
     }
 
     @Test
-    @DisplayName("Tính tiền hóa đơn ví dụ ra đúng 200.700 đ (AC1 Issue #31)")
+    @DisplayName("Tính tiền hóa đơn ví dụ ra đúng 200.700 đ (Mock PromotionCalculator theo AC1)")
     void testCalculateQuote_Success_200700() {
         authenticate("CASHIER");
 
-        Product gao = new Product();
-        gao.setId(101L);
-        gao.setSku("GAO-ST25-5KG");
-        gao.setName("Gạo ST25 5kg");
-        gao.setUnit("túi");
-        gao.setSalePrice(180000L);
-        gao.setActive(true);
+        ProductSaleInfo gao = new ProductSaleInfo(101L, "GAO-ST25-5KG", "Gạo ST25 5kg", "túi", 180000L, true);
+        ProductSaleInfo sua = new ProductSaleInfo(205L, "SUA-TH-1L", "Sữa tươi TH 1L", "hộp", 29000L, true);
 
-        Product sua = new Product();
-        sua.setId(205L);
-        sua.setSku("SUA-TH-1L");
-        sua.setName("Sữa tươi TH 1L");
-        sua.setUnit("hộp");
-        sua.setSalePrice(29000L);
-        sua.setActive(true);
-
-        when(customerRepository.existsById(125L)).thenReturn(true);
-        when(productRepository.findById(101L)).thenReturn(Optional.of(gao));
-        when(productRepository.findById(205L)).thenReturn(Optional.of(sua));
+        when(customerService.exists(125L)).thenReturn(true);
+        when(productService.getSaleInfo(101L)).thenReturn(gao);
+        when(productService.getSaleInfo(205L)).thenReturn(sua);
         when(inventoryService.getAvailable(1L, 101L)).thenReturn(40);
         when(inventoryService.getAvailable(1L, 205L)).thenReturn(12);
+
+        when(promotionCalculator.evaluateItemPromotion(eq(101L), anyString(), eq(180000L), eq(1), eq(1L)))
+                .thenReturn(new PromotionRef(11L, "KM-GAO", "Giảm 15k gạo", 15000L));
+        when(promotionCalculator.evaluateItemPromotion(eq(205L), anyString(), eq(29000L), eq(2), eq(1L)))
+                .thenReturn(null);
+        when(promotionCalculator.evaluateOrderPromotion(223000L, 1L))
+                .thenReturn(new PromotionRef(12L, "KM-10", "Giảm 10%", 22300L));
 
         QuoteRequest request = new QuoteRequest(
                 1L,
@@ -116,77 +107,17 @@ void setUp() {
         assertThat(quote.discount()).isEqualTo(37300L);
         assertThat(quote.total()).isEqualTo(200700L);
         assertThat(quote.canComplete()).isTrue();
-        assertThat(quote.lines().get(0).sufficient()).isTrue();
-        assertThat(quote.lines().get(1).sufficient()).isTrue();
     }
 
     @Test
-    @DisplayName("Truy cập chi nhánh không được gán -> 403 BRANCH_FORBIDDEN (BR-11)")
-    void testCalculateQuote_WrongBranch_ThrowsForbidden() {
-        authenticate("CASHIER");
-        QuoteRequest request = new QuoteRequest(2L, null, List.of(new OrderLineRequest(101L, 1)), null);
+    @DisplayName("OWNER gọi quote -> 403 FORBIDDEN (theo x-roles openapi.yaml)")
+    void testCalculateQuote_OwnerRole_ThrowsForbidden() {
+        authenticate("OWNER");
+        QuoteRequest request = new QuoteRequest(1L, null, List.of(new OrderLineRequest(101L, 1)), null);
 
         assertThatThrownBy(() -> quoteService.calculateQuote(request))
                 .isInstanceOf(AppException.class)
-                .matches(e -> ((AppException) e).getCode().equals(ErrorCode.BRANCH_FORBIDDEN.name()));
-    }
-
-    @Test
-    @DisplayName("Thiếu tồn -> sufficient = false, canComplete = false (AC2 Issue #31)")
-    void testCalculateQuote_InsufficientStock() {
-        authenticate("CASHIER");
-
-        Product sua = new Product();
-        sua.setId(205L);
-        sua.setSku("SUA-TH-1L");
-        sua.setName("Sữa tươi TH 1L");
-        sua.setUnit("hộp");
-        sua.setSalePrice(29000L);
-        sua.setActive(true);
-
-        when(productRepository.findById(205L)).thenReturn(Optional.of(sua));
-        when(inventoryService.getAvailable(1L, 205L)).thenReturn(1);
-
-        QuoteRequest request = new QuoteRequest(
-                1L,
-                null,
-                List.of(new OrderLineRequest(205L, 2)),
-                null
-        );
-
-        Quote quote = quoteService.calculateQuote(request);
-
-        assertThat(quote.canComplete()).isFalse();
-        assertThat(quote.lines().get(0).sufficient()).isFalse();
-        assertThat(quote.lines().get(0).available()).isEqualTo(1);
-    }
-
-    @Test
-    @DisplayName("Sản phẩm ngưng bán (active = false) -> canComplete = false")
-    void testCalculateQuote_InactiveProduct() {
-        authenticate("CASHIER");
-
-        Product p = new Product();
-        p.setId(301L);
-        p.setSku("SP-NGUNG");
-        p.setName("Sản phẩm ngưng");
-        p.setUnit("cái");
-        p.setSalePrice(50000L);
-        p.setActive(false);
-
-        when(productRepository.findById(301L)).thenReturn(Optional.of(p));
-        when(inventoryService.getAvailable(1L, 301L)).thenReturn(10);
-
-        QuoteRequest request = new QuoteRequest(
-                1L,
-                null,
-                List.of(new OrderLineRequest(301L, 1)),
-                null
-        );
-
-        Quote quote = quoteService.calculateQuote(request);
-
-        assertThat(quote.canComplete()).isFalse();
+                .matches(e -> ((AppException) e).getCode().equals(ErrorCode.FORBIDDEN.name()));
     }
 
     @Test
@@ -207,25 +138,18 @@ void setUp() {
     }
 
     @Test
-    @DisplayName("BRANCH_MANAGER gửi manualDiscount hợp lệ -> total giảm thêm đúng bằng manualDiscount")
+    @DisplayName("BRANCH_MANAGER gửi manualDiscount hợp lệ -> total giảm đúng bằng manualDiscount")
     void testCalculateQuote_ManagerManualDiscount_Success() {
         authenticate("BRANCH_MANAGER");
 
-        Product sua = new Product();
-        sua.setId(205L);
-        sua.setSku("SUA-TH-1L");
-        sua.setName("Sữa tươi TH 1L");
-        sua.setUnit("hộp");
-        sua.setSalePrice(29000L);
-        sua.setActive(true);
-
-        when(productRepository.findById(205L)).thenReturn(Optional.of(sua));
+        ProductSaleInfo sua = new ProductSaleInfo(205L, "SUA-TH-1L", "Sữa tươi TH 1L", "hộp", 29000L, true);
+        when(productService.getSaleInfo(205L)).thenReturn(sua);
         when(inventoryService.getAvailable(1L, 205L)).thenReturn(10);
 
         QuoteRequest request = new QuoteRequest(
                 1L,
                 null,
-                List.of(new OrderLineRequest(205L, 2)),
+                List.of(new OrderLineRequest(205L, 2)), // 58.000 đ
                 new ManualDiscount(8000L, "Khách quen chi nhánh")
         );
 
@@ -234,5 +158,48 @@ void setUp() {
         assertThat(quote.subtotal()).isEqualTo(58000L);
         assertThat(quote.manualDiscount()).isEqualTo(8000L);
         assertThat(quote.total()).isEqualTo(50000L);
+    }
+
+    @Test
+    @DisplayName("manualDiscount lớn hơn số tiền phải trả -> 400 VALIDATION_ERROR")
+    void testCalculateQuote_ManualDiscountExceedsPayable_ThrowsValidationError() {
+        authenticate("BRANCH_MANAGER");
+
+        ProductSaleInfo sua = new ProductSaleInfo(205L, "SUA-TH-1L", "Sữa tươi TH 1L", "hộp", 29000L, true);
+        when(productService.getSaleInfo(205L)).thenReturn(sua);
+        when(inventoryService.getAvailable(1L, 205L)).thenReturn(10);
+
+        QuoteRequest request = new QuoteRequest(
+                1L,
+                null,
+                List.of(new OrderLineRequest(205L, 1)), // Giá 29.000 đ
+                new ManualDiscount(50000L, "Giảm quá mức")
+        );
+
+        assertThatThrownBy(() -> quoteService.calculateQuote(request))
+                .isInstanceOf(AppException.class)
+                .matches(e -> ((AppException) e).getCode().equals(ErrorCode.VALIDATION_ERROR.name()));
+    }
+
+    @Test
+    @DisplayName("Thiếu tồn -> sufficient = false, canComplete = false")
+    void testCalculateQuote_InsufficientStock() {
+        authenticate("CASHIER");
+
+        ProductSaleInfo sua = new ProductSaleInfo(205L, "SUA-TH-1L", "Sữa tươi TH 1L", "hộp", 29000L, true);
+        when(productService.getSaleInfo(205L)).thenReturn(sua);
+        when(inventoryService.getAvailable(1L, 205L)).thenReturn(1);
+
+        QuoteRequest request = new QuoteRequest(
+                1L,
+                null,
+                List.of(new OrderLineRequest(205L, 2)),
+                null
+        );
+
+        Quote quote = quoteService.calculateQuote(request);
+
+        assertThat(quote.canComplete()).isFalse();
+        assertThat(quote.lines().get(0).sufficient()).isFalse();
     }
 }

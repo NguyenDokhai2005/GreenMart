@@ -4,12 +4,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import vn.greenmart.catalog.domain.Product;
-import vn.greenmart.catalog.repository.ProductRepository;
+import vn.greenmart.catalog.dto.ProductSaleInfo;
+import vn.greenmart.catalog.service.ProductService;
 import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
 import vn.greenmart.common.security.SecurityUtils;
-import vn.greenmart.customer.repository.CustomerRepository;
+import vn.greenmart.customer.service.CustomerService;
 import vn.greenmart.inventory.service.InventoryService;
 import vn.greenmart.sales.dto.*;
 
@@ -20,43 +20,41 @@ import java.util.*;
 @Transactional(readOnly = true)
 public class QuoteServiceImpl implements QuoteService {
 
-    private final ProductRepository productRepository;
-    private final CustomerRepository customerRepository;
+    private final ProductService productService;
+    private final CustomerService customerService;
     private final InventoryService inventoryService;
-    private final PromotionCalculatorService promotionCalculatorService;
+    private final PromotionCalculator promotionCalculator;
     private final JdbcTemplate jdbcTemplate;
 
     @Override
     public Quote calculateQuote(QuoteRequest request) {
-        // Phân quyền: chỉ CASHIER, BRANCH_MANAGER, OWNER, ADMIN (AUTH-02)
-        SecurityUtils.requireRole("BRANCH_MANAGER", "CASHIER", "OWNER", "ADMIN");
+        // 1. Phân quyền: theo openapi.yaml x-roles chỉ gồm BRANCH_MANAGER và CASHIER
+        SecurityUtils.requireRole("BRANCH_MANAGER", "CASHIER");
 
-        // Kiểm tra quyền chi nhánh theo BR-11
+        // Kiểm tra chi nhánh được gán theo BR-11
         List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
         if (accessibleBranches != null && !accessibleBranches.contains(request.branchId())) {
             throw new AppException(ErrorCode.BRANCH_FORBIDDEN, "Bạn không có quyền thao tác trên chi nhánh này");
         }
 
-        // Kiểm tra giảm giá thủ công (BR-19)
+        // 2. Kiểm tra quyền áp dụng giảm giá thủ công ngay từ đầu (BR-19 fail-fast)
         ManualDiscount manualDiscountReq = request.manualDiscount();
-        long manualDiscountAmount = 0L;
         if (manualDiscountReq != null && manualDiscountReq.amount() != null && manualDiscountReq.amount() > 0) {
             String role = SecurityUtils.getCurrentRole();
-            if (!"BRANCH_MANAGER".equalsIgnoreCase(role) && !"OWNER".equalsIgnoreCase(role) && !"ADMIN".equalsIgnoreCase(role)) {
+            if (!"BRANCH_MANAGER".equalsIgnoreCase(role)) {
                 throw new AppException(ErrorCode.MANUAL_DISCOUNT_FORBIDDEN, "Thu ngân không được quyền áp dụng giảm giá ngoài chương trình");
             }
             if (manualDiscountReq.reason() == null || manualDiscountReq.reason().trim().length() < 5) {
                 throw new AppException(ErrorCode.VALIDATION_ERROR, "Lý do giảm giá ngoài chương trình phải từ 5 ký tự trở lên");
             }
-            manualDiscountAmount = manualDiscountReq.amount();
         }
 
-        // Kiểm tra khách hàng nếu có
-        if (request.customerId() != null && !customerRepository.existsById(request.customerId())) {
+        // 3. Kiểm tra khách hàng nếu có
+        if (request.customerId() != null && !customerService.exists(request.customerId())) {
             throw new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy khách hàng với id: " + request.customerId());
         }
 
-        // Kiểm tra danh sách sản phẩm trùng lặp trong request
+        // 4. Kiểm tra trùng lặp productId trong giỏ hàng
         Set<Long> seenProductIds = new HashSet<>();
         for (OrderLineRequest item : request.items()) {
             if (!seenProductIds.add(item.productId())) {
@@ -64,28 +62,29 @@ public class QuoteServiceImpl implements QuoteService {
             }
         }
 
-        // Duyệt từng dòng, tính tồn và khuyến mại dòng
+        // 5. Duyệt từng dòng, tính tồn và khuyến mại cấp dòng
         List<QuoteLine> quoteLines = new ArrayList<>();
         long subtotal = 0L;
         long totalItemDiscount = 0L;
         boolean canComplete = true;
 
         for (OrderLineRequest itemReq : request.items()) {
-            Product product = productRepository.findById(itemReq.productId())
-                    .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy sản phẩm với id: " + itemReq.productId()));
+            ProductSaleInfo product = productService.getSaleInfo(itemReq.productId());
 
-            int available = inventoryService.getAvailable(request.branchId(), product.getId());
+            int available = inventoryService.getAvailable(request.branchId(), product.id());
             boolean sufficient = (itemReq.quantity() <= available);
 
-            if (!sufficient || !product.isActive()) {
+            if (!sufficient || !product.active()) {
                 canComplete = false;
             }
 
-            long unitPrice = product.getSalePrice();
+            long unitPrice = product.salePrice();
             int qty = itemReq.quantity();
             long lineRawTotal = unitPrice * qty;
 
-            PromotionRef itemPromo = promotionCalculatorService.evaluateItemPromotion(product, qty);
+            PromotionRef itemPromo = promotionCalculator.evaluateItemPromotion(
+                    product.id(), product.sku(), unitPrice, qty, request.branchId()
+            );
             long lineDiscount = 0L;
             if (itemPromo != null) {
                 lineDiscount = Math.min(itemPromo.discount(), lineRawTotal);
@@ -97,10 +96,10 @@ public class QuoteServiceImpl implements QuoteService {
             totalItemDiscount += lineDiscount;
 
             quoteLines.add(new QuoteLine(
-                    product.getId(),
-                    product.getSku(),
-                    product.getName(),
-                    product.getUnit(),
+                    product.id(),
+                    product.sku(),
+                    product.name(),
+                    product.unit(),
                     qty,
                     unitPrice,
                     lineDiscount,
@@ -111,14 +110,24 @@ public class QuoteServiceImpl implements QuoteService {
             ));
         }
 
-        // Tính khuyến mại cấp đơn
+        // 6. Tính khuyến mại cấp đơn
         long subtotalAfterLineDiscounts = subtotal - totalItemDiscount;
-        PromotionRef orderPromo = promotionCalculatorService.evaluateOrderPromotion(subtotalAfterLineDiscounts);
+        PromotionRef orderPromo = promotionCalculator.evaluateOrderPromotion(subtotalAfterLineDiscounts, request.branchId());
         long orderDiscount = (orderPromo != null) ? orderPromo.discount() : 0L;
 
-        // Tổng hợp chiết khấu và tổng thanh toán
+        // 7. Kiểm tra giá trị giảm giá thủ công không vượt quá số tiền phải trả
+        long manualDiscountAmount = 0L;
+        if (manualDiscountReq != null && manualDiscountReq.amount() != null && manualDiscountReq.amount() > 0) {
+            long payableBeforeManual = subtotalAfterLineDiscounts - orderDiscount;
+            if (manualDiscountReq.amount() > payableBeforeManual) {
+                throw new AppException(ErrorCode.VALIDATION_ERROR, "Số tiền giảm giá thủ công không được vượt quá số tiền phải trả");
+            }
+            manualDiscountAmount = manualDiscountReq.amount();
+        }
+
+        // 8. Tổng kết giá trị báo giá
         long totalDiscount = totalItemDiscount + orderDiscount + manualDiscountAmount;
-        long finalTotal = Math.max(0L, subtotal - totalDiscount);
+        long finalTotal = subtotal - totalDiscount;
 
         return new Quote(
                 request.branchId(),
