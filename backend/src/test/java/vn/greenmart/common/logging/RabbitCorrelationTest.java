@@ -9,7 +9,9 @@ import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,6 +34,7 @@ import static org.awaitility.Awaitility.await;
     "management.endpoint.health.group.readiness.include=readinessState", "spring.data.redis.password=test"
 })
 @Testcontainers
+@ActiveProfiles("correlation-test")
 @ExtendWith(OutputCaptureExtension.class)
 class RabbitCorrelationTest {
     @Container static GenericContainer<?> rabbit = new GenericContainer<>("rabbitmq:3.13.7-management-alpine")
@@ -57,7 +60,8 @@ class RabbitCorrelationTest {
         assertThat(MDC.get("traceId")).isNull();
     }
 
-    @TestConfiguration
+    @Configuration(proxyBeanMethods = false)
+    @Profile("correlation-test")
     @EnableAutoConfiguration(exclude = DataSourceAutoConfiguration.class)
     @Import(RabbitCorrelationConfiguration.class)
     static class Config {
