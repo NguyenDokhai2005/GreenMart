@@ -23,7 +23,9 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.annotation.DirtiesContext;
 import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import static org.assertj.core.api.Assertions.*;
@@ -34,11 +36,14 @@ import static org.awaitility.Awaitility.await;
     "management.endpoint.health.group.readiness.include=readinessState", "spring.data.redis.password=test"
 })
 @Testcontainers
+@DirtiesContext
 @ActiveProfiles("correlation-test")
 @ExtendWith(OutputCaptureExtension.class)
 class RabbitCorrelationTest {
     @Container static GenericContainer<?> rabbit = new GenericContainer<>("rabbitmq:3.13.7-management-alpine")
-            .withExposedPorts(5672).withEnv("RABBITMQ_DEFAULT_USER", "test").withEnv("RABBITMQ_DEFAULT_PASS", "test");
+            .withExposedPorts(5672).withEnv("RABBITMQ_DEFAULT_USER", "test").withEnv("RABBITMQ_DEFAULT_PASS", "test")
+            .waitingFor(Wait.forLogMessage(".*Server startup complete.*\\n", 1))
+            .withStartupTimeout(Duration.ofMinutes(2));
     @DynamicPropertySource static void properties(DynamicPropertyRegistry r) {
         r.add("spring.rabbitmq.host", rabbit::getHost);
         r.add("spring.rabbitmq.port", () -> rabbit.getMappedPort(5672));
