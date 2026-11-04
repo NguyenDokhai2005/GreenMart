@@ -189,6 +189,33 @@ describe('API transport', () => {
 });
 
 describe('session refresh', () => {
+  it('refreshes an expired access token and retries current-user validation', async () => {
+    await signIn();
+    const currentUser = {
+      id: 1,
+      username: 'test-user',
+      fullName: 'Test User',
+      role: 'OWNER',
+      branches: [],
+    };
+    fetchMock
+      .mockResolvedValueOnce(
+        json({ code: 'UNAUTHORIZED', message: 'Expired', traceId: 'trace-expired' }, 401),
+      )
+      .mockResolvedValueOnce(
+        json({ ...session, accessToken: 'access-new', refreshToken: 'refresh-new' }),
+      )
+      .mockResolvedValueOnce(json(currentUser));
+
+    await expect(getCurrentUser()).resolves.toEqual(currentUser);
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/v1/auth/me',
+      '/api/v1/auth/refresh',
+      '/api/v1/auth/me',
+    ]);
+    expect(readStoredSession()?.refreshToken).toBe('refresh-new');
+  });
+
   it('shares one refresh between concurrent 401 responses', async () => {
     await signIn();
     let release!: (response: Response) => void;
@@ -239,16 +266,35 @@ describe('session refresh', () => {
     expect(sessionStorage.getItem('greenmart.session')).toBeNull();
   });
 
-  it('clears the session when the refresh request cannot reach the server', async () => {
+  it('preserves the session and reports a network error when refresh cannot reach the server', async () => {
+    await signIn();
+    const offline = new TypeError('offline');
+    fetchMock
+      .mockResolvedValueOnce(
+        json({ code: 'UNAUTHORIZED', message: 'Expired', traceId: 'trace-expired' }, 401),
+      )
+      .mockRejectedValueOnce(offline);
+
+    await expect(getOrder(1)).rejects.toBe(offline);
+    expect(readStoredSession()?.refreshToken).toBe(session.refreshToken);
+  });
+
+  it('preserves the session when refresh returns a temporary server error', async () => {
     await signIn();
     fetchMock
       .mockResolvedValueOnce(
         json({ code: 'UNAUTHORIZED', message: 'Expired', traceId: 'trace-expired' }, 401),
       )
-      .mockRejectedValueOnce(new TypeError('offline'));
+      .mockResolvedValueOnce(
+        json({ code: 'INTERNAL_ERROR', message: 'Temporarily unavailable' }, 503),
+      );
 
-    await expect(getOrder(1)).rejects.toBeInstanceOf(SessionExpiredError);
-    expect(sessionStorage.getItem('greenmart.session')).toBeNull();
+    await expect(getOrder(1)).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 503,
+      code: 'INTERNAL_ERROR',
+    });
+    expect(readStoredSession()?.refreshToken).toBe(session.refreshToken);
   });
 
   it('does not enter a refresh loop when the retried request is rejected', async () => {
@@ -336,6 +382,101 @@ describe('session refresh', () => {
     expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get('Authorization')).toBe(
       `Bearer ${session.accessToken}`,
     );
+  });
+
+  it('keeps the local logout when the server revocation request fails', async () => {
+    await signIn();
+    fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+
+    await expect(logout()).rejects.toThrow('offline');
+    expect(sessionStorage.getItem('greenmart.session')).toBeNull();
+  });
+});
+
+describe('session mutation races', () => {
+  it('does not store a login response that arrives after logout', async () => {
+    let releaseLogin!: (response: Response) => void;
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          releaseLogin = resolve;
+        }),
+    );
+
+    const pendingLogin = login('late-user', 'test-only');
+    await vi.waitFor(() => expect(releaseLogin).toBeTypeOf('function'));
+
+    await expect(logout()).resolves.toBeUndefined();
+    expect(sessionStorage.getItem('greenmart.session')).toBeNull();
+
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    releaseLogin(
+      json({
+        ...session,
+        accessToken: 'late-access',
+        refreshToken: 'late-refresh',
+        user: { ...session.user, username: 'late-user' },
+      }),
+    );
+    await pendingLogin;
+
+    expect(sessionStorage.getItem('greenmart.session')).toBeNull();
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/v1/auth/login',
+      '/api/v1/auth/logout',
+    ]);
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      refreshToken: 'late-refresh',
+    });
+  });
+
+  it('keeps the latest login when earlier login responses arrive later', async () => {
+    const pendingLogins = new Map<string, (response: Response) => void>();
+    fetchMock.mockImplementation(async (url, init) => {
+      if (url === '/api/v1/auth/login') {
+        const body = JSON.parse(String(init?.body)) as { username: string };
+        return new Promise<Response>((resolve) => pendingLogins.set(body.username, resolve));
+      }
+      if (url === '/api/v1/auth/logout') return new Response(null, { status: 204 });
+      throw new Error('Unexpected request');
+    });
+
+    const firstLogin = login('user-a', 'test-only');
+    const latestLogin = login('user-b', 'test-only');
+    await vi.waitFor(() => expect(pendingLogins.size).toBe(2));
+
+    pendingLogins.get('user-b')?.(
+      json({
+        ...session,
+        accessToken: 'access-b',
+        refreshToken: 'refresh-b',
+        user: { ...session.user, username: 'user-b' },
+      }),
+    );
+    await latestLogin;
+
+    pendingLogins.get('user-a')?.(
+      json({
+        ...session,
+        accessToken: 'access-a',
+        refreshToken: 'refresh-a',
+        user: { ...session.user, username: 'user-a' },
+      }),
+    );
+    await firstLogin;
+
+    expect(readStoredSession()).toMatchObject({
+      accessToken: 'access-b',
+      refreshToken: 'refresh-b',
+    });
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/v1/auth/login',
+      '/api/v1/auth/login',
+      '/api/v1/auth/logout',
+    ]);
+    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
+      refreshToken: 'refresh-a',
+    });
   });
 });
 

@@ -1,0 +1,101 @@
+.auth-route__silent-loading {
+  min-height: 100vh;
+  background: var(--gm-color-page);
+}
+
+.auth-route__topbar {
+  min-height: 40px;
+  padding: 12px 24px;
+  color: var(--gm-color-text-inverse);
+  background: var(--gm-color-primary-active);
+  font-size: var(--gm-font-size-sm);
+  font-weight: 700;
+}
+
+.auth-route__loading,
+.auth-route__message-page {
+  min-height: 100vh;
+  background: var(--gm-color-page);
+}
+
+.auth-route__connection {
+  display: grid;
+  justify-items: center;
+  gap: var(--gm-space-4);
+  min-height: 100vh;
+  padding: var(--gm-space-8);
+  background: var(--gm-color-page);
+}
+
+.auth-route__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gm-space-3);
+  color: var(--gm-color-text-secondary);
+  font-size: var(--gm-font-size-sm);
+}
+
+.auth-route__loading strong {
+  color: var(--gm-color-text);
+  font-size: var(--gm-font-size-body);
+}
+
+.auth-route__spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--gm-color-border);
+  border-top-color: var(--gm-color-primary);
+  border-radius: 50%;
+  animation: auth-route-spin 800ms linear infinite;
+}
+
+.auth-route__message-card {
+  width: min(100% - 32px, 560px);
+  margin: 10vh auto 0;
+  padding: var(--gm-space-8);
+  border-radius: var(--gm-radius-lg);
+  background: var(--gm-color-surface);
+  box-shadow: 0 1px 4px rgb(23 43 38 / 10%);
+  text-align: center;
+}
+
+.auth-route__message-card h1 {
+  margin: var(--gm-space-4) 0 var(--gm-space-2);
+  font-size: 26px;
+  line-height: 1.3;
+}
+
+.auth-route__message-card p {
+  color: var(--gm-color-text-secondary);
+}
+
+.auth-route__code {
+  display: block;
+  color: var(--gm-color-primary);
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.auth-route__secondary {
+  margin-top: var(--gm-space-4);
+  font-size: var(--gm-font-size-sm);
+}
+
+.auth-route__workspace-pending {
+  min-height: 100vh;
+  padding: var(--gm-space-8);
+  background: var(--gm-color-page);
+}
+
+.auth-route__workspace-pending h1 {
+  font-size: 26px;
+}
+
+@keyframes auth-route-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
