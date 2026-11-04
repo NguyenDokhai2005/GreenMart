@@ -67,3 +67,34 @@ mặc định để vượt kiểm tra này. `InventoryQueryApiTest` dựng danh
 MockMvc với PostgreSQL 16.10 thật; chưa kiểm chứng luồng Bearer JWT production.
 Chạy `mvn -B -ntp test -Dtest=InventoryQueryApiTest` với JDK 21 và Docker
 (Windows local có thể thêm `-P local-dev`).
+
+## Phiếu nhập có duyệt (#53)
+
+Các endpoint `/api/v1/stock-documents` (POST), `/{id}` (GET/PUT),
+`/{id}/cancel` và `/{id}/approve` (POST) hiện xử lý loại IMPORT.
+STOREKEEPER hoặc BRANCH_MANAGER được tạo/sửa/hủy ở chi nhánh được gán;
+OWNER có quyền đọc. Chỉ BRANCH_MANAGER đúng chi nhánh được duyệt và phải
+khác người lập (422 SELF_APPROVAL_FORBIDDEN). Chỉ DRAFT được sửa/hủy/duyệt;
+thao tác trên trạng thái khác trả 409 INVALID_STATUS.
+
+Phiếu nháp cần supplier và 1–500 dòng khác productId, quantity 1–99999,
+unitCost nguyên không âm. Nháp không làm đổi tồn/giá vốn/sổ kho. Sửa thay toàn bộ
+items; supplier/note bỏ qua giữ giá trị cũ. Hủy ghi lý do trong audit_log.
+
+Duyệt khóa phiếu, xử lý productId tăng dần, cộng on_hand (tạo dòng tồn nếu thiếu),
+giữ reserved và ghi IMPORT/STOCK_DOCUMENT kèm người duyệt. Giá vốn chung:
+`(SUM(on_hand toàn chuỗi) * giá vốn cũ + quantity * unitCost) / (tồn cũ + quantity)`.
+Dùng on_hand gồm cả hàng giữ chỗ, BigDecimal HALF_UP nguyên đồng, kiểm tra tràn long.
+Khóa product FOR UPDATE trước SUM; các thao tác tồn khác lấy FOR KEY SHARE trước
+conditional UPDATE để thống nhất thứ tự product → inventory. Tất cả thay đổi tồn,
+giá vốn, ledger, approvedBy/approvedAt cùng transaction: một dòng lỗi rollback cả phiếu.
+Duyệt lặp không cộng tồn hai lần. Chỉ IMPORT cập nhật giá vốn.
+
+Theo quyết định leader: https://github.com/NguyenDokhai2005/GreenMart/issues/53#issuecomment-6622491737
+List phiếu, EXPORT/TRANSFER/ADJUST chưa nằm trong phần IMPORT này. JWT production
+chưa được triển khai; actor phải có userId thực, hoạt động trong SecurityContext.
+
+Kiểm tra với JDK 21 và Docker:
+`mvn -B -ntp test -Dtest=StockDocumentDraftApiTest,StockImportTransactionTest`.
+Test dùng PostgreSQL thật; HTTP tests dựng danh tính trong SecurityContext, concurrency
+chạy transaction độc lập với hai worker, có giới hạn thời gian chờ.

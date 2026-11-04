@@ -32,6 +32,9 @@ class InventoryServiceImplTest {
     @Mock
     private InventoryTransactionWriter transactionWriter;
 
+    @Mock
+    private vn.greenmart.catalog.service.ProductCostService productCost;
+
     @InjectMocks
     private InventoryServiceImpl inventoryService;
 

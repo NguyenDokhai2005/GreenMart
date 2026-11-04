@@ -24,6 +24,7 @@ public enum ErrorCode {
 
     // 409
     CONFLICT(HttpStatus.CONFLICT, "Dữ liệu bị xung đột hoặc đã bị thay đổi bởi giao dịch khác"),
+    INVALID_STATUS(HttpStatus.CONFLICT, "Thao tác không hợp lệ với trạng thái hiện tại"),
     DUPLICATE_SKU(HttpStatus.CONFLICT, "Mã SKU đã tồn tại"),
     DUPLICATE_BARCODE(HttpStatus.CONFLICT, "Mã vạch barcode đã tồn tại"),
     DUPLICATE_PHONE(HttpStatus.CONFLICT, "Số điện thoại đã thuộc khách hàng khác"),
@@ -32,6 +33,7 @@ public enum ErrorCode {
     CATEGORY_IN_USE(HttpStatus.CONFLICT, "Danh mục đang có sản phẩm hoặc danh mục con"),
 
     // 422
+    SELF_APPROVAL_FORBIDDEN(HttpStatus.UNPROCESSABLE_ENTITY, "Người lập không được tự duyệt phiếu"),
     PRODUCT_INACTIVE(HttpStatus.UNPROCESSABLE_ENTITY, "Sản phẩm đã ngừng kinh doanh"),
     TOTAL_CHANGED(HttpStatus.UNPROCESSABLE_ENTITY, "Tổng giá trị đơn hàng đã thay đổi"),
     CASH_INSUFFICIENT(HttpStatus.UNPROCESSABLE_ENTITY, "Số tiền khách đưa nhỏ hơn tổng tiền phải thanh toán"),
