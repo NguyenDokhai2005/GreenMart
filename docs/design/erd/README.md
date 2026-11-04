@@ -41,6 +41,9 @@ ERD mức logic của toàn hệ thống, là bản chuẩn để viết migrati
 
 SRS đã cập nhật theo ở phiên bản 1.1 và 1.2.
 
+Outbox (#127, migration V6): thêm `trace_id` để giữ correlation ID qua lần thử lại
+và `next_attempt_at` để backoff khi broker lỗi. Không thay đổi dữ liệu nghiệp vụ.
+
 ## Sửa ERD
 
 1. Chỉ sửa `_entities.iuml` (thực thể, cột, quan hệ). Mỗi thực thể có tag `$core`, `$sales`, `$stock`, `$ops` để chọn sơ đồ hiển thị.
