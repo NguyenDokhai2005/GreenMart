@@ -9,7 +9,7 @@ import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -57,7 +57,7 @@ class RabbitCorrelationTest {
         assertThat(MDC.get("traceId")).isNull();
     }
 
-    @SpringBootConfiguration
+    @TestConfiguration
     @EnableAutoConfiguration(exclude = DataSourceAutoConfiguration.class)
     @Import(RabbitCorrelationConfiguration.class)
     static class Config {
