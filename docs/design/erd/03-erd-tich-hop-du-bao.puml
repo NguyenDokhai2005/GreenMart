@@ -133,6 +133,8 @@ package "Tích hợp kênh" {
     * payload : JSONB
     * status : PENDING | SENT | FAILED
     * attempts : INT
+    trace_id : VARCHAR(64)
+    * next_attempt_at : TIMESTAMPTZ
     * created_at : TIMESTAMPTZ
   }
   entity "sync_log\nNhật ký đồng bộ" as sync_log {

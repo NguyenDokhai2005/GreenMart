@@ -25,10 +25,27 @@ spring:
     username: ${RABBITMQ_DEFAULT_USER:greenmart}
     password: ${RABBITMQ_DEFAULT_PASS}
     connection-timeout: 3s
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 5
+          initial-interval: 1s
+          multiplier: 2
+          max-interval: 16s
 server:
   error:
     include-stacktrace: never
     include-message: never
+logging:
+  structured:
+    format:
+      console: logstash
 management:
   endpoints:
     web:

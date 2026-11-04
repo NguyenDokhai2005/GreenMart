@@ -36,7 +36,8 @@ Khớp SRS mục 2.4, 2.5, 8.3–8.5 và `docs/api/openapi.yaml`.
 - Backend là modular monolith: module chỉ gọi nhau qua interface service hoặc sự kiện, không truy cập repository của module khác.
 - Thay đổi tồn kho chỉ đi qua `InventoryService` (conditional UPDATE, cùng transaction với sổ kho).
 - Mọi lỗi API theo `ErrorResponse` và `ErrorCode` trong `common`.
-- Forecast service và mock connector hiện chưa có trong `docker-compose.yml`; thêm vào khi các thành phần này có mã nguồn.
+- Mock connector (#128) chạy cổng 8090, có giao diện demo WEB/MARKET và callback theo hợp đồng.
+- Forecast service (#131) chạy nội bộ cổng 8000, có healthcheck quyền DB; pipeline dự báo do SV06 bổ sung ở #114/#118.
 
 ## Sửa sơ đồ
 
