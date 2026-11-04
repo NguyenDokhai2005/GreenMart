@@ -1,10 +1,12 @@
 # Java
 target/
+.local-tools/
 *.class
 .gradle/
 build/
 # Node
 node_modules/
+mock-connector/data/
 dist/
 # Python
 __pycache__/
