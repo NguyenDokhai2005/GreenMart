@@ -5,6 +5,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import jakarta.persistence.EntityManager;
+import org.springframework.jdbc.core.JdbcTemplate;
+import vn.greenmart.catalog.service.ProductCostService;
+import vn.greenmart.common.exception.AppException;
+import vn.greenmart.common.exception.ErrorCode;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import vn.greenmart.inventory.exception.InsufficientStockException;
 import vn.greenmart.inventory.repository.InventoryRepository;
 import vn.greenmart.inventory.repository.InventoryTransactionWriter;
@@ -29,6 +36,9 @@ public class InventoryServiceImpl implements InventoryService {
 
     private final InventoryRepository inventoryRepository;
     private final InventoryTransactionWriter transactionWriter;
+    private final ProductCostService productCost;
+    private final JdbcTemplate jdbc;
+    private final EntityManager entityManager;
 
     /**
      *      WHERE (on_hand - reserved) >= qty
@@ -37,6 +47,7 @@ public class InventoryServiceImpl implements InventoryService {
     @Transactional(propagation = Propagation.MANDATORY)
     public void reserve(Long branchId, Long productId, int qty, Long refId) {
         validateQty(qty);
+        productCost.lockForStockChange(productId);
         int rows = inventoryRepository.reserve(branchId, productId, qty);
         if (rows == 0) {
             // Read diagnostics only after the conditional update has failed.
@@ -56,6 +67,7 @@ public class InventoryServiceImpl implements InventoryService {
     @Transactional(propagation = Propagation.MANDATORY)
     public void release(Long branchId, Long productId, int qty, Long refId) {
         validateQty(qty);
+        productCost.lockForStockChange(productId);
         int rows = inventoryRepository.release(branchId, productId, qty);
         if (rows == 0) {
             log.error("release failed: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
@@ -76,6 +88,7 @@ public class InventoryServiceImpl implements InventoryService {
     @Transactional(propagation = Propagation.MANDATORY)
     public void commitSale(Long branchId, Long productId, int qty, Long refId) {
         validateQty(qty);
+        productCost.lockForStockChange(productId);
         int rows = inventoryRepository.commitSale(branchId, productId, qty);
         if (rows == 0) {
             log.error("commitSale failed: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
@@ -96,6 +109,7 @@ public class InventoryServiceImpl implements InventoryService {
     @Transactional(propagation = Propagation.MANDATORY)
     public void sellDirect(Long branchId, Long productId, int qty, Long refId) {
         validateQty(qty);
+        productCost.lockForStockChange(productId);
         int rows = inventoryRepository.sellDirect(branchId, productId, qty);
         if (rows == 0) {
             throw insufficientStock(branchId, productId, qty);
@@ -119,9 +133,39 @@ public class InventoryServiceImpl implements InventoryService {
                 .orElse(0);
     }
 
-    // -----------------------------------------------------------------------
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void importStock(Long branchId, Long productId, int qty, long unitCost, Long documentId, Long actorId) {
+        validateQty(qty);
+        if (unitCost < 0 || documentId == null || actorId == null) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Thiếu tham chiếu nhập kho hoặc giá nhập không hợp lệ");
+        }
+        entityManager.flush();
+        long oldCost = productCost.lockForImport(productId);
+        long oldStock = jdbc.queryForObject("SELECT COALESCE(SUM(on_hand),0) FROM inventory WHERE product_id=?",
+                Long.class, productId);
+        long newCost;
+        try {
+            long numerator = Math.addExact(Math.multiplyExact(oldStock, oldCost), Math.multiplyExact((long) qty, unitCost));
+            newCost = BigDecimal.valueOf(numerator)
+                    .divide(BigDecimal.valueOf(Math.addExact(oldStock, qty)), 0, RoundingMode.HALF_UP).longValueExact();
+        } catch (ArithmeticException ex) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Giá trị nhập kho vượt giới hạn số tiền");
+        }
+        int rows = jdbc.update("""
+                INSERT INTO inventory(branch_id,product_id,on_hand,reserved,version,updated_at)
+                VALUES(?,?,?,0,1,CURRENT_TIMESTAMP)
+                ON CONFLICT(branch_id,product_id) DO UPDATE
+                SET on_hand=inventory.on_hand+EXCLUDED.on_hand, version=inventory.version+1, updated_at=CURRENT_TIMESTAMP
+                WHERE inventory.on_hand<=2147483647-EXCLUDED.on_hand
+                """, branchId, productId, qty);
+        if (rows != 1) throw new AppException(ErrorCode.VALIDATION_ERROR, "Số lượng tồn vượt giới hạn lưu trữ");
+        productCost.updateCostPrice(productId, newCost);
+        transactionWriter.appendImport(branchId, productId, qty, documentId, actorId);
+        entityManager.clear(); // Native writes must not leave stale Inventory/Product entities in the caller.
+    }
+
     // Private helpers
-    // -----------------------------------------------------------------------
 
     private InsufficientStockException insufficientStock(Long branchId, Long productId, int qty) {
         int available = inventoryRepository.findById(
