@@ -3,6 +3,7 @@ import type { components, operations, paths } from './schema';
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/, '');
 const SESSION_STORAGE_KEY = 'greenmart.session';
 const AUTH_EXEMPT_PATHS = new Set(['/auth/login', '/auth/refresh']);
+let sessionMutationVersion = 0;
 
 export type Role = components['schemas']['Role'];
 export type PaymentMethod = components['schemas']['PaymentMethod'];
@@ -166,6 +167,17 @@ async function requestRaw<T>(
   return payload as T;
 }
 
+async function revokeSession(session: AuthSession): Promise<void> {
+  await requestRaw<void>(
+    '/auth/logout',
+    {
+      method: 'POST',
+      body: JSON.stringify({ refreshToken: session.refreshToken }),
+    },
+    session.accessToken,
+  );
+}
+
 const refreshes = new Map<string, Promise<AuthSession>>();
 
 function refreshSession(session: AuthSession): Promise<AuthSession> {
@@ -195,9 +207,14 @@ function refreshSession(session: AuthSession): Promise<AuthSession> {
       return value;
     })
     .catch((error: unknown) => {
-      if (readStoredSession()?.refreshToken === session.refreshToken) clearStoredSession();
       if (error instanceof SessionExpiredError) throw error;
-      throw new SessionExpiredError(error);
+
+      if (error instanceof ApiError && error.status === 401) {
+        if (readStoredSession()?.refreshToken === session.refreshToken) clearStoredSession();
+        throw new SessionExpiredError(error);
+      }
+
+      throw error;
     })
     .finally(() => {
       refreshes.delete(session.refreshToken);
@@ -280,12 +297,20 @@ export function request<P extends keyof paths, M extends Method>(
 }
 
 export async function login(username: string, password: string): Promise<AuthSession> {
+  const mutationVersion = ++sessionMutationVersion;
   const credentials: components['schemas']['LoginRequest'] = { username, password };
   const value = await requestRaw<unknown>('/auth/login', {
     method: 'POST',
     body: JSON.stringify(credentials),
   });
   if (!isAuthSession(value)) throw new ApiError('API trả về phiên đăng nhập không hợp lệ.', 502);
+
+  if (mutationVersion !== sessionMutationVersion) {
+    // The caller's authentication intent was superseded while this request was pending.
+    await revokeSession(value).catch(() => undefined);
+    return value;
+  }
+
   storeSession(value);
   return value;
 }
@@ -295,18 +320,12 @@ export function getCurrentUser(): Promise<CurrentUser> {
 }
 
 export async function logout(): Promise<void> {
+  sessionMutationVersion += 1;
   const session = readStoredSession();
   clearStoredSession();
   if (!session) return;
 
-  await requestRaw<void>(
-    '/auth/logout',
-    {
-      method: 'POST',
-      body: JSON.stringify({ refreshToken: session.refreshToken }),
-    },
-    session.accessToken,
-  );
+  await revokeSession(session);
 }
 
 export function searchProducts(query: string, signal?: AbortSignal): Promise<ProductPage> {
