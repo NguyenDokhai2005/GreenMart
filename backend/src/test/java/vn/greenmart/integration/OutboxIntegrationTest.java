@@ -18,11 +18,13 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import vn.greenmart.integration.outbox.OutboxRelay;
@@ -36,11 +38,14 @@ import static org.awaitility.Awaitility.await;
     "spring.rabbitmq.listener.simple.retry.max-interval=20ms"
 })
 @Testcontainers
+@DirtiesContext
 @Import(OutboxIntegrationTest.ConsumerConfig.class)
 class OutboxIntegrationTest {
     @Container static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
     @Container static GenericContainer<?> rabbit = new GenericContainer<>("rabbitmq:3.13.7-management-alpine")
-            .withExposedPorts(5672).withEnv("RABBITMQ_DEFAULT_USER", "test").withEnv("RABBITMQ_DEFAULT_PASS", "test");
+            .withExposedPorts(5672).withEnv("RABBITMQ_DEFAULT_USER", "test").withEnv("RABBITMQ_DEFAULT_PASS", "test")
+            .waitingFor(Wait.forLogMessage(".*Server startup complete.*\\n", 1))
+            .withStartupTimeout(Duration.ofMinutes(2));
 
     @DynamicPropertySource static void properties(DynamicPropertyRegistry r) {
         r.add("spring.datasource.url", postgres::getJdbcUrl);
