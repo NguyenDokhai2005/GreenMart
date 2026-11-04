@@ -49,3 +49,21 @@ test chỉ dùng nó để dọn dữ liệu trong PostgreSQL container riêng.
 - `SecurityConfig` hiện tại cấu hình `anyRequest().permitAll()` để không chặn các endpoint đọc công khai (`GET /api/v1/products`, `/categories`, `/products/lookup`) trong khi module `identity` đang hoàn thiện.
 - Các thao tác ghi (POST, PUT, DELETE) được kiểm soát vai trò chặt chẽ tại tầng Service thông qua `SecurityUtils.requireRole(...)
 - Kế hoạch hoàn thiện: Issue #146 sẽ tích hợp JWT Filter và chuyển sang `anyRequest().authenticated()` trên chính `SecurityConfig` này.
+
+## API xem tồn kho (#52)
+
+`GET /api/v1/inventory` trả trang tồn theo OpenAPI, hỗ trợ `branchId`, `productId`,
+`categoryId`, `q` (tên/SKU/barcode), `stockStatus`, `page`, `size`, và `sort` lặp lại.
+Danh mục lọc theo ID được truyền. Ví dụ: `?branchId=1&stockStatus=LOW&sort=available,asc`.
+
+Khả dụng bằng `onHand-reserved`; OUT khi bằng 0, LOW khi khả dụng dương không vượt
+ROP, còn lại OK (gồm khả dụng dương khi ROP chưa có). Filter và quyền chi nhánh
+áp dụng trước count/phân trang; không truyền chi nhánh thì chỉ xem các chi nhánh
+được gán, ADMIN/OWNER được xem toàn bộ. API chỉ đọc, không ghi sổ hoặc tăng version.
+
+API yêu cầu danh tính trong Spring SecurityContext: chưa đăng nhập trả 401,
+đọc chi nhánh ngoài quyền trả 403 `BRANCH_FORBIDDEN`. Không dùng tài khoản/header
+mặc định để vượt kiểm tra này. `InventoryQueryApiTest` dựng danh tính test, gọi
+MockMvc với PostgreSQL 16.10 thật; chưa kiểm chứng luồng Bearer JWT production.
+Chạy `mvn -B -ntp test -Dtest=InventoryQueryApiTest` với JDK 21 và Docker
+(Windows local có thể thêm `-P local-dev`).
