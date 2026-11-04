@@ -12,6 +12,7 @@ import vn.greenmart.catalog.domain.Product;
 import vn.greenmart.catalog.dto.ProductLookupResponse;
 import vn.greenmart.catalog.dto.ProductRequest;
 import vn.greenmart.catalog.dto.ProductResponse;
+import vn.greenmart.catalog.dto.ProductSaleInfo;
 import vn.greenmart.catalog.repository.CategoryRepository;
 import vn.greenmart.catalog.repository.ProductRepository;
 import vn.greenmart.common.audit.AuditLog;
@@ -195,5 +196,18 @@ public class ProductServiceImpl implements ProductService {
             }
         }
         return result;
+    }
+
+    @Override
+    public ProductSaleInfo getSaleInfo(Long id) {
+        Product product = productRepository.findById(id).orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy sản phẩm với id: " + id));
+        return new ProductSaleInfo(
+                product.getId(),
+                product.getSku(),
+                product.getName(),
+                product.getUnit(),
+                product.getSalePrice(),
+                product.isActive()
+        );
     }
 }
