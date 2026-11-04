@@ -27,6 +27,8 @@ ERD mức logic của toàn hệ thống, là bản chuẩn để viết migrati
 | inventory_transaction, audit_log | Chỉ INSERT, không UPDATE/DELETE | Truy vết (BR-06) |
 | product, customer, app_user | Không xóa cứng khi đã có giao dịch, dùng `is_active` | Giữ lịch sử |
 | Tiền | `BIGINT` (VND), không dùng số thực | Tránh sai số làm tròn |
+| stock_document | V7: chỉ EXPORT có `export_reason` thuộc EXPIRED/DAMAGED/LOST/OTHER; OTHER cần `reason` (ghi chú) không trống | Tách mã lý do khỏi ghi chú đầy đủ |
+| stock_document_item | V7: `export_cost_price >= 0` khi có giá trị; snapshot giá vốn lúc duyệt EXPORT | Giá trị hủy không đổi theo giá vốn hiện tại; dữ liệu cũ chưa biết giá vốn giữ NULL |
 
 ## Chỉ mục cần có
 

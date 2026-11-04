@@ -4,5 +4,6 @@ package vn.greenmart.catalog.service;
 public interface ProductCostService {
     void lockForStockChange(Long productId);
     long lockForImport(Long productId);
+    long lockForExport(Long productId);
     void updateCostPrice(Long productId, long costPrice);
 }

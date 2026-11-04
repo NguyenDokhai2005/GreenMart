@@ -68,4 +68,7 @@ public interface InventoryService {
 
     /** Import approved stock and revalue global cost in the caller's transaction. */
     void importStock(Long branchId, Long productId, int qty, long unitCost, Long documentId, Long actorId);
+
+    /** Reduce unreserved stock, append EXPORT, and return the locked approval-time unit cost. */
+    long exportStock(Long branchId, Long productId, int qty, Long documentId, Long actorId);
 }

@@ -35,6 +35,8 @@ public class StockDocument {
     private String supplier;
     @Column(length = 255)
     private String reason;
+    @Enumerated(EnumType.STRING) @Column(name = "export_reason", length = 10)
+    private ExportReason exportReason;
     @Column(name = "created_by", nullable = false)
     private Long createdBy;
     @Column(name = "approved_by")
@@ -67,6 +69,27 @@ public class StockDocument {
     public void reviseImport(String supplier, String note, List<StockDocumentItem> replacements) {
         requireDraft();
         this.supplier = supplier;
+        this.reason = note;
+        items.clear();
+        replacements.forEach(item -> { item.attachTo(this); items.add(item); });
+    }
+
+    public static StockDocument exportDraft(Long branchId, Long actor, ExportReason reason,
+            String note, List<StockDocumentItem> items) {
+        var document = new StockDocument();
+        document.code = "PX-" + UUID.randomUUID().toString().replace("-", "").substring(0, 24);
+        document.type = StockDocumentType.EXPORT;
+        document.branchId = branchId;
+        document.status = StockDocumentStatus.DRAFT;
+        document.createdBy = actor;
+        document.createdAt = OffsetDateTime.now();
+        document.reviseExport(reason, note, items);
+        return document;
+    }
+
+    public void reviseExport(ExportReason exportReason, String note, List<StockDocumentItem> replacements) {
+        requireDraft();
+        this.exportReason = Objects.requireNonNull(exportReason);
         this.reason = note;
         items.clear();
         replacements.forEach(item -> { item.attachTo(this); items.add(item); });
