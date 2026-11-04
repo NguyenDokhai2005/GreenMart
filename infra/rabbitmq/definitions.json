@@ -4,6 +4,14 @@
     {"name": "greenmart.events", "vhost": "/", "type": "topic", "durable": true, "auto_delete": false, "internal": false, "arguments": {}},
     {"name": "greenmart.dlx", "vhost": "/", "type": "topic", "durable": true, "auto_delete": false, "internal": false, "arguments": {}}
   ],
-  "queues": [],
-  "bindings": []
+  "queues": [
+    {"name": "greenmart.integration.events", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {"x-dead-letter-exchange": "greenmart.dlx", "x-dead-letter-routing-key": "integration.failed"}},
+    {"name": "greenmart.integration.dlq", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {}}
+  ],
+  "bindings": [
+    {"source": "greenmart.events", "vhost": "/", "destination": "greenmart.integration.events", "destination_type": "queue", "routing_key": "order.#", "arguments": {}},
+    {"source": "greenmart.events", "vhost": "/", "destination": "greenmart.integration.events", "destination_type": "queue", "routing_key": "stock.#", "arguments": {}},
+    {"source": "greenmart.events", "vhost": "/", "destination": "greenmart.integration.events", "destination_type": "queue", "routing_key": "forecast.completed", "arguments": {}},
+    {"source": "greenmart.dlx", "vhost": "/", "destination": "greenmart.integration.dlq", "destination_type": "queue", "routing_key": "integration.failed", "arguments": {}}
+  ]
 }
