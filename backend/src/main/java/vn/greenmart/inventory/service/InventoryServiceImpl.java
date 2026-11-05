@@ -165,6 +165,24 @@ public class InventoryServiceImpl implements InventoryService {
         entityManager.clear(); // Native writes must not leave stale Inventory/Product entities in the caller.
     }
 
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public long exportStock(Long branchId, Long productId, int qty, Long documentId, Long actorId) {
+        validateQty(qty);
+        if (documentId == null || actorId == null) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Thiếu tham chiếu phiếu xuất hủy hoặc người duyệt");
+        }
+        entityManager.flush();
+        long cost = productCost.lockForExport(productId);
+        try { Math.multiplyExact((long) qty, cost); }
+        catch (ArithmeticException ex) { throw new AppException(ErrorCode.VALIDATION_ERROR, "Giá trị hủy vượt giới hạn số tiền"); }
+        int rows = inventoryRepository.sellDirect(branchId, productId, qty);
+        if (rows != 1) throw insufficientStock(branchId, productId, qty);
+        transactionWriter.appendExport(branchId, productId, qty, documentId, actorId);
+        entityManager.clear();
+        return cost;
+    }
+
     // Private helpers
 
     private InsufficientStockException insufficientStock(Long branchId, Long productId, int qty) {

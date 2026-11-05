@@ -98,3 +98,30 @@ Kiểm tra với JDK 21 và Docker:
 `mvn -B -ntp test -Dtest=StockDocumentDraftApiTest,StockImportTransactionTest`.
 Test dùng PostgreSQL thật; HTTP tests dựng danh tính trong SecurityContext, concurrency
 chạy transaction độc lập với hai worker, có giới hạn thời gian chờ.
+
+## Phiếu xuất hủy có duyệt (#54)
+
+Các endpoint phiếu kho hiện hỗ trợ cả IMPORT và EXPORT. EXPORT cần exportReason:
+EXPIRED, DAMAGED, LOST hoặc OTHER; OTHER bắt buộc note không trống. Không gửi supplier,
+toBranchId, unitCost hoặc countedQuantity cho EXPORT. IMPORT vẫn bắt supplier/unitCost.
+Tạo và sửa nháp kiểm tra quantity <= available, chưa làm đổi tồn. Lúc duyệt kiểm tra lại
+bằng conditional UPDATE: chỉ giảm on_hand khi on_hand-reserved đủ, không lấy vào reserved.
+Thiếu tồn trả409 INSUFFICIENT_STOCK với details.lines[].available.
+
+Duyệt bởi BRANCH_MANAGER đúng chi nhánh và khác người lập; phiếu được khóa chống duyệt
+lặp. Xử lý productId tăng dần, khóa product FOR SHARE để chụp giá vốn ổn định, rồi cập nhật
+inventory và ghi EXPORT/STOCK_DOCUMENT có actor. Snapshot giá vốn, approvedBy/approvedAt,
+ledger và audit cùng transaction; lỗi một dòng rollback toàn bộ phiếu. EXPORT không đổi
+giá vốn sản phẩm. Số tiền dùng long, kiểm tra overflow từng dòng và tổng phiếu.
+
+Migration V7 thêm stock_document.export_reason (giữ reason hiện có làm note) và
+stock_document_item.export_cost_price riêng với unit_cost dành cho IMPORT. totalCost
+EXPORT sau duyệt = tổng quantity × snapshot giá vốn, chỉ OWNER/BRANCH_MANAGER thấy;
+STOREKEEPER thấy null và unitCost EXPORT vẫn null. Nháp chưa có snapshot trả totalCost null.
+Phiếu cũ trước V7: giữ note; reason đúng mã enum được dùng lại, còn lại phân loại OTHER;
+OTHER thiếu note có ghi chú nguồn dữ liệu cũ. Không gán giá vốn hiện tại cho lịch sử cũ:
+export_cost_price và totalCost của phiếu cũ chưa có snapshot giữ null.
+
+Chạy JDK21/Docker: `mvn -B -ntp test -Dtest=StockExportApiTest,StockExportMigrationTest,StockDocumentDraftApiTest,StockImportTransactionTest`,
+sau đó `mvn -B -ntp verify`. Tests dùng PostgreSQL16.10 thật, Flyway + Hibernate validate;
+HTTP dựng SecurityContext theo nền develop, không nhận đây là E2E JWT production.

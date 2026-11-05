@@ -21,6 +21,8 @@ public class StockDocumentItem {
     private int quantity;
     @Column(name = "unit_cost")
     private Long unitCost;
+    @Column(name = "export_cost_price")
+    private Long exportCostPrice;
     @Column(name = "received_quantity")
     private Integer receivedQuantity;
     @Column(name = "counted_quantity")
@@ -35,4 +37,19 @@ public class StockDocumentItem {
     }
 
     void attachTo(StockDocument document) { this.document = document; }
+
+    public static StockDocumentItem exported(Long productId, int quantity) {
+        var item = new StockDocumentItem();
+        item.productId = productId;
+        item.quantity = quantity;
+        return item;
+    }
+
+    public void recordExportCost(long cost) {
+        document.requireDraft();
+        if (document.getType() != StockDocumentType.EXPORT || cost < 0) {
+            throw new IllegalArgumentException("Giá vốn xuất hủy không hợp lệ");
+        }
+        exportCostPrice = cost;
+    }
 }

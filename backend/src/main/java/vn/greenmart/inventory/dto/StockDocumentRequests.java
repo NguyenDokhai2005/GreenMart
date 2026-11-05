@@ -11,10 +11,10 @@ public final class StockDocumentRequests {
 
     public record Item(@NotNull @Positive Long productId,
             @NotNull @Min(1) @Max(99999) Integer quantity,
-            @NotNull @PositiveOrZero Long unitCost, Integer countedQuantity) {}
+            @PositiveOrZero Long unitCost, Integer countedQuantity) {}
 
     public record Create(@NotNull StockDocumentType type, @NotNull @Positive Long branchId,
-            Long toBranchId, @NotBlank @Size(max = 120) String supplier,
+            Long toBranchId, @Size(max = 120) String supplier,
             String exportReason, @Size(max = 255) String note,
             @NotNull @Size(min = 1, max = 500) List<@NotNull @Valid Item> items) {}
 
