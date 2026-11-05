@@ -1,2 +1,2 @@
-/** Người dùng, vai trò, gán chi nhánh, JWT, phân quyền, audit log. Phụ trách: SV08. */
+/** Người dùng, JWT và phân quyền. Code: SV03 (#241); QA: SV08 (#242). */
 package vn.greenmart.identity;
