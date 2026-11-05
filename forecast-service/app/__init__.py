@@ -1,1 +1,1 @@
-"""Runtime entry point for the forecast service."""
+"""Runtime entry point and forecast service package."""
