@@ -5,43 +5,17 @@ import { useAuth } from './useAuth';
 import {
   getLoginFieldErrors,
   getLoginNotice,
-  getLockedUntil,
-  parseLockedUntil,
+  getAccountLockout,
+  clearLegacyLoginLockDeadline,
+  getLoginControlState,
+  getVisibleLoginNotice,
   validateLoginRequest,
   type LoginFieldErrors,
-  type LoginNotice,
+  type LoginLockout,
+  type UserLoginNotice,
 } from './loginForm';
 import './LoginPage.css';
 import { APP_PATHS } from './routePolicy';
-
-const LOCKED_UNTIL_STORAGE_KEY = 'greenmart.auth.locked-until';
-
-function readStoredLockDeadline(): number | null {
-  try {
-    const stored = globalThis.sessionStorage?.getItem(LOCKED_UNTIL_STORAGE_KEY);
-    if (!stored) return null;
-
-    const timestamp = parseLockedUntil(stored);
-    if (timestamp && timestamp > Date.now()) return timestamp;
-
-    globalThis.sessionStorage?.removeItem(LOCKED_UNTIL_STORAGE_KEY);
-  } catch {
-    // Storage can be unavailable; the backend remains authoritative for lockout.
-  }
-  return null;
-}
-
-function storeLockDeadline(timestamp: number | null): void {
-  try {
-    if (timestamp === null) {
-      globalThis.sessionStorage?.removeItem(LOCKED_UNTIL_STORAGE_KEY);
-      return;
-    }
-    globalThis.sessionStorage?.setItem(LOCKED_UNTIL_STORAGE_KEY, new Date(timestamp).toISOString());
-  } catch {
-    // The server-provided deadline is still shown for the current page session.
-  }
-}
 
 function formatCountdown(milliseconds: number): string {
   const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
@@ -63,36 +37,43 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({});
-  const [notice, setNotice] = useState<LoginNotice | null>(null);
-  const [lockedUntil, setLockedUntil] = useState<number | null>(readStoredLockDeadline);
+  const [notice, setNotice] = useState<UserLoginNotice | null>(null);
+  const [lockouts, setLockouts] = useState<readonly LoginLockout[]>([]);
   const [now, setNow] = useState(Date.now);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLockRef = useRef(false);
-  const isLocked = lockedUntil !== null && lockedUntil > now;
+  const currentLockout = lockouts.find((item) => item.username === username);
+  const loginControls = getLoginControlState(username, isSubmitting, lockouts, now);
+  const isLocked = loginControls.isLocked;
+  const visibleNotice = getVisibleLoginNotice(username, notice, lockouts, now);
 
   useEffect(() => {
-    if (lockedUntil === null) return undefined;
+    clearLegacyLoginLockDeadline();
+  }, []);
+
+  useEffect(() => {
+    if (lockouts.length === 0) return undefined;
 
     const timer = globalThis.setInterval(() => {
       const currentTime = Date.now();
       setNow(currentTime);
-      if (lockedUntil <= currentTime) {
-        setLockedUntil(null);
-        setNotice(null);
-        storeLockDeadline(null);
+      const expiredUsernames = lockouts
+        .filter((lockout) => lockout.lockedUntil <= currentTime)
+        .map((lockout) => lockout.username);
+      if (expiredUsernames.length > 0) {
+        setLockouts((current) => current.filter((lockout) => lockout.lockedUntil > currentTime));
+        setNotice((current) =>
+          current && expiredUsernames.includes(current.username) ? null : current,
+        );
       }
     }, 1000);
 
     return () => globalThis.clearInterval(timer);
-  }, [lockedUntil]);
-
-  function clearNoticeOnEdit() {
-    if (!isLocked) setNotice(null);
-  }
+  }, [lockouts]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitLockRef.current || isLocked) return;
+    if (submitLockRef.current || loginControls.submitDisabled) return;
 
     const validationErrors = validateLoginRequest(username, password);
     setFieldErrors(validationErrors);
@@ -111,19 +92,25 @@ export default function LoginPage() {
       await signIn(username, password);
       setFieldErrors({});
       setNotice(null);
-      storeLockDeadline(null);
-      setLockedUntil(null);
+      setLockouts([]);
       navigate(APP_PATHS.home, { replace: true, state: location.state });
     } catch (error) {
       const nextNotice = getLoginNotice(error);
       const serverFieldErrors = getLoginFieldErrors(error);
       setFieldErrors(serverFieldErrors);
-      setNotice(nextNotice);
+      setNotice({ username, value: nextNotice });
 
-      const deadline = getLockedUntil(error);
-      const activeDeadline = deadline !== undefined && deadline > Date.now() ? deadline : null;
-      setLockedUntil(activeDeadline);
-      storeLockDeadline(activeDeadline);
+      const nextLockout = getAccountLockout(error, username);
+      if (nextLockout !== undefined) {
+        setLockouts((current) => [
+          ...current.filter(
+            (lockout) => lockout.username !== username && lockout.lockedUntil > Date.now(),
+          ),
+          ...(nextLockout === null ? [] : [nextLockout]),
+        ]);
+      } else {
+        setLockouts((current) => current.filter((lockout) => lockout.lockedUntil > Date.now()));
+      }
 
       if (serverFieldErrors.username || serverFieldErrors.password) {
         const firstInvalidField = serverFieldErrors.username ? 'login-username' : 'login-password';
@@ -136,9 +123,11 @@ export default function LoginPage() {
   }
 
   const lockedDescription =
-    isLocked && lockedUntil !== null
-      ? `${notice?.description ?? 'Tài khoản tạm khóa.'} Thử lại sau ${formatCountdown(lockedUntil - now)}.`
-      : notice?.description;
+    isLocked && currentLockout
+      ? `${visibleNotice?.description ?? 'Tài khoản tạm khóa.'} Thử lại sau ${formatCountdown(
+          currentLockout.lockedUntil - now,
+        )}.`
+      : visibleNotice?.description;
 
   return (
     <div className="login-page">
@@ -176,10 +165,10 @@ export default function LoginPage() {
             />
           )}
 
-        {notice && (
+        {visibleNotice && (
           <Toast
             variant="error"
-            title={notice.title}
+            title={visibleNotice.title}
             description={lockedDescription}
             className="login-page__notice"
           />
@@ -211,12 +200,13 @@ export default function LoginPage() {
                 placeholder="Nhập tên đăng nhập"
                 value={username}
                 onChange={(event) => {
-                  setUsername(event.target.value);
-                  setFieldErrors((current) => ({ ...current, username: undefined }));
-                  clearNoticeOnEdit();
+                  const nextUsername = event.target.value;
+                  setUsername(nextUsername);
+                  setFieldErrors({});
+                  setNotice((current) => (current?.username === nextUsername ? current : null));
                 }}
                 error={fieldErrors.username}
-                disabled={isSubmitting || isLocked}
+                disabled={loginControls.usernameDisabled}
               />
 
               <Input
@@ -232,10 +222,10 @@ export default function LoginPage() {
                 onChange={(event) => {
                   setPassword(event.target.value);
                   setFieldErrors((current) => ({ ...current, password: undefined }));
-                  clearNoticeOnEdit();
+                  setNotice((current) => (current?.username === username ? null : current));
                 }}
                 error={fieldErrors.password}
-                disabled={isSubmitting || isLocked}
+                disabled={loginControls.passwordDisabled}
               />
 
               <div className="login-page__options">
@@ -243,7 +233,7 @@ export default function LoginPage() {
                   label="Hiện mật khẩu"
                   checked={showPassword}
                   onChange={(event) => setShowPassword(event.target.checked)}
-                  disabled={isSubmitting || isLocked}
+                  disabled={loginControls.passwordDisabled}
                 />
                 <span className="login-page__account-note">Chỉ dùng tài khoản được cấp</span>
               </div>
@@ -251,7 +241,7 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 className="login-page__submit"
-                disabled={isSubmitting || isLocked}
+                disabled={loginControls.submitDisabled}
               >
                 {isSubmitting ? 'Đang đăng nhập…' : isLocked ? 'Tạm khóa đăng nhập' : 'Đăng nhập'}
               </Button>

@@ -26,6 +26,20 @@ describe('auth route policy', () => {
     expect(canOpenRoutePath('STOREKEEPER', APP_PATHS.stockDocuments)).toBe(true);
   });
 
+  it('allows CASHIER into POS and denies Operations, stock documents, and Admin', () => {
+    expect(canOpenRoutePath('CASHIER', APP_PATHS.pos)).toBe(true);
+    expect(canOpenRoutePath('CASHIER', APP_PATHS.operations)).toBe(false);
+    expect(canOpenRoutePath('CASHIER', APP_PATHS.stockDocuments)).toBe(false);
+    expect(canOpenRoutePath('CASHIER', APP_PATHS.admin)).toBe(false);
+  });
+
+  it('allows ADMIN only in its declared workspace', () => {
+    expect(canOpenRoutePath('ADMIN', APP_PATHS.admin)).toBe(true);
+    expect(canOpenRoutePath('ADMIN', APP_PATHS.pos)).toBe(false);
+    expect(canOpenRoutePath('ADMIN', APP_PATHS.operations)).toBe(false);
+    expect(canOpenRoutePath('ADMIN', APP_PATHS.stockDocuments)).toBe(false);
+  });
+
   it('does not grant ADMIN access outside explicitly permitted routes', () => {
     expect(canOpenRoutePath('ADMIN', APP_PATHS.stockDocuments)).toBe(false);
     expect(canOpenRoutePath('ADMIN', APP_PATHS.admin)).toBe(true);
