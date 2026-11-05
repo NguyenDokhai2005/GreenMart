@@ -15,7 +15,6 @@ import vn.greenmart.customer.dto.CustomerResponse;
 import vn.greenmart.customer.service.CustomerService;
 import vn.greenmart.identity.service.AuthService;
 import vn.greenmart.integration.outbox.OutboxService;
-import vn.greenmart.inventory.exception.InsufficientStockException;
 import vn.greenmart.inventory.service.InventoryService;
 import vn.greenmart.sales.domain.OrderItem;
 import vn.greenmart.sales.domain.OrderStatus;
@@ -71,16 +70,14 @@ public class PosOrderServiceImpl implements PosOrderService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public OrderResponse createPosOrder(PosOrderRequest request, String idempotencyKey) {
-        // Phân quyền: x-roles chỉ gồm BRANCH_MANAGER và CASHIER
         SecurityUtils.requireRole("BRANCH_MANAGER", "CASHIER");
 
-        // Kiểm tra quyền chi nhánh theo BR-11
         List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
         if (accessibleBranches != null && !accessibleBranches.contains(request.branchId())) {
             throw new AppException(ErrorCode.BRANCH_FORBIDDEN, "Bạn không có quyền thao tác trên chi nhánh này");
         }
 
-        // BƯỚC 1: Tính lại Báo giá & Kiểm tra expectedTotal (TOTAL_CHANGED)
+        // Tính lại Báo giá & Kiểm tra expectedTotal
         QuoteRequest quoteRequest = new QuoteRequest(
                 request.branchId(),
                 request.customerId(),
@@ -93,6 +90,28 @@ public class PosOrderServiceImpl implements PosOrderService {
             throw new AppException(ErrorCode.TOTAL_CHANGED, "Tổng tiền đơn hàng đã thay đổi", Map.of("quote", recomputedQuote));
         }
 
+        // Kiểm tra lượt khuyến mãi: nếu hết lượt thì tính lại quote mới và trả về 422 TOTAL_CHANGED
+        boolean promoSuccess = true;
+        if (recomputedQuote.orderPromotion() != null && recomputedQuote.orderPromotion().id() != null) {
+            promoSuccess = promotionService.recordUsage(recomputedQuote.orderPromotion().id());
+        }
+        if (promoSuccess) {
+            for (QuoteLine qLine : recomputedQuote.lines()) {
+                if (qLine.promotion() != null && qLine.promotion().id() != null) {
+                    if (!promotionService.recordUsage(qLine.promotion().id())) {
+                        promoSuccess = false;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!promoSuccess) {
+            // Khi hết lượt KM lúc chốt đơn, tính lại quote và ném 422
+            Quote updatedQuote = quoteService.calculateQuote(quoteRequest);
+            throw new AppException(ErrorCode.TOTAL_CHANGED, "Khuyến mại đã hết lượt sử dụng, tổng tiền đã thay đổi", Map.of("quote", updatedQuote));
+        }
+
         // Kiểm tra xem có sản phẩm ngưng kinh doanh không
         for (OrderLineRequest lineReq : request.items()) {
             ProductSaleInfo pInfo = productService.getSaleInfo(lineReq.productId());
@@ -101,11 +120,10 @@ public class PosOrderServiceImpl implements PosOrderService {
             }
         }
 
-        // BƯỚC 2: Kiểm tra tồn trước khi lock và tránh Deadlock (Sort theo productId ASC)
+        // Sắp xếp theo productId ASC và kiểm tra tồn kho
         List<OrderLineRequest> sortedItems = new ArrayList<OrderLineRequest>(request.items());
         sortedItems.sort(Comparator.comparing(OrderLineRequest::productId));
 
-        // Kiểm tra sơ bộ các dòng thiếu tồn (dùng InsufficientStockLine định kiểu tường minh)
         List<InsufficientStockLine> insufficientLines = new ArrayList<InsufficientStockLine>();
         for (OrderLineRequest line : sortedItems) {
             int available = inventoryService.getAvailable(request.branchId(), line.productId());
@@ -123,7 +141,7 @@ public class PosOrderServiceImpl implements PosOrderService {
             throw new AppException(ErrorCode.INSUFFICIENT_STOCK, "Không đủ tồn kho khả dụng", Map.of("lines", insufficientLines));
         }
 
-        // BƯỚC 3: Kiểm tra thanh toán giả lập (PAY-01)
+        // Kiểm tra thanh toán giả lập
         PaymentRequest payReq = request.payment();
         long totalAmount = recomputedQuote.total();
         Long cashReceived = null;
@@ -148,7 +166,7 @@ public class PosOrderServiceImpl implements PosOrderService {
             providerRef = "SIM-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         }
 
-        // BƯỚC 4: Tạo đơn hàng SalesOrder (COMPLETED)
+        // Tạo đơn hàng SalesOrder
         Long posChannelId = jdbcTemplate.queryForObject(
                 "SELECT id FROM sales_channel WHERE code = 'POS'", Long.class
         );
@@ -187,17 +205,12 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         order = salesOrderRepository.save(order);
 
-        // BƯỚC 5: Trừ tồn kho & Ghi dòng đơn hàng (order_item)
+        // Trừ tồn kho & Ghi dòng đơn hàng
         List<OrderItemResponse> itemResponses = new ArrayList<OrderItemResponse>();
         int totalItemCount = 0;
 
         for (QuoteLine qLine : recomputedQuote.lines()) {
-            try {
-                inventoryService.sellDirect(request.branchId(), qLine.productId(), qLine.quantity(), order.getId());
-            } catch (InsufficientStockException ex) {
-                // Ném thẳng exception mang đủ details.lines theo chuẩn
-                throw ex;
-            }
+            inventoryService.sellDirect(request.branchId(), qLine.productId(), qLine.quantity(), order.getId());
 
             OrderItem orderItem = new OrderItem();
             orderItem.setOrderId(order.getId());
@@ -225,7 +238,7 @@ public class PosOrderServiceImpl implements PosOrderService {
             totalItemCount += orderItem.getQuantity();
         }
 
-        // BƯỚC 6: Tạo bản ghi Payment
+        // Tạo bản ghi Payment
         Payment payment = new Payment();
         payment.setOrderId(order.getId());
         payment.setMethod(payReq.method());
@@ -247,17 +260,7 @@ public class PosOrderServiceImpl implements PosOrderService {
                 payment.getPaidAt()
         );
 
-        // BƯỚC 7: Cập nhật used_count của khuyến mại nếu có
-        if (order.getPromotionId() != null) {
-            promotionService.recordUsage(order.getPromotionId());
-        }
-        for (QuoteLine qLine : recomputedQuote.lines()) {
-            if (qLine.promotion() != null && qLine.promotion().id() != null) {
-                promotionService.recordUsage(qLine.promotion().id());
-            }
-        }
-
-        // BƯỚC 8: Enqueue 2 sự kiện outbox trong cùng Transaction
+        // Enqueue Outbox events
         Map<String, Object> orderPayload = Map.of(
                 "orderId", order.getId(),
                 "code", order.getCode(),
@@ -274,8 +277,6 @@ public class PosOrderServiceImpl implements PosOrderService {
                 "reason", "POS_SALE"
         );
         outboxService.enqueue("stock", order.getBranchId().toString(), "stock.changed", stockPayload);
-
-        // Chuẩn bị DTO trả về khớp OpenAPI
         BranchRef branchRef = new BranchRef(request.branchId(), branchInfo.code(), branchInfo.name());
 
         CustomerRef customerRef = null;

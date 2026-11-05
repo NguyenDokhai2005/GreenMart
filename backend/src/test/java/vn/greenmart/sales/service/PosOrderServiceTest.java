@@ -288,4 +288,55 @@ class PosOrderServiceTest {
                 .isInstanceOf(AppException.class)
                 .matches(e -> ((AppException) e).getCode().equals(ErrorCode.CASH_INSUFFICIENT.name()));
     }
+
+    @Test
+    @DisplayName("Khuyến mại hết lượt lúc hoàn tất đơn -> trả 422 TOTAL_CHANGED kèm details.quote và không lưu đơn")
+    void testCreatePosOrder_PromotionExhausted_Throws422_WithDetailsQuote() {
+        authenticate("CASHIER");
+
+        PromotionRef promo = new PromotionRef(88L, "KM-CHOT", "Giảm 20k", 20000L);
+        Quote initialQuote = new Quote(
+                1L, null, Collections.emptyList(), promo,
+                200000L, 0L, 20000L, 0L, 20000L, 180000L, true
+        );
+        Quote quoteWithoutPromo = new Quote(
+                1L, null, Collections.emptyList(), null,
+                200000L, 0L, 0L, 0L, 0L, 200000L, true
+        );
+
+        // Lần đầu tính ra quote có KM (180k), lần sau khi hết lượt tính lại ra quote mới không có KM (200k)
+        when(quoteService.calculateQuote(any()))
+                .thenReturn(initialQuote)
+                .thenReturn(quoteWithoutPromo);
+
+        // Giả lập promotionService.recordUsage trả về false (hết lượt)
+        when(promotionService.recordUsage(88L)).thenReturn(false);
+
+        PosOrderRequest request = new PosOrderRequest(
+                1L, null,
+                List.of(new OrderLineRequest(101L, 1)),
+                null,
+                new PaymentRequest(PaymentMethod.CASH, 200000L, "SUCCESS"),
+                180000L
+        );
+
+        assertThatThrownBy(() -> posOrderService.createPosOrder(request, UUID.randomUUID().toString()))
+                .isInstanceOf(AppException.class)
+                .satisfies(ex -> {
+                    AppException appEx = (AppException) ex;
+                    assertThat(appEx.getCode()).isEqualTo(ErrorCode.TOTAL_CHANGED.name());
+
+                    assertThat(appEx.getDetails()).isInstanceOf(Map.class);
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> details = (Map<String, Object>) appEx.getDetails();
+                    assertThat(details).containsKey("quote");
+
+                    Quote quoteInDetails = (Quote) details.get("quote");
+                    assertThat(quoteInDetails.total()).isEqualTo(200000L);
+                });
+
+        // Đảm bảo rollback và không lưu đơn hay trừ kho
+        verify(salesOrderRepository, never()).save(any());
+        verify(inventoryService, never()).sellDirect(any(), any(), anyInt(), any());
+    }
 }
