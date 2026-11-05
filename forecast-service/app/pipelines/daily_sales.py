@@ -362,21 +362,61 @@ def build_daily_sales(
 
 
 class StockoutScheduleProvider:
-    """Provider nguồn dữ liệu stockout.
+    """Provider nguồn dữ liệu stockout từ file JSON demo/seed.
     
-    Hiện tại: Đọc từ stockout_schedule.json của Issue #106.
-    Sau này: Có thể tráo đổi bằng InventoryTransactionStockoutProvider mà không đổi logic lõi.
+    Hỗ trợ đối số allow_missing để tránh fail thầm lặng (Fix điểm 1).
     """
 
     @staticmethod
-    def load_schedule(json_path: Optional[Path] = None) -> List[Dict[str, Any]]:
+    def load_schedule(
+        json_path: Optional[Path] = None,
+        allow_missing: bool = False,
+    ) -> List[Dict[str, Any]]:
         """Đọc danh sách sự kiện stockout từ file JSON."""
         if json_path is None:
             json_path = _SERVICE_DIR / "data" / "stockout_schedule.json"
         if not json_path.exists():
+            if not allow_missing:
+                raise FileNotFoundError(
+                    f"Không tìm thấy file nguồn lịch stockout tại: '{json_path}'. "
+                    "Mô hình dự báo cần cờ stockout chính xác để tránh coi ngày hết hàng là không có nhu cầu. "
+                    "Hãy sinh dữ liệu demo hoặc truyền cờ --allow-missing-stockout để tiếp tục."
+                )
+            import logging
+            logging.getLogger(__name__).warning(
+                f"[CẢNH BÁO] Không tìm thấy file lịch stockout tại '{json_path}'. "
+                "Tiếp tục chạy với cờ stockout=False toàn bộ do bật --allow-missing-stockout."
+            )
             return []
         with open(json_path, "r", encoding="utf-8") as f:
             return json.load(f)
+
+
+class InventoryTransactionStockoutProvider:
+    """Provider suy cờ stockout từ bảng inventory_transaction trong PostgreSQL.
+    
+    Một cặp (ngày, chi nhánh, sản phẩm) được coi là stockout nếu trong ngày đó
+    có giao dịch kho mà tồn khả dụng (on_hand_after - reserved_after) <= 0.
+    """
+
+    @staticmethod
+    def load_schedule_from_db(conn: Any, start_date: date, end_date: date) -> Set[Tuple[date, int, int]]:
+        start_ts = datetime.combine(start_date, time.min, tzinfo=TIMEZONE_VN)
+        end_ts = datetime.combine(end_date + timedelta(days=1), time.min, tzinfo=TIMEZONE_VN)
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT
+                    (created_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date AS sale_date,
+                    branch_id,
+                    product_id
+                FROM inventory_transaction
+                WHERE (on_hand_after - reserved_after) <= 0
+                  AND created_at >= %s AND created_at < %s;
+                """,
+                (start_ts, end_ts),
+            )
+            return {(row[0], int(row[1]), int(row[2])) for row in cur.fetchall()}
 
 
 # ==============================================================================
@@ -384,69 +424,140 @@ class StockoutScheduleProvider:
 # ==============================================================================
 
 
+def _read_sql_df(sql: str, conn: Any, params: Optional[Any] = None) -> pd.DataFrame:
+    """Đọc dữ liệu từ PostgreSQL qua cursor psycopg 3 và trả về pandas DataFrame an toàn."""
+    with conn.cursor() as cur:
+        cur.execute(sql, params)
+        if cur.description is None:
+            return pd.DataFrame()
+        columns = [col[0] for col in cur.description]
+        records = cur.fetchall()
+        return pd.DataFrame(records, columns=columns)
+
+
 class DailySalesPipeline:
     """Lớp quản lý trích xuất dữ liệu, tổng hợp và nạp bảng daily_sales (Idempotent)."""
 
-    def __init__(self, stockout_provider: Any = StockoutScheduleProvider):
+    def __init__(
+        self,
+        stockout_provider: Any = StockoutScheduleProvider,
+        allow_missing_stockout: bool = False,
+        stockout_source: str = "json",
+    ):
         self.stockout_provider = stockout_provider
+        self.allow_missing_stockout = allow_missing_stockout
+        self.stockout_source = stockout_source
 
     def fetch_raw_data_from_db(self, conn, start_date: date, end_date: date) -> Dict[str, pd.DataFrame]:
-        """Trích xuất dữ liệu thô từ PostgreSQL bằng câu lệnh SELECT tham số hóa (chống SQL Injection)."""
-        # Đọc chi nhánh và sản phẩm
-        df_branches = pd.read_sql("SELECT id, code, is_active FROM branch WHERE is_active = TRUE;", conn)
-        df_products = pd.read_sql("SELECT id, sku, sale_price, is_active FROM product WHERE is_active = TRUE;", conn)
+        """Trích xuất dữ liệu thô từ PostgreSQL bằng câu lệnh SELECT tham số hóa (chống SQL Injection).
+        
+        Đẩy điều kiện lọc thời gian theo giờ Việt Nam xuống thẳng database để tối ưu RAM và I/O.
+        """
+        start_ts = datetime.combine(start_date, time.min, tzinfo=TIMEZONE_VN)
+        end_ts = datetime.combine(end_date + timedelta(days=1), time.min, tzinfo=TIMEZONE_VN)
+        sql_params = {"start_ts": start_ts, "end_ts": end_ts}
 
-        # Đọc đơn hàng COMPLETED hoặc RETURNED
-        df_orders = pd.read_sql(
+        # Đọc chi nhánh và sản phẩm đang hoạt động
+        df_branches = _read_sql_df("SELECT id, code, is_active FROM branch WHERE is_active = TRUE;", conn)
+        df_products = _read_sql_df("SELECT id, sku, sale_price, is_active FROM product WHERE is_active = TRUE;", conn)
+
+        # Đọc đơn hàng COMPLETED hoặc RETURNED trong khoảng ngày (hoặc được phiếu trả tham chiếu)
+        df_orders = _read_sql_df(
             """
             SELECT id, branch_id, status, completed_at, subtotal, discount, total
             FROM sales_order
-            WHERE status IN ('COMPLETED', 'RETURNED') AND completed_at IS NOT NULL;
+            WHERE (status IN ('COMPLETED', 'RETURNED') AND completed_at >= %(start_ts)s AND completed_at < %(end_ts)s)
+               OR id IN (
+                   SELECT rd.order_id FROM return_document rd
+                   WHERE rd.status = 'APPROVED'
+                     AND rd.approved_at >= %(start_ts)s AND rd.approved_at < %(end_ts)s
+               );
             """,
             conn,
+            sql_params,
         )
 
-        # Đọc dòng đơn
-        df_order_items = pd.read_sql(
+        # Đọc dòng đơn cho các đơn hàng liên quan
+        df_order_items = _read_sql_df(
             """
-            SELECT id, order_id, product_id, quantity, unit_price, discount, line_total
-            FROM order_item;
+            SELECT oi.id, oi.order_id, oi.product_id, oi.quantity, oi.unit_price, oi.discount, oi.line_total
+            FROM order_item oi
+            WHERE oi.order_id IN (
+                SELECT id FROM sales_order
+                WHERE status IN ('COMPLETED', 'RETURNED')
+                  AND completed_at >= %(start_ts)s AND completed_at < %(end_ts)s
+            )
+            OR oi.id IN (
+                SELECT ri.order_item_id FROM return_item ri
+                JOIN return_document rd ON ri.return_id = rd.id
+                WHERE rd.status = 'APPROVED'
+                  AND rd.approved_at >= %(start_ts)s AND rd.approved_at < %(end_ts)s
+            );
             """,
             conn,
+            sql_params,
         )
 
-        # Đọc phiếu trả APPROVED
-        df_returns = pd.read_sql(
+        # Đọc phiếu trả APPROVED trong khoảng ngày
+        df_returns = _read_sql_df(
             """
             SELECT id, order_id, branch_id, status, approved_at, refund_amount
             FROM return_document
-            WHERE status = 'APPROVED' AND approved_at IS NOT NULL;
+            WHERE status = 'APPROVED'
+              AND approved_at >= %(start_ts)s AND approved_at < %(end_ts)s;
             """,
             conn,
+            sql_params,
         )
 
-        # Đọc dòng trả
-        df_return_items = pd.read_sql(
+        # Đọc dòng trả cho các phiếu trả liên quan
+        df_return_items = _read_sql_df(
             """
-            SELECT id, return_id, order_item_id, quantity, condition
-            FROM return_item;
+            SELECT ri.id, ri.return_id, ri.order_item_id, ri.quantity, ri.condition
+            FROM return_item ri
+            JOIN return_document rd ON ri.return_id = rd.id
+            WHERE rd.status = 'APPROVED'
+              AND rd.approved_at >= %(start_ts)s AND rd.approved_at < %(end_ts)s;
             """,
             conn,
+            sql_params,
         )
 
-        # Đọc khuyến mại cấp ITEM hợp lệ
-        df_promotions = pd.read_sql(
+        # Đọc khuyến mại cấp ITEM có thời gian giao thoa với khoảng ngày
+        df_promotions = _read_sql_df(
             """
             SELECT id, code, type, level, value, start_at, end_at, status
             FROM promotion
-            WHERE level = 'ITEM' AND status <> 'DRAFT';
+            WHERE level = 'ITEM' AND status <> 'DRAFT'
+              AND start_at < %(end_ts)s AND end_at >= %(start_ts)s;
             """,
             conn,
+            sql_params,
         )
 
         # Đọc liên kết KM
-        df_promo_branches = pd.read_sql("SELECT promotion_id, branch_id FROM promotion_branch;", conn)
-        df_promo_products = pd.read_sql("SELECT promotion_id, product_id FROM promotion_product;", conn)
+        df_promo_branches = _read_sql_df(
+            """
+            SELECT pb.promotion_id, pb.branch_id
+            FROM promotion_branch pb
+            JOIN promotion p ON pb.promotion_id = p.id
+            WHERE p.level = 'ITEM' AND p.status <> 'DRAFT'
+              AND p.start_at < %(end_ts)s AND p.end_at >= %(start_ts)s;
+            """,
+            conn,
+            sql_params,
+        )
+        df_promo_products = _read_sql_df(
+            """
+            SELECT pp.promotion_id, pp.product_id
+            FROM promotion_product pp
+            JOIN promotion p ON pp.promotion_id = p.id
+            WHERE p.level = 'ITEM' AND p.status <> 'DRAFT'
+              AND p.start_at < %(end_ts)s AND p.end_at >= %(start_ts)s;
+            """,
+            conn,
+            sql_params,
+        )
 
         return {
             "df_orders": df_orders,
@@ -461,7 +572,7 @@ class DailySalesPipeline:
         }
 
     def load_dataframe_to_db(self, conn, df_daily_sales: pd.DataFrame) -> int:
-        """Nạp dữ liệu vào bảng daily_sales qua bảng tạm + COPY + ON CONFLICT DO UPDATE (Idempotent)."""
+        """Nạp dữ liệu vào bảng daily_sales qua bảng tạm + COPY (psycopg 3) + ON CONFLICT DO UPDATE (Idempotent)."""
         if df_daily_sales.empty:
             return 0
 
@@ -496,17 +607,17 @@ class DailySalesPipeline:
                 """
             )
 
-            # 2. Nạp dữ liệu nhanh qua copy_expert (chỉ thị S2)
-            cur.copy_expert(
+            # 2. Nạp dữ liệu nhanh qua copy trong psycopg 3
+            with cur.copy(
                 """
                 COPY stage_daily_sales (
                     sale_date, branch_id, product_id,
                     qty_sold, qty_returned, qty_net, revenue,
                     promo_flag, promo_discount_pct, stockout
                 ) FROM STDIN WITH (FORMAT csv, HEADER false);
-                """,
-                csv_buffer,
-            )
+                """
+            ) as copy:
+                copy.write(csv_buffer.getvalue())
 
             # 3. Chèn hoặc cập nhật (Upsert) vào bảng daily_sales chính thức
             cur.execute(
@@ -535,16 +646,37 @@ class DailySalesPipeline:
         conn.commit()
         return len(df_daily_sales)
 
-    def run(self, start_date: date, end_date: date, dry_run: bool = False) -> Dict[str, Any]:
+    def run(
+        self,
+        start_date: date,
+        end_date: date,
+        dry_run: bool = False,
+        allow_missing_stockout: Optional[bool] = None,
+        stockout_source: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Thực thi toàn bộ quy trình tổng hợp."""
         t_start = time_mod.time()
+        allow_missing = self.allow_missing_stockout if allow_missing_stockout is None else allow_missing_stockout
+        src = self.stockout_source if stockout_source is None else stockout_source
 
         with get_db_connection() as conn:
             # 1. Trích xuất dữ liệu thô
             raw_data = self.fetch_raw_data_from_db(conn, start_date, end_date)
 
             # 2. Đọc lịch stockout
-            stockout_schedule = self.stockout_provider.load_schedule()
+            if src == "db":
+                stockout_schedule = InventoryTransactionStockoutProvider.load_schedule_from_db(conn, start_date, end_date)
+            elif hasattr(self.stockout_provider, "load_schedule"):
+                import inspect
+                sig = inspect.signature(self.stockout_provider.load_schedule)
+                if "allow_missing" in sig.parameters:
+                    stockout_schedule = self.stockout_provider.load_schedule(allow_missing=allow_missing)
+                else:
+                    stockout_schedule = self.stockout_provider.load_schedule()
+            elif callable(self.stockout_provider):
+                stockout_schedule = self.stockout_provider()
+            else:
+                stockout_schedule = self.stockout_provider
 
             # 3. Tính toán DataFrame
             df_result = build_daily_sales(
@@ -609,6 +741,17 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Chỉ trích xuất và tính toán số liệu thống kê, không ghi vào CSDL",
     )
+    parser.add_argument(
+        "--allow-missing-stockout",
+        action="store_true",
+        help="Cho phép tiếp tục chạy pipeline với cờ stockout=False toàn bộ nếu thiếu file lịch stockout",
+    )
+    parser.add_argument(
+        "--stockout-source",
+        choices=["json", "db"],
+        default="json",
+        help="Nguồn xác định stockout: 'json' (file demo) hoặc 'db' (bảng inventory_transaction). Mặc định: json",
+    )
     return parser.parse_args()
 
 
@@ -619,9 +762,13 @@ def main():
     print("GREENMART FORECAST-SERVICE: PIPELINE TỔNG HỢP DAILY_SALES (#109)")
     print(f"- Khoảng thời gian: {args.start_date} -> {args.end_date}")
     print(f"- Chế độ chạy: {'DRY RUN (Chỉ đọc & tính toán)' if args.dry_run else 'NẠP CSDL THỰC TẾ'}")
+    print(f"- Nguồn stockout: {args.stockout_source} (allow-missing: {args.allow_missing_stockout})")
     print("=" * 70)
 
-    pipeline = DailySalesPipeline()
+    pipeline = DailySalesPipeline(
+        allow_missing_stockout=args.allow_missing_stockout,
+        stockout_source=args.stockout_source,
+    )
     try:
         stats = pipeline.run(args.start_date, args.end_date, dry_run=args.dry_run)
         print("\n[THÀNH CÔNG] Hoàn tất pipeline tổng hợp daily_sales!")

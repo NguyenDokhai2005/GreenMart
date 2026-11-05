@@ -14,8 +14,17 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from app.pipelines.daily_sales import build_daily_sales
-from app.db.connection import test_connection as check_db_connection, get_db_connection
+from app.pipelines.daily_sales import (
+    build_daily_sales,
+    StockoutScheduleProvider,
+    InventoryTransactionStockoutProvider,
+    DailySalesPipeline,
+)
+from app.db.connection import (
+    test_connection as check_db_connection,
+    get_db_connection,
+    get_connection_params,
+)
 
 TIMEZONE_VN = ZoneInfo("Asia/Ho_Chi_Minh")
 
@@ -695,6 +704,74 @@ class TestDailySalesPureLogic(unittest.TestCase):
         self.assertEqual(r_d03["qty_sold"], 0)
         self.assertEqual(r_d03["qty_returned"], 1)
         self.assertEqual(r_d03["qty_net"], -1)
+
+    def test_stockout_schedule_provider_missing_file_raises_filenotfound(self):
+        """TC-20: StockoutScheduleProvider ném FileNotFoundError nếu file không tồn tại và allow_missing=False."""
+        from pathlib import Path
+        missing_path = Path("non_existent_stockout_schedule_test_123.json")
+        with self.assertRaises(FileNotFoundError) as ctx:
+            StockoutScheduleProvider.load_schedule(missing_path, allow_missing=False)
+        self.assertIn("Không tìm thấy file nguồn lịch stockout", str(ctx.exception))
+
+    def test_stockout_schedule_provider_missing_file_allow_missing(self):
+        """TC-21: StockoutScheduleProvider trả về [] nếu file không tồn tại nhưng allow_missing=True."""
+        from pathlib import Path
+        missing_path = Path("non_existent_stockout_schedule_test_123.json")
+        result = StockoutScheduleProvider.load_schedule(missing_path, allow_missing=True)
+        self.assertEqual(result, [])
+
+    def test_stockout_schedule_provider_valid_file(self):
+        """TC-22: StockoutScheduleProvider đọc đúng dữ liệu từ file JSON hợp lệ."""
+        import tempfile
+        import json
+        from pathlib import Path
+
+        sample_data = [{"date": "2026-08-15", "branch_id": 1, "product_id": 101}]
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as f:
+            json.dump(sample_data, f)
+            temp_path = Path(f.name)
+
+        try:
+            data = StockoutScheduleProvider.load_schedule(temp_path)
+            self.assertEqual(len(data), 1)
+            self.assertEqual(data[0]["branch_id"], 1)
+        finally:
+            if temp_path.exists():
+                temp_path.unlink()
+
+    def test_db_connection_params_rejects_missing_forecast_user(self):
+        """TC-23: get_connection_params báo lỗi nếu thiếu FORECAST_DB_USER, không lấy POSTGRES_USER."""
+        from unittest.mock import patch
+        with patch.dict(os.environ, {"POSTGRES_USER": "postgres_root"}, clear=True):
+            with self.assertRaises(ValueError) as ctx:
+                get_connection_params()
+            self.assertIn("FORECAST_DB_USER", str(ctx.exception))
+
+    def test_db_connection_params_rejects_missing_forecast_password(self):
+        """TC-24: get_connection_params báo lỗi nếu thiếu FORECAST_DB_PASSWORD, không lấy POSTGRES_PASSWORD."""
+        from unittest.mock import patch
+        with patch.dict(os.environ, {"FORECAST_DB_USER": "forecast_ro", "POSTGRES_PASSWORD": "secret_root"}, clear=True):
+            with self.assertRaises(ValueError) as ctx:
+                get_connection_params()
+            self.assertIn("FORECAST_DB_PASSWORD", str(ctx.exception))
+
+    def test_db_connection_params_success_with_forecast_ro(self):
+        """TC-25: get_connection_params lấy đúng tài khoản FORECAST_DB_*."""
+        from unittest.mock import patch
+        env_mock = {
+            "FORECAST_DB_HOST": "dbhost",
+            "FORECAST_DB_PORT": "5433",
+            "POSTGRES_DB": "greenmart_test",
+            "FORECAST_DB_USER": "ro_user",
+            "FORECAST_DB_PASSWORD": "ro_password",
+        }
+        with patch.dict(os.environ, env_mock, clear=True):
+            params = get_connection_params()
+            self.assertEqual(params["host"], "dbhost")
+            self.assertEqual(params["port"], 5433)
+            self.assertEqual(params["dbname"], "greenmart_test")
+            self.assertEqual(params["user"], "ro_user")
+            self.assertEqual(params["password"], "ro_password")
 
 
 @pytest.mark.integration

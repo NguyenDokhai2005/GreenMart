@@ -1,7 +1,8 @@
-"""Module quản lý kết nối cơ sở dữ liệu PostgreSQL cho forecast-service.
+"""Module quản lý kết nối cơ sở dữ liệu PostgreSQL cho forecast-service (psycopg 3).
 
-Đọc cấu hình từ biến môi trường (.env) và hỗ trợ quản lý transaction,
-tự động đóng kết nối sau khi sử dụng.
+Chỉ sử dụng tài khoản giới hạn của forecast (FORECAST_DB_USER / FORECAST_DB_PASSWORD),
+tuyệt đối không sử dụng tài khoản chủ DB (POSTGRES_USER / POSTGRES_PASSWORD).
+Đồng bộ theo đặc tả kiến trúc docs/design/architecture/README.md và PR #238.
 """
 
 from __future__ import annotations
@@ -12,8 +13,8 @@ from pathlib import Path
 from typing import Generator, Optional
 
 from dotenv import load_dotenv
-import psycopg2
-from psycopg2.extensions import connection as PgConnection
+import psycopg
+from psycopg import Connection as PgConnection
 
 # Nạp file .env từ thư mục gốc của repository nếu có
 _SERVICE_DIR = Path(__file__).resolve().parents[2]
@@ -26,23 +27,41 @@ else:
 
 
 def get_connection_params() -> dict[str, str | int]:
-    """Lấy tham số kết nối PostgreSQL từ biến môi trường (không in secrets)."""
+    """Lấy tham số kết nối PostgreSQL từ biến môi trường của forecast (không dùng tài khoản chủ DB)."""
+    user = os.getenv("FORECAST_DB_USER")
+    password = os.getenv("FORECAST_DB_PASSWORD")
+    dbname = os.getenv("POSTGRES_DB", "greenmart")
+
+    if not user:
+        raise ValueError(
+            "Thiếu biến môi trường FORECAST_DB_USER. "
+            "Forecast service chỉ được phép dùng tài khoản riêng (forecast_ro), "
+            "không được fallback sang POSTGRES_USER của chủ DB."
+        )
+    if password is None:
+        raise ValueError(
+            "Thiếu biến môi trường FORECAST_DB_PASSWORD. "
+            "Forecast service chỉ được phép dùng tài khoản riêng (forecast_ro), "
+            "không được fallback sang POSTGRES_PASSWORD của chủ DB."
+        )
+
     return {
-        "host": os.getenv("POSTGRES_HOST", "localhost"),
-        "port": int(os.getenv("POSTGRES_PORT", "5432")),
-        "dbname": os.getenv("POSTGRES_DB", "greenmart"),
-        "user": os.getenv("FORECAST_DB_USER", os.getenv("POSTGRES_USER", "forecast_ro")),
-        "password": os.getenv("FORECAST_DB_PASSWORD", os.getenv("POSTGRES_PASSWORD", "")),
+        "host": os.getenv("FORECAST_DB_HOST", "localhost"),
+        "port": int(os.getenv("FORECAST_DB_PORT", "5432")),
+        "dbname": dbname,
+        "user": user,
+        "password": password,
+        "connect_timeout": int(os.getenv("FORECAST_DB_TIMEOUT", "2")),
     }
 
 
 @contextmanager
 def get_db_connection() -> Generator[PgConnection, None, None]:
-    """Context manager cung cấp kết nối PostgreSQL và tự động đóng/rollback khi có lỗi."""
+    """Context manager cung cấp kết nối PostgreSQL (psycopg 3) và tự động đóng/rollback khi có lỗi."""
     params = get_connection_params()
     conn: Optional[PgConnection] = None
     try:
-        conn = psycopg2.connect(**params)
+        conn = psycopg.connect(**params)
         yield conn
     except Exception:
         if conn and not conn.closed:
