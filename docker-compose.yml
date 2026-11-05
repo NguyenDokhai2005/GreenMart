@@ -86,6 +86,20 @@ services:
     volumes: [mockdata:/data]
     depends_on:
       backend: {condition: service_healthy}
+  forecast-service:
+    <<: *common
+    build: ./forecast-service
+    image: greenmart-forecast:${IMAGE_TAG:-dev}
+    environment:
+      FORECAST_DB_HOST: postgres
+      FORECAST_DB_PORT: '5432'
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
+      FORECAST_DB_USER: ${FORECAST_DB_USER:?Set FORECAST_DB_USER}
+      FORECAST_DB_PASSWORD: ${FORECAST_DB_PASSWORD:?Set FORECAST_DB_PASSWORD}
+      TZ: Asia/Ho_Chi_Minh
+    depends_on:
+      postgres: {condition: service_healthy}
+      backend: {condition: service_healthy}
   frontend:
     <<: *common
     build: ./frontend

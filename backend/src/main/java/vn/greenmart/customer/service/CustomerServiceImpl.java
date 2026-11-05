@@ -128,4 +128,9 @@ public class CustomerServiceImpl implements CustomerService {
             throw new AppException(ErrorCode.UNAUTHORIZED, "Chưa đăng nhập");
         }
     }
+
+    @Override
+    public boolean exists(Long customerId) {
+        return customerRepository.existsById(customerId);
+    }
 }

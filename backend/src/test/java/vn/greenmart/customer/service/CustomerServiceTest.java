@@ -99,4 +99,13 @@ class CustomerServiceTest {
         AppException ex = assertThrows(AppException.class, () -> customerService.createCustomer(req));
         assertEquals(ErrorCode.FORBIDDEN.name(), ex.getCode());
     }
+
+    @Test
+    void testExists_ReturnsCorrectBoolean() {
+        when(customerRepository.existsById(10L)).thenReturn(true);
+        when(customerRepository.existsById(999L)).thenReturn(false);
+
+        org.junit.jupiter.api.Assertions.assertTrue(customerService.exists(10L));
+        org.junit.jupiter.api.Assertions.assertFalse(customerService.exists(999L));
+    }
 }
