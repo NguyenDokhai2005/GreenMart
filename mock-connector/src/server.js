@@ -19,7 +19,7 @@ function requireValid(condition, message = 'Dữ liệu không hợp lệ') { if
 function validTime(value) { return typeof value === 'string' && /(Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value)); }
 function validateOrder(order) {
   requireValid(text(order?.externalOrderId, 60) && validTime(order.orderedAt));
-  requireValid(text(order.customer?.name, 120) && /^0\d{9}$/.test(order.customer?.phone));
+  requireValid(text(order.customer?.name, 120) && /^0\d{9,10}$/.test(order.customer?.phone));
   requireValid(['ONLINE', 'COD'].includes(order.paymentMethod));
   requireValid(Array.isArray(order.items) && order.items.length >= 1 && order.items.length <= 100);
   for (const item of order.items) {
@@ -37,9 +37,14 @@ async function readBody(request) {
   return Buffer.concat(chunks);
 }
 
+export class ConnectorConfigurationError extends Error {}
+
 export function createConnector({ backendUrl, secrets, stateFile, fetchImpl = fetch }) {
-  for (const channel of channels) {
-    if (!secrets?.[channel] || secrets[channel] === 'change-me') throw new Error(`Configure CHANNEL_${channel}_SECRET`);
+  const missing = channels.filter(channel => !secrets?.[channel]?.trim() || secrets[channel] === 'change-me');
+  if (missing.length) {
+    throw new ConnectorConfigurationError(`Chưa cấu hình ${missing.map(channel => `CHANNEL_${channel}_SECRET`).join(', ')}. `
+      + 'Thay giá trị change-me trong .env bằng secret riêng cho từng kênh trước khi chạy '
+      + '(sinh từng secret bằng openssl rand -hex 32).');
   }
   const base = new URL(backendUrl);
   if (!['http:', 'https:'].includes(base.protocol)) throw new Error('Invalid backend URL');
@@ -125,8 +130,14 @@ export function createConnector({ backendUrl, secrets, stateFile, fetchImpl = fe
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const server = createConnector({ backendUrl: process.env.BACKEND_URL || 'http://backend:8080',
-    secrets: { WEB: process.env.CHANNEL_WEB_SECRET, MARKET: process.env.CHANNEL_MARKET_SECRET },
-    stateFile: process.env.STATE_FILE || '/data/state.json' });
-  server.listen(Number(process.env.PORT || 8090), '0.0.0.0');
+  try {
+    const server = createConnector({ backendUrl: process.env.BACKEND_URL || 'http://backend:8080',
+      secrets: { WEB: process.env.CHANNEL_WEB_SECRET, MARKET: process.env.CHANNEL_MARKET_SECRET },
+      stateFile: process.env.STATE_FILE || '/data/state.json' });
+    server.listen(Number(process.env.PORT || 8090), '0.0.0.0');
+  } catch (error) {
+    console.error('Mock connector không thể khởi động: ' + (error instanceof ConnectorConfigurationError
+      ? error.message : 'Kiểm tra BACKEND_URL, PORT và STATE_FILE.'));
+    process.exitCode = 1;
+  }
 }

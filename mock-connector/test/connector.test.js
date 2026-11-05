@@ -5,7 +5,9 @@ import { once } from 'node:events';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createConnector, sign } from '../src/server.js';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { createConnector, sign, ConnectorConfigurationError } from '../src/server.js';
 
 const secrets = { WEB: 'test-web-only', MARKET: 'test-market-only' };
 async function start(server) { server.listen(0, '127.0.0.1'); await once(server, 'listening'); return `http://127.0.0.1:${server.address().port}`; }
@@ -77,4 +79,49 @@ test('validation rejects bad orders; backend outage returns 502 without losing u
   const response = await fetch(`${base}/demo/WEB/orders`, { method: 'POST', body: JSON.stringify(order) });
   assert.equal(response.status, 502); assert.equal((await response.json()).code, 'BACKEND_UNAVAILABLE');
   assert.equal((await fetch(`${base}/healthz`)).status, 200);
+});
+
+test('phone validation accepts 10 and 11 digits per OpenAPI and rejects other lengths', async t => {
+  const forwarded = [];
+  const app = createConnector({ backendUrl: 'http://127.0.0.1:1', secrets,
+    fetchImpl: async (_url, options) => {
+      forwarded.push(JSON.parse(options.body).customer.phone);
+      return new Response(JSON.stringify({ status: 'RESERVED' }), { status: 202 });
+    } });
+  const base = await start(app); close(t, app);
+  for (const [phone, status] of [['0912345678', 202], ['01234567890', 202],
+    ['012345678', 400], ['012345678901', 400], ['11234567890', 400]]) {
+    const response = await fetch(`${base}/demo/WEB/orders`, { method: 'POST',
+      body: JSON.stringify({ ...order, customer: { ...order.customer, phone } }) });
+    assert.equal(response.status, status, phone);
+  }
+  assert.deepEqual(forwarded, ['0912345678', '01234567890']);
+});
+
+test('configuration errors name every missing/default channel secret without exposing values', () => {
+  for (const [configured, missing] of [[{}, ['WEB', 'MARKET']],
+    [{ ...secrets, WEB: 'change-me' }, ['WEB']],
+    [{ ...secrets, MARKET: 'change-me' }, ['MARKET']],
+    [{ ...secrets, MARKET: '   ' }, ['MARKET']]]) {
+    assert.throws(() => createConnector({ backendUrl: 'http://localhost:8080', secrets: configured }), error => {
+      assert.ok(error instanceof ConnectorConfigurationError);
+      for (const channel of missing) assert.ok(error.message.includes(`CHANNEL_${channel}_SECRET`));
+      assert.ok(error.message.includes('openssl rand -hex 32'));
+      assert.ok(!error.message.includes(secrets.WEB));
+      assert.ok(!error.message.includes(secrets.MARKET));
+      return true;
+    });
+  }
+});
+
+test('CLI exits with a clear configuration message when example secrets are unchanged', () => {
+  const result = spawnSync(process.execPath, [fileURLToPath(new URL('../src/server.js', import.meta.url))],
+    { env: { ...process.env, CHANNEL_WEB_SECRET: 'change-me', CHANNEL_MARKET_SECRET: 'change-me' },
+      encoding: 'utf8', timeout: 5000 });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Mock connector không thể khởi động/);
+  assert.match(result.stderr, /CHANNEL_WEB_SECRET/);
+  assert.match(result.stderr, /CHANNEL_MARKET_SECRET/);
+  assert.match(result.stderr, /openssl rand -hex 32/);
+  assert.equal(result.stdout, '');
 });

@@ -12,6 +12,28 @@ Hợp đồng chi tiết: mục 8.3 SRS và `docs/api/openapi.yaml`.
 
 Node 22, không có dependency npm bên ngoài. Điền secrets riêng trong `.env`:
 
+**Bắt buộc đổi cả `CHANNEL_WEB_SECRET` và `CHANNEL_MARKET_SECRET`** sau khi sao
+chép `.env.example`. Chạy lệnh sau **hai lần**, gán mỗi kết quả cho một kênh riêng:
+
+```sh
+openssl rand -hex 32
+```
+
+Nếu không có OpenSSL, có thể dùng Node 22:
+
+```sh
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
+
+Không đưa secret thật lên Git/PR. Thiếu secret, để trống hoặc giữ `change-me` sẽ
+làm service thoát với mã lỗi 1; log ghi rõ tên biến cần sửa và cách sinh secret.
+Sau khi sửa `.env`, tạo lại container:
+
+```powershell
+docker compose up --build -d --wait mock-connector
+docker compose logs --tail 20 mock-connector
+```
+
 ```powershell
 docker compose up --build -d --wait mock-connector
 # Mở http://localhost:8090
@@ -34,6 +56,9 @@ Chạy riêng từ thư mục `mock-connector`: đặt `CHANNEL_WEB_SECRET`,
 `CHANNEL_MARKET_SECRET`, `BACKEND_URL=http://localhost:8080`,
 `STATE_FILE=./data/state.json`, rồi `npm start`. Mặc định cổng 8090 khớp OpenAPI.
 Chỉ mở cổng demo trên localhost; không dùng mock connector làm dịch vụ công khai.
+`GET /mock/state` không yêu cầu xác thực và trả toàn bộ dữ liệu demo, gồm tên và
+SĐT khách trong đơn. Chỉ dùng dữ liệu giả, giữ bind `127.0.0.1:8090`, không đổi
+sang `0.0.0.0` hoặc công khai qua proxy/tunnel.
 
 Test HTTP dùng backend fixture kiểm chứng cả hai kênh và mã phản hồi; test callback
 kiểm chữ ký sai/body bị sửa, version cũ, lưu state, batch lỗi không ghi một phần,
