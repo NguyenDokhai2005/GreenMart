@@ -1,0 +1,10 @@
+# Requirements phục vụ chạy Notebook EDA & Phân tích dữ liệu (Issue #110)
+# Tách riêng khỏi requirements.txt để không làm chậm CI pipeline của forecast-service
+
+matplotlib>=3.8
+seaborn>=0.13
+sqlalchemy>=2.0
+psycopg2-binary>=2.9
+pyarrow>=14.0
+nbconvert>=7.0
+ipykernel>=6.0
