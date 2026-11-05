@@ -4,11 +4,16 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vn.greenmart.branch.dto.BranchSaleInfo;
+import vn.greenmart.branch.service.BranchService;
 import vn.greenmart.catalog.dto.ProductSaleInfo;
 import vn.greenmart.catalog.service.ProductService;
 import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
 import vn.greenmart.common.security.SecurityUtils;
+import vn.greenmart.customer.dto.CustomerResponse;
+import vn.greenmart.customer.service.CustomerService;
+import vn.greenmart.identity.service.AuthService;
 import vn.greenmart.integration.outbox.OutboxService;
 import vn.greenmart.inventory.exception.InsufficientStockException;
 import vn.greenmart.inventory.service.InventoryService;
@@ -37,6 +42,7 @@ import vn.greenmart.sales.repository.SalesOrderRepository;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -51,7 +57,11 @@ public class PosOrderServiceImpl implements PosOrderService {
 
     private final QuoteService quoteService;
     private final ProductService productService;
+    private final CustomerService customerService;
     private final InventoryService inventoryService;
+    private final BranchService branchService;
+    private final AuthService authService;
+    private final PromotionService promotionService;
     private final SalesOrderRepository salesOrderRepository;
     private final OrderItemRepository orderItemRepository;
     private final PaymentRepository paymentRepository;
@@ -70,7 +80,7 @@ public class PosOrderServiceImpl implements PosOrderService {
             throw new AppException(ErrorCode.BRANCH_FORBIDDEN, "Bạn không có quyền thao tác trên chi nhánh này");
         }
 
-        // Tính lại Báo giá & Kiểm tra expectedTotal
+        // BƯỚC 1: Tính lại Báo giá & Kiểm tra expectedTotal (TOTAL_CHANGED)
         QuoteRequest quoteRequest = new QuoteRequest(
                 request.branchId(),
                 request.customerId(),
@@ -91,12 +101,12 @@ public class PosOrderServiceImpl implements PosOrderService {
             }
         }
 
-        // Kiểm tra tồn trước khi lock và tránh Deadlock (Sort theo productId ASC)
-        List<OrderLineRequest> sortedItems = new ArrayList<>(request.items());
+        // BƯỚC 2: Kiểm tra tồn trước khi lock và tránh Deadlock (Sort theo productId ASC)
+        List<OrderLineRequest> sortedItems = new ArrayList<OrderLineRequest>(request.items());
         sortedItems.sort(Comparator.comparing(OrderLineRequest::productId));
 
-        // Kiểm tra sơ bộ các dòng thiếu tồn
-        List<InsufficientStockLine> insufficientLines = new ArrayList<>();
+        // Kiểm tra sơ bộ các dòng thiếu tồn (dùng InsufficientStockLine định kiểu tường minh)
+        List<InsufficientStockLine> insufficientLines = new ArrayList<InsufficientStockLine>();
         for (OrderLineRequest line : sortedItems) {
             int available = inventoryService.getAvailable(request.branchId(), line.productId());
             if (available < line.quantity()) {
@@ -113,7 +123,7 @@ public class PosOrderServiceImpl implements PosOrderService {
             throw new AppException(ErrorCode.INSUFFICIENT_STOCK, "Không đủ tồn kho khả dụng", Map.of("lines", insufficientLines));
         }
 
-        // Kiểm tra thanh toán giả lập
+        // BƯỚC 3: Kiểm tra thanh toán giả lập (PAY-01)
         PaymentRequest payReq = request.payment();
         long totalAmount = recomputedQuote.total();
         Long cashReceived = null;
@@ -138,19 +148,24 @@ public class PosOrderServiceImpl implements PosOrderService {
             providerRef = "SIM-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         }
 
-        // Tạo đơn hàng SalesOrder
+        // BƯỚC 4: Tạo đơn hàng SalesOrder (COMPLETED)
         Long posChannelId = jdbcTemplate.queryForObject(
                 "SELECT id FROM sales_channel WHERE code = 'POS'", Long.class
         );
 
-        String branchCode = jdbcTemplate.queryForObject(
-                "SELECT code FROM branch WHERE id = ?", String.class, request.branchId()
-        );
-        String branchCodeClean = (branchCode != null) ? branchCode.replace("-", "") : "GM001";
-        String dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        BranchSaleInfo branchInfo = branchService.getSaleInfo(request.branchId());
+        String branchCodeClean = branchInfo.code().replace("-", "");
 
-        Long seq = jdbcTemplate.queryForObject("SELECT nextval('sales_order_id_seq')", Long.class);
-        String orderCode = String.format("POS-%s-%s-%04d", branchCodeClean, dateStr, (seq != null ? seq : 1L) % 10000);
+        LocalDate localDate = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+        String dateStr = localDate.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+
+        Long seq = jdbcTemplate.queryForObject(
+                "INSERT INTO order_sequence (branch_id, order_date, seq) VALUES (?, ?, 1) "
+                + "ON CONFLICT (branch_id, order_date) DO UPDATE SET seq = order_sequence.seq + 1 RETURNING seq",
+                Long.class, request.branchId(), localDate
+        );
+
+        String orderCode = String.format("POS-%s-%s-%04d", branchCodeClean, dateStr, seq);
 
         Instant now = Instant.now();
         Long currentUserId = SecurityUtils.getCurrentUserId();
@@ -172,15 +187,16 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         order = salesOrderRepository.save(order);
 
-        // Trừ tồn kho & Ghi dòng đơn hàng
-        List<OrderItemResponse> itemResponses = new ArrayList<>();
+        // BƯỚC 5: Trừ tồn kho & Ghi dòng đơn hàng (order_item)
+        List<OrderItemResponse> itemResponses = new ArrayList<OrderItemResponse>();
         int totalItemCount = 0;
 
         for (QuoteLine qLine : recomputedQuote.lines()) {
             try {
                 inventoryService.sellDirect(request.branchId(), qLine.productId(), qLine.quantity(), order.getId());
             } catch (InsufficientStockException ex) {
-                throw new AppException(ErrorCode.INSUFFICIENT_STOCK, "Không đủ tồn kho cho sản phẩm: " + qLine.sku());
+                // Ném thẳng exception mang đủ details.lines theo chuẩn
+                throw ex;
             }
 
             OrderItem orderItem = new OrderItem();
@@ -209,7 +225,7 @@ public class PosOrderServiceImpl implements PosOrderService {
             totalItemCount += orderItem.getQuantity();
         }
 
-        // Tạo bản ghi Payment
+        // BƯỚC 6: Tạo bản ghi Payment
         Payment payment = new Payment();
         payment.setOrderId(order.getId());
         payment.setMethod(payReq.method());
@@ -231,17 +247,17 @@ public class PosOrderServiceImpl implements PosOrderService {
                 payment.getPaidAt()
         );
 
-        // Cập nhật used_count của khuyến mại nếu có
+        // BƯỚC 7: Cập nhật used_count của khuyến mại nếu có
         if (order.getPromotionId() != null) {
-            jdbcTemplate.update("UPDATE promotion SET used_count = used_count + 1 WHERE id = ?", order.getPromotionId());
+            promotionService.recordUsage(order.getPromotionId());
         }
         for (QuoteLine qLine : recomputedQuote.lines()) {
             if (qLine.promotion() != null && qLine.promotion().id() != null) {
-                jdbcTemplate.update("UPDATE promotion SET used_count = used_count + 1 WHERE id = ?", qLine.promotion().id());
+                promotionService.recordUsage(qLine.promotion().id());
             }
         }
 
-        // Enqueue 2 sự kiện outbox trong cùng Transaction
+        // BƯỚC 8: Enqueue 2 sự kiện outbox trong cùng Transaction
         Map<String, Object> orderPayload = Map.of(
                 "orderId", order.getId(),
                 "code", order.getCode(),
@@ -259,23 +275,16 @@ public class PosOrderServiceImpl implements PosOrderService {
         );
         outboxService.enqueue("stock", order.getBranchId().toString(), "stock.changed", stockPayload);
 
-        String branchName = jdbcTemplate.queryForObject(
-                "SELECT name FROM branch WHERE id = ?", String.class, request.branchId()
-        );
-        BranchRef branchRef = new BranchRef(request.branchId(), branchCode, branchName);
+        // Chuẩn bị DTO trả về khớp OpenAPI
+        BranchRef branchRef = new BranchRef(request.branchId(), branchInfo.code(), branchInfo.name());
 
         CustomerRef customerRef = null;
         if (request.customerId() != null) {
-            customerRef = jdbcTemplate.queryForObject(
-                    "SELECT id, phone, name FROM customer WHERE id = ?",
-                    (rs, rowNum) -> new CustomerRef(rs.getLong("id"), rs.getString("phone"), rs.getString("name")),
-                    request.customerId()
-            );
+            CustomerResponse cust = customerService.getCustomer(request.customerId());
+            customerRef = new CustomerRef(cust.id(), cust.phone(), cust.name());
         }
 
-        String userFullName = jdbcTemplate.queryForObject(
-                "SELECT full_name FROM app_user WHERE id = ?", String.class, currentUserId
-        );
+        String userFullName = authService.getFullName(currentUserId);
         UserRef userRef = new UserRef(currentUserId, userFullName);
 
         return new OrderResponse(

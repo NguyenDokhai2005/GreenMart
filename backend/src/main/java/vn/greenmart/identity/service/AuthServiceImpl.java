@@ -128,4 +128,9 @@ public class AuthServiceImpl implements AuthService {
         // BCrypt must not accept a different password merely because its first 72 bytes match.
         return raw.getBytes(java.nio.charset.StandardCharsets.UTF_8).length<=72 && passwords.matches(raw,encoded);
     }
+
+    @Override
+    public String getFullName(long userId) {
+        return tx.execute(status -> requireUser(userId, false, ErrorCode.UNAUTHORIZED).fullName());
+    }
 }

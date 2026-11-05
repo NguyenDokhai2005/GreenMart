@@ -26,6 +26,9 @@ public class OrderController {
     public ResponseEntity<OrderResponse> createPosOrder(
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody PosOrderRequest request) {
+
+        // TODO(#34): Gọi phương thức cache Redis để chặn lặp tạo đơn trong 24h dựa trên idempotencyKey
+
         OrderResponse response = posOrderService.createPosOrder(request, idempotencyKey);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
