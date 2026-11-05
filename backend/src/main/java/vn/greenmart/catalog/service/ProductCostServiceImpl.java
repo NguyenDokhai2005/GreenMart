@@ -35,4 +35,12 @@ public class ProductCostServiceImpl implements ProductCostService {
             throw new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy sản phẩm nhập kho");
         }
     }
+
+    @Override
+    public long lockForExport(Long productId) {
+        // SHARE freezes cost (including non-key price updates), but permits other stock changes.
+        return jdbc.query("SELECT cost_price FROM product WHERE id=? FOR SHARE",
+                (rs, row) -> rs.getLong("cost_price"), productId).stream().findFirst()
+                .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy sản phẩm xuất hủy"));
+    }
 }

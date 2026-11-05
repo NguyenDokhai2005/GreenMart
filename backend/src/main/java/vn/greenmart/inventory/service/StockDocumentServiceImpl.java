@@ -13,6 +13,8 @@ import vn.greenmart.common.security.SecurityUtils;
 import vn.greenmart.inventory.domain.StockDocument;
 import vn.greenmart.inventory.domain.StockDocumentItem;
 import vn.greenmart.inventory.domain.StockDocumentType;
+import vn.greenmart.inventory.domain.ExportReason;
+import vn.greenmart.inventory.exception.InsufficientStockException;
 import vn.greenmart.inventory.dto.StockDocumentRequests;
 import vn.greenmart.inventory.dto.StockDocumentResponse;
 import vn.greenmart.inventory.repository.StockDocumentRepository;
@@ -36,11 +38,21 @@ public class StockDocumentServiceImpl implements StockDocumentService {
         SecurityUtils.requireRole("STOREKEEPER", "BRANCH_MANAGER");
         Long actor = requireActor();
         requireBranch(request.branchId());
-        if (request.type() != StockDocumentType.IMPORT) invalid("Hiện chỉ hỗ trợ phiếu nhập IMPORT");
-        requireImportFields(request.toBranchId(), request.exportReason());
         branch(request.branchId()); // Return NOT_FOUND before a foreign-key failure.
-        var document = StockDocument.importDraft(request.branchId(), actor, request.supplier().trim(),
-                request.note(), importedItems(request.items()));
+        StockDocument document;
+        if (request.type() == StockDocumentType.IMPORT) {
+            requireImportFields(request.toBranchId(), request.exportReason());
+            requireSupplier(request.supplier());
+            document = StockDocument.importDraft(request.branchId(), actor, request.supplier().trim(),
+                    request.note(), importedItems(request.items()));
+        } else if (request.type() == StockDocumentType.EXPORT) {
+            requireExportFields(request.toBranchId(), request.supplier());
+            var reason = exportReason(request.exportReason(), request.note());
+            document = StockDocument.exportDraft(request.branchId(), actor, reason, request.note(),
+                    exportedItems(request.branchId(), request.items()));
+        } else {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Hiện chỉ hỗ trợ IMPORT và EXPORT");
+        }
         return response(repository.saveAndFlush(document));
     }
 
@@ -57,10 +69,17 @@ public class StockDocumentServiceImpl implements StockDocumentService {
         requireActor();
         var document = load(id, true);
         document.requireDraft();
-        requireImportFields(request.toBranchId(), request.exportReason());
-        String supplier = request.supplier() == null ? document.getSupplier() : request.supplier().trim();
-        if (supplier == null || supplier.isBlank()) invalid("Nhà cung cấp không được để trống");
-        document.reviseImport(supplier, request.note() == null ? document.getReason() : request.note(), importedItems(request.items()));
+        String note = request.note() == null ? document.getReason() : request.note();
+        if (document.getType() == StockDocumentType.IMPORT) {
+            requireImportFields(request.toBranchId(), request.exportReason());
+            String supplier = request.supplier() == null ? document.getSupplier() : request.supplier().trim();
+            requireSupplier(supplier);
+            document.reviseImport(supplier, note, importedItems(request.items()));
+        } else {
+            requireExportFields(request.toBranchId(), request.supplier());
+            String reason = request.exportReason() == null ? document.getExportReason().name() : request.exportReason();
+            document.reviseExport(exportReason(reason, note), note, exportedItems(document.getBranchId(), request.items()));
+        }
         repository.flush();
         return response(document);
     }
@@ -87,7 +106,9 @@ public class StockDocumentServiceImpl implements StockDocumentService {
         var document = (lock ? repository.findForUpdate(id) : repository.findById(id))
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy phiếu kho"));
         requireBranch(document.getBranchId());
-        if (document.getType() != StockDocumentType.IMPORT) invalid("Hiện chỉ hỗ trợ phiếu nhập IMPORT");
+        if (document.getType() != StockDocumentType.IMPORT && document.getType() != StockDocumentType.EXPORT) {
+            invalid("Hiện chỉ hỗ trợ IMPORT và EXPORT");
+        }
         return document;
     }
 
@@ -102,17 +123,28 @@ public class StockDocumentServiceImpl implements StockDocumentService {
         var lines = document.getItems().stream()
                 .map(item -> new StockDocumentRequests.Item(item.getProductId(), item.getQuantity(), item.getUnitCost(), null))
                 .sorted(java.util.Comparator.comparing(StockDocumentRequests.Item::productId)).toList();
-        if (lines.isEmpty()) invalid("Phiếu nhập phải có ít nhất một dòng");
-        if (lines.stream().anyMatch(line -> line.unitCost() == null || line.unitCost() < 0
-                || line.quantity() == null || line.quantity() <= 0)) {
-            invalid("Phiếu nhập thiếu số lượng hoặc đơn giá hợp lệ");
+        boolean isImport = document.getType() == StockDocumentType.IMPORT;
+        if (lines.isEmpty()) invalid("Phiếu kho phải có ít nhất một dòng");
+        if (lines.stream().anyMatch(line -> line.quantity() == null || line.quantity() <= 0
+                || (isImport && (line.unitCost() == null || line.unitCost() < 0)))) {
+            invalid("Phiếu kho thiếu số lượng hoặc đơn giá hợp lệ");
         }
         Long branchId = document.getBranchId();
+        var exportCosts = new java.util.HashMap<Long, Long>();
+        long exportTotal = 0;
         for (var line : lines) {
-            inventoryService.importStock(branchId, line.productId(), line.quantity(), line.unitCost(), id, actor);
+            if (isImport) {
+                inventoryService.importStock(branchId, line.productId(), line.quantity(), line.unitCost(), id, actor);
+            } else {
+                long cost = inventoryService.exportStock(branchId, line.productId(), line.quantity(), id, actor);
+                try { exportTotal = Math.addExact(exportTotal, Math.multiplyExact((long) line.quantity(), cost)); }
+                catch (ArithmeticException ex) { invalid("Tổng giá trị hủy vượt giới hạn số tiền"); }
+                exportCosts.put(line.productId(), cost);
+            }
         }
         // Row lock is retained by the transaction even after EntityManager.clear().
         document = repository.findById(id).orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND));
+        if (!isImport) document.getItems().forEach(item -> item.recordExportCost(exportCosts.get(item.getProductId())));
         document.approve(actor);
         var entry = new AuditLog();
         entry.setUserId(actor);
@@ -143,12 +175,48 @@ public class StockDocumentServiceImpl implements StockDocumentService {
         if (toBranchId != null || exportReason != null) invalid("Phiếu nhập không có chi nhánh đích hoặc lý do xuất hủy");
     }
 
+    private void requireSupplier(String supplier) {
+        if (supplier == null || supplier.isBlank()) invalid("Nhà cung cấp không được để trống");
+    }
+
+    private void requireExportFields(Long toBranchId, String supplier) {
+        if (toBranchId != null || supplier != null) invalid("Phiếu xuất hủy không có chi nhánh đích hoặc nhà cung cấp");
+    }
+
+    private ExportReason exportReason(String value, String note) {
+        ExportReason reason;
+        try { reason = ExportReason.valueOf(value == null ? "" : value); }
+        catch (IllegalArgumentException ex) { throw new AppException(ErrorCode.VALIDATION_ERROR, "Lý do xuất hủy không hợp lệ"); }
+        if (reason == ExportReason.OTHER && (note == null || note.isBlank())) invalid("Lý do OTHER cần ghi chú");
+        return reason;
+    }
+
+    private List<StockDocumentItem> exportedItems(Long branchId, List<StockDocumentRequests.Item> items) {
+        var ids = items.stream().map(StockDocumentRequests.Item::productId).toList();
+        if (ids.stream().distinct().count() != ids.size()) invalid("Mỗi sản phẩm chỉ được có một dòng");
+        var refs = products(ids);
+        Map<Long, Integer> available = namedJdbc.query("""
+                SELECT product_id,on_hand-reserved AS available FROM inventory
+                WHERE branch_id=:branch AND product_id IN (:ids)
+                """, Map.of("branch", branchId, "ids", ids), (rs, n) -> Map.entry(rs.getLong("product_id"), rs.getInt("available")))
+                .stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        for (var item : items) {
+            if (item.unitCost() != null || item.countedQuantity() != null) invalid("Phiếu xuất hủy không nhận giá nhập hoặc số kiểm kê");
+            int remaining = available.getOrDefault(item.productId(), 0);
+            if (item.quantity() > remaining) {
+                throw new InsufficientStockException(branchId, item.productId(), refs.get(item.productId()).sku(), item.quantity(), remaining);
+            }
+        }
+        return items.stream().map(item -> StockDocumentItem.exported(item.productId(), item.quantity())).toList();
+    }
+
     private List<StockDocumentItem> importedItems(List<StockDocumentRequests.Item> items) {
         var ids = items.stream().map(StockDocumentRequests.Item::productId).toList();
         if (ids.stream().distinct().count() != ids.size()) invalid("Mỗi sản phẩm chỉ được có một dòng");
         products(ids); // Validate every product before replacing the draft's previous lines.
         long total = 0;
         for (var item : items) {
+            if (item.unitCost() == null) invalid("Phiếu nhập bắt buộc có đơn giá");
             if (item.countedQuantity() != null) invalid("Phiếu nhập không có số lượng kiểm kê");
             try { total = Math.addExact(total, Math.multiplyExact((long) item.quantity(), item.unitCost())); }
             catch (ArithmeticException ex) { invalid("Tổng giá trị phiếu vượt giới hạn số tiền"); }
@@ -185,11 +253,19 @@ public class StockDocumentServiceImpl implements StockDocumentService {
             return new StockDocumentResponse.Item(item.getId(), item.getProductId(), product.sku(), product.name(), product.unit(),
                     item.getQuantity(), item.getUnitCost(), item.getReceivedQuantity(), item.getCountedQuantity(), null);
         }).toList();
-        Long totalCost = SecurityUtils.canViewCostPrice()
-                ? items.stream().mapToLong(item -> Math.multiplyExact((long) item.quantity(), item.unitCost())).reduce(0L, Math::addExact) : null;
+        Long totalCost = null;
+        if (SecurityUtils.canViewCostPrice()) {
+            if (document.getType() == StockDocumentType.IMPORT) {
+                totalCost = items.stream().mapToLong(item -> Math.multiplyExact((long) item.quantity(), item.unitCost())).reduce(0L, Math::addExact);
+            } else if (document.getItems().stream().allMatch(item -> item.getExportCostPrice() != null)) {
+                totalCost = document.getItems().stream().mapToLong(item -> Math.multiplyExact((long) item.getQuantity(), item.getExportCostPrice()))
+                        .reduce(0L, Math::addExact);
+            }
+        }
         return new StockDocumentResponse(document.getId(), document.getCode(), document.getType(), branch(document.getBranchId()),
                 null, document.getStatus(), items.size(), false, user(document.getCreatedBy()), document.getCreatedAt(),
-                document.getApprovedAt(), document.getReceivedAt(), document.getSupplier(), null, document.getReason(),
+                document.getApprovedAt(), document.getReceivedAt(), document.getSupplier(),
+                document.getExportReason() == null ? null : document.getExportReason().name(), document.getReason(),
                 user(document.getApprovedBy()), user(document.getReceivedBy()), totalCost, items);
     }
 

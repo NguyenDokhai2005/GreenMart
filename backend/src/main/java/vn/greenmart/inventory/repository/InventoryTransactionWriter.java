@@ -44,4 +44,15 @@ public class InventoryTransactionWriter {
                 """, qty, documentId, actorId, branchId, productId);
         if (inserted != 1) throw new IllegalStateException("Không tìm thấy tồn kho để ghi sổ nhập hàng");
     }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void appendExport(Long branchId, Long productId, int qty, Long documentId, Long actorId) {
+        int inserted = jdbc.update("""
+                INSERT INTO inventory_transaction
+                    (branch_id,product_id,type,delta_on_hand,on_hand_after,delta_reserved,reserved_after,ref_type,ref_id,created_by)
+                SELECT branch_id,product_id,'EXPORT',?,on_hand,0,reserved,'STOCK_DOCUMENT',?,?
+                FROM inventory WHERE branch_id=? AND product_id=?
+                """, -qty, documentId, actorId, branchId, productId);
+        if (inserted != 1) throw new IllegalStateException("Không tìm thấy tồn kho để ghi sổ xuất hủy");
+    }
 }
