@@ -5,6 +5,7 @@ import {
   getRequestedPath,
   getRolesForPath,
   getWorkspacePath,
+  resolveAuthHomeRedirect,
 } from '../../../src/features/auth/routePolicy';
 
 describe('auth route policy', () => {
@@ -40,6 +41,39 @@ describe('auth route policy', () => {
     expect(canOpenRoutePath('ADMIN', APP_PATHS.stockDocuments)).toBe(false);
   });
 
+  it('Given ADMIN has zero, one, or three branches, When home routing resolves, Then it always enters Admin', () => {
+    const branchStatuses = ['no-branches', 'active', 'selection-required'] as const;
+
+    for (const branchStatus of branchStatuses) {
+      expect(resolveAuthHomeRedirect('ADMIN', branchStatus)).toEqual({
+        status: 'redirect',
+        to: APP_PATHS.admin,
+      });
+    }
+  });
+
+  it('Given a normal role has one branch, When home routing resolves, Then it enters its workspace', () => {
+    expect(resolveAuthHomeRedirect('CASHIER', 'active')).toEqual({
+      status: 'redirect',
+      to: APP_PATHS.pos,
+    });
+  });
+
+  it('Given a normal role has multiple branches, When home routing resolves, Then it still requires selection', () => {
+    for (const role of ['CASHIER', 'BRANCH_MANAGER', 'STOREKEEPER', 'OWNER'] as const) {
+      expect(resolveAuthHomeRedirect(role, 'selection-required')).toEqual({
+        status: 'select-branch',
+      });
+    }
+  });
+
+  it('Given ADMIN requested a permitted workspace path, When home routing resolves, Then it preserves that destination', () => {
+    expect(resolveAuthHomeRedirect('ADMIN', 'selection-required', '/admin/users?page=2')).toEqual({
+      status: 'redirect',
+      to: '/admin/users?page=2',
+    });
+  });
+
   it('does not grant ADMIN access outside explicitly permitted routes', () => {
     expect(canOpenRoutePath('ADMIN', APP_PATHS.stockDocuments)).toBe(false);
     expect(canOpenRoutePath('ADMIN', APP_PATHS.admin)).toBe(true);
@@ -57,5 +91,14 @@ describe('auth route policy', () => {
     ).toBe('/operations/stock-documents?page=2#list');
     expect(getRequestedPath({ from: { pathname: '//attacker.example' } })).toBeUndefined();
     expect(getRequestedPath(null)).toBeUndefined();
+  });
+
+  it('Given a cashier returns from login to POS, When the requested location is restored, Then path, search, hash, and RBAC are preserved', () => {
+    const location = { pathname: APP_PATHS.pos, search: '?tab=cart', hash: '#items' };
+    const restoredPath = getRequestedPath({ from: location });
+
+    expect(restoredPath).toBe('/pos?tab=cart#items');
+    expect(canOpenRoutePath('CASHIER', location.pathname)).toBe(true);
+    expect(canOpenRoutePath('STOREKEEPER', location.pathname)).toBe(false);
   });
 });

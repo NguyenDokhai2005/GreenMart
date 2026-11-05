@@ -12,9 +12,9 @@ import {
   ADMIN_ROLES,
   APP_PATHS,
   getRequestedPath,
-  getWorkspacePath,
   OPERATIONS_ROLES,
   POS_ROLES,
+  resolveAuthHomeRedirect,
   STOCK_DOCUMENT_ROLES,
 } from './routePolicy';
 import './AppRoutes.css';
@@ -73,19 +73,19 @@ function AuthHomeRedirect() {
       />
     );
   }
-  if (branch.state.status === 'checking') return <AuthCheckingPage onRetry={retrySessionCheck} />;
-  if (branch.state.status === 'unauthenticated') return <Navigate to={APP_PATHS.login} replace />;
-  if (branch.state.status !== 'active') {
+  const redirect = resolveAuthHomeRedirect(
+    state.user.role,
+    branch.state.status,
+    getRequestedPath(location.state),
+  );
+
+  if (redirect.status === 'checking') return <AuthCheckingPage onRetry={retrySessionCheck} />;
+  if (redirect.status === 'unauthenticated') return <Navigate to={APP_PATHS.login} replace />;
+  if (redirect.status === 'select-branch') {
     return <Navigate to={APP_PATHS.selectBranch} replace state={location.state} />;
   }
 
-  return (
-    <Navigate
-      to={getRequestedPath(location.state) ?? getWorkspacePath(state.user.role)}
-      replace
-      state={location.state}
-    />
-  );
+  return <Navigate to={redirect.to} replace state={location.state} />;
 }
 
 function BranchBoundary({ children }: { children: ReactNode }) {

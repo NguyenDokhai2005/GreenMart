@@ -51,7 +51,7 @@ describe('authStateReducer', () => {
     expect(staleResult.state).toEqual({ status: 'checking' });
   });
 
-  it('a direct state replacement invalidates pending transitions', () => {
+  it('Given a session-expired event replaces state, When an older transition resolves, Then expired remains', () => {
     const current = authStateReducer(initialAuthState, { type: 'begin', transitionId: 1 });
     const replaced = authStateReducer(current, {
       type: 'replace',

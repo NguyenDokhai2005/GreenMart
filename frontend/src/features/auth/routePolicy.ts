@@ -1,4 +1,5 @@
 import type { Role } from '../../api/client';
+import type { ActiveBranchState } from './ActiveBranchContext';
 
 export const APP_PATHS = {
   home: '/',
@@ -27,6 +28,28 @@ export function getWorkspacePath(role: Role): string {
     case 'STOREKEEPER':
       return APP_PATHS.operations;
   }
+}
+
+export type AuthHomeRedirectDecision =
+  | { status: 'checking' }
+  | { status: 'unauthenticated' }
+  | { status: 'select-branch' }
+  | { status: 'redirect'; to: string };
+
+export function resolveAuthHomeRedirect(
+  role: Role,
+  branchStatus: ActiveBranchState['status'],
+  requestedPath?: string,
+): AuthHomeRedirectDecision {
+  if (role === 'ADMIN') {
+    return { status: 'redirect', to: requestedPath ?? getWorkspacePath(role) };
+  }
+
+  if (branchStatus === 'checking') return { status: 'checking' };
+  if (branchStatus === 'unauthenticated') return { status: 'unauthenticated' };
+  if (branchStatus !== 'active') return { status: 'select-branch' };
+
+  return { status: 'redirect', to: requestedPath ?? getWorkspacePath(role) };
 }
 
 export function getRolesForPath(pathname: string): readonly Role[] | undefined {

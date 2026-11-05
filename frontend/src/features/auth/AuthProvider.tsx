@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { clearStoredSession, login, logout } from '../../api/client';
+import { clearStoredSession, login, logout, onSessionExpired } from '../../api/client';
 import { clearStoredActiveBranch } from './activeBranchStorage';
 import { AuthContext } from './AuthContext';
 import type { AuthContextValue } from './AuthContext';
@@ -69,6 +69,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       resolveTransition(transitionId, result.state);
     },
     [isCurrentTransition, resolveTransition],
+  );
+
+  useEffect(
+    () =>
+      onSessionExpired(() => {
+        if (mountedRef.current) replaceState({ status: 'expired' });
+      }),
+    [replaceState],
   );
 
   const retrySessionCheck = useCallback(async () => {

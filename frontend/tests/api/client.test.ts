@@ -9,6 +9,7 @@ import {
   login,
   logout,
   lookupProduct,
+  onSessionExpired,
   readStoredSession,
   request,
   searchProducts,
@@ -37,6 +38,7 @@ const json = (body: unknown, status = 200) =>
   });
 
 let fetchMock: ReturnType<typeof vi.fn<typeof fetch>>;
+let sessionExpiredUnsubscribers: Array<() => void> = [];
 
 beforeEach(() => {
   const storage = new Map<string, string>();
@@ -47,9 +49,19 @@ beforeEach(() => {
   });
   fetchMock = vi.fn<typeof fetch>();
   vi.stubGlobal('fetch', fetchMock);
+  sessionExpiredUnsubscribers = [];
 });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  sessionExpiredUnsubscribers.forEach((unsubscribe) => unsubscribe());
+  vi.unstubAllGlobals();
+});
+
+function watchSessionExpired(listener: () => void): () => void {
+  const unsubscribe = onSessionExpired(listener);
+  sessionExpiredUnsubscribers.push(unsubscribe);
+  return unsubscribe;
+}
 
 async function signIn() {
   fetchMock.mockResolvedValueOnce(json(session));
@@ -216,7 +228,7 @@ describe('session refresh', () => {
     expect(readStoredSession()?.refreshToken).toBe('refresh-new');
   });
 
-  it('shares one refresh between concurrent 401 responses', async () => {
+  it('Given three concurrent 401 responses, When refresh is pending, Then only one refresh runs', async () => {
     await signIn();
     let release!: (response: Response) => void;
     fetchMock.mockImplementation(async (url, init) => {
@@ -232,16 +244,19 @@ describe('session refresh', () => {
 
     const first = getCurrentUser();
     const second = getOrder(1);
+    const third = listOrders();
     await vi.waitFor(() => expect(release).toBeTypeOf('function'));
     release(json({ ...session, accessToken: 'access-new', refreshToken: 'refresh-new' }));
-    await Promise.all([first, second]);
+    await Promise.all([first, second, third]);
 
     expect(fetchMock.mock.calls.filter(([url]) => url === '/api/v1/auth/refresh')).toHaveLength(1);
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(7);
   });
 
-  it('clears the session and reports expiry when refresh fails', async () => {
+  it('Given refresh returns 401, When the current session expires, Then listeners receive the event', async () => {
     await signIn();
+    const onExpired = vi.fn();
+    watchSessionExpired(onExpired);
     fetchMock
       .mockResolvedValueOnce(
         json({ code: 'UNAUTHORIZED', message: 'Expired', traceId: 'trace-expired' }, 401),
@@ -264,10 +279,13 @@ describe('session refresh', () => {
       traceId: 'trace-refresh',
     });
     expect(sessionStorage.getItem('greenmart.session')).toBeNull();
+    expect(onExpired).toHaveBeenCalledTimes(1);
   });
 
-  it('preserves the session and reports a network error when refresh cannot reach the server', async () => {
+  it('Given refresh has a network error, When the request fails, Then no expiry event fires and the session remains', async () => {
     await signIn();
+    const onExpired = vi.fn();
+    watchSessionExpired(onExpired);
     const offline = new TypeError('offline');
     fetchMock
       .mockResolvedValueOnce(
@@ -277,24 +295,80 @@ describe('session refresh', () => {
 
     await expect(getOrder(1)).rejects.toBe(offline);
     expect(readStoredSession()?.refreshToken).toBe(session.refreshToken);
+    expect(onExpired).not.toHaveBeenCalled();
   });
 
-  it('preserves the session when refresh returns a temporary server error', async () => {
+  it('Given refresh returns HTTP 500, When the server is unavailable, Then no expiry event fires and the session remains', async () => {
     await signIn();
+    const onExpired = vi.fn();
+    watchSessionExpired(onExpired);
     fetchMock
       .mockResolvedValueOnce(
         json({ code: 'UNAUTHORIZED', message: 'Expired', traceId: 'trace-expired' }, 401),
       )
       .mockResolvedValueOnce(
-        json({ code: 'INTERNAL_ERROR', message: 'Temporarily unavailable' }, 503),
+        json({ code: 'INTERNAL_ERROR', message: 'Temporarily unavailable' }, 500),
       );
 
     await expect(getOrder(1)).rejects.toMatchObject({
       name: 'ApiError',
-      status: 503,
+      status: 500,
       code: 'INTERNAL_ERROR',
     });
     expect(readStoredSession()?.refreshToken).toBe(session.refreshToken);
+    expect(onExpired).not.toHaveBeenCalled();
+  });
+
+  it('Given a new login replaces the session during refresh, When the old refresh returns 401, Then the new session remains active', async () => {
+    await signIn();
+    let releaseRefresh!: (response: Response) => void;
+    const newSession: AuthSession = {
+      ...session,
+      accessToken: 'access-new-login',
+      refreshToken: 'refresh-new-login',
+      user: { ...session.user, username: 'new-user' },
+    };
+    const onExpired = vi.fn();
+    watchSessionExpired(onExpired);
+    fetchMock.mockImplementation(async (url) => {
+      if (url === '/api/v1/auth/refresh') {
+        return new Promise<Response>((resolve) => {
+          releaseRefresh = resolve;
+        });
+      }
+      if (url === '/api/v1/auth/login') return json(newSession);
+      return json({ code: 'UNAUTHORIZED', message: 'Expired' }, 401);
+    });
+
+    const pendingRequest = getOrder(1);
+    const rejection = expect(pendingRequest).rejects.toBeInstanceOf(SessionExpiredError);
+    await vi.waitFor(() => expect(releaseRefresh).toBeTypeOf('function'));
+    await login('new-user', 'test-only');
+    releaseRefresh(json({ code: 'INVALID_REFRESH_TOKEN', message: 'Expired' }, 401));
+    await rejection;
+
+    expect(readStoredSession()).toMatchObject({
+      accessToken: newSession.accessToken,
+      refreshToken: newSession.refreshToken,
+    });
+    expect(onExpired).not.toHaveBeenCalled();
+  });
+
+  it('Given the session-expired listener is unsubscribed on cleanup, When refresh returns 401, Then it is not called', async () => {
+    await signIn();
+    const onExpired = vi.fn();
+    const unsubscribe = watchSessionExpired(onExpired);
+    unsubscribe();
+    fetchMock
+      .mockResolvedValueOnce(
+        json({ code: 'UNAUTHORIZED', message: 'Expired', traceId: 'trace-expired' }, 401),
+      )
+      .mockResolvedValueOnce(json({ code: 'INVALID_REFRESH_TOKEN', message: 'Expired' }, 401));
+
+    await expect(getOrder(1)).rejects.toBeInstanceOf(SessionExpiredError);
+
+    expect(onExpired).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem('greenmart.session')).toBeNull();
   });
 
   it('does not enter a refresh loop when the retried request is rejected', async () => {

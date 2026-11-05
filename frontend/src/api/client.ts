@@ -4,6 +4,7 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\
 const SESSION_STORAGE_KEY = 'greenmart.session';
 const AUTH_EXEMPT_PATHS = new Set(['/auth/login', '/auth/refresh']);
 let sessionMutationVersion = 0;
+const sessionExpiredListeners = new Set<() => void>();
 
 export type Role = components['schemas']['Role'];
 export type PaymentMethod = components['schemas']['PaymentMethod'];
@@ -53,6 +54,21 @@ export class SessionExpiredError extends ApiError {
       cause,
     );
     this.name = 'SessionExpiredError';
+  }
+}
+
+export function onSessionExpired(listener: () => void): () => void {
+  sessionExpiredListeners.add(listener);
+  return () => sessionExpiredListeners.delete(listener);
+}
+
+function notifySessionExpired(): void {
+  for (const listener of sessionExpiredListeners) {
+    try {
+      listener();
+    } catch {
+      // A UI listener must not replace the API's SessionExpiredError result.
+    }
   }
 }
 
@@ -190,6 +206,8 @@ function refreshSession(session: AuthSession): Promise<AuthSession> {
   const pending = refreshes.get(session.refreshToken);
   if (pending) return pending;
 
+  const mutationVersion = sessionMutationVersion;
+
   const refresh = requestRaw<unknown>('/auth/refresh', {
     method: 'POST',
     body: JSON.stringify({ refreshToken: session.refreshToken }),
@@ -210,7 +228,17 @@ function refreshSession(session: AuthSession): Promise<AuthSession> {
       if (error instanceof SessionExpiredError) throw error;
 
       if (error instanceof ApiError && error.status === 401) {
-        if (readStoredSession()?.refreshToken === session.refreshToken) clearStoredSession();
+        let isCurrentSession = false;
+        try {
+          isCurrentSession = readStoredSession()?.refreshToken === session.refreshToken;
+        } catch {
+          // readStoredSession already clears malformed stored data.
+        }
+
+        if (mutationVersion === sessionMutationVersion && isCurrentSession) {
+          clearStoredSession();
+          notifySessionExpired();
+        }
         throw new SessionExpiredError(error);
       }
 
