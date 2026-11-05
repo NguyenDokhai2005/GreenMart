@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import vn.greenmart.catalog.dto.ProductLookupResponse;
 import vn.greenmart.catalog.dto.ProductRequest;
 import vn.greenmart.catalog.dto.ProductResponse;
+import vn.greenmart.catalog.dto.ProductSaleInfo;
 import vn.greenmart.common.pagination.PageResponse;
 
 public interface ProductService {
@@ -12,4 +13,5 @@ public interface ProductService {
     ProductResponse getProduct(Long id);
     ProductResponse updateProduct(Long id, ProductRequest request);
     ProductLookupResponse lookupProduct(String code, Long branchId);
+    ProductSaleInfo getSaleInfo(Long id);
 }

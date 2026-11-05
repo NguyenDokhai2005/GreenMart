@@ -65,4 +65,7 @@ public interface InventoryService {
      * @return số lượng tồn khả dụng
      */
     int getAvailable(Long branchId, Long productId);
+
+    /** Import approved stock and revalue global cost in the caller's transaction. */
+    void importStock(Long branchId, Long productId, int qty, long unitCost, Long documentId, Long actorId);
 }

@@ -21,7 +21,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
+import vn.greenmart.common.logging.TraceContext;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -197,6 +197,6 @@ public class GlobalExceptionHandler {
     }
 
     private String generateTraceId() {
-        return UUID.randomUUID().toString().substring(0, 8);
+        return TraceContext.current();
     }
 }
