@@ -16,6 +16,7 @@ import vn.greenmart.common.config.WebMvcConfig;
 import vn.greenmart.common.exception.GlobalExceptionHandler;
 import vn.greenmart.sales.domain.OrderStatus;
 import vn.greenmart.sales.domain.PaymentMethod;
+import vn.greenmart.sales.domain.PaymentSimulation;
 import vn.greenmart.sales.dto.*;
 import vn.greenmart.sales.service.PosOrderService;
 import vn.greenmart.sales.service.QuoteService;
@@ -50,6 +51,9 @@ class OrderControllerTest {
 
     @MockitoBean
     private QuoteService quoteService;
+
+    @MockitoBean
+    private PosOrderService posOrderService;
 
     @Test
     @DisplayName("POST /api/v1/orders/quote thành công trả về HTTP 200")
@@ -103,9 +107,6 @@ class OrderControllerTest {
             .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 
-    @MockitoBean
-    private PosOrderService posOrderService;
-
     @Test
     @DisplayName("POST /api/v1/orders/pos thành công trả về HTTP 201")
     void testCreatePosOrder_Success_Returns201() throws Exception {
@@ -113,7 +114,7 @@ class OrderControllerTest {
                 1L, null,
                 List.of(new OrderLineRequest(101L, 1)),
                 null,
-                new PaymentRequest(PaymentMethod.CASH, 200000L, "SUCCESS"),
+                new PaymentRequest(PaymentMethod.CASH, 200000L, PaymentSimulation.SUCCESS),
                 180000L
         );
 
@@ -146,7 +147,7 @@ class OrderControllerTest {
                 1L, null,
                 List.of(new OrderLineRequest(101L, 1)),
                 null,
-                new PaymentRequest(PaymentMethod.CASH, 200000L, "SUCCESS"),
+                new PaymentRequest(PaymentMethod.CASH, 200000L, PaymentSimulation.SUCCESS),
                 180000L
         );
 
@@ -154,5 +155,28 @@ class OrderControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/orders/pos gửi simulate sai giá trị -> trả về HTTP 400 VALIDATION_ERROR (Yêu cầu Lead #33)")
+    void testCreatePosOrder_InvalidSimulate_Returns400() throws Exception {
+        String invalidJson = """
+            {
+              "branchId": 1,
+              "items": [{"productId": 101, "quantity": 1}],
+              "payment": {
+                "method": "CARD",
+                "simulate": "INVALID_VALUE"
+              },
+              "expectedTotal": 180000
+            }
+            """;
+
+        mockMvc.perform(post("/api/v1/orders/pos")
+                .header("Idempotency-Key", UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(invalidJson))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 }

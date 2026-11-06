@@ -6,7 +6,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -27,6 +26,7 @@ import vn.greenmart.inventory.service.InventoryService;
 import vn.greenmart.sales.domain.OrderStatus;
 import vn.greenmart.sales.domain.Payment;
 import vn.greenmart.sales.domain.PaymentMethod;
+import vn.greenmart.sales.domain.PaymentSimulation;
 import vn.greenmart.sales.domain.PaymentStatus;
 import vn.greenmart.sales.domain.SalesOrder;
 import vn.greenmart.sales.dto.*;
@@ -45,7 +45,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("PosOrderService - Unit Tests (Bao gồm PAY-01)")
+@DisplayName("PosOrderService - Unit Tests")
 class PosOrderServiceTest {
 
     @Mock private QuoteService quoteService;
@@ -61,12 +61,19 @@ class PosOrderServiceTest {
     @Mock private OutboxService outboxService;
     @Mock private JdbcTemplate jdbcTemplate;
 
-    @InjectMocks
     private PosOrderServiceImpl posOrderService;
 
     @BeforeEach
     void setUp() {
         SecurityContextHolder.clearContext();
+
+        PaymentServiceImpl paymentService = new PaymentServiceImpl(paymentRepository);
+        posOrderService = new PosOrderServiceImpl(
+                quoteService, productService, customerService, inventoryService,
+                branchService, authService, promotionService, paymentService,
+                salesOrderRepository, orderItemRepository, outboxService, jdbcTemplate
+        );
+
         lenient().when(jdbcTemplate.query(anyString(), ArgumentMatchers.<RowMapper<Long>>any(), any()))
                 .thenReturn(List.of(1L, 2L));
         lenient().when(jdbcTemplate.queryForObject(contains("sales_channel"), eq(Long.class)))
@@ -92,12 +99,8 @@ class PosOrderServiceTest {
         SecurityContextHolder.getContext().setAuthentication(auth);
     }
 
-    // -------------------------------------------------------------------------
-    // TEST CASES ISSUE #33: THANH TOÁN GIẢ LẬP [PAY-01]
-    // -------------------------------------------------------------------------
-
     @Test
-    @DisplayName("TC-POS-01: Thanh toán CASH đủ tiền -> Trả 201, payment PAID, tính đúng tiền thối")
+    @DisplayName("TC-POS-01: Thanh toán CASH đủ tiền -> Trả 201, payment PAID, tính đúng tiền thối 49.300")
     void testCreatePosOrder_Cash_Success() {
         authenticate("CASHIER");
 
@@ -107,8 +110,8 @@ class PosOrderServiceTest {
 
         Quote mockQuote = new Quote(
                 1L, null,
-                List.of(new QuoteLine(101L, "GAO-ST25", "Gạo ST25", "túi", 2, 100000L, 0L, 200000L, null, 10, true)),
-                null, 200000L, 0L, 0L, 0L, 0L, 200000L, true
+                List.of(new QuoteLine(101L, "GAO-ST25", "Gạo ST25", "túi", 2, 100350L, 0L, 200700L, null, 10, true)),
+                null, 200700L, 0L, 0L, 0L, 0L, 200700L, true
         );
         when(quoteService.calculateQuote(any())).thenReturn(mockQuote);
 
@@ -124,24 +127,24 @@ class PosOrderServiceTest {
             return p;
         });
 
-        // Tổng 200.000, khách đưa 250.000 -> thối 50.000
+        // tổng 200.700 đ, khách đưa 250.000 đ -> thối 49.300 đ
         PosOrderRequest request = new PosOrderRequest(
                 1L, null,
                 List.of(new OrderLineRequest(101L, 2)),
                 null,
-                new PaymentRequest(PaymentMethod.CASH, 250000L, "SUCCESS"),
-                200000L
+                new PaymentRequest(PaymentMethod.CASH, 250000L, PaymentSimulation.SUCCESS),
+                200700L
         );
 
         OrderResponse res = posOrderService.createPosOrder(request, UUID.randomUUID().toString());
 
         assertThat(res.id()).isEqualTo(500L);
         assertThat(res.status()).isEqualTo(OrderStatus.COMPLETED);
-        assertThat(res.total()).isEqualTo(200000L);
+        assertThat(res.total()).isEqualTo(200700L);
         assertThat(res.payments()).hasSize(1);
         assertThat(res.payments().get(0).status()).isEqualTo(PaymentStatus.PAID);
         assertThat(res.payments().get(0).cashReceived()).isEqualTo(250000L);
-        assertThat(res.payments().get(0).change()).isEqualTo(50000L);
+        assertThat(res.payments().get(0).change()).isEqualTo(49300L);
 
         verify(paymentRepository).save(any(Payment.class));
         verify(inventoryService).sellDirect(1L, 101L, 2, 500L);
@@ -158,16 +161,16 @@ class PosOrderServiceTest {
         when(productService.getSaleInfo(101L)).thenReturn(product);
         when(inventoryService.getAvailable(1L, 101L)).thenReturn(10);
 
-        Quote mockQuote = new Quote(1L, null, Collections.emptyList(), null, 200000L, 0L, 0L, 0L, 0L, 200000L, true);
+        Quote mockQuote = new Quote(1L, null, Collections.emptyList(), null, 200700L, 0L, 0L, 0L, 0L, 200700L, true);
         when(quoteService.calculateQuote(any())).thenReturn(mockQuote);
 
-        // Tổng 200.000 nhưng khách chỉ đưa 150.000
+        // Tổng 200.700 đ nhưng khách chỉ đưa 200.000 đ
         PosOrderRequest request = new PosOrderRequest(
                 1L, null,
                 List.of(new OrderLineRequest(101L, 2)),
                 null,
-                new PaymentRequest(PaymentMethod.CASH, 150000L, "SUCCESS"),
-                200000L
+                new PaymentRequest(PaymentMethod.CASH, 200000L, PaymentSimulation.SUCCESS),
+                200700L
         );
 
         assertThatThrownBy(() -> posOrderService.createPosOrder(request, UUID.randomUUID().toString()))
@@ -179,8 +182,8 @@ class PosOrderServiceTest {
                     assertThat(appEx.getDetails()).isInstanceOf(Map.class);
                     @SuppressWarnings("unchecked")
                     Map<String, Object> details = (Map<String, Object>) appEx.getDetails();
-                    assertThat(details.get("total")).isEqualTo(200000L);
-                    assertThat(details.get("cashReceived")).isEqualTo(150000L);
+                    assertThat(details.get("total")).isEqualTo(200700L);
+                    assertThat(details.get("cashReceived")).isEqualTo(200000L);
                 });
 
         verify(salesOrderRepository, never()).save(any());
@@ -189,7 +192,7 @@ class PosOrderServiceTest {
     }
 
     @Test
-    @DisplayName("TC-POS-06: Thẻ CARD simulate = FAILED -> 422 PAYMENT_FAILED, không lưu đơn, không trừ tồn")
+    @DisplayName("TC-POS-06: Thẻ CARD simulate = FAILED -> 422 PAYMENT_FAILED, không lưu đơn, không trừ kho")
     void testCreatePosOrder_CardFailed_Throws422() {
         authenticate("CASHIER");
 
@@ -204,7 +207,7 @@ class PosOrderServiceTest {
                 1L, null,
                 List.of(new OrderLineRequest(101L, 1)),
                 null,
-                new PaymentRequest(PaymentMethod.CARD, null, "FAILED"),
+                new PaymentRequest(PaymentMethod.CARD, null, PaymentSimulation.FAILED),
                 100000L
         );
 
@@ -218,7 +221,7 @@ class PosOrderServiceTest {
     }
 
     @Test
-    @DisplayName("TC-POS-07: Mã QR simulate = TIMEOUT -> 422 PAYMENT_TIMEOUT, không lưu đơn, không trừ tồn")
+    @DisplayName("TC-POS-07: Mã QR simulate = TIMEOUT -> 422 PAYMENT_TIMEOUT, không lưu đơn, không trừ kho")
     void testCreatePosOrder_QrTimeout_Throws422() {
         authenticate("CASHIER");
 
@@ -233,7 +236,7 @@ class PosOrderServiceTest {
                 1L, null,
                 List.of(new OrderLineRequest(101L, 1)),
                 null,
-                new PaymentRequest(PaymentMethod.QR, null, "TIMEOUT"),
+                new PaymentRequest(PaymentMethod.QR, null, PaymentSimulation.TIMEOUT),
                 100000L
         );
 
@@ -247,7 +250,7 @@ class PosOrderServiceTest {
     }
 
     @Test
-    @DisplayName("Thanh toán CARD simulate = SUCCESS -> Tạo bản ghi PAID và sinh providerRef đúng định dạng")
+    @DisplayName("Thanh toán CARD simulate = SUCCESS -> Tạo bản ghi PAID và sinh providerRef tiền tố CARD-SIM-")
     void testCreatePosOrder_Card_Success() {
         authenticate("CASHIER");
 
@@ -276,7 +279,7 @@ class PosOrderServiceTest {
                 1L, null,
                 List.of(new OrderLineRequest(101L, 1)),
                 null,
-                new PaymentRequest(PaymentMethod.CARD, null, "SUCCESS"),
+                new PaymentRequest(PaymentMethod.CARD, null, PaymentSimulation.SUCCESS),
                 100000L
         );
 
@@ -285,12 +288,8 @@ class PosOrderServiceTest {
         assertThat(res.payments().get(0).status()).isEqualTo(PaymentStatus.PAID);
         assertThat(res.payments().get(0).cashReceived()).isNull();
         assertThat(res.payments().get(0).change()).isNull();
-        assertThat(res.payments().get(0).providerRef()).contains("SIM-");
+        assertThat(res.payments().get(0).providerRef()).startsWith("CARD-SIM-");
     }
-
-    // -------------------------------------------------------------------------
-    // CÁC TEST CASES KHÁC (NGHIỆP VỤ POS ĐƠN HÀNG)
-    // -------------------------------------------------------------------------
 
     @Test
     @DisplayName("Hai chi nhánh trong cùng ngày đều bắt đầu mã đơn từ 0001 (Yêu cầu Lead #32)")
@@ -324,9 +323,9 @@ class PosOrderServiceTest {
         when(branchService.getSaleInfo(2L)).thenReturn(new BranchSaleInfo(2L, "GM002", "CN 2"));
 
         PosOrderRequest req1 = new PosOrderRequest(1L, null, List.of(new OrderLineRequest(101L, 1)), null,
-                new PaymentRequest(PaymentMethod.CASH, 100000L, "SUCCESS"), 100000L);
+                new PaymentRequest(PaymentMethod.CASH, 100000L, PaymentSimulation.SUCCESS), 100000L);
         PosOrderRequest req2 = new PosOrderRequest(2L, null, List.of(new OrderLineRequest(101L, 1)), null,
-                new PaymentRequest(PaymentMethod.CASH, 100000L, "SUCCESS"), 100000L);
+                new PaymentRequest(PaymentMethod.CASH, 100000L, PaymentSimulation.SUCCESS), 100000L);
 
         OrderResponse res1 = posOrderService.createPosOrder(req1, UUID.randomUUID().toString());
         OrderResponse res2 = posOrderService.createPosOrder(req2, UUID.randomUUID().toString());
@@ -351,7 +350,7 @@ class PosOrderServiceTest {
                 1L, null,
                 List.of(new OrderLineRequest(101L, 2)),
                 null,
-                new PaymentRequest(PaymentMethod.CASH, 200000L, "SUCCESS"),
+                new PaymentRequest(PaymentMethod.CASH, 200000L, PaymentSimulation.SUCCESS),
                 200000L
         );
 
@@ -386,7 +385,7 @@ class PosOrderServiceTest {
                 1L, null,
                 List.of(new OrderLineRequest(101L, 2)),
                 null,
-                new PaymentRequest(PaymentMethod.CASH, 250000L, "SUCCESS"),
+                new PaymentRequest(PaymentMethod.CASH, 250000L, PaymentSimulation.SUCCESS),
                 180000L
         );
 
@@ -407,7 +406,7 @@ class PosOrderServiceTest {
                 99L, null,
                 List.of(new OrderLineRequest(101L, 1)),
                 null,
-                new PaymentRequest(PaymentMethod.CASH, 100000L, "SUCCESS"),
+                new PaymentRequest(PaymentMethod.CASH, 100000L, PaymentSimulation.SUCCESS),
                 100000L
         );
 
@@ -441,7 +440,7 @@ class PosOrderServiceTest {
                 1L, null,
                 List.of(new OrderLineRequest(101L, 1)),
                 null,
-                new PaymentRequest(PaymentMethod.CASH, 200000L, "SUCCESS"),
+                new PaymentRequest(PaymentMethod.CASH, 200000L, PaymentSimulation.SUCCESS),
                 180000L
         );
 

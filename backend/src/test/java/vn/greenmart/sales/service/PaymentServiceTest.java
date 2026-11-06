@@ -10,6 +10,7 @@ import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
 import vn.greenmart.sales.domain.Payment;
 import vn.greenmart.sales.domain.PaymentMethod;
+import vn.greenmart.sales.domain.PaymentSimulation;
 import vn.greenmart.sales.domain.PaymentStatus;
 import vn.greenmart.sales.dto.PaymentRequest;
 import vn.greenmart.sales.dto.PaymentResponse;
@@ -41,7 +42,8 @@ class PaymentServiceTest {
             return p;
         });
 
-        PaymentRequest req = new PaymentRequest(PaymentMethod.CASH, 250000L, "SUCCESS");
+        // tổng 200.700 đ, khách đưa 250.000 đ -> thối 49.300 đ
+        PaymentRequest req = new PaymentRequest(PaymentMethod.CASH, 250000L, PaymentSimulation.SUCCESS);
         PaymentResponse res = paymentService.processPayment(500L, 200700L, req);
 
         assertThat(res.id()).isEqualTo(101L);
@@ -58,7 +60,8 @@ class PaymentServiceTest {
     @Test
     @DisplayName("TC-POS-08: Tiền mặt đưa thiếu -> 422 CASH_INSUFFICIENT, mang details total và cashReceived")
     void testProcessPayment_Cash_Insufficient_Throws422() {
-        PaymentRequest req = new PaymentRequest(PaymentMethod.CASH, 200000L, "SUCCESS");
+        // Tổng 200.700 đ nhưng khách chỉ đưa 200.000 đ
+        PaymentRequest req = new PaymentRequest(PaymentMethod.CASH, 200000L, PaymentSimulation.SUCCESS);
 
         assertThatThrownBy(() -> paymentService.processPayment(500L, 200700L, req))
                 .isInstanceOf(AppException.class)
@@ -79,7 +82,7 @@ class PaymentServiceTest {
     @Test
     @DisplayName("TC-POS-06: Thẻ simulate = FAILED -> 422 PAYMENT_FAILED, không lưu DB")
     void testProcessPayment_Card_Failed_Throws422() {
-        PaymentRequest req = new PaymentRequest(PaymentMethod.CARD, null, "FAILED");
+        PaymentRequest req = new PaymentRequest(PaymentMethod.CARD, null, PaymentSimulation.FAILED);
 
         assertThatThrownBy(() -> paymentService.processPayment(500L, 200700L, req))
                 .isInstanceOf(AppException.class)
@@ -91,7 +94,7 @@ class PaymentServiceTest {
     @Test
     @DisplayName("TC-POS-07: QR simulate = TIMEOUT -> 422 PAYMENT_TIMEOUT, không lưu DB")
     void testProcessPayment_Qr_Timeout_Throws422() {
-        PaymentRequest req = new PaymentRequest(PaymentMethod.QR, null, "TIMEOUT");
+        PaymentRequest req = new PaymentRequest(PaymentMethod.QR, null, PaymentSimulation.TIMEOUT);
 
         assertThatThrownBy(() -> paymentService.processPayment(500L, 200700L, req))
                 .isInstanceOf(AppException.class)
@@ -109,8 +112,8 @@ class PaymentServiceTest {
             return p;
         });
 
-        PaymentRequest req = new PaymentRequest(PaymentMethod.CARD, null, "SUCCESS");
-        PaymentResponse res = paymentService.processPayment(500L, 150000L, req);
+        PaymentRequest req = new PaymentRequest(PaymentMethod.CARD, null, PaymentSimulation.SUCCESS);
+        PaymentResponse res = paymentService.processPayment(500L, 200700L, req);
 
         assertThat(res.status()).isEqualTo(PaymentStatus.PAID);
         assertThat(res.cashReceived()).isNull();

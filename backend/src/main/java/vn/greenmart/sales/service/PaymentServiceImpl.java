@@ -8,6 +8,7 @@ import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
 import vn.greenmart.sales.domain.Payment;
 import vn.greenmart.sales.domain.PaymentMethod;
+import vn.greenmart.sales.domain.PaymentSimulation;
 import vn.greenmart.sales.domain.PaymentStatus;
 import vn.greenmart.sales.dto.PaymentRequest;
 import vn.greenmart.sales.dto.PaymentResponse;
@@ -39,18 +40,18 @@ public class PaymentServiceImpl implements PaymentService {
                 );
             }
         } else {
-            // Thanh toán qua CARD hoặc QR
-            String sim = request.simulate();
-            if ("FAILED".equalsIgnoreCase(sim)) {
+            // Thanh toán giả lập qua CARD hoặc QR
+            PaymentSimulation sim = request.simulate();
+            if (sim == PaymentSimulation.FAILED) {
                 throw new AppException(
                         ErrorCode.PAYMENT_FAILED,
-                        "Thanh toán thẻ/QR không thành công, chọn phương thức khác"
+                        "Thanh toán thẻ/QR không thành công, vui lòng chọn phương thức khác"
                 );
             }
-            if ("TIMEOUT".equalsIgnoreCase(sim)) {
+            if (sim == PaymentSimulation.TIMEOUT) {
                 throw new AppException(
                         ErrorCode.PAYMENT_TIMEOUT,
-                        "Thanh toán quá thời gian chờ (60 giây)"
+                        "Thanh toán quá thời gian chờ (60s)"
                 );
             }
         }
@@ -59,7 +60,6 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public PaymentResponse processPayment(Long orderId, Long totalAmount, PaymentRequest request) {
-        // Kiểm tra hợp lệ trước khi thực hiện
         validatePayment(totalAmount, request);
 
         Long cashReceived = null;
@@ -70,7 +70,6 @@ public class PaymentServiceImpl implements PaymentService {
             cashReceived = request.cashReceived();
             change = cashReceived - totalAmount;
         } else {
-            // Sinh mã giao dịch giả lập rõ ràng: CARD-SIM-XXXXXXXX hoặc QR-SIM-XXXXXXXX
             providerRef = request.method().name() + "-SIM-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         }
 
