@@ -125,3 +125,25 @@ export_cost_price và totalCost của phiếu cũ chưa có snapshot giữ null.
 Chạy JDK21/Docker: `mvn -B -ntp test -Dtest=StockExportApiTest,StockExportMigrationTest,StockDocumentDraftApiTest,StockImportTransactionTest`,
 sau đó `mvn -B -ntp verify`. Tests dùng PostgreSQL16.10 thật, Flyway + Hibernate validate;
 HTTP dựng SecurityContext theo nền develop, không nhận đây là E2E JWT production.
+
+## Tra cứu sổ kho (#55)
+
+`GET /api/v1/inventory/transactions` dành cho OWNER, BRANCH_MANAGER và STOREKEEPER;
+CASHIER và ADMIN trả 403 FORBIDDEN theo OpenAPI. OWNER xem toàn chuỗi; hai vai trò
+còn lại chỉ xem chi nhánh được gán. Chọn chi nhánh ngoài quyền trả BRANCH_FORBIDDEN;
+không được gán chi nhánh trả trang rỗng, không lộ tổng số giao dịch của nơi khác.
+
+Bộ lọc: branchId, productId, type, refType, refId, from, to. Ngày dạng yyyy-MM-dd,
+tính trọn ngày Việt Nam (Asia/Ho_Chi_Minh), bao gồm cả from và to. Phân trang mặc định
+page=0, size=20, tối đa 100; luôn sắp createdAt giảm dần rồi id giảm dần để ổn định
+khi nhiều giao dịch cùng thời điểm. ID phải dương, from không được sau to.
+
+Mỗi dòng có biến động và số dư onHand/reserved, SKU, loại/mã chứng từ và người tạo.
+Mã chứng từ được ghép đúng refType và chi nhánh (TRANSFER cho cả nơi đi và đến);
+tham chiếu không còn tồn tại trả refCode=null nhưng vẫn giữ dòng lịch sử. createdBy
+có thể null cho giao dịch hệ thống. Truy vấn chỉ đọc, dùng REPEATABLE_READ để tổng số
+và nội dung trang cùng snapshot; không thay đổi tồn kho hoặc tạo giao dịch mới.
+
+Kiểm tra JDK 21 + Docker: `mvn -B -ntp test -Dtest=InventoryTransactionApiTest`.
+Test dùng PostgreSQL 16.10, Flyway và MockMvc; có kiểm tra Bearer JWT thật,
+phân quyền/phạm vi chi nhánh, biên ngày, phân trang, tham chiếu và đầu vào sai.

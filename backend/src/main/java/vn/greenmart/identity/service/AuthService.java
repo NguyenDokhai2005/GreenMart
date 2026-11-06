@@ -9,4 +9,5 @@ public interface AuthService {
     CurrentUser me(long userId);
     String activeRole(long userId);
     void changePassword(long userId, AuthRequests.ChangePassword request);
+    String getFullName(long userId);
 }
