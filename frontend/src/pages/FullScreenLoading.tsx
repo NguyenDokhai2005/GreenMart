@@ -1,7 +1,8 @@
 import '../components/ui/css/states.css';
 
 /** Chỉ dùng cho 5 trường hợp được phép (xem docs/ui-states.md). */
-export type FullScreenReason = 'session-check' | 'after-login' | 'switch-area' | 'switch-branch' | 'logout';
+export type FullScreenReason =
+  'session-check' | 'after-login' | 'switch-area' | 'switch-branch' | 'logout';
 
 const LABELS: Record<FullScreenReason, string> = {
   'session-check': 'Đang kiểm tra phiên đăng nhập…',

@@ -7,7 +7,9 @@ export interface OfflinePageProps {
 }
 
 /** Mất kết nối: tự thử lại khi có mạng (sự kiện `online`). */
-export default function OfflinePage({ onReconnect = () => window.location.reload() }: OfflinePageProps) {
+export default function OfflinePage({
+  onReconnect = () => window.location.reload(),
+}: OfflinePageProps) {
   const [online, setOnline] = useState(() => navigator.onLine);
 
   useEffect(() => {
@@ -27,8 +29,20 @@ export default function OfflinePage({ onReconnect = () => window.location.reload
   return (
     <SpecialPage
       title="Mất kết nối"
-      description={online ? 'Đã có mạng, đang tải lại…' : 'Không gọi được máy chủ. Trang sẽ tự thử lại khi có mạng.'}
-      actions={<button type="button" className="gm-state__btn gm-state__btn--secondary" onClick={onReconnect}>Thử lại ngay</button>}
+      description={
+        online
+          ? 'Đã có mạng, đang tải lại…'
+          : 'Không gọi được máy chủ. Trang sẽ tự thử lại khi có mạng.'
+      }
+      actions={
+        <button
+          type="button"
+          className="gm-state__btn gm-state__btn--secondary"
+          onClick={onReconnect}
+        >
+          Thử lại ngay
+        </button>
+      }
     />
   );
 }

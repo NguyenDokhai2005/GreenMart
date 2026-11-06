@@ -18,14 +18,26 @@ export interface EmptyStateProps {
  * Chỉ render SAU KHI API đã trả danh sách rỗng.
  * Không dùng trong lúc đang tải — dùng <AsyncBlock> để đảm bảo thứ tự.
  */
-function EmptyState({ message, description, actionLabel, onAction, filtered = false, onClearFilters, icon }: EmptyStateProps) {
+function EmptyState({
+  message,
+  description,
+  actionLabel,
+  onAction,
+  filtered = false,
+  onClearFilters,
+  icon,
+}: EmptyStateProps) {
   return (
     <div className="gm-empty-state">
       {icon}
       <p className="gm-state__title">{filtered ? 'Không có kết quả phù hợp' : message}</p>
       {!filtered && description && <p className="gm-state__desc">{description}</p>}
       {filtered && onClearFilters && (
-        <button type="button" className="gm-state__btn gm-state__btn--secondary" onClick={onClearFilters}>
+        <button
+          type="button"
+          className="gm-state__btn gm-state__btn--secondary"
+          onClick={onClearFilters}
+        >
           Xóa bộ lọc
         </button>
       )}

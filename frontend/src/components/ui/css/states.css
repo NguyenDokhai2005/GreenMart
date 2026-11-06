@@ -11,8 +11,12 @@
 }
 
 @keyframes gm-skeleton-shimmer {
-  0% { background-position: 100% 50%; }
-  100% { background-position: 0 50%; }
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
 }
 
 /* ---------- Khung chung: PageLoader / EmptyState / ErrorState ---------- */
@@ -69,7 +73,9 @@
 }
 
 @keyframes gm-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ---------- Nút (dùng trong state và trang lỗi) ---------- */
@@ -151,6 +157,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gm-skeleton { animation: none; }
-  .gm-spinner { animation-duration: 3s; }
+  .gm-skeleton {
+    animation: none;
+  }
+  .gm-spinner {
+    animation-duration: 3s;
+  }
 }
