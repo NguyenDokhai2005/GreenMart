@@ -1,0 +1,145 @@
+{
+  "issue": 148,
+  "executedAt": "2026-11-06T15:12:35.794158+07:00",
+  "localCommit": "842a29fa353b40cf52e7ef5ebe2467406f95bac4",
+  "githubReferenceCommit": "7a7fdadaa9f114d53168a380c655ea355288c7cd",
+  "composeProject": "greenmart-qa148",
+  "baseUrl": "http://127.0.0.1:18080/api/v1",
+  "summary": {
+    "PASS": 26
+  },
+  "results": [
+    {
+      "id": "TC-DEMO-01",
+      "result": "PASS",
+      "detail": "Expected demo users active; exact assigned branches and roles"
+    },
+    {
+      "id": "TC-DEMO-02",
+      "result": "PASS",
+      "detail": "Expected demo users active; exact assigned branches and roles"
+    },
+    {
+      "id": "TC-DEMO-03",
+      "result": "PASS",
+      "detail": "Expected demo users active; exact assigned branches and roles"
+    },
+    {
+      "id": "TC-DEMO-04",
+      "result": "PASS",
+      "detail": "Expected demo users active; exact assigned branches and roles"
+    },
+    {
+      "id": "TC-DEMO-05",
+      "result": "PASS",
+      "detail": "Expected demo users active; exact assigned branches and roles"
+    },
+    {
+      "id": "TC-DEMO-06",
+      "result": "PASS",
+      "detail": "Expected demo users active; exact assigned branches and roles"
+    },
+    {
+      "id": "TC-DEMO-10",
+      "result": "PASS",
+      "detail": "admin: HTTP 200; role=ADMIN; expected branches=GM-001,GM-002,GM-003"
+    },
+    {
+      "id": "TC-DEMO-30",
+      "result": "PASS",
+      "detail": "admin: HTTP 200; exact role and branch set"
+    },
+    {
+      "id": "TC-DEMO-11",
+      "result": "PASS",
+      "detail": "owner: HTTP 200; role=OWNER; expected branches=GM-001,GM-002,GM-003"
+    },
+    {
+      "id": "TC-DEMO-31",
+      "result": "PASS",
+      "detail": "owner: HTTP 200; exact role and branch set"
+    },
+    {
+      "id": "TC-DEMO-11b",
+      "result": "PASS",
+      "detail": "owner.pho: HTTP 200; role=OWNER; expected branches=GM-001,GM-002,GM-003"
+    },
+    {
+      "id": "TC-DEMO-12",
+      "result": "PASS",
+      "detail": "quanly.gm001: HTTP 200; role=BRANCH_MANAGER; expected branches=GM-001"
+    },
+    {
+      "id": "TC-DEMO-13",
+      "result": "PASS",
+      "detail": "quanly.gm002: HTTP 200; role=BRANCH_MANAGER; expected branches=GM-002"
+    },
+    {
+      "id": "TC-DEMO-33",
+      "result": "PASS",
+      "detail": "quanly.gm002: HTTP 200; exact role and branch set"
+    },
+    {
+      "id": "TC-DEMO-14",
+      "result": "PASS",
+      "detail": "quanly.gm003: HTTP 200; role=BRANCH_MANAGER; expected branches=GM-003"
+    },
+    {
+      "id": "TC-DEMO-15",
+      "result": "PASS",
+      "detail": "thungan.gm001: HTTP 200; role=CASHIER; expected branches=GM-001"
+    },
+    {
+      "id": "TC-DEMO-32",
+      "result": "PASS",
+      "detail": "thungan.gm001: HTTP 200; exact role and branch set"
+    },
+    {
+      "id": "TC-DEMO-16",
+      "result": "PASS",
+      "detail": "thungan.gm002: HTTP 200; role=CASHIER; expected branches=GM-002"
+    },
+    {
+      "id": "TC-DEMO-17",
+      "result": "PASS",
+      "detail": "thungan.gm003: HTTP 200; role=CASHIER; expected branches=GM-003"
+    },
+    {
+      "id": "TC-DEMO-18",
+      "result": "PASS",
+      "detail": "thukho.gm001: HTTP 200; role=STOREKEEPER; expected branches=GM-001"
+    },
+    {
+      "id": "TC-DEMO-19",
+      "result": "PASS",
+      "detail": "thukho.gm002: HTTP 200; role=STOREKEEPER; expected branches=GM-002"
+    },
+    {
+      "id": "TC-DEMO-20",
+      "result": "PASS",
+      "detail": "thukho.gm003: HTTP 200; role=STOREKEEPER; expected branches=GM-003"
+    },
+    {
+      "id": "TC-DEMO-34",
+      "result": "PASS",
+      "detail": "thukho.gm003: HTTP 200; exact role and branch set"
+    },
+    {
+      "id": "TC-DEMO-21",
+      "result": "PASS",
+      "detail": "Aggregate of all 12 logins"
+    },
+    {
+      "id": "TC-DEMO-40",
+      "result": "PASS",
+      "detail": "All 12 demo users use BCrypt cost >= 10"
+    },
+    {
+      "id": "TC-DEMO-41",
+      "result": "PASS",
+      "detail": "Two cashier hashes differ; no hash exported"
+    }
+  ],
+  "cleanupWarnings": [],
+  "scope": "Real API/DB checks only; no seed/reset or service management; not full RBAC #242"
+}
