@@ -14,13 +14,19 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import vn.greenmart.common.config.WebMvcConfig;
 import vn.greenmart.common.exception.GlobalExceptionHandler;
+import vn.greenmart.sales.domain.OrderStatus;
+import vn.greenmart.sales.domain.PaymentMethod;
 import vn.greenmart.sales.dto.*;
+import vn.greenmart.sales.service.PosOrderService;
 import vn.greenmart.sales.service.QuoteService;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -95,5 +101,58 @@ class OrderControllerTest {
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @MockitoBean
+    private PosOrderService posOrderService;
+
+    @Test
+    @DisplayName("POST /api/v1/orders/pos thành công trả về HTTP 201")
+    void testCreatePosOrder_Success_Returns201() throws Exception {
+        PosOrderRequest request = new PosOrderRequest(
+                1L, null,
+                List.of(new OrderLineRequest(101L, 1)),
+                null,
+                new PaymentRequest(PaymentMethod.CASH, 200000L, "SUCCESS"),
+                180000L
+        );
+
+        OrderResponse mockRes = new OrderResponse(
+                500L, "POS-GM001-20261105-0042", "POS", null,
+                new BranchRef(1L, "GM-001", "GreenMart Q1"), null,
+                OrderStatus.COMPLETED, 1, 180000L,
+                Instant.now(), Instant.now(), null,
+                Collections.emptyList(), null, null,
+                180000L, 0L, 0L, 0L, 0L,
+                Collections.emptyList(), null, null, null
+        );
+
+        when(posOrderService.createPosOrder(any(), anyString())).thenReturn(mockRes);
+
+        mockMvc.perform(post("/api/v1/orders/pos")
+                .header("Idempotency-Key", UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.id").value(500))
+            .andExpect(jsonPath("$.code").value("POS-GM001-20261105-0042"))
+            .andExpect(jsonPath("$.status").value("COMPLETED"));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/orders/pos thiếu Idempotency-Key trả về HTTP 400")
+    void testCreatePosOrder_MissingIdempotencyKey_Returns400() throws Exception {
+        PosOrderRequest request = new PosOrderRequest(
+                1L, null,
+                List.of(new OrderLineRequest(101L, 1)),
+                null,
+                new PaymentRequest(PaymentMethod.CASH, 200000L, "SUCCESS"),
+                180000L
+        );
+
+        mockMvc.perform(post("/api/v1/orders/pos")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest());
     }
 }
