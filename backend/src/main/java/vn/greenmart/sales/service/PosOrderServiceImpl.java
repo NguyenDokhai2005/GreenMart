@@ -163,7 +163,7 @@ public class PosOrderServiceImpl implements PosOrderService {
             if ("TIMEOUT".equalsIgnoreCase(sim)) {
                 throw new AppException(ErrorCode.PAYMENT_TIMEOUT, "Thanh toán quá thời gian chờ (60s)");
             }
-            providerRef = "SIM-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            providerRef = payReq.method().name() + "-SIM-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         }
 
         // Tạo đơn hàng SalesOrder
