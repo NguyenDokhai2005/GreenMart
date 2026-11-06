@@ -6,6 +6,7 @@ import vn.greenmart.sales.domain.OrderItem;
 import vn.greenmart.sales.domain.OrderStatus;
 import vn.greenmart.sales.domain.Payment;
 import vn.greenmart.sales.domain.PaymentMethod;
+import vn.greenmart.sales.domain.PaymentSimulation;
 import vn.greenmart.sales.domain.PaymentStatus;
 import vn.greenmart.sales.domain.SalesOrder;
 import vn.greenmart.sales.dto.InsufficientStockLine;
@@ -88,7 +89,7 @@ class SalesModelTest {
     @Test
     void testNewSalesDtos() {
         PaymentRequest pr = new PaymentRequest(PaymentMethod.CARD, null, null);
-        assertThat(pr.simulate()).isEqualTo("SUCCESS");
+        assertThat(pr.simulate()).isEqualTo(PaymentSimulation.SUCCESS);
 
         UserRef userRef = new UserRef(1L, "Thu Ngân");
         assertThat(userRef.id()).isEqualTo(1L);
