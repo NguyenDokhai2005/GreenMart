@@ -18,25 +18,9 @@ import vn.greenmart.integration.outbox.OutboxService;
 import vn.greenmart.inventory.service.InventoryService;
 import vn.greenmart.sales.domain.OrderItem;
 import vn.greenmart.sales.domain.OrderStatus;
-import vn.greenmart.sales.domain.Payment;
-import vn.greenmart.sales.domain.PaymentMethod;
-import vn.greenmart.sales.domain.PaymentStatus;
 import vn.greenmart.sales.domain.SalesOrder;
-import vn.greenmart.sales.dto.BranchRef;
-import vn.greenmart.sales.dto.CustomerRef;
-import vn.greenmart.sales.dto.InsufficientStockLine;
-import vn.greenmart.sales.dto.OrderItemResponse;
-import vn.greenmart.sales.dto.OrderLineRequest;
-import vn.greenmart.sales.dto.OrderResponse;
-import vn.greenmart.sales.dto.PaymentRequest;
-import vn.greenmart.sales.dto.PaymentResponse;
-import vn.greenmart.sales.dto.PosOrderRequest;
-import vn.greenmart.sales.dto.Quote;
-import vn.greenmart.sales.dto.QuoteLine;
-import vn.greenmart.sales.dto.QuoteRequest;
-import vn.greenmart.sales.dto.UserRef;
+import vn.greenmart.sales.dto.*;
 import vn.greenmart.sales.repository.OrderItemRepository;
-import vn.greenmart.sales.repository.PaymentRepository;
 import vn.greenmart.sales.repository.SalesOrderRepository;
 
 import java.time.Instant;
@@ -48,7 +32,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -61,9 +44,9 @@ public class PosOrderServiceImpl implements PosOrderService {
     private final BranchService branchService;
     private final AuthService authService;
     private final PromotionService promotionService;
+    private final PaymentService paymentService;
     private final SalesOrderRepository salesOrderRepository;
     private final OrderItemRepository orderItemRepository;
-    private final PaymentRepository paymentRepository;
     private final OutboxService outboxService;
     private final JdbcTemplate jdbcTemplate;
 
@@ -107,7 +90,6 @@ public class PosOrderServiceImpl implements PosOrderService {
         }
 
         if (!promoSuccess) {
-            // Khi hết lượt KM lúc chốt đơn, tính lại quote và ném 422
             Quote updatedQuote = quoteService.calculateQuote(quoteRequest);
             throw new AppException(ErrorCode.TOTAL_CHANGED, "Khuyến mại đã hết lượt sử dụng, tổng tiền đã thay đổi", Map.of("quote", updatedQuote));
         }
@@ -121,10 +103,10 @@ public class PosOrderServiceImpl implements PosOrderService {
         }
 
         // Sắp xếp theo productId ASC và kiểm tra tồn kho
-        List<OrderLineRequest> sortedItems = new ArrayList<OrderLineRequest>(request.items());
+        List<OrderLineRequest> sortedItems = new ArrayList<>(request.items());
         sortedItems.sort(Comparator.comparing(OrderLineRequest::productId));
 
-        List<InsufficientStockLine> insufficientLines = new ArrayList<InsufficientStockLine>();
+        List<InsufficientStockLine> insufficientLines = new ArrayList<>();
         for (OrderLineRequest line : sortedItems) {
             int available = inventoryService.getAvailable(request.branchId(), line.productId());
             if (available < line.quantity()) {
@@ -141,30 +123,9 @@ public class PosOrderServiceImpl implements PosOrderService {
             throw new AppException(ErrorCode.INSUFFICIENT_STOCK, "Không đủ tồn kho khả dụng", Map.of("lines", insufficientLines));
         }
 
-        // Kiểm tra thanh toán giả lập
-        PaymentRequest payReq = request.payment();
+        // Kiểm tra thanh toán giả lập qua PaymentService
         long totalAmount = recomputedQuote.total();
-        Long cashReceived = null;
-        Long change = null;
-        String providerRef = null;
-
-        if (payReq.method() == PaymentMethod.CASH) {
-            cashReceived = payReq.cashReceived();
-            if (cashReceived == null || cashReceived < totalAmount) {
-                throw new AppException(ErrorCode.CASH_INSUFFICIENT, "Tiền khách đưa nhỏ hơn tổng phải trả",
-                        Map.of("total", totalAmount, "cashReceived", cashReceived != null ? cashReceived : 0L));
-            }
-            change = cashReceived - totalAmount;
-        } else {
-            String sim = payReq.simulate();
-            if ("FAILED".equalsIgnoreCase(sim)) {
-                throw new AppException(ErrorCode.PAYMENT_FAILED, "Thanh toán thẻ/QR không thành công, vui lòng chọn phương thức khác");
-            }
-            if ("TIMEOUT".equalsIgnoreCase(sim)) {
-                throw new AppException(ErrorCode.PAYMENT_TIMEOUT, "Thanh toán quá thời gian chờ (60s)");
-            }
-            providerRef = "SIM-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-        }
+        paymentService.validatePayment(totalAmount, request.payment());
 
         // Tạo đơn hàng SalesOrder
         Long posChannelId = jdbcTemplate.queryForObject(
@@ -206,7 +167,7 @@ public class PosOrderServiceImpl implements PosOrderService {
         order = salesOrderRepository.save(order);
 
         // Trừ tồn kho & Ghi dòng đơn hàng
-        List<OrderItemResponse> itemResponses = new ArrayList<OrderItemResponse>();
+        List<OrderItemResponse> itemResponses = new ArrayList<>();
         int totalItemCount = 0;
 
         for (QuoteLine qLine : recomputedQuote.lines()) {
@@ -238,27 +199,8 @@ public class PosOrderServiceImpl implements PosOrderService {
             totalItemCount += orderItem.getQuantity();
         }
 
-        // Tạo bản ghi Payment
-        Payment payment = new Payment();
-        payment.setOrderId(order.getId());
-        payment.setMethod(payReq.method());
-        payment.setAmount(totalAmount);
-        payment.setStatus(PaymentStatus.PAID);
-        payment.setProviderRef(providerRef);
-        payment.setPaidAt(now);
-
-        payment = paymentRepository.save(payment);
-
-        PaymentResponse paymentResponse = new PaymentResponse(
-                payment.getId(),
-                payment.getMethod(),
-                payment.getAmount(),
-                payment.getStatus(),
-                cashReceived,
-                change,
-                payment.getProviderRef(),
-                payment.getPaidAt()
-        );
+        // Tạo bản ghi Payment qua PaymentService
+        PaymentResponse paymentResponse = paymentService.processPayment(order.getId(), totalAmount, request.payment());
 
         // Enqueue Outbox events
         Map<String, Object> orderPayload = Map.of(
@@ -277,8 +219,8 @@ public class PosOrderServiceImpl implements PosOrderService {
                 "reason", "POS_SALE"
         );
         outboxService.enqueue("stock", order.getBranchId().toString(), "stock.changed", stockPayload);
-        BranchRef branchRef = new BranchRef(request.branchId(), branchInfo.code(), branchInfo.name());
 
+        BranchRef branchRef = new BranchRef(request.branchId(), branchInfo.code(), branchInfo.name());
         CustomerRef customerRef = null;
         if (request.customerId() != null) {
             CustomerResponse cust = customerService.getCustomer(request.customerId());
