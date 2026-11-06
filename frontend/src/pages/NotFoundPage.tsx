@@ -15,16 +15,9 @@ export default function NotFoundPage({ homeHref = '/', onHome }: NotFoundPagePro
       description="Đường dẫn không đúng hoặc dữ liệu này không còn tồn tại."
       actions={
         <a
-          className="ui-state-btn"
+          className="gm-state__btn"
           href={homeHref}
-          onClick={
-            onHome
-              ? (e) => {
-                  e.preventDefault();
-                  onHome();
-                }
-              : undefined
-          }
+          onClick={onHome ? (e) => { e.preventDefault(); onHome(); } : undefined}
         >
           Về trang chủ
         </a>

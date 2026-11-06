@@ -12,12 +12,12 @@ export interface SpecialPageProps {
 /** Khung chung cho 5 trang lỗi cả trang. Render trong layout (giữ header và menu). */
 export function SpecialPage({ code, title, description, traceId, actions }: SpecialPageProps) {
   return (
-    <section className="ui-special-page" role="alert">
-      {code && <p className="ui-special-page__code">{code}</p>}
-      <h1 className="ui-state-title">{title}</h1>
-      {description && <p className="ui-state-desc">{description}</p>}
-      {traceId && <p className="ui-error-state__trace">Mã lỗi: {traceId}</p>}
-      <div className="ui-special-page__actions">{actions}</div>
+    <section className="gm-special-page" role="alert">
+      {code && <p className="gm-special-page__code">{code}</p>}
+      <h1 className="gm-state__title">{title}</h1>
+      {description && <p className="gm-state__desc">{description}</p>}
+      {traceId && <p className="gm-error-state__trace">Mã lỗi: {traceId}</p>}
+      <div className="gm-special-page__actions">{actions}</div>
     </section>
   );
 }

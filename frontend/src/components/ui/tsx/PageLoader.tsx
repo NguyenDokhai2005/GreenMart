@@ -10,9 +10,9 @@ export interface PageLoaderProps {
  */
 function PageLoader({ label = 'Đang tải…' }: PageLoaderProps) {
   return (
-    <div className="ui-page-loader" role="status" aria-live="polite" aria-busy="true">
-      <span className="ui-spinner" aria-hidden="true" />
-      <p className="ui-state-desc">{label}</p>
+    <div className="gm-page-loader" role="status" aria-live="polite" aria-busy="true">
+      <span className="gm-spinner" aria-hidden="true" />
+      <p className="gm-state__desc">{label}</p>
     </div>
   );
 }

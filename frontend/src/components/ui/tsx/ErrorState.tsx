@@ -11,11 +11,11 @@ export interface ErrorStateProps {
 /** Lỗi trong một khối (một API lỗi, trang vẫn dùng được). */
 function ErrorState({ message, onRetry, traceId }: ErrorStateProps) {
   return (
-    <div className="ui-error-state" role="alert">
-      <p className="ui-state-title">{message}</p>
-      {traceId && <span className="ui-error-state__trace">Mã lỗi: {traceId}</span>}
+    <div className="gm-error-state" role="alert">
+      <p className="gm-state__title">{message}</p>
+      {traceId && <span className="gm-error-state__trace">Mã lỗi: {traceId}</span>}
       {onRetry && (
-        <button type="button" className="ui-state-btn" onClick={onRetry}>
+        <button type="button" className="gm-state__btn" onClick={onRetry}>
           Thử lại
         </button>
       )}

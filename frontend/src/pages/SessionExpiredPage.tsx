@@ -14,13 +14,8 @@ export interface SessionExpiredPageProps {
  * Về đăng nhập kèm `returnTo` để đăng nhập xong quay lại đúng trang cũ.
  * Trang đăng nhập cần đọc `?returnTo=` và điều hướng sau khi thành công.
  */
-export default function SessionExpiredPage({
-  loginHref = '/login',
-  returnTo,
-  onLogin,
-}: SessionExpiredPageProps) {
-  const target =
-    returnTo ?? `${window.location.pathname}${window.location.search}${window.location.hash}`;
+export default function SessionExpiredPage({ loginHref = '/login', returnTo, onLogin }: SessionExpiredPageProps) {
+  const target = returnTo ?? `${window.location.pathname}${window.location.search}${window.location.hash}`;
   const loginUrl = `${loginHref}?returnTo=${encodeURIComponent(target)}`;
   return (
     <SpecialPage
@@ -28,16 +23,9 @@ export default function SessionExpiredPage({
       description="Vui lòng đăng nhập lại. Bạn sẽ quay về đúng trang đang làm."
       actions={
         <a
-          className="ui-state-btn"
+          className="gm-state__btn"
           href={loginUrl}
-          onClick={
-            onLogin
-              ? (e) => {
-                  e.preventDefault();
-                  onLogin(loginUrl);
-                }
-              : undefined
-          }
+          onClick={onLogin ? (e) => { e.preventDefault(); onLogin(loginUrl); } : undefined}
         >
           Đăng nhập lại
         </a>
