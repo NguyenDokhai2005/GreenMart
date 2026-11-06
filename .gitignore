@@ -6,6 +6,7 @@ target/
 build/
 # Node
 node_modules/
+mock-connector/data/
 dist/
 # Python
 __pycache__/

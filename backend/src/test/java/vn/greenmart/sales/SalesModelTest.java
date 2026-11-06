@@ -2,8 +2,20 @@ package vn.greenmart.sales;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import vn.greenmart.sales.domain.*;
-import vn.greenmart.sales.dto.*;
+import vn.greenmart.sales.domain.OrderItem;
+import vn.greenmart.sales.domain.OrderStatus;
+import vn.greenmart.sales.domain.Payment;
+import vn.greenmart.sales.domain.PaymentMethod;
+import vn.greenmart.sales.domain.PaymentStatus;
+import vn.greenmart.sales.domain.SalesOrder;
+import vn.greenmart.sales.dto.InsufficientStockLine;
+import vn.greenmart.sales.dto.OrderItemResponse;
+import vn.greenmart.sales.dto.PaymentRequest;
+import vn.greenmart.sales.dto.PaymentResponse;
+import vn.greenmart.sales.dto.PromotionRef;
+import vn.greenmart.sales.dto.Quote;
+import vn.greenmart.sales.dto.QuoteLine;
+import vn.greenmart.sales.dto.UserRef;
 
 import java.time.Instant;
 import java.util.List;
@@ -71,5 +83,24 @@ class SalesModelTest {
 
         assertThat(quote.total()).isEqualTo(40000L);
         assertThat(quote.canComplete()).isTrue();
+    }
+
+    @Test
+    void testNewSalesDtos() {
+        PaymentRequest pr = new PaymentRequest(PaymentMethod.CARD, null, null);
+        assertThat(pr.simulate()).isEqualTo("SUCCESS");
+
+        UserRef userRef = new UserRef(1L, "Thu Ngân");
+        assertThat(userRef.id()).isEqualTo(1L);
+
+        OrderItemResponse itemRes = new OrderItemResponse(1L, 101L, "SKU", "Tên", "hộp", 2, 50000L, 0L, 100000L, null);
+        assertThat(itemRes.lineTotal()).isEqualTo(100000L);
+
+        PaymentResponse payRes = new PaymentResponse(1L, PaymentMethod.CASH, 100000L, PaymentStatus.PAID, 120000L, 20000L, null, Instant.now());
+        assertThat(payRes.change()).isEqualTo(20000L);
+
+        InsufficientStockLine isl = new InsufficientStockLine(1L, "SKU", 2, 1);
+        assertThat(isl.requested()).isEqualTo(2);
+        assertThat(isl.available()).isEqualTo(1);
     }
 }
