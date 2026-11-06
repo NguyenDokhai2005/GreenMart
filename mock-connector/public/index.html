@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GreenMart — Kênh giả lập</title>
+<style>body{font:16px system-ui;max-width:960px;margin:32px auto;padding:0 20px}textarea{width:100%;box-sizing:border-box;font:14px monospace}button,select{padding:10px;margin:12px 8px 12px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f5f3;padding:16px}label{display:block}h1{color:#17583b}</style>
+<h1>Kênh bán giả lập</h1><p>Tạo đơn WEB/MARKET để kiểm tra tích hợp GreenMart. Giữ mã đơn khi gửi lại để kiểm tra chống trùng.</p>
+<form id="form"><label for="channel">Kênh bán</label><select id="channel"><option>WEB</option><option>MARKET</option></select>
+<label for="order">Nội dung đơn hàng</label><textarea id="order" rows="15" required></textarea>
+<button id="send">Gửi đơn</button><button id="new" type="button">Tạo mã đơn mới</button></form>
+<h2>Kết quả gửi đơn</h2><pre id="result" role="status">Chưa gửi đơn.</pre>
+<h2>Tồn và trạng thái đơn từ backend</h2><button id="refresh" type="button">Làm mới dữ liệu</button><pre id="state">Đang tải…</pre>
+<script>
+const $=id=>document.getElementById(id);
+function sample(){const channel=$('channel').value;$('order').value=JSON.stringify({externalOrderId:channel+'-'+crypto.randomUUID(),orderedAt:new Date().toISOString(),customer:{name:'Khách demo',phone:'0912345678'},items:[{externalSku:channel==='WEB'?'W-SUA-TH-1L':'M-SUA-TH-1L',quantity:3,unitPrice:29000}],shippingFee:15000,paymentMethod:'ONLINE'},null,2)}
+async function refresh(){try{const r=await fetch('/mock/state');$('state').textContent=JSON.stringify(await r.json(),null,2)}catch{$('state').textContent='Không tải được dữ liệu. Bấm Làm mới để thử lại.'}}
+$('form').onsubmit=async event=>{event.preventDefault();$('send').disabled=true;try{JSON.parse($('order').value);const r=await fetch('/demo/'+$('channel').value+'/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:$('order').value});$('result').textContent='HTTP '+r.status+'\n'+JSON.stringify(await r.json(),null,2);await refresh()}catch{$('result').textContent='Kiểm tra JSON và kết nối rồi gửi lại. Giữ nguyên mã đơn khi thử lại.'}finally{$('send').disabled=false}};
+$('new').onclick=sample;$('channel').onchange=sample;$('refresh').onclick=refresh;sample();refresh();
+</script></html>

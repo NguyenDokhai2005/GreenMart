@@ -217,6 +217,7 @@ package "Kho" {
     * status : DRAFT | APPROVED | IN_TRANSIT\n| RECEIVED | CANCELLED
     supplier : VARCHAR(120)
     reason : VARCHAR(255)
+    export_reason : EXPIRED | DAMAGED | LOST | OTHER (V7)
     * created_by : BIGINT <<FK>>
     approved_by : BIGINT <<FK>> (≠ created_by)
     received_by : BIGINT <<FK>>
@@ -233,6 +234,7 @@ package "Kho" {
     received_quantity : INT (chuyển kho)
     counted_quantity : INT (kiểm kê)
     unit_cost : BIGINT (nhập hàng)
+    export_cost_price : BIGINT (giá vốn lúc duyệt xuất hủy, V7)
   }
 }
 
@@ -266,6 +268,8 @@ package "Tích hợp kênh" {
     * payload : JSONB
     * status : PENDING | SENT | FAILED
     * attempts : INT
+    trace_id : VARCHAR(64)
+    * next_attempt_at : TIMESTAMPTZ
     * created_at : TIMESTAMPTZ
   }
   entity "sync_log\nNhật ký đồng bộ" as sync_log $ops {

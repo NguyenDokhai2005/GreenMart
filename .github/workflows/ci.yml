@@ -44,9 +44,19 @@ jobs:
           python-version: '3.11'
       - run: python -m pip install -r requirements.txt && python -m pytest
         working-directory: forecast-service
+  mock-connector:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - run: node --test mock-connector/test/connector.test.js
+      - run: docker build -t greenmart-mock-connector:ci mock-connector
   docker-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: docker build -t greenmart-backend:ci backend
       - run: docker build -t greenmart-frontend:ci frontend
+      - run: docker build -t greenmart-forecast:ci forecast-service

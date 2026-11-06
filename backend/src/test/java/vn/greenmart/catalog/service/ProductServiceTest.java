@@ -1,5 +1,6 @@
 package vn.greenmart.catalog.service;
 
+import vn.greenmart.catalog.dto.ProductSaleInfo;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -293,6 +294,37 @@ class ProductServiceTest {
         when(productRepository.findBySku("KHONG-CO")).thenReturn(Optional.empty());
 
         AppException ex = assertThrows(AppException.class, () -> productService.lookupProduct("KHONG-CO", 1L));
+        assertEquals(ErrorCode.NOT_FOUND.name(), ex.getCode());
+    }
+
+    @Test
+    void testGetSaleInfo_Success() {
+        Product p = new Product();
+        p.setId(101L);
+        p.setSku("GAO-ST25");
+        p.setName("Gạo ST25");
+        p.setUnit("túi");
+        p.setSalePrice(180000L);
+        p.setActive(true);
+
+        when(productRepository.findById(101L)).thenReturn(Optional.of(p));
+
+        ProductSaleInfo info = productService.getSaleInfo(101L);
+
+        assertNotNull(info);
+        assertEquals(101L, info.id());
+        assertEquals("GAO-ST25", info.sku());
+        assertEquals("Gạo ST25", info.name());
+        assertEquals("túi", info.unit());
+        assertEquals(180000L, info.salePrice());
+        assertTrue(info.active());
+    }
+
+    @Test
+    void testGetSaleInfo_NotFound_Throws404() {
+        when(productRepository.findById(999L)).thenReturn(Optional.empty());
+
+        AppException ex = assertThrows(AppException.class, () -> productService.getSaleInfo(999L));
         assertEquals(ErrorCode.NOT_FOUND.name(), ex.getCode());
     }
 }

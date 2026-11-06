@@ -27,6 +27,8 @@ ERD mức logic của toàn hệ thống, là bản chuẩn để viết migrati
 | inventory_transaction, audit_log | Chỉ INSERT, không UPDATE/DELETE | Truy vết (BR-06) |
 | product, customer, app_user | Không xóa cứng khi đã có giao dịch, dùng `is_active` | Giữ lịch sử |
 | Tiền | `BIGINT` (VND), không dùng số thực | Tránh sai số làm tròn |
+| stock_document | V7: chỉ EXPORT có `export_reason` thuộc EXPIRED/DAMAGED/LOST/OTHER; OTHER cần `reason` (ghi chú) không trống | Tách mã lý do khỏi ghi chú đầy đủ |
+| stock_document_item | V7: `export_cost_price >= 0` khi có giá trị; snapshot giá vốn lúc duyệt EXPORT | Giá trị hủy không đổi theo giá vốn hiện tại; dữ liệu cũ chưa biết giá vốn giữ NULL |
 
 ## Chỉ mục cần có
 
@@ -40,6 +42,9 @@ ERD mức logic của toàn hệ thống, là bản chuẩn để viết migrati
 - Thêm cột thời gian (31/10, SRS 1.2, migration V4): `return_document.created_at`, `approved_at`; `stock_document.approved_at`, `received_at`.
 
 SRS đã cập nhật theo ở phiên bản 1.1 và 1.2.
+
+Outbox (#127, migration V6): thêm `trace_id` để giữ correlation ID qua lần thử lại
+và `next_attempt_at` để backoff khi broker lỗi. Không thay đổi dữ liệu nghiệp vụ.
 
 ## Sửa ERD
 

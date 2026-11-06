@@ -52,6 +52,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("CatalogIntegrationTest - WebMvc Tests")
 class CatalogIntegrationTest {
 
+    @MockitoBean
+    private vn.greenmart.identity.security.JwtTokens jwtTokens;
+
+    @MockitoBean
+    private vn.greenmart.identity.service.AuthService authService;
+
     @Autowired
     private MockMvc mockMvc;
 

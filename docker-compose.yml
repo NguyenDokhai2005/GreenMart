@@ -73,6 +73,33 @@ services:
       timeout: 5s
       start_period: 60s
       retries: 12
+  mock-connector:
+    <<: *common
+    build: ./mock-connector
+    image: greenmart-mock-connector:${IMAGE_TAG:-dev}
+    environment:
+      BACKEND_URL: http://backend:8080
+      CHANNEL_WEB_SECRET: ${CHANNEL_WEB_SECRET:?Set CHANNEL_WEB_SECRET}
+      CHANNEL_MARKET_SECRET: ${CHANNEL_MARKET_SECRET:?Set CHANNEL_MARKET_SECRET}
+      STATE_FILE: /data/state.json
+    ports: ['127.0.0.1:8090:8090']
+    volumes: [mockdata:/data]
+    depends_on:
+      backend: {condition: service_healthy}
+  forecast-service:
+    <<: *common
+    build: ./forecast-service
+    image: greenmart-forecast:${IMAGE_TAG:-dev}
+    environment:
+      FORECAST_DB_HOST: postgres
+      FORECAST_DB_PORT: '5432'
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
+      FORECAST_DB_USER: ${FORECAST_DB_USER:?Set FORECAST_DB_USER}
+      FORECAST_DB_PASSWORD: ${FORECAST_DB_PASSWORD:?Set FORECAST_DB_PASSWORD}
+      TZ: Asia/Ho_Chi_Minh
+    depends_on:
+      postgres: {condition: service_healthy}
+      backend: {condition: service_healthy}
   frontend:
     <<: *common
     build: ./frontend
@@ -90,3 +117,4 @@ networks:
 volumes:
   pgdata: {}
   rabbitdata: {}
+  mockdata: {}
