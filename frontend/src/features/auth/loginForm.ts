@@ -178,8 +178,13 @@ export function getVisibleLoginNotice(
     }
     return notice.value;
   }
-  if (!isLoginLockedForUsername(username, lockouts, now)) return null;
-  return { title: 'Tài khoản tạm khóa', description: 'Tài khoản đang tạm khóa.' };
+  const lockout = lockouts.find((item) => item.username === username && item.lockedUntil > now);
+  if (!lockout) return null;
+  return {
+    title: 'Tài khoản tạm khóa',
+    description: `Bạn có thể thử đăng nhập lại sau ${formatLockedUntil(lockout.lockedUntil)}.`,
+    lockedUntil: lockout.lockedUntil,
+  };
 }
 
 /** Clears the old tab-wide lock marker. New lockout state is held per page and username. */

@@ -152,6 +152,7 @@ describe('rendered authentication flow', () => {
     expect(input('password').disabled).toBe(false);
     await fill('username', 'test-user');
     expect(input('password').disabled).toBe(true);
+    expect(container.textContent).toContain('09:15');
     await act(async () => vi.advanceTimersByTime(15 * 60 * 1000));
     expect(input('password').disabled).toBe(false);
     fetchMock.mockResolvedValueOnce(json(session()));

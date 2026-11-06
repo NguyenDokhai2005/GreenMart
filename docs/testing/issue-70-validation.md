@@ -20,7 +20,7 @@ tái hiện ba lỗi trước sửa: form bị unmount khi Login đang chờ; m�
 | AC | Kết quả code | Unit/regression | Backend thật | Kết luận |
 | --- | --- | --- | --- | --- |
 | AC1 | Giữ form/lỗi khi login chậm, thông báo chung và remainingAttempts, chống gửi lặp | PASS | 401 INVALID_CREDENTIALS; React DOM hiển thị còn 4 lần thử, retry thành công | Đạt kiểm chứng tự động; chưa ảnh Chrome |
-| AC2 | Đọc lockedUntil từ backend, hiển thị giờ Việt Nam, khóa theo username | PASS; hết hạn mở lại form và đăng nhập được với response giả lập | Lần 1–4 còn 4/3/2/1; lần 5 ACCOUNT_LOCKED; mật khẩu đúng khi đang khóa vẫn 401; tài khoản khác 200 | Đạt khóa thật; chưa kiểm tra mở khóa tự nhiên trên API/Chrome |
+| AC2 | Đọc lockedUntil từ backend, hiển thị giờ Việt Nam, khóa theo username | PASS; hết hạn mở lại form và đăng nhập được với response giả lập | Lần 1–4 còn 4/3/2/1; lần 5 ACCOUNT_LOCKED; mật khẩu đúng khi đang khóa vẫn 401; tài khoản khác 200 | Đạt khóa thật; kết quả theo dõi mở khóa tự nhiên cập nhật riêng trong PR |
 | AC3 | Route guard theo allowlist, ADMIN không có quyền mặc định mọi route | PASS | React + HTTP thật cho cả 5 vai trò; CASHIER và ADMIN mở phiếu kho → /403 | Đạt kiểm chứng tự động; chưa thao tác Chrome |
 | AC4 | Một chi nhánh vào thẳng; nhiều chi nhánh chọn khi cần; bỏ lựa chọn sai/người khác | PASS | CASHIER/BRANCH_MANAGER/STOREKEEPER nhận 1 chi nhánh; OWNER chọn từ 3; ADMIN 3 chi nhánh vào /admin | Đạt kiểm chứng tự động |
 
@@ -47,7 +47,8 @@ tái hiện ba lỗi trước sửa: form bị unmount khi Login đang chờ; m�
 - `AppRoutes.tsx`, `LoginPage.tsx`: giữ URL quay lại; bỏ điều hướng cạnh tranh từ form;
   abort Login sau 15 giây và cho phép retry.
 - `AuthContext.ts`, `api/client.ts`, `loginForm.ts`: truyền AbortSignal, ánh xạ timeout;
-  logout có refresh/revoke một lần, thu hồi token xoay trả về muộn.
+  logout có refresh/revoke một lần, thu hồi token xoay trả về muộn. Giữ giờ mở khóa
+  khi đổi username rồi quay lại tài khoản bị khóa; assertion render tái hiện lỗi trước sửa.
 - `authFlow.test.tsx`: test React thực cho Login, lockout, timeout, 300 ms/15 giây,
   RBAC, chi nhánh và quay lại URL.
 - `client.test.ts`: regression logout/refresh/race; giữ các test 401 đồng thời,
