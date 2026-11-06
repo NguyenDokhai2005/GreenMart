@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { useLocation } from 'react-router';
 import { Button, Checkbox, Input, Toast } from '../../components/ui';
 import { useAuth } from './useAuth';
 import {
@@ -15,7 +15,6 @@ import {
   type UserLoginNotice,
 } from './loginForm';
 import './LoginPage.css';
-import { APP_PATHS } from './routePolicy';
 
 function formatCountdown(milliseconds: number): string {
   const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
@@ -32,7 +31,6 @@ function formatCountdown(milliseconds: number): string {
 export default function LoginPage() {
   const { signIn } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -87,13 +85,17 @@ export default function LoginPage() {
 
     submitLockRef.current = true;
     setIsSubmitting(true);
+    const controller = new AbortController();
+    const timeout = globalThis.setTimeout(
+      () => controller.abort(new DOMException('Login timed out', 'TimeoutError')),
+      15_000,
+    );
 
     try {
-      await signIn(username, password);
+      await signIn(username, password, controller.signal);
       setFieldErrors({});
       setNotice(null);
       setLockouts([]);
-      navigate(APP_PATHS.home, { replace: true, state: location.state });
     } catch (error) {
       const nextNotice = getLoginNotice(error);
       const serverFieldErrors = getLoginFieldErrors(error);
@@ -117,6 +119,7 @@ export default function LoginPage() {
         document.getElementById(firstInvalidField)?.focus();
       }
     } finally {
+      globalThis.clearTimeout(timeout);
       submitLockRef.current = false;
       setIsSubmitting(false);
     }

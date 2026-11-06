@@ -259,7 +259,10 @@ export function getLoginNotice(error: unknown): LoginNotice {
     };
   }
 
-  if (error instanceof ApiError && (error.status === 408 || error.status === 504)) {
+  if (
+    (error instanceof DOMException && error.name === 'TimeoutError') ||
+    (error instanceof ApiError && (error.status === 408 || error.status === 504))
+  ) {
     return {
       title: 'Hết thời gian chờ',
       description: 'Máy chủ chưa phản hồi kịp thời. Vui lòng thử lại.',

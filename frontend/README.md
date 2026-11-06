@@ -4,7 +4,7 @@
 
 ## Yêu cầu
 
-- Node.js 22
+- Node.js 22 (từ 22.22.2 để chạy test DOM với jsdom)
 - npm đi kèm Node.js
 
 ## Cài đặt và chạy local
@@ -71,6 +71,27 @@ npm run build
 ```
 
 Test API trong `tests/api/` không yêu cầu backend đang chạy.
+
+### Kiểm thử authentication với backend thật (#70)
+
+`npm test -- --run` chạy unit/regression tests, gồm render React bằng jsdom để kiểm tra
+form Login, khóa tài khoản, route guards, chọn chi nhánh và quay lại URL sau hết phiên.
+
+Để kiểm tra tích hợp, khởi động backend Docker local tại `http://127.0.0.1:8080`
+và nạp seed chính thức theo `../scripts/README.md` trên database phát triển phù hợp.
+Thiết lập biến môi trường `GREENMART_DEMO_PASSWORD` bằng mật khẩu demo trong tài liệu
+dự án, rồi chạy:
+
+```sh
+npm run test:auth-integration
+```
+
+Lệnh này dùng React/jsdom và HTTP thật, kiểm tra năm vai trò, chi nhánh, reload,
+RBAC qua URL, refresh, logout và hết phiên quay lại đủ pathname/search/hash.
+Một ca gửi một mật khẩu sai cho tài khoản demo rồi đăng nhập đúng để reset counter.
+Chỉ dùng database demo local; không trỏ tới Prism, staging dùng chung hoặc production.
+Không ghi mật khẩu/token vào output. Kết quả không thay thế kiểm tra layout Chrome
+1440 px và đối chiếu Figma. Bằng chứng và phần còn thiếu: [kiểm chứng #70](../docs/testing/issue-70-validation.md).
 
 ## Cấu trúc
 

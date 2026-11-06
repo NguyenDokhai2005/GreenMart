@@ -5,7 +5,7 @@ import type { AuthState, SettledAuthState } from './authState';
 export interface AuthContextValue {
   state: AuthState;
   transitionId: number;
-  signIn: (username: string, password: string) => Promise<CurrentUser>;
+  signIn: (username: string, password: string, signal?: AbortSignal) => Promise<CurrentUser>;
   signOut: () => Promise<void>;
   retrySessionCheck: () => Promise<void>;
   beginTransition: () => number;

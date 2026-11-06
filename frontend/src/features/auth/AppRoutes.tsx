@@ -51,9 +51,12 @@ function AuthBoundary({ children, allowedRoles }: AuthBoundaryProps) {
 
 function PublicOnly({ children }: { children: ReactNode }) {
   const { state, retrySessionCheck } = useAuth();
+  const location = useLocation();
   if (state.status === 'checking') return <AuthCheckingPage onRetry={retrySessionCheck} />;
   if (state.status === 'error') return <ConnectionPage onRetry={retrySessionCheck} />;
-  if (state.status === 'authenticated') return <Navigate to={APP_PATHS.home} replace />;
+  if (state.status === 'authenticated') {
+    return <Navigate to={APP_PATHS.home} replace state={location.state} />;
+  }
   return children;
 }
 

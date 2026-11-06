@@ -212,12 +212,14 @@ function refreshSession(session: AuthSession): Promise<AuthSession> {
     method: 'POST',
     body: JSON.stringify({ refreshToken: session.refreshToken }),
   })
-    .then((value) => {
+    .then(async (value) => {
       if (!isAuthSession(value)) {
         throw new ApiError('API trả về phiên đăng nhập không hợp lệ.', 502);
       }
 
       if (readStoredSession()?.refreshToken !== session.refreshToken) {
+        // Logout or a newer login won the race. Revoke the unused rotated token.
+        await revokeSession(value);
         throw new SessionExpiredError();
       }
 
@@ -324,13 +326,20 @@ export function request<P extends keyof paths, M extends Method>(
   });
 }
 
-export async function login(username: string, password: string): Promise<AuthSession> {
+export async function login(
+  username: string,
+  password: string,
+  signal?: AbortSignal,
+): Promise<AuthSession> {
+  signal?.throwIfAborted();
   const mutationVersion = ++sessionMutationVersion;
   const credentials: components['schemas']['LoginRequest'] = { username, password };
   const value = await requestRaw<unknown>('/auth/login', {
     method: 'POST',
     body: JSON.stringify(credentials),
+    signal,
   });
+  signal?.throwIfAborted();
   if (!isAuthSession(value)) throw new ApiError('API trả về phiên đăng nhập không hợp lệ.', 502);
 
   if (mutationVersion !== sessionMutationVersion) {
@@ -353,7 +362,41 @@ export async function logout(): Promise<void> {
   clearStoredSession();
   if (!session) return;
 
-  await revokeSession(session);
+  const pendingRefresh = refreshes.get(session.refreshToken);
+  if (pendingRefresh) {
+    // The refresh owns rotation and revokes its result when it finds the local
+    // session cleared. Do not race it with a second use of the same refresh token.
+    try {
+      await pendingRefresh;
+    } catch (error) {
+      if (!(error instanceof SessionExpiredError)) throw error;
+    }
+    return;
+  }
+
+  try {
+    await revokeSession(session);
+    return;
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 401 || error.code !== 'UNAUTHORIZED') {
+      throw error;
+    }
+  }
+
+  let rotated: unknown;
+  try {
+    rotated = await requestRaw<unknown>('/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ refreshToken: session.refreshToken }),
+    });
+  } catch (error) {
+    // A rejected refresh is already expired/revoked; local logout is complete.
+    if (error instanceof ApiError && error.status === 401) return;
+    throw error;
+  }
+  if (!isAuthSession(rotated)) throw new ApiError('API trả về phiên đăng nhập không hợp lệ.', 502);
+  // Never publish a logout-only rotation to storage or the authentication UI.
+  await revokeSession(rotated);
 }
 
 export function searchProducts(query: string, signal?: AbortSignal): Promise<ProductPage> {

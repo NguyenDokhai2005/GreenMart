@@ -23,9 +23,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const lastSettledStateRef = useRef<SettledAuthState>({ status: 'unauthenticated' });
   const bootstrapPromiseRef = useRef<ReturnType<typeof bootstrapAuthState> | null>(null);
 
-  const beginTransition = useCallback(() => {
+  const beginTransition = useCallback((preserveState = false) => {
     const transitionId = ++transitionIdRef.current;
-    if (mountedRef.current) dispatch({ type: 'begin', transitionId });
+    if (mountedRef.current) {
+      dispatch(
+        preserveState
+          ? { type: 'replace', transitionId, state: lastSettledStateRef.current }
+          : { type: 'begin', transitionId },
+      );
+    }
     return transitionId;
   }, []);
 
@@ -106,10 +112,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [applyBootstrapResult, beginTransition]);
 
   const signIn = useCallback(
-    async (username: string, password: string) => {
-      const transitionId = beginTransition();
+    async (username: string, password: string, signal?: AbortSignal) => {
+      // LoginPage owns pending/error feedback; keep it mounted until login succeeds.
+      const transitionId = beginTransition(true);
       try {
-        const session = await login(username, password);
+        const session = await login(username, password, signal);
         resolveTransition(transitionId, { status: 'authenticated', user: session.user });
         return session.user;
       } catch (error) {
