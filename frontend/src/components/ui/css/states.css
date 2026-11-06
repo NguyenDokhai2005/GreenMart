@@ -1,0 +1,157 @@
+/* Trạng thái giao diện (#228) — bảng màu lấy theo ComponentShowcase.css của GreenMart:
+   xanh chính #047857 · nền xanh nhạt #ecfdf3 · viền #dfe8e1 · chữ #172b26 / #68786d · nền trang #f5f8f6
+   Chưa đối chiếu Figma #227: khi có thiết kế, chỉnh các giá trị bên dưới cho khớp. */
+
+/* ---------- Skeleton ---------- */
+.ui-skeleton {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #e3ece6 25%, #f1f6f3 37%, #e3ece6 63%);
+  background-size: 400% 100%;
+  animation: ui-skeleton-shimmer 1.4s ease infinite;
+}
+
+@keyframes ui-skeleton-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* ---------- Khung chung: PageLoader / EmptyState / ErrorState ---------- */
+.ui-page-loader,
+.ui-empty-state,
+.ui-error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 16px;
+  text-align: center;
+  color: #68786d;
+  font-family: inherit;
+}
+
+.ui-page-loader {
+  min-height: 240px;
+}
+
+.ui-state-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #172b26;
+}
+
+.ui-state-desc {
+  margin: 0;
+  max-width: 44ch;
+  font-size: 14px;
+  color: #68786d;
+}
+
+.ui-error-state {
+  border-radius: 8px;
+  background: #f5f8f6;
+}
+
+.ui-error-state__trace {
+  font-size: 12px;
+  color: #68786d;
+}
+
+/* ---------- Spinner ---------- */
+.ui-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid #dfe8e1;
+  border-top-color: #047857;
+  animation: ui-spin 0.8s linear infinite;
+}
+
+@keyframes ui-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---------- Nút (dùng trong state và trang lỗi) ---------- */
+.ui-state-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border: 1px solid #047857;
+  border-radius: 8px;
+  background: #047857;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ui-state-btn:hover {
+  background: #065f46;
+  border-color: #065f46;
+}
+
+.ui-state-btn--secondary {
+  background: #ffffff;
+  color: #047857;
+  border-color: #dfe8e1;
+}
+
+.ui-state-btn--secondary:hover {
+  background: #ecfdf3;
+  border-color: #047857;
+}
+
+.ui-state-btn:focus-visible {
+  outline: 2px solid #047857;
+  outline-offset: 2px;
+}
+
+/* ---------- Loading toàn màn hình ---------- */
+.ui-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f8f6;
+}
+
+/* ---------- Trang đặc biệt (404 / 403 / 500 / Mất kết nối / Phiên hết hạn) ---------- */
+.ui-special-page {
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 16px;
+  text-align: center;
+  font-family: inherit;
+}
+
+.ui-special-page__code {
+  margin: 0;
+  font-size: 48px;
+  font-weight: 700;
+  color: #047857;
+}
+
+.ui-special-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-skeleton { animation: none; }
+  .ui-spinner { animation-duration: 3s; }
+}

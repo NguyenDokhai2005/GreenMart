@@ -28,3 +28,19 @@ export type { ToastProps, ToastVariant } from './tsx/Toast';
 
 export { default as OrderStatusBadge } from './tsx/OrderStatusBadge';
 export type { OrderStatusBadgeProps, OrderStatus } from './tsx/OrderStatusBadge';
+
+// Trạng thái giao diện (#228): đang tải / rỗng / lỗi
+export { default as Skeleton } from './tsx/Skeleton';
+export type { SkeletonProps } from './tsx/Skeleton';
+
+export { default as PageLoader } from './tsx/PageLoader';
+export type { PageLoaderProps } from './tsx/PageLoader';
+
+export { default as EmptyState } from './tsx/EmptyState';
+export type { EmptyStateProps } from './tsx/EmptyState';
+
+export { default as ErrorState } from './tsx/ErrorState';
+export type { ErrorStateProps } from './tsx/ErrorState';
+
+export { default as AsyncBlock } from './tsx/AsyncBlock';
+export type { AsyncBlockProps } from './tsx/AsyncBlock';
