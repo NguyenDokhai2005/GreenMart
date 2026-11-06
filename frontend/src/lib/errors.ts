@@ -30,11 +30,7 @@ export interface ApiErrorLike {
 export type ErrorScope = 'block' | 'page';
 
 export type SpecialPage =
-  | 'not-found'
-  | 'forbidden'
-  | 'server-error'
-  | 'offline'
-  | 'session-expired';
+  'not-found' | 'forbidden' | 'server-error' | 'offline' | 'session-expired';
 
 export type UiErrorState =
   | { kind: 'block'; message: string; retryable: true; traceId?: string }
@@ -46,10 +42,7 @@ export const GENERIC_ERROR_MESSAGE = 'Đã có lỗi xảy ra. Vui lòng thử l
 export const TIMEOUT_MESSAGE = 'Máy chủ phản hồi quá lâu. Vui lòng thử lại.';
 export const NETWORK_MESSAGE = 'Không kết nối được máy chủ.';
 
-export function mapErrorToState(
-  error: ApiErrorLike,
-  scope: ErrorScope = 'block',
-): UiErrorState {
+export function mapErrorToState(error: ApiErrorLike, scope: ErrorScope = 'block'): UiErrorState {
   const message = error.body?.message ?? GENERIC_ERROR_MESSAGE;
   const code = error.body?.code;
   const traceId = error.body?.traceId;

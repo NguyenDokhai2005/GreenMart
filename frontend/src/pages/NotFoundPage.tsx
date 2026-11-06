@@ -17,7 +17,14 @@ export default function NotFoundPage({ homeHref = '/', onHome }: NotFoundPagePro
         <a
           className="ui-state-btn"
           href={homeHref}
-          onClick={onHome ? (e) => { e.preventDefault(); onHome(); } : undefined}
+          onClick={
+            onHome
+              ? (e) => {
+                  e.preventDefault();
+                  onHome();
+                }
+              : undefined
+          }
         >
           Về trang chủ
         </a>

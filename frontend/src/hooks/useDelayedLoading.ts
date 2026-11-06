@@ -33,7 +33,11 @@ export function useDelayedLoading(
   isLoading: boolean,
   { delayMs = LOADING_DELAY_MS, timeoutMs = LOADING_TIMEOUT_MS }: DelayedLoadingOptions = {},
 ): DelayedLoadingResult {
-  const [tracker, setTracker] = useState<Tracker>({ loading: isLoading, show: false, timedOut: false });
+  const [tracker, setTracker] = useState<Tracker>({
+    loading: isLoading,
+    show: false,
+    timedOut: false,
+  });
 
   if (tracker.loading !== isLoading) {
     setTracker({ loading: isLoading, show: false, timedOut: false });

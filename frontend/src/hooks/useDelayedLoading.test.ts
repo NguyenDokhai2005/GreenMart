@@ -1,14 +1,20 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { LOADING_DELAY_MS, LOADING_TIMEOUT_MS, useDelayedLoading } from '../../src/hooks/useDelayedLoading';
+import {
+  LOADING_DELAY_MS,
+  LOADING_TIMEOUT_MS,
+  useDelayedLoading,
+} from '../../src/hooks/useDelayedLoading';
 
 describe('useDelayedLoading', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
   it('không hiện loading khi API trả về trước 300 ms', () => {
-    const { result, rerender } = renderHook(({ l }) => useDelayedLoading(l), { initialProps: { l: true } });
+    const { result, rerender } = renderHook(({ l }) => useDelayedLoading(l), {
+      initialProps: { l: true },
+    });
     act(() => vi.advanceTimersByTime(200));
     expect(result.current.showLoading).toBe(false);
     rerender({ l: false });
@@ -34,7 +40,9 @@ describe('useDelayedLoading', () => {
   });
 
   it('reset khi tải xong và đếm lại ở lần tải sau', () => {
-    const { result, rerender } = renderHook(({ l }) => useDelayedLoading(l), { initialProps: { l: true } });
+    const { result, rerender } = renderHook(({ l }) => useDelayedLoading(l), {
+      initialProps: { l: true },
+    });
     act(() => vi.advanceTimersByTime(LOADING_TIMEOUT_MS));
     expect(result.current).toEqual({ showLoading: true, timedOut: true });
     rerender({ l: false });

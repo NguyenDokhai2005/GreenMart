@@ -91,7 +91,11 @@ const asyncModes: { mode: AsyncMode; label: string }[] = [
 
 const serverError: ApiErrorLike = {
   status: 500,
-  body: { code: 'INTERNAL_ERROR', message: 'Máy chủ gặp lỗi khi tải danh sách phiếu nhập.', traceId: 'trace-demo-001' },
+  body: {
+    code: 'INTERNAL_ERROR',
+    message: 'Máy chủ gặp lỗi khi tải danh sách phiếu nhập.',
+    traceId: 'trace-demo-001',
+  },
 };
 
 const errorSamples: { label: string; scope: ErrorScope; error: ApiErrorLike }[] = [
@@ -110,13 +114,36 @@ const errorSamples: { label: string; scope: ErrorScope; error: ApiErrorLike }[] 
       },
     },
   },
-  { label: '409 hết hàng', scope: 'block', error: { status: 409, body: { code: 'OUT_OF_STOCK', message: 'Sản phẩm đã hết hàng.' } } },
-  { label: '422 báo giá đổi', scope: 'block', error: { status: 422, body: { code: 'PRICE_CHANGED', message: 'Báo giá đã thay đổi.' } } },
+  {
+    label: '409 hết hàng',
+    scope: 'block',
+    error: { status: 409, body: { code: 'OUT_OF_STOCK', message: 'Sản phẩm đã hết hàng.' } },
+  },
+  {
+    label: '422 báo giá đổi',
+    scope: 'block',
+    error: { status: 422, body: { code: 'PRICE_CHANGED', message: 'Báo giá đã thay đổi.' } },
+  },
   { label: '500 trong khối', scope: 'block', error: serverError },
   { label: '500 cả trang', scope: 'page', error: serverError },
-  { label: '403 cả trang', scope: 'page', error: { status: 403, body: { code: 'BRANCH_FORBIDDEN', message: 'Không có quyền ở chi nhánh này.' } } },
-  { label: '404 cả trang', scope: 'page', error: { status: 404, body: { code: 'NOT_FOUND', message: 'Không tìm thấy.' } } },
-  { label: '401 hết phiên', scope: 'block', error: { status: 401, body: { code: 'UNAUTHORIZED', message: 'Phiên hết hạn.' } } },
+  {
+    label: '403 cả trang',
+    scope: 'page',
+    error: {
+      status: 403,
+      body: { code: 'BRANCH_FORBIDDEN', message: 'Không có quyền ở chi nhánh này.' },
+    },
+  },
+  {
+    label: '404 cả trang',
+    scope: 'page',
+    error: { status: 404, body: { code: 'NOT_FOUND', message: 'Không tìm thấy.' } },
+  },
+  {
+    label: '401 hết phiên',
+    scope: 'block',
+    error: { status: 401, body: { code: 'UNAUTHORIZED', message: 'Phiên hết hạn.' } },
+  },
   { label: 'Mất kết nối', scope: 'page', error: { isNetworkError: true } },
   { label: 'Quá 15 giây', scope: 'block', error: { isTimeout: true } },
 ];
@@ -502,7 +529,10 @@ export default function ComponentShowcase() {
           <span>11</span>
           <div>
             <h2>Skeleton &amp; PageLoader</h2>
-            <p>Skeleton cho một khối đang tải; PageLoader cho vùng nội dung khi chuyển trang (giữ header và menu).</p>
+            <p>
+              Skeleton cho một khối đang tải; PageLoader cho vùng nội dung khi chuyển trang (giữ
+              header và menu).
+            </p>
           </div>
         </div>
 
@@ -519,7 +549,9 @@ export default function ComponentShowcase() {
           <span>12</span>
           <div>
             <h2>EmptyState</h2>
-            <p>Chỉ hiện sau khi API trả danh sách rỗng. Nút hành động chỉ có khi người dùng có quyền.</p>
+            <p>
+              Chỉ hiện sau khi API trả danh sách rỗng. Nút hành động chỉ có khi người dùng có quyền.
+            </p>
           </div>
         </div>
 
@@ -558,8 +590,8 @@ export default function ComponentShowcase() {
           <div>
             <h2>AsyncBlock</h2>
             <p>
-              Ghép các trạng thái theo đúng thứ tự. Chọn &quot;Đang tải&quot;: sau 300 ms hiện Skeleton, sau 15 giây
-              chuyển sang lỗi có Thử lại.
+              Ghép các trạng thái theo đúng thứ tự. Chọn &quot;Đang tải&quot;: sau 300 ms hiện
+              Skeleton, sau 15 giây chuyển sang lỗi có Thử lại.
             </p>
           </div>
         </div>
@@ -620,9 +652,7 @@ export default function ComponentShowcase() {
           </div>
 
           <div className="gm-preview__result">
-            <strong>
-              Kết quả (phạm vi: {sample.scope === 'page' ? 'cả trang' : 'một khối'})
-            </strong>
+            <strong>Kết quả (phạm vi: {sample.scope === 'page' ? 'cả trang' : 'một khối'})</strong>
             <pre style={{ overflowX: 'auto' }}>{JSON.stringify(mappedState, null, 2)}</pre>
           </div>
         </div>
@@ -634,7 +664,10 @@ export default function ComponentShowcase() {
           <span>16</span>
           <div>
             <h2>Trang đặc biệt &amp; loading toàn màn hình</h2>
-            <p>5 trang lỗi cả trang (hiển thị trong layout) và trang loading toàn màn hình (tự đóng sau 2,5 giây).</p>
+            <p>
+              5 trang lỗi cả trang (hiển thị trong layout) và trang loading toàn màn hình (tự đóng
+              sau 2,5 giây).
+            </p>
           </div>
         </div>
 
@@ -654,7 +687,9 @@ export default function ComponentShowcase() {
           <div style={{ border: '1px solid #dfe8e1', borderRadius: 8 }}>
             {specialPage === 'not-found' && <NotFoundPage onHome={noop} />}
             {specialPage === 'forbidden' && <ForbiddenPage onHome={noop} onSwitchBranch={noop} />}
-            {specialPage === 'server-error' && <ServerErrorPage traceId="trace-demo-001" onRetry={noop} />}
+            {specialPage === 'server-error' && (
+              <ServerErrorPage traceId="trace-demo-001" onRetry={noop} />
+            )}
             {specialPage === 'offline' && <OfflinePage onReconnect={noop} />}
             {specialPage === 'session-expired' && <SessionExpiredPage onLogin={noop} />}
           </div>

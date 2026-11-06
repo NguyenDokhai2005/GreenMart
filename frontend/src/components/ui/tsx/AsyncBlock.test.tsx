@@ -10,21 +10,33 @@ describe('AsyncBlock', () => {
   afterEach(() => vi.useRealTimers());
 
   it('đang tải: không bao giờ hiện EmptyState', () => {
-    render(<AsyncBlock isLoading isEmpty empty={empty}><p>data</p></AsyncBlock>);
+    render(
+      <AsyncBlock isLoading isEmpty empty={empty}>
+        <p>data</p>
+      </AsyncBlock>,
+    );
     act(() => vi.advanceTimersByTime(400));
     expect(screen.queryByText('Không có dữ liệu')).toBeNull();
     expect(screen.getByRole('status', { name: 'Đang tải' })).toBeTruthy();
   });
 
   it('tải xong và rỗng -> EmptyState', () => {
-    render(<AsyncBlock isLoading={false} isEmpty empty={empty}><p>data</p></AsyncBlock>);
+    render(
+      <AsyncBlock isLoading={false} isEmpty empty={empty}>
+        <p>data</p>
+      </AsyncBlock>,
+    );
     expect(screen.getByText('Không có dữ liệu')).toBeTruthy();
   });
 
   it('lỗi 500 -> ErrorState và Thử lại gọi đúng onRetry', () => {
     const onRetry = vi.fn();
     render(
-      <AsyncBlock isLoading={false} error={{ status: 500, body: { code: 'X', message: 'Lỗi máy chủ' } }} onRetry={onRetry}>
+      <AsyncBlock
+        isLoading={false}
+        error={{ status: 500, body: { code: 'X', message: 'Lỗi máy chủ' } }}
+        onRetry={onRetry}
+      >
         <p>data</p>
       </AsyncBlock>,
     );
@@ -33,7 +45,11 @@ describe('AsyncBlock', () => {
   });
 
   it('quá 15 giây -> ErrorState có Thử lại', () => {
-    render(<AsyncBlock isLoading onRetry={() => {}}><p>data</p></AsyncBlock>);
+    render(
+      <AsyncBlock isLoading onRetry={() => {}}>
+        <p>data</p>
+      </AsyncBlock>,
+    );
     act(() => vi.advanceTimersByTime(15_000));
     expect(screen.getByRole('button', { name: 'Thử lại' })).toBeTruthy();
   });
