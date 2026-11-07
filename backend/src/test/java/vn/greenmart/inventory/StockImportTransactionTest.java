@@ -1,5 +1,7 @@
 package vn.greenmart.inventory;
 
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import vn.greenmart.sales.service.PosIdempotencyService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +36,7 @@ import static org.assertj.core.api.Assertions.*;
 })
 @Testcontainers
 class StockImportTransactionTest {
+    @MockitoBean PosIdempotencyService posIdempotencyService;
     @Container static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(PostgresTestImage.IMAGE);
 
     @DynamicPropertySource

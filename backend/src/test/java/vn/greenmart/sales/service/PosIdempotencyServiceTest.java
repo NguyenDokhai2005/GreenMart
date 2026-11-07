@@ -2,16 +2,19 @@ package vn.greenmart.sales.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
+import vn.greenmart.common.security.SecurityUtils;
 import vn.greenmart.sales.domain.OrderStatus;
 import vn.greenmart.sales.domain.PaymentMethod;
 import vn.greenmart.sales.domain.PaymentSimulation;
@@ -42,12 +45,12 @@ class PosIdempotencyServiceTest {
     @Mock
     private Supplier<OrderResponse> action;
 
-    // Đăng ký module hỗ trợ Instant và định dạng ngày giờ chuẩn
     private final ObjectMapper objectMapper = new ObjectMapper()
             .findAndRegisterModules()
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     private PosIdempotencyService idempotencyService;
+    private MockedStatic<SecurityUtils> securityUtilsMock;
 
     private PosOrderRequest defaultRequest;
     private OrderResponse mockResponse;
@@ -55,6 +58,9 @@ class PosIdempotencyServiceTest {
 
     @BeforeEach
     void setUp() {
+        securityUtilsMock = mockStatic(SecurityUtils.class);
+        securityUtilsMock.when(SecurityUtils::getCurrentUserId).thenReturn(1L);
+
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         idempotencyService = new PosIdempotencyService(redisTemplate, objectMapper);
 
@@ -78,10 +84,18 @@ class PosIdempotencyServiceTest {
         );
     }
 
+    @AfterEach
+    void tearDown() {
+        if (securityUtilsMock != null) {
+            securityUtilsMock.close();
+        }
+    }
+
     @Test
-    @DisplayName("Kịch bản 1: Request lần đầu thành công -> Đặt TTL 24h và trả isCreated = true")
+    @DisplayName("Kịch bản 1: Request lần đầu thành công -> Key theo userId, đặt TTL 24h và trả isCreated = true")
     void testExecute_FirstTime_Success() {
-        when(valueOperations.setIfAbsent(eq("idempotency:pos:" + key), anyString(), any(Duration.class)))
+        String expectedRedisKey = "idempotency:pos:1:" + key;
+        when(valueOperations.setIfAbsent(eq(expectedRedisKey), anyString(), any(Duration.class)))
                 .thenReturn(true);
         when(action.get()).thenReturn(mockResponse);
 
@@ -90,14 +104,32 @@ class PosIdempotencyServiceTest {
         assertThat(result.isCreated()).isTrue();
         assertThat(result.response().id()).isEqualTo(500L);
 
-        verify(valueOperations).set(eq("idempotency:pos:" + key), anyString(), eq(Duration.ofHours(24)));
+        verify(valueOperations).set(eq(expectedRedisKey), anyString(), eq(Duration.ofHours(24)));
+        verify(action, times(1)).get();
+    }
+
+    @Test
+    @DisplayName("User khác gửi cùng key -> Được xử lý như request mới")
+    void testExecute_DifferentUser_SameKey_ProcessedAsNew() {
+        securityUtilsMock.when(SecurityUtils::getCurrentUserId).thenReturn(2L);
+        String user2RedisKey = "idempotency:pos:2:" + key;
+
+        when(valueOperations.setIfAbsent(eq(user2RedisKey), anyString(), any(Duration.class)))
+                .thenReturn(true);
+        when(action.get()).thenReturn(mockResponse);
+
+        IdempotencyResult result = idempotencyService.execute(key, defaultRequest, action);
+
+        assertThat(result.isCreated()).isTrue();
+        verify(valueOperations).set(eq(user2RedisKey), anyString(), eq(Duration.ofHours(24)));
         verify(action, times(1)).get();
     }
 
     @Test
     @DisplayName("TC-POS-03: Gửi lại cùng Key + CÙNG Body trong 24h -> Trả đơn cũ, isCreated = false, không gọi lại DB")
     void testExecute_DuplicateKey_SameBody_ReturnsCached() throws Exception {
-        when(valueOperations.setIfAbsent(eq("idempotency:pos:" + key), anyString(), any(Duration.class)))
+        String expectedRedisKey = "idempotency:pos:1:" + key;
+        when(valueOperations.setIfAbsent(eq(expectedRedisKey), anyString(), any(Duration.class)))
                 .thenReturn(false);
 
         IdempotencyRecord savedRecord = new IdempotencyRecord(
@@ -105,7 +137,7 @@ class PosIdempotencyServiceTest {
                 computeHash(defaultRequest),
                 mockResponse
         );
-        when(valueOperations.get("idempotency:pos:" + key))
+        when(valueOperations.get(expectedRedisKey))
                 .thenReturn(objectMapper.writeValueAsString(savedRecord));
 
         IdempotencyResult result = idempotencyService.execute(key, defaultRequest, action);
@@ -119,7 +151,8 @@ class PosIdempotencyServiceTest {
     @Test
     @DisplayName("TC-POS-04: Gửi lại cùng Key nhưng KHÁC Body -> Ném HTTP 409 IDEMPOTENCY_CONFLICT")
     void testExecute_DuplicateKey_DifferentBody_Throws409() throws Exception {
-        when(valueOperations.setIfAbsent(eq("idempotency:pos:" + key), anyString(), any(Duration.class)))
+        String expectedRedisKey = "idempotency:pos:1:" + key;
+        when(valueOperations.setIfAbsent(eq(expectedRedisKey), anyString(), any(Duration.class)))
                 .thenReturn(false);
 
         IdempotencyRecord savedRecord = new IdempotencyRecord(
@@ -127,7 +160,7 @@ class PosIdempotencyServiceTest {
                 "different-hash-abc-123",
                 mockResponse
         );
-        when(valueOperations.get("idempotency:pos:" + key))
+        when(valueOperations.get(expectedRedisKey))
                 .thenReturn(objectMapper.writeValueAsString(savedRecord));
 
         assertThatThrownBy(() -> idempotencyService.execute(key, defaultRequest, action))
@@ -143,7 +176,8 @@ class PosIdempotencyServiceTest {
     @Test
     @DisplayName("TC-CONC-01: Yêu cầu song song gửi cùng lúc (PROCESSING) -> Ném HTTP 409 IDEMPOTENCY_CONFLICT")
     void testExecute_ConcurrentRequests_Throws409() throws Exception {
-        when(valueOperations.setIfAbsent(eq("idempotency:pos:" + key), anyString(), any(Duration.class)))
+        String expectedRedisKey = "idempotency:pos:1:" + key;
+        when(valueOperations.setIfAbsent(eq(expectedRedisKey), anyString(), any(Duration.class)))
                 .thenReturn(false);
 
         IdempotencyRecord processingRecord = new IdempotencyRecord(
@@ -151,7 +185,7 @@ class PosIdempotencyServiceTest {
                 computeHash(defaultRequest),
                 null
         );
-        when(valueOperations.get("idempotency:pos:" + key))
+        when(valueOperations.get(expectedRedisKey))
                 .thenReturn(objectMapper.writeValueAsString(processingRecord));
 
         assertThatThrownBy(() -> idempotencyService.execute(key, defaultRequest, action))
@@ -176,16 +210,17 @@ class PosIdempotencyServiceTest {
     }
 
     @Test
-    @DisplayName("Lỗi nghiệp vụ khi tạo đơn -> Xóa khóa Redis để cho phép thử lại sau đó")
+    @DisplayName("Lỗi nghiệp vụ khi tạo đơn -> Xóa khóa Redis để cho phép thử lại")
     void testExecute_ActionThrowsException_DeletesKey() {
-        when(valueOperations.setIfAbsent(eq("idempotency:pos:" + key), anyString(), any(Duration.class)))
+        String expectedRedisKey = "idempotency:pos:1:" + key;
+        when(valueOperations.setIfAbsent(eq(expectedRedisKey), anyString(), any(Duration.class)))
                 .thenReturn(true);
         when(action.get()).thenThrow(new AppException(ErrorCode.INSUFFICIENT_STOCK, "Hết hàng"));
 
         assertThatThrownBy(() -> idempotencyService.execute(key, defaultRequest, action))
                 .isInstanceOf(AppException.class);
 
-        verify(redisTemplate).delete("idempotency:pos:" + key);
+        verify(redisTemplate).delete(expectedRedisKey);
     }
 
     private String computeHash(PosOrderRequest request) throws Exception {
