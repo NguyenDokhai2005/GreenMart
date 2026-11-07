@@ -1,0 +1,65 @@
+@startuml 02-don-online
+!include _style.iuml
+title BPMN 02 · Đơn online đa kênh (UC-02) – BA §4
+
+|Kênh bán (connector)|
+start
+:Gửi đơn mới tới webhook\n(ký HMAC X-Signature);
+
+|Hệ thống|
+if (Chữ ký hợp lệ?) then (không)
+  :401, không ghi đơn;
+  stop
+endif
+if (Đã có (kênh, mã đơn kênh)?) then (có – E1)
+  :Trả lại đơn cũ, không giữ chỗ thêm;
+  stop
+endif
+if (Mọi SKU kênh đã ánh xạ?) then (không)
+  :REJECTED, lý do UNMAPPED_SKU;
+  :Báo trạng thái về kênh;
+  stop
+endif
+:Tạo/gắn khách theo SĐT; đơn NEW;
+:Chọn chi nhánh: mặc định đủ tồn →\nCN phục vụ đủ tồn có tổng khả dụng cao nhất;
+if (Có chi nhánh đủ tồn cho toàn bộ đơn?) then (không)
+  :REJECTED, lý do OUT_OF_STOCK;
+  :Báo trạng thái về kênh;
+  stop
+endif
+:Giữ chỗ mọi dòng trong 1 transaction\n(reserved tăng, sổ kho RESERVE);
+:RESERVED, hạn giữ chỗ = nhận + 15 phút;
+:Đẩy tồn mới ra mọi kênh\n(khả dụng − tồn an toàn kênh);
+
+if (Đơn COD?) then (có)
+else (thanh toán online)
+  if (Thanh toán thành công trong 15 phút?) then (có)
+  else (quá hạn)
+    :Job mỗi phút: EXPIRED,\nnhả giữ chỗ (RELEASE);
+    :Báo trạng thái và tồn mới về kênh;
+    stop
+  endif
+endif
+:CONFIRMED;
+:Báo trạng thái về kênh;
+
+|Quản lý chi nhánh / Thủ kho|
+:Thấy đơn trong "Cần xử lý";
+if (Hủy đơn?) then (có, kèm lý do)
+  |Hệ thống|
+  :CANCELLED, nhả giữ chỗ,\nhoàn tiền giả lập nếu đã trả;
+  :Báo trạng thái và tồn mới về kênh;
+  stop
+endif
+|Quản lý chi nhánh / Thủ kho|
+:Đóng gói, bàn giao vận chuyển;
+:Bấm Hoàn tất;
+
+|Hệ thống|
+:COMPLETED: on_hand và reserved cùng giảm\n(sổ kho SALE);
+:Báo trạng thái và tồn mới về kênh\n(lỗi thì thử lại 1, 2, 4, 8, 16 giây\nrồi vào hàng đợi lỗi – E3);
+
+|Kênh bán (connector)|
+:Cập nhật trạng thái đơn và tồn hiển thị;
+stop
+@enduml
