@@ -38,8 +38,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @Testcontainers
-@DisplayName("PosOrderLockOrderTest - Testcontainers Concurrency & Idempotency (Issue #34)")
-class PosOrderLockOrderTest {
+@DisplayName("PosIdempotencyApiTest - Testcontainers Concurrency & Idempotency (Issue #34)")
+class PosIdempotencyApiTest {
 
     @Container
     @SuppressWarnings("resource")
@@ -137,23 +137,19 @@ class PosOrderLockOrderTest {
                 statusCodes.add(f.get(15, TimeUnit.SECONDS));
             }
 
-            // Đúng 1 request tạo thành công 201 Created
             assertThat(statusCodes).contains(201);
             int otherStatus = statusCodes.get(0) == 201 ? statusCodes.get(1) : statusCodes.get(0);
             assertThat(otherStatus).isIn(409, 200);
         }
 
-        // Bảng sales_order chỉ có đúng 1 đơn hàng
         Integer orderCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM sales_order", Integer.class);
         assertThat(orderCount).isEqualTo(1);
 
-        // Tồn kho ban đầu là 50 bị trừ đúng 2 -> còn 48
         Integer onHand = jdbcTemplate.queryForObject(
                 "SELECT on_hand FROM inventory WHERE branch_id = 1 AND product_id = 101", Integer.class
         );
         assertThat(onHand).isEqualTo(48);
 
-        // Gửi lại lần 3 cùng key -> nhận 200 OK và số đơn trong DB giữ nguyên
         mockMvc.perform(post("/api/v1/orders/pos")
                         .with(user("1").roles("CASHIER"))
                         .header("Idempotency-Key", idempotencyKey)
