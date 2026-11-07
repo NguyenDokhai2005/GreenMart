@@ -8,6 +8,8 @@ import { useActiveBranch } from './useActiveBranch';
 import { useAuth } from './useAuth';
 import BranchSelectionPage from './BranchSelectionPage';
 import LoginPage from './LoginPage';
+import CatalogWorkspace from '../catalog/CatalogWorkspace';
+import { CATALOG_ROOT, CATALOG_ROLES } from '../catalog/catalogPolicy';
 import {
   ADMIN_ROLES,
   APP_PATHS,
@@ -235,6 +237,14 @@ export function AppRoutes() {
         element={
           <AuthBoundary>
             <BranchSelectionPage />
+          </AuthBoundary>
+        }
+      />
+      <Route
+        path={`${CATALOG_ROOT}/*`}
+        element={
+          <AuthBoundary allowedRoles={CATALOG_ROLES}>
+            <CatalogWorkspace />
           </AuthBoundary>
         }
       />
