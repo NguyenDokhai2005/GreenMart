@@ -6,7 +6,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -27,6 +26,8 @@ import vn.greenmart.inventory.service.InventoryService;
 import vn.greenmart.sales.domain.OrderStatus;
 import vn.greenmart.sales.domain.Payment;
 import vn.greenmart.sales.domain.PaymentMethod;
+import vn.greenmart.sales.domain.PaymentSimulation;
+import vn.greenmart.sales.domain.PaymentStatus;
 import vn.greenmart.sales.domain.SalesOrder;
 import vn.greenmart.sales.dto.*;
 import vn.greenmart.sales.repository.OrderItemRepository;
@@ -60,12 +61,19 @@ class PosOrderServiceTest {
     @Mock private OutboxService outboxService;
     @Mock private JdbcTemplate jdbcTemplate;
 
-    @InjectMocks
     private PosOrderServiceImpl posOrderService;
 
     @BeforeEach
     void setUp() {
         SecurityContextHolder.clearContext();
+
+        PaymentServiceImpl paymentService = new PaymentServiceImpl(paymentRepository);
+        posOrderService = new PosOrderServiceImpl(
+                quoteService, productService, customerService, inventoryService,
+                branchService, authService, promotionService, paymentService,
+                salesOrderRepository, orderItemRepository, outboxService, jdbcTemplate
+        );
+
         lenient().when(jdbcTemplate.query(anyString(), ArgumentMatchers.<RowMapper<Long>>any(), any()))
                 .thenReturn(List.of(1L, 2L));
         lenient().when(jdbcTemplate.queryForObject(contains("sales_channel"), eq(Long.class)))
@@ -76,6 +84,7 @@ class PosOrderServiceTest {
                 .thenReturn(new BranchSaleInfo(1L, "GM-001", "Chi nhánh 1"));
         lenient().when(authService.getFullName(anyLong()))
                 .thenReturn("Thu Ngân");
+        lenient().when(promotionService.recordUsage(any())).thenReturn(true);
     }
 
     @AfterEach
@@ -91,8 +100,8 @@ class PosOrderServiceTest {
     }
 
     @Test
-    @DisplayName("Tạo đơn POS tiền mặt thành công (AC1 Issue #32)")
-    void testCreatePosOrder_Success() {
+    @DisplayName("TC-POS-01: Thanh toán CASH đủ tiền -> Trả 201, payment PAID, tính đúng tiền thối 49.300")
+    void testCreatePosOrder_Cash_Success() {
         authenticate("CASHIER");
 
         ProductSaleInfo product = new ProductSaleInfo(101L, "GAO-ST25", "Gạo ST25", "túi", 100000L, true);
@@ -101,8 +110,8 @@ class PosOrderServiceTest {
 
         Quote mockQuote = new Quote(
                 1L, null,
-                List.of(new QuoteLine(101L, "GAO-ST25", "Gạo ST25", "túi", 2, 100000L, 0L, 200000L, null, 10, true)),
-                null, 200000L, 0L, 0L, 0L, 0L, 200000L, true
+                List.of(new QuoteLine(101L, "GAO-ST25", "Gạo ST25", "túi", 2, 100350L, 0L, 200700L, null, 10, true)),
+                null, 200700L, 0L, 0L, 0L, 0L, 200700L, true
         );
         when(quoteService.calculateQuote(any())).thenReturn(mockQuote);
 
@@ -118,25 +127,168 @@ class PosOrderServiceTest {
             return p;
         });
 
+        // tổng 200.700 đ, khách đưa 250.000 đ -> thối 49.300 đ
         PosOrderRequest request = new PosOrderRequest(
                 1L, null,
                 List.of(new OrderLineRequest(101L, 2)),
                 null,
-                new PaymentRequest(PaymentMethod.CASH, 250000L, "SUCCESS"),
-                200000L
+                new PaymentRequest(PaymentMethod.CASH, 250000L, PaymentSimulation.SUCCESS),
+                200700L
         );
 
         OrderResponse res = posOrderService.createPosOrder(request, UUID.randomUUID().toString());
 
         assertThat(res.id()).isEqualTo(500L);
         assertThat(res.status()).isEqualTo(OrderStatus.COMPLETED);
-        assertThat(res.total()).isEqualTo(200000L);
+        assertThat(res.total()).isEqualTo(200700L);
+        assertThat(res.payments()).hasSize(1);
+        assertThat(res.payments().get(0).status()).isEqualTo(PaymentStatus.PAID);
         assertThat(res.payments().get(0).cashReceived()).isEqualTo(250000L);
-        assertThat(res.payments().get(0).change()).isEqualTo(50000L);
+        assertThat(res.payments().get(0).change()).isEqualTo(49300L);
 
+        verify(paymentRepository).save(any(Payment.class));
         verify(inventoryService).sellDirect(1L, 101L, 2, 500L);
         verify(outboxService).enqueue(eq("order"), eq("500"), eq("order.completed"), any());
         verify(outboxService).enqueue(eq("stock"), eq("1"), eq("stock.changed"), any());
+    }
+
+    @Test
+    @DisplayName("TC-POS-08: Thanh toán CASH thiếu tiền -> 422 CASH_INSUFFICIENT kèm details total & cashReceived")
+    void testCreatePosOrder_CashInsufficient_Throws422() {
+        authenticate("CASHIER");
+
+        ProductSaleInfo product = new ProductSaleInfo(101L, "GAO-ST25", "Gạo ST25", "túi", 100000L, true);
+        when(productService.getSaleInfo(101L)).thenReturn(product);
+        when(inventoryService.getAvailable(1L, 101L)).thenReturn(10);
+
+        Quote mockQuote = new Quote(1L, null, Collections.emptyList(), null, 200700L, 0L, 0L, 0L, 0L, 200700L, true);
+        when(quoteService.calculateQuote(any())).thenReturn(mockQuote);
+
+        // Tổng 200.700 đ nhưng khách chỉ đưa 200.000 đ
+        PosOrderRequest request = new PosOrderRequest(
+                1L, null,
+                List.of(new OrderLineRequest(101L, 2)),
+                null,
+                new PaymentRequest(PaymentMethod.CASH, 200000L, PaymentSimulation.SUCCESS),
+                200700L
+        );
+
+        assertThatThrownBy(() -> posOrderService.createPosOrder(request, UUID.randomUUID().toString()))
+                .isInstanceOf(AppException.class)
+                .satisfies(ex -> {
+                    AppException appEx = (AppException) ex;
+                    assertThat(appEx.getCode()).isEqualTo(ErrorCode.CASH_INSUFFICIENT.name());
+
+                    assertThat(appEx.getDetails()).isInstanceOf(Map.class);
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> details = (Map<String, Object>) appEx.getDetails();
+                    assertThat(details.get("total")).isEqualTo(200700L);
+                    assertThat(details.get("cashReceived")).isEqualTo(200000L);
+                });
+
+        verify(salesOrderRepository, never()).save(any());
+        verify(paymentRepository, never()).save(any());
+        verify(inventoryService, never()).sellDirect(any(), any(), anyInt(), any());
+    }
+
+    @Test
+    @DisplayName("TC-POS-06: Thẻ CARD simulate = FAILED -> 422 PAYMENT_FAILED, không lưu đơn, không trừ kho")
+    void testCreatePosOrder_CardFailed_Throws422() {
+        authenticate("CASHIER");
+
+        ProductSaleInfo product = new ProductSaleInfo(101L, "GAO-ST25", "Gạo ST25", "túi", 100000L, true);
+        when(productService.getSaleInfo(101L)).thenReturn(product);
+        when(inventoryService.getAvailable(1L, 101L)).thenReturn(10);
+
+        Quote mockQuote = new Quote(1L, null, Collections.emptyList(), null, 100000L, 0L, 0L, 0L, 0L, 100000L, true);
+        when(quoteService.calculateQuote(any())).thenReturn(mockQuote);
+
+        PosOrderRequest request = new PosOrderRequest(
+                1L, null,
+                List.of(new OrderLineRequest(101L, 1)),
+                null,
+                new PaymentRequest(PaymentMethod.CARD, null, PaymentSimulation.FAILED),
+                100000L
+        );
+
+        assertThatThrownBy(() -> posOrderService.createPosOrder(request, UUID.randomUUID().toString()))
+                .isInstanceOf(AppException.class)
+                .matches(e -> ((AppException) e).getCode().equals(ErrorCode.PAYMENT_FAILED.name()));
+
+        verify(salesOrderRepository, never()).save(any());
+        verify(paymentRepository, never()).save(any());
+        verify(inventoryService, never()).sellDirect(any(), any(), anyInt(), any());
+    }
+
+    @Test
+    @DisplayName("TC-POS-07: Mã QR simulate = TIMEOUT -> 422 PAYMENT_TIMEOUT, không lưu đơn, không trừ kho")
+    void testCreatePosOrder_QrTimeout_Throws422() {
+        authenticate("CASHIER");
+
+        ProductSaleInfo product = new ProductSaleInfo(101L, "GAO-ST25", "Gạo ST25", "túi", 100000L, true);
+        when(productService.getSaleInfo(101L)).thenReturn(product);
+        when(inventoryService.getAvailable(1L, 101L)).thenReturn(10);
+
+        Quote mockQuote = new Quote(1L, null, Collections.emptyList(), null, 100000L, 0L, 0L, 0L, 0L, 100000L, true);
+        when(quoteService.calculateQuote(any())).thenReturn(mockQuote);
+
+        PosOrderRequest request = new PosOrderRequest(
+                1L, null,
+                List.of(new OrderLineRequest(101L, 1)),
+                null,
+                new PaymentRequest(PaymentMethod.QR, null, PaymentSimulation.TIMEOUT),
+                100000L
+        );
+
+        assertThatThrownBy(() -> posOrderService.createPosOrder(request, UUID.randomUUID().toString()))
+                .isInstanceOf(AppException.class)
+                .matches(e -> ((AppException) e).getCode().equals(ErrorCode.PAYMENT_TIMEOUT.name()));
+
+        verify(salesOrderRepository, never()).save(any());
+        verify(paymentRepository, never()).save(any());
+        verify(inventoryService, never()).sellDirect(any(), any(), anyInt(), any());
+    }
+
+    @Test
+    @DisplayName("Thanh toán CARD simulate = SUCCESS -> Tạo bản ghi PAID và sinh providerRef tiền tố CARD-SIM-")
+    void testCreatePosOrder_Card_Success() {
+        authenticate("CASHIER");
+
+        ProductSaleInfo product = new ProductSaleInfo(101L, "GAO-ST25", "Gạo ST25", "túi", 100000L, true);
+        when(productService.getSaleInfo(101L)).thenReturn(product);
+        when(inventoryService.getAvailable(1L, 101L)).thenReturn(10);
+
+        Quote mockQuote = new Quote(1L, null,
+                List.of(new QuoteLine(101L, "GAO-ST25", "Gạo ST25", "túi", 1, 100000L, 0L, 100000L, null, 10, true)),
+                null, 100000L, 0L, 0L, 0L, 0L, 100000L, true
+        );
+        when(quoteService.calculateQuote(any())).thenReturn(mockQuote);
+        when(salesOrderRepository.save(any(SalesOrder.class))).thenAnswer(inv -> {
+            SalesOrder so = inv.getArgument(0);
+            so.setId(500L);
+            return so;
+        });
+        when(orderItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(inv -> {
+            Payment p = inv.getArgument(0);
+            p.setId(601L);
+            return p;
+        });
+
+        PosOrderRequest request = new PosOrderRequest(
+                1L, null,
+                List.of(new OrderLineRequest(101L, 1)),
+                null,
+                new PaymentRequest(PaymentMethod.CARD, null, PaymentSimulation.SUCCESS),
+                100000L
+        );
+
+        OrderResponse res = posOrderService.createPosOrder(request, UUID.randomUUID().toString());
+
+        assertThat(res.payments().get(0).status()).isEqualTo(PaymentStatus.PAID);
+        assertThat(res.payments().get(0).cashReceived()).isNull();
+        assertThat(res.payments().get(0).change()).isNull();
+        assertThat(res.payments().get(0).providerRef()).startsWith("CARD-SIM-");
     }
 
     @Test
@@ -155,7 +307,6 @@ class PosOrderServiceTest {
         );
         when(quoteService.calculateQuote(any())).thenReturn(mockQuote);
 
-        // Gán id cho SalesOrder và Payment để tránh NullPointerException khi ghi outbox
         when(salesOrderRepository.save(any(SalesOrder.class))).thenAnswer(inv -> {
             SalesOrder so = inv.getArgument(0);
             so.setId(501L);
@@ -172,9 +323,9 @@ class PosOrderServiceTest {
         when(branchService.getSaleInfo(2L)).thenReturn(new BranchSaleInfo(2L, "GM002", "CN 2"));
 
         PosOrderRequest req1 = new PosOrderRequest(1L, null, List.of(new OrderLineRequest(101L, 1)), null,
-                new PaymentRequest(PaymentMethod.CASH, 100000L, "SUCCESS"), 100000L);
+                new PaymentRequest(PaymentMethod.CASH, 100000L, PaymentSimulation.SUCCESS), 100000L);
         PosOrderRequest req2 = new PosOrderRequest(2L, null, List.of(new OrderLineRequest(101L, 1)), null,
-                new PaymentRequest(PaymentMethod.CASH, 100000L, "SUCCESS"), 100000L);
+                new PaymentRequest(PaymentMethod.CASH, 100000L, PaymentSimulation.SUCCESS), 100000L);
 
         OrderResponse res1 = posOrderService.createPosOrder(req1, UUID.randomUUID().toString());
         OrderResponse res2 = posOrderService.createPosOrder(req2, UUID.randomUUID().toString());
@@ -199,7 +350,7 @@ class PosOrderServiceTest {
                 1L, null,
                 List.of(new OrderLineRequest(101L, 2)),
                 null,
-                new PaymentRequest(PaymentMethod.CASH, 200000L, "SUCCESS"),
+                new PaymentRequest(PaymentMethod.CASH, 200000L, PaymentSimulation.SUCCESS),
                 200000L
         );
 
@@ -234,7 +385,7 @@ class PosOrderServiceTest {
                 1L, null,
                 List.of(new OrderLineRequest(101L, 2)),
                 null,
-                new PaymentRequest(PaymentMethod.CASH, 250000L, "SUCCESS"),
+                new PaymentRequest(PaymentMethod.CASH, 250000L, PaymentSimulation.SUCCESS),
                 180000L
         );
 
@@ -255,38 +406,13 @@ class PosOrderServiceTest {
                 99L, null,
                 List.of(new OrderLineRequest(101L, 1)),
                 null,
-                new PaymentRequest(PaymentMethod.CASH, 100000L, "SUCCESS"),
+                new PaymentRequest(PaymentMethod.CASH, 100000L, PaymentSimulation.SUCCESS),
                 100000L
         );
 
         assertThatThrownBy(() -> posOrderService.createPosOrder(request, UUID.randomUUID().toString()))
                 .isInstanceOf(AppException.class)
                 .matches(e -> ((AppException) e).getCode().equals(ErrorCode.BRANCH_FORBIDDEN.name()));
-    }
-
-    @Test
-    @DisplayName("Tiền mặt khách đưa nhỏ hơn tổng tiền -> 422 CASH_INSUFFICIENT")
-    void testCreatePosOrder_CashInsufficient_Throws422() {
-        authenticate("CASHIER");
-
-        ProductSaleInfo product = new ProductSaleInfo(101L, "GAO-ST25", "Gạo ST25", "túi", 100000L, true);
-        when(productService.getSaleInfo(101L)).thenReturn(product);
-        when(inventoryService.getAvailable(1L, 101L)).thenReturn(10);
-
-        Quote mockQuote = new Quote(1L, null, Collections.emptyList(), null, 200000L, 0L, 0L, 0L, 0L, 200000L, true);
-        when(quoteService.calculateQuote(any())).thenReturn(mockQuote);
-
-        PosOrderRequest request = new PosOrderRequest(
-                1L, null,
-                List.of(new OrderLineRequest(101L, 2)),
-                null,
-                new PaymentRequest(PaymentMethod.CASH, 150000L, "SUCCESS"),
-                200000L
-        );
-
-        assertThatThrownBy(() -> posOrderService.createPosOrder(request, UUID.randomUUID().toString()))
-                .isInstanceOf(AppException.class)
-                .matches(e -> ((AppException) e).getCode().equals(ErrorCode.CASH_INSUFFICIENT.name()));
     }
 
     @Test
@@ -304,19 +430,17 @@ class PosOrderServiceTest {
                 200000L, 0L, 0L, 0L, 0L, 200000L, true
         );
 
-        // Lần đầu tính ra quote có KM (180k), lần sau khi hết lượt tính lại ra quote mới không có KM (200k)
         when(quoteService.calculateQuote(any()))
                 .thenReturn(initialQuote)
                 .thenReturn(quoteWithoutPromo);
 
-        // Giả lập promotionService.recordUsage trả về false (hết lượt)
         when(promotionService.recordUsage(88L)).thenReturn(false);
 
         PosOrderRequest request = new PosOrderRequest(
                 1L, null,
                 List.of(new OrderLineRequest(101L, 1)),
                 null,
-                new PaymentRequest(PaymentMethod.CASH, 200000L, "SUCCESS"),
+                new PaymentRequest(PaymentMethod.CASH, 200000L, PaymentSimulation.SUCCESS),
                 180000L
         );
 
@@ -335,7 +459,6 @@ class PosOrderServiceTest {
                     assertThat(quoteInDetails.total()).isEqualTo(200000L);
                 });
 
-        // Đảm bảo rollback và không lưu đơn hay trừ kho
         verify(salesOrderRepository, never()).save(any());
         verify(inventoryService, never()).sellDirect(any(), any(), anyInt(), any());
     }
