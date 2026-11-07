@@ -1,3 +1,4 @@
+import { Button } from '../components/ui';
 import { SpecialPage } from './SpecialPage';
 
 export interface ServerErrorPageProps {
@@ -16,11 +17,7 @@ export default function ServerErrorPage({
       title="Lỗi hệ thống"
       description="Hệ thống đang gặp sự cố. Vui lòng thử lại; nếu vẫn lỗi, gửi mã lỗi cho bộ phận hỗ trợ."
       traceId={traceId}
-      actions={
-        <button type="button" className="gm-state__btn" onClick={onRetry}>
-          Thử lại
-        </button>
-      }
+      actions={<Button onClick={onRetry}>Thử lại</Button>}
     />
   );
 }

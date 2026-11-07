@@ -34,7 +34,7 @@ describe('AsyncBlock', () => {
     render(
       <AsyncBlock
         isLoading={false}
-        error={{ status: 500, body: { code: 'X', message: 'Lỗi máy chủ' } }}
+        error={{ status: 500, code: 'X', message: 'Lỗi máy chủ' }}
         onRetry={onRetry}
       >
         <p>data</p>

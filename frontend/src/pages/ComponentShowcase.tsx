@@ -17,7 +17,8 @@ import {
   ErrorState,
   AsyncBlock,
 } from '../components/ui';
-import { mapErrorToState, type ApiErrorLike, type ErrorScope } from '../lib/errors';
+import { ApiError, SessionExpiredError } from '../api/client';
+import { mapErrorToState, type ErrorScope } from '../lib/errors';
 import FullScreenLoading, { type FullScreenReason } from './FullScreenLoading';
 import NotFoundPage from './NotFoundPage';
 import ForbiddenPage from './ForbiddenPage';
@@ -89,62 +90,58 @@ const asyncModes: { mode: AsyncMode; label: string }[] = [
   { mode: 'error', label: 'Lỗi' },
 ];
 
-const serverError: ApiErrorLike = {
-  status: 500,
-  body: {
-    code: 'INTERNAL_ERROR',
-    message: 'Máy chủ gặp lỗi khi tải danh sách phiếu nhập.',
-    traceId: 'trace-demo-001',
-  },
-};
+const serverError = new ApiError(
+  'Máy chủ gặp lỗi khi tải danh sách phiếu nhập.',
+  500,
+  'INTERNAL_ERROR',
+  'trace-demo-001',
+);
 
-const errorSamples: { label: string; scope: ErrorScope; error: ApiErrorLike }[] = [
+const errorSamples: { label: string; scope: ErrorScope; error: unknown }[] = [
   {
     label: '400 VALIDATION_ERROR',
     scope: 'block',
-    error: {
-      status: 400,
-      body: {
-        code: 'VALIDATION_ERROR',
-        message: 'Dữ liệu không hợp lệ',
-        details: [
-          { field: 'quantity', message: 'Số lượng phải lớn hơn 0' },
-          { field: 'sku', message: 'Mã sản phẩm là bắt buộc' },
-        ],
-      },
-    },
+    error: new ApiError('Dữ liệu không hợp lệ', 400, 'VALIDATION_ERROR', undefined, [
+      { field: 'quantity', message: 'Số lượng phải lớn hơn 0' },
+      { field: 'sku', message: 'Mã sản phẩm là bắt buộc' },
+    ]),
   },
   {
     label: '409 hết hàng',
     scope: 'block',
-    error: { status: 409, body: { code: 'OUT_OF_STOCK', message: 'Sản phẩm đã hết hàng.' } },
+    error: new ApiError('Sản phẩm đã hết hàng.', 409, 'OUT_OF_STOCK'),
   },
   {
     label: '422 báo giá đổi',
     scope: 'block',
-    error: { status: 422, body: { code: 'PRICE_CHANGED', message: 'Báo giá đã thay đổi.' } },
+    error: new ApiError('Báo giá đã thay đổi.', 422, 'PRICE_CHANGED'),
   },
   { label: '500 trong khối', scope: 'block', error: serverError },
   { label: '500 cả trang', scope: 'page', error: serverError },
   {
     label: '403 cả trang',
     scope: 'page',
-    error: {
-      status: 403,
-      body: { code: 'BRANCH_FORBIDDEN', message: 'Không có quyền ở chi nhánh này.' },
-    },
+    error: new ApiError('Không có quyền ở chi nhánh này.', 403, 'BRANCH_FORBIDDEN'),
   },
   {
     label: '404 cả trang',
     scope: 'page',
-    error: { status: 404, body: { code: 'NOT_FOUND', message: 'Không tìm thấy.' } },
+    error: new ApiError('Không tìm thấy.', 404, 'NOT_FOUND'),
+  },
+  { label: 'Hết phiên (SessionExpiredError)', scope: 'block', error: new SessionExpiredError() },
+  {
+    label: '401 UNAUTHORIZED',
+    scope: 'block',
+    error: new ApiError('Phiên hết hạn.', 401, 'UNAUTHORIZED'),
   },
   {
-    label: '401 hết phiên',
-    scope: 'block',
-    error: { status: 401, body: { code: 'UNAUTHORIZED', message: 'Phiên hết hạn.' } },
+    label: '401 sai mật khẩu',
+    scope: 'page',
+    error: new ApiError('Sai mật khẩu. Còn 2 lần thử.', 401, 'INVALID_CREDENTIALS', undefined, {
+      remainingAttempts: 2,
+    }),
   },
-  { label: 'Mất kết nối', scope: 'page', error: { isNetworkError: true } },
+  { label: 'Mất kết nối (fetch)', scope: 'page', error: new TypeError('Failed to fetch') },
   { label: 'Quá 15 giây', scope: 'block', error: { isTimeout: true } },
 ];
 

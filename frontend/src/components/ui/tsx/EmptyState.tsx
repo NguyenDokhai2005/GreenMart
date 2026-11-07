@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import Button from './Button';
 import '../css/states.css';
 
 export interface EmptyStateProps {
@@ -33,19 +34,11 @@ function EmptyState({
       <p className="gm-state__title">{filtered ? 'Không có kết quả phù hợp' : message}</p>
       {!filtered && description && <p className="gm-state__desc">{description}</p>}
       {filtered && onClearFilters && (
-        <button
-          type="button"
-          className="gm-state__btn gm-state__btn--secondary"
-          onClick={onClearFilters}
-        >
+        <Button variant="secondary" onClick={onClearFilters}>
           Xóa bộ lọc
-        </button>
+        </Button>
       )}
-      {!filtered && actionLabel && onAction && (
-        <button type="button" className="gm-state__btn" onClick={onAction}>
-          {actionLabel}
-        </button>
-      )}
+      {!filtered && actionLabel && onAction && <Button onClick={onAction}>{actionLabel}</Button>}
     </div>
   );
 }

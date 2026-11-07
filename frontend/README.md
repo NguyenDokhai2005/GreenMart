@@ -90,3 +90,97 @@ Test API trong `tests/api/` không yêu cầu backend đang chạy.
 
 `../docs/api/openapi.yaml` là hợp đồng API dùng chung. Chỉ thay đổi hợp đồng
 thông qua quy trình được mô tả trong `../docs/api/README.md`.
+
+## Trạng thái giao diện (Đang tải / Rỗng / Lỗi)
+
+Nguồn quy ước: issue #228, thiết kế: Figma #227. Dùng cho layout (#71, #88) và mọi màn hình.
+
+### Chọn trạng thái nào?
+
+| Tình huống                                               | Dùng                                                               |
+| -------------------------------------------------------- | ------------------------------------------------------------------ |
+| Đổi tab, lọc, phân trang, mở một khối                    | `<AsyncBlock>` (hiện `Skeleton` sau 300 ms)                        |
+| Chuyển trang trong cùng khu POS / Operations             | `<PageLoader />` trong vùng nội dung, **giữ header + menu trái**   |
+| Mở app, vừa đăng nhập, đổi khu, đổi chi nhánh, đăng xuất | `<FullScreenLoading reason="..." />` — **chỉ 5 trường hợp này**    |
+| POS quét mã / thêm hàng                                  | Không khóa màn hình, không loading toàn trang, giỏ hàng giữ nguyên |
+
+### Một khối dữ liệu
+
+```tsx
+import { AsyncBlock } from '../components/ui';
+
+<AsyncBlock
+  isLoading={query.isLoading}
+  error={query.error} // ApiErrorLike: { status, body: ErrorResponse, isNetworkError }
+  isEmpty={data?.length === 0}
+  onRetry={query.refetch} // gọi lại ĐÚNG API của khối
+  empty={{
+    message: 'Chưa có phiếu nhập nào',
+    actionLabel: canCreate ? 'Tạo phiếu nhập' : undefined, // chỉ truyền khi có quyền
+    onAction: openCreate,
+    filtered: hasActiveFilters, // true -> "Không có kết quả phù hợp" + Xóa bộ lọc
+    onClearFilters: resetFilters,
+  }}
+>
+  <Table data={data} />
+</AsyncBlock>;
+```
+
+`AsyncBlock` đảm bảo: không hiện loading nếu API trả trong 300 ms; "rỗng" không bao giờ hiện lúc đang tải; quá 15 giây chuyển sang lỗi có Thử lại.
+
+### Ánh xạ lỗi
+
+```ts
+import { mapErrorToState } from '../lib/errors';
+
+const s = mapErrorToState(error, 'block'); // hoặc 'page'
+switch (s.kind) {
+  case 'form':
+    setFieldErrors(s.fieldErrors);
+    setFormError(s.message);
+    break; // lỗi theo ô / lỗi chung của form
+  case 'dialog':
+    /* Dialog hoặc Toast với s.message */ break; // 409/422: KHÔNG reset form
+  case 'block':
+    /* ErrorState + Thử lại */ break;
+  case 'page':
+    /* hiện trang đặc biệt s.page */ break;
+}
+```
+
+| Lỗi                                                                      | scope `block`                                                 | scope `page`               |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------- | -------------------------- |
+| 400 `VALIDATION_ERROR`                                                   | form (lỗi theo từng ô từ `details`)                           | form                       |
+| 409 / 422                                                                | dialog (`details` giữ nguyên, ví dụ `{ lines }`, `{ quote }`) | dialog                     |
+| 401 `UNAUTHORIZED` / `INVALID_REFRESH_TOKEN` (refresh token đã thất bại) | session-expired                                               | session-expired            |
+| 401 mã khác, ví dụ `INVALID_CREDENTIALS` (đăng nhập sai)                 | form: `message` + `details` (ví dụ `{ remainingAttempts }`)   | form                       |
+| 403 / `BRANCH_FORBIDDEN`                                                 | block                                                         | forbidden                  |
+| 404                                                                      | block                                                         | not-found                  |
+| 5xx                                                                      | block (Thử lại)                                               | server-error (+ `traceId`) |
+| Không có phản hồi                                                        | block                                                         | offline                    |
+| Quá 15 giây                                                              | block (Thử lại)                                               | block (Thử lại)            |
+
+Lưu ý:
+
+- `ErrorResponse.details` có kiểu `unknown` vì mỗi mã lỗi trả một dạng khác nhau. Chỉ `VALIDATION_ERROR` được đọc thành danh sách lỗi theo ô (và chỉ khi là mảng); với mã khác, nơi gọi tự ép kiểu từ `state.details`.
+- Màn đăng nhập và đổi mật khẩu có thể gọi `mapErrorToState`: sai mật khẩu (401 `INVALID_CREDENTIALS`) trả `form`, không bị đưa sang trang "Phiên hết hạn".
+
+### Trang đặc biệt (`src/pages`)
+
+`NotFoundPage`, `ForbiddenPage`, `ServerErrorPage`, `OfflinePage`, `SessionExpiredPage` render **bên trong layout** (header + menu còn dùng được). Route bắt-mọi-đường-dẫn → `NotFoundPage`; `ErrorBoundary` → `ServerErrorPage`.
+
+### Quay lại trang cũ sau khi hết phiên (thống nhất với #246)
+
+Dùng `location.state.from`, như `LoginPage` của #246 đang đọc. Không dùng `?returnTo=` (tránh lộ đường dẫn lên URL và không cần kiểm tra open redirect).
+
+- `SessionExpiredPage` chỉ nhận `onLogin`; không tự tạo URL.
+- `AuthBoundary` (#246) điều hướng tới trang đăng nhập kèm `state: { from: location }`; `LoginPage` đọc `state.from` để về đúng trang cũ.
+
+```tsx
+<SessionExpiredPage onLogin={() => navigate('/login', { state: { from: location } })} />
+```
+
+### Áp dụng ở layout (#71, #88)
+
+- Layout không bọc `<FullScreenLoading>` khi chuyển trang; dùng `<Suspense fallback={<PageLoader />}>` chỉ quanh vùng nội dung.
+- Ví dụ mọi trạng thái xem mục 11–16 của `ComponentShowcase`.

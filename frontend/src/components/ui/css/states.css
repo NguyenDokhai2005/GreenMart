@@ -1,11 +1,10 @@
-/* Trạng thái giao diện (#228) — bảng màu lấy theo ComponentShowcase.css của GreenMart:
-   xanh chính #047857 · nền xanh nhạt #ecfdf3 · viền #dfe8e1 · chữ #172b26 / #68786d · nền trang #f5f8f6
+/* Trạng thái giao diện (#228). Dùng token trong src/components/styles/tokens.css.*/
 
 /* ---------- Skeleton ---------- */
 .gm-skeleton {
   display: block;
-  border-radius: 8px;
-  background: linear-gradient(90deg, #e3ece6 25%, #f1f6f3 37%, #e3ece6 63%);
+  border-radius: var(--gm-radius-md);
+  background: linear-gradient(90deg, #e3ece6 25%, var(--gm-color-page) 37%, #e3ece6 63%);
   background-size: 400% 100%;
   animation: gm-skeleton-shimmer 1.4s ease infinite;
 }
@@ -27,11 +26,11 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding: 40px 16px;
+  gap: var(--gm-space-3);
+  padding: var(--gm-space-8) var(--gm-space-4);
   text-align: center;
-  color: #68786d;
-  font-family: inherit;
+  color: var(--gm-color-text-secondary);
+  font-family: var(--gm-font-family);
 }
 
 .gm-page-loader {
@@ -40,35 +39,37 @@
 
 .gm-state__title {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--gm-font-size-body);
+  line-height: var(--gm-line-height-body);
   font-weight: 600;
-  color: #172b26;
+  color: var(--gm-color-text);
 }
 
 .gm-state__desc {
   margin: 0;
-  max-width: 44ch;
-  font-size: 14px;
-  color: #68786d;
+  max-width: 52ch;
+  font-size: var(--gm-font-size-label);
+  line-height: 1.5;
+  color: var(--gm-color-text-secondary);
 }
 
 .gm-error-state {
-  border-radius: 8px;
-  background: #f5f8f6;
+  border-radius: var(--gm-radius-md);
+  background: var(--gm-color-page);
 }
 
 .gm-error-state__trace {
-  font-size: 12px;
-  color: #68786d;
+  font-size: var(--gm-font-size-xs);
+  color: var(--gm-color-text-secondary);
 }
 
 /* ---------- Spinner ---------- */
 .gm-spinner {
   width: 28px;
   height: 28px;
-  border-radius: 50%;
+  border-radius: var(--gm-radius-full);
   border: 3px solid #dfe8e1;
-  border-top-color: #047857;
+  border-top-color: var(--gm-color-primary);
   animation: gm-spin 0.8s linear infinite;
 }
 
@@ -76,45 +77,6 @@
   to {
     transform: rotate(360deg);
   }
-}
-
-/* ---------- Nút (dùng trong state và trang lỗi) ---------- */
-.gm-state__btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 10px 16px;
-  border: 1px solid #047857;
-  border-radius: 8px;
-  background: #047857;
-  color: #ffffff;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.2;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.gm-state__btn:hover {
-  background: #065f46;
-  border-color: #065f46;
-}
-
-.gm-state__btn--secondary {
-  background: #ffffff;
-  color: #047857;
-  border-color: #dfe8e1;
-}
-
-.gm-state__btn--secondary:hover {
-  background: #ecfdf3;
-  border-color: #047857;
-}
-
-.gm-state__btn:focus-visible {
-  outline: 2px solid #047857;
-  outline-offset: 2px;
 }
 
 /* ---------- Loading toàn màn hình ---------- */
@@ -125,7 +87,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f5f8f6;
+  background: var(--gm-color-page);
 }
 
 /* ---------- Trang đặc biệt (404 / 403 / 500 / Mất kết nối / Phiên hết hạn) ---------- */
@@ -135,25 +97,26 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding: 48px 16px;
+  gap: var(--gm-space-3);
+  padding: 48px var(--gm-space-4);
   text-align: center;
-  font-family: inherit;
+  font-family: var(--gm-font-family);
 }
 
 .gm-special-page__code {
   margin: 0;
-  font-size: 48px;
+  font-size: var(--gm-font-size-title);
+  line-height: var(--gm-line-height-title);
   font-weight: 700;
-  color: #047857;
+  color: var(--gm-color-primary);
 }
 
 .gm-special-page__actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 8px;
-  margin-top: 8px;
+  gap: var(--gm-space-2);
+  margin-top: var(--gm-space-2);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,18 +1,14 @@
 import type { ReactNode } from 'react';
 import { useDelayedLoading } from '../../../hooks/useDelayedLoading';
-import {
-  GENERIC_ERROR_MESSAGE,
-  TIMEOUT_MESSAGE,
-  mapErrorToState,
-  type ApiErrorLike,
-} from '../../../lib/errors';
+import { GENERIC_ERROR_MESSAGE, TIMEOUT_MESSAGE, mapErrorToState } from '../../../lib/errors';
 import EmptyState, { type EmptyStateProps } from './EmptyState';
 import ErrorState from './ErrorState';
 import Skeleton from './Skeleton';
 
 export interface AsyncBlockProps {
   isLoading: boolean;
-  error?: ApiErrorLike | null;
+  /** Thứ bắt được từ API (ApiError, SessionExpiredError, lỗi fetch...). */
+  error?: unknown;
   /** Chỉ có nghĩa khi đã tải xong và không lỗi. */
   isEmpty?: boolean;
   onRetry?: () => void;
@@ -45,7 +41,7 @@ function AsyncBlock({
     // 300 ms đầu: chưa hiện loading, giữ nguyên nội dung hiện có (nếu có).
     return showLoading ? <>{skeleton ?? <Skeleton lines={3} />}</> : <>{children}</>;
   }
-  if (error) {
+  if (error !== null && error !== undefined && error !== false) {
     const s = mapErrorToState(error, 'block');
     // form/dialog/page do nơi gọi xử lý (ô nhập, Toast, route lỗi); khối chỉ hiện lỗi chung.
     const message = s.kind === 'block' || s.kind === 'dialog' ? s.message : GENERIC_ERROR_MESSAGE;

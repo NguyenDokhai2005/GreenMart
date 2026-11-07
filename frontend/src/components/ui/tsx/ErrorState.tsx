@@ -1,7 +1,8 @@
+import Button from './Button';
 import '../css/states.css';
 
 export interface ErrorStateProps {
-  /** `message` của ErrorResponse. */
+  /** `message` của lỗi API. */
   message: string;
   /** Gọi lại ĐÚNG API của khối này. */
   onRetry?: () => void;
@@ -14,11 +15,7 @@ function ErrorState({ message, onRetry, traceId }: ErrorStateProps) {
     <div className="gm-error-state" role="alert">
       <p className="gm-state__title">{message}</p>
       {traceId && <span className="gm-error-state__trace">Mã lỗi: {traceId}</span>}
-      {onRetry && (
-        <button type="button" className="gm-state__btn" onClick={onRetry}>
-          Thử lại
-        </button>
-      )}
+      {onRetry && <Button onClick={onRetry}>Thử lại</Button>}
     </div>
   );
 }

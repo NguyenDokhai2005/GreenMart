@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Button } from '../components/ui';
 import { SpecialPage } from './SpecialPage';
 
 export interface OfflinePageProps {
@@ -35,13 +36,9 @@ export default function OfflinePage({
           : 'Không gọi được máy chủ. Trang sẽ tự thử lại khi có mạng.'
       }
       actions={
-        <button
-          type="button"
-          className="gm-state__btn gm-state__btn--secondary"
-          onClick={onReconnect}
-        >
+        <Button variant="secondary" onClick={onReconnect}>
           Thử lại ngay
-        </button>
+        </Button>
       }
     />
   );

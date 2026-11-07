@@ -1,20 +1,15 @@
+import { Button } from '../components/ui';
 import { SpecialPage } from './SpecialPage';
 
 export interface ForbiddenPageProps {
-  /** Mở bộ chọn chi nhánh hiện có của layout. */
+  onHome: () => void;
+  /** Đổi chi nhánh, ví dụ gọi `clearBranch()` của `useActiveBranch()` rồi điều hướng tới trang chọn chi nhánh. */
   onSwitchBranch?: () => void;
   message?: string;
-  homeHref?: string;
-  onHome?: () => void;
 }
 
 /** 403: FORBIDDEN / BRANCH_FORBIDDEN khi mở cả trang. Hành động: Về trang chủ, Đổi chi nhánh. */
-export default function ForbiddenPage({
-  onSwitchBranch,
-  message,
-  homeHref = '/',
-  onHome,
-}: ForbiddenPageProps) {
+export default function ForbiddenPage({ onHome, onSwitchBranch, message }: ForbiddenPageProps) {
   return (
     <SpecialPage
       code="403"
@@ -22,28 +17,11 @@ export default function ForbiddenPage({
       description={message ?? 'Tài khoản hoặc chi nhánh hiện tại không được phép xem trang này.'}
       actions={
         <>
-          <a
-            className="gm-state__btn"
-            href={homeHref}
-            onClick={
-              onHome
-                ? (e) => {
-                    e.preventDefault();
-                    onHome();
-                  }
-                : undefined
-            }
-          >
-            Về trang chủ
-          </a>
+          <Button onClick={onHome}>Về trang chủ</Button>
           {onSwitchBranch && (
-            <button
-              type="button"
-              className="gm-state__btn gm-state__btn--secondary"
-              onClick={onSwitchBranch}
-            >
+            <Button variant="secondary" onClick={onSwitchBranch}>
               Đổi chi nhánh
-            </button>
+            </Button>
           )}
         </>
       }
