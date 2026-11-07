@@ -69,6 +69,18 @@ Kiểm tra lại trước commit/PR ngày 07/11/2026: cả 3 scenario runner ti�
 
 ## Nội dung bàn giao cho Lead/SV02 (chưa đăng GitHub)
 
+### Điều tra CI PR #254 ngày 07/11/2026
+
+Đã đọc [log job pos-newman](https://github.com/NguyenDokhai2005/GreenMart/actions/runs/42332205187/job/128281030037), chạy trên merge ref 781aeb2 với head 9543857. npm ci và cả 3 scenario runner đều pass; build/start QA149 thành công. Job dừng tại bước sinh/nạp seed với exit 1, nên **chưa chạy Newman thật và chưa tạo artifact**, không thể gọi đây là lỗi receipt 404 trên CI.
+
+Khác biệt nền tảng được xác định từ code: image forecast chạy UID 10001; thư mục data bind-mount Linux do GitHub runner tạo (UID/GID runner, thường mode 0755). UID image không có quyền ghi thư mục đó, trong khi bind mount Windows không bộc lộ cùng lỗi quyền POSIX. Bản sửa giới hạn ở QA: trên POSIX chạy container seed bằng UID/GID của process tạo thư mục, Windows giữ user image; không chmod 777, sửa Dockerfile SV06 hoặc đổi user backend. Tách log sinh seed/nạp seed/nạp fixture và báo tên bước thất bại, vẫn giấu raw output.
+
+Thêm 3 regression test cho Linux UID/GID, nhánh Windows và thông báo lỗi không lộ output; workflow gọi các test trước setup. Chưa được coi CI đã xanh trước khi bản sửa được phép push và workflow thực sự chạy lại.
+
+Đã tái hiện với generator SV06 thật trong container Linux tạm, thư mục /qa/data owner 1001/mode 0755: chạy UID10001 exit1/PermissionError; chạy UID1001 exit0 và tạo SQL/JSON thành công. Cả 3 regression test pass trên host Windows và Python Linux trong image QA. Thử nghiệm không ghi lên DB hoặc dữ liệu host. Bản sửa hiện ở local, chưa commit/push hoặc nhận CI remote đã được khắc phục.
+
+Lead đã xác nhận lỗi hóa đơn riêng tại [#259](https://github.com/NguyenDokhai2005/GreenMart/issues/259), giao SV02, hạn 10/11; yêu cầu giữ PR #254 mở, không đổi expected/bỏ receipt. Sau khi lỗi seed được sửa, endpoint hóa đơn vẫn có thể làm Newman đỏ cho đến khi #259 hoàn tất. “Review required” cần người có quyền approve; “out-of-date” là nhánh thiếu commit develop, không tự cập nhật nhánh hoặc bỏ qua branch protection trong lần sửa này.
+
 **Tiêu đề:** [#149][ORD-07] GET /api/v1/orders/{orderId} trả 404 sau khi tạo đơn POS thành công.
 
 **Môi trường:** QA riêng greenmart-qa149, backend develop d018575, seed SV06 + fixture QA149, CASHIER GM-001.

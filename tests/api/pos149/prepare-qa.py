@@ -13,11 +13,23 @@ ROOT = Path(__file__).resolve().parents[3]
 PROJECT = "greenmart-qa149"
 
 
-def call(command, **kwargs):
+def call(command, *, step="Docker operation", **kwargs):
     result = subprocess.run(command, capture_output=True, timeout=600, **kwargs)
     if result.returncode:
-        raise SystemExit(f"QA step failed (exit {result.returncode}); raw output withheld")
+        raise SystemExit(f"QA step '{step}' failed (exit {result.returncode}); raw output withheld")
     return result.stdout
+
+
+def seed_command(source, data):
+    # Linux bind mounts retain host UID/GID. The image's default UID 10001 cannot
+    # write a runner-owned directory (normally UID 1001, mode 0755).
+    # Run only this disposable seed process as the directory's creator, without
+    # changing the image user, chmod 777, or running the application as root.
+    user = ["--user", f"{os.getuid()}:{os.getgid()}"] if os.name == "posix" else []
+    return ["docker", "run", "--rm", "--network", "none", *user, "--entrypoint", "python",
+            "--mount", f"type=bind,src={source / 'forecast-service/scripts'},dst=/qa/scripts,readonly",
+            "--mount", f"type=bind,src={data},dst=/qa/data", "-w", "/qa",
+            "greenmart-forecast:qa149", "scripts/generate_data.py"]
 
 
 def main():
@@ -51,14 +63,13 @@ def main():
     call(["docker","build","-t","greenmart-forecast:qa149",str(source / "forecast-service")],env=env)
     print("Starting QA149 on 127.0.0.1:18081...",flush=True)
     call(compose + ["up","-d","--wait","--wait-timeout","300","postgres","redis","rabbitmq","backend"],env=env)
-    print("Generating unchanged SV06 seed; loading seed and QA-only fixture...",flush=True)
-    call(["docker","run","--rm","--network","none","--entrypoint","python",
-          "--mount",f"type=bind,src={source / 'forecast-service/scripts'},dst=/qa/scripts,readonly",
-          "--mount",f"type=bind,src={data},dst=/qa/data","-w","/qa",
-          "greenmart-forecast:qa149","scripts/generate_data.py"],env=env)
+    print("Generating unchanged SV06 seed with host-compatible file ownership...",flush=True)
+    call(seed_command(source, data), step="generate SV06 seed", env=env)
     psql = compose + ["exec","-T","postgres","psql","-X","-U","greenmart","-d","greenmart","-v","ON_ERROR_STOP=1"]
-    call(psql,env=env,input=(data / "seed_data.sql").read_bytes())
-    call(psql,env=env,input=(ROOT / "tests/api/pos149/fixture.sql").read_bytes())
+    print("Loading SV06 seed into isolated QA149 database...",flush=True)
+    call(psql,step="load SV06 seed",env=env,input=(data / "seed_data.sql").read_bytes())
+    print("Loading QA149 fixture...",flush=True)
+    call(psql,step="load QA149 fixture",env=env,input=(ROOT / "tests/api/pos149/fixture.sql").read_bytes())
     print("QA149 ready; existing development/QA148 data untouched",flush=True)
 
 

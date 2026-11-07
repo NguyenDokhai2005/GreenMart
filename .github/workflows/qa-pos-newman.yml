@@ -24,6 +24,8 @@ jobs:
       - name: Verify runner exits nonzero for broken assertions and missing receipt
         run: npm test
         working-directory: tests/api/pos149
+      - name: Verify Linux seed ownership and safe error reporting
+        run: python3 -m unittest discover -s tests/api/pos149 -p test_prepare_qa.py -v
       - name: Build backend and seed isolated QA database
         run: python3 tests/api/pos149/prepare-qa.py
       - name: Login -> quote -> POS -> persisted receipt (real backend)
