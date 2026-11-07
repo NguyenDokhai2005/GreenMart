@@ -389,7 +389,7 @@ Dự báo chạy lúc 02:00 hằng đêm cho từng sản phẩm × chi nhánh, 
 | Ngày không có giao dịch              | Ghi 0, không bỏ trống                                                              |
 | Ngày hết hàng (khả dụng = 0 cả ngày) | Đánh dấu stockout; không dùng làm nhãn huấn luyện vì nhu cầu thật bị che           |
 | Khuyến mại                           | Cờ có KM và mức giảm % theo ngày × sản phẩm × chi nhánh                            |
-| Lịch                                 | Thứ trong tuần, ngày trong tháng, tháng, ngày lễ, giai đoạn trước Tết (14 ngày)    |
+| Lịch                                 | Thứ trong tuần, ngày trong tháng, tháng, ngày lễ, giai đoạn trước Tết (21 ngày)    |
 | Sản phẩm mới (dưới 28 ngày dữ liệu)  | Không chạy mô hình; dùng trung bình của danh mục tại chi nhánh                     |
 
 **Kết quả và người dùng**
