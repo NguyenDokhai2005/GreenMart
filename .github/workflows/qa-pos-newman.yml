@@ -1,0 +1,45 @@
+name: QA POS Newman
+on:
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: qa-pos-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  pos-newman:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/api/pos149/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: tests/api/pos149
+      - name: Verify runner exits nonzero for broken assertions and missing receipt
+        run: npm test
+        working-directory: tests/api/pos149
+      - name: Build backend and seed isolated QA database
+        run: python3 tests/api/pos149/prepare-qa.py
+      - name: Login -> quote -> POS -> persisted receipt (real backend)
+        run: npm run pos
+        working-directory: tests/api/pos149
+        env:
+          QA_SOURCE_COMMIT: ${{ github.sha }}
+          QA_REPORT_DIR: ${{ runner.temp }}/pos149-reports
+      - name: Upload sanitized evidence even when tests fail
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pos-newman-evidence
+          path: ${{ runner.temp }}/pos149-reports/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Stop only QA149 containers (preserve volumes)
+        if: always()
+        run: python3 tests/api/pos149/prepare-qa.py --stop
