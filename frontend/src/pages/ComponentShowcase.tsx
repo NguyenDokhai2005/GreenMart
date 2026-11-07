@@ -11,7 +11,20 @@ import {
   Dialog,
   Toast,
   OrderStatusBadge,
+  Skeleton,
+  PageLoader,
+  EmptyState,
+  ErrorState,
+  AsyncBlock,
 } from '../components/ui';
+import { ApiError, SessionExpiredError } from '../api/client';
+import { mapErrorToState, type ErrorScope } from '../lib/errors';
+import FullScreenLoading, { type FullScreenReason } from './FullScreenLoading';
+import NotFoundPage from './NotFoundPage';
+import ForbiddenPage from './ForbiddenPage';
+import ServerErrorPage from './ServerErrorPage';
+import OfflinePage from './OfflinePage';
+import SessionExpiredPage from './SessionExpiredPage';
 
 import './ComponentShowcase.css';
 
@@ -66,6 +79,92 @@ const statuses = [
   'RETURNED',
 ] as const;
 
+// ---- Trạng thái giao diện (#228) ----
+type AsyncMode = 'loading' | 'data' | 'empty' | 'filtered' | 'error';
+
+const asyncModes: { mode: AsyncMode; label: string }[] = [
+  { mode: 'loading', label: 'Đang tải' },
+  { mode: 'data', label: 'Có dữ liệu' },
+  { mode: 'empty', label: 'Rỗng' },
+  { mode: 'filtered', label: 'Rỗng do lọc' },
+  { mode: 'error', label: 'Lỗi' },
+];
+
+const serverError = new ApiError(
+  'Máy chủ gặp lỗi khi tải danh sách phiếu nhập.',
+  500,
+  'INTERNAL_ERROR',
+  'trace-demo-001',
+);
+
+const errorSamples: { label: string; scope: ErrorScope; error: unknown }[] = [
+  {
+    label: '400 VALIDATION_ERROR',
+    scope: 'block',
+    error: new ApiError('Dữ liệu không hợp lệ', 400, 'VALIDATION_ERROR', undefined, [
+      { field: 'quantity', message: 'Số lượng phải lớn hơn 0' },
+      { field: 'sku', message: 'Mã sản phẩm là bắt buộc' },
+    ]),
+  },
+  {
+    label: '409 hết hàng',
+    scope: 'block',
+    error: new ApiError('Sản phẩm đã hết hàng.', 409, 'OUT_OF_STOCK'),
+  },
+  {
+    label: '422 báo giá đổi',
+    scope: 'block',
+    error: new ApiError('Báo giá đã thay đổi.', 422, 'PRICE_CHANGED'),
+  },
+  { label: '500 trong khối', scope: 'block', error: serverError },
+  { label: '500 cả trang', scope: 'page', error: serverError },
+  {
+    label: '403 cả trang',
+    scope: 'page',
+    error: new ApiError('Không có quyền ở chi nhánh này.', 403, 'BRANCH_FORBIDDEN'),
+  },
+  {
+    label: '404 cả trang',
+    scope: 'page',
+    error: new ApiError('Không tìm thấy.', 404, 'NOT_FOUND'),
+  },
+  { label: 'Hết phiên (SessionExpiredError)', scope: 'block', error: new SessionExpiredError() },
+  {
+    label: '401 UNAUTHORIZED',
+    scope: 'block',
+    error: new ApiError('Phiên hết hạn.', 401, 'UNAUTHORIZED'),
+  },
+  {
+    label: '401 sai mật khẩu',
+    scope: 'page',
+    error: new ApiError('Sai mật khẩu. Còn 2 lần thử.', 401, 'INVALID_CREDENTIALS', undefined, {
+      remainingAttempts: 2,
+    }),
+  },
+  { label: 'Mất kết nối (fetch)', scope: 'page', error: new TypeError('Failed to fetch') },
+  { label: 'Quá 15 giây', scope: 'block', error: { isTimeout: true } },
+];
+
+type SpecialPageKey = 'not-found' | 'forbidden' | 'server-error' | 'offline' | 'session-expired';
+
+const specialPages: { key: SpecialPageKey; label: string }[] = [
+  { key: 'not-found', label: '404' },
+  { key: 'forbidden', label: '403' },
+  { key: 'server-error', label: '500' },
+  { key: 'offline', label: 'Mất kết nối' },
+  { key: 'session-expired', label: 'Phiên hết hạn' },
+];
+
+const fullScreenReasons: { reason: FullScreenReason; label: string }[] = [
+  { reason: 'session-check', label: 'Kiểm tra phiên' },
+  { reason: 'after-login', label: 'Sau đăng nhập' },
+  { reason: 'switch-area', label: 'Đổi khu' },
+  { reason: 'switch-branch', label: 'Đổi chi nhánh' },
+  { reason: 'logout', label: 'Đăng xuất' },
+];
+
+const noop = () => {};
+
 export default function ComponentShowcase() {
   // Dialog
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -82,6 +181,20 @@ export default function ComponentShowcase() {
   // Input và Select
   const [productName, setProductName] = useState('');
   const [category, setCategory] = useState('');
+
+  // Trạng thái giao diện (#228)
+  const [asyncMode, setAsyncMode] = useState<AsyncMode>('loading');
+  const [sampleIndex, setSampleIndex] = useState(0);
+  const [specialPage, setSpecialPage] = useState<SpecialPageKey>('not-found');
+  const [fullScreenReason, setFullScreenReason] = useState<FullScreenReason | null>(null);
+
+  const showFullScreen = (reason: FullScreenReason) => {
+    setFullScreenReason(reason);
+    window.setTimeout(() => setFullScreenReason(null), 2500);
+  };
+
+  const sample = errorSamples[sampleIndex];
+  const mappedState = mapErrorToState(sample.error, sample.scope);
 
   const tabs = [
     {
@@ -404,6 +517,189 @@ export default function ComponentShowcase() {
               <span>{status}</span>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* 11. SKELETON & PAGE LOADER */}
+      <section className="gm-preview__section">
+        <div className="gm-preview__heading">
+          <span>11</span>
+          <div>
+            <h2>Skeleton &amp; PageLoader</h2>
+            <p>
+              Skeleton cho một khối đang tải; PageLoader cho vùng nội dung khi chuyển trang (giữ
+              header và menu).
+            </p>
+          </div>
+        </div>
+
+        <div className="gm-preview__content gm-preview__stack">
+          <Skeleton height={24} width="40%" />
+          <Skeleton lines={3} />
+          <PageLoader />
+        </div>
+      </section>
+
+      {/* 12. EMPTY STATE */}
+      <section className="gm-preview__section">
+        <div className="gm-preview__heading">
+          <span>12</span>
+          <div>
+            <h2>EmptyState</h2>
+            <p>
+              Chỉ hiện sau khi API trả danh sách rỗng. Nút hành động chỉ có khi người dùng có quyền.
+            </p>
+          </div>
+        </div>
+
+        <div className="gm-preview__content gm-preview__stack">
+          <EmptyState
+            message="Chưa có phiếu nhập nào"
+            description="Tạo phiếu nhập để bắt đầu theo dõi hàng vào kho."
+            actionLabel="Tạo phiếu nhập"
+            onAction={noop}
+          />
+          <EmptyState message="Chưa có phiếu nhập nào (không có quyền tạo)" />
+          <EmptyState message="" filtered onClearFilters={noop} />
+        </div>
+      </section>
+
+      {/* 13. ERROR STATE */}
+      <section className="gm-preview__section">
+        <div className="gm-preview__heading">
+          <span>13</span>
+          <div>
+            <h2>ErrorState</h2>
+            <p>Lỗi trong một khối: hiện message của ErrorResponse và nút Thử lại.</p>
+          </div>
+        </div>
+
+        <div className="gm-preview__content gm-preview__stack">
+          <ErrorState message="Không tải được danh sách phiếu nhập." onRetry={noop} />
+          <ErrorState message="Máy chủ gặp lỗi." traceId="trace-demo-001" onRetry={noop} />
+        </div>
+      </section>
+
+      {/* 14. ASYNC BLOCK */}
+      <section className="gm-preview__section">
+        <div className="gm-preview__heading">
+          <span>14</span>
+          <div>
+            <h2>AsyncBlock</h2>
+            <p>
+              Ghép các trạng thái theo đúng thứ tự. Chọn &quot;Đang tải&quot;: sau 300 ms hiện
+              Skeleton, sau 15 giây chuyển sang lỗi có Thử lại.
+            </p>
+          </div>
+        </div>
+
+        <div className="gm-preview__content">
+          <div className="gm-preview__row gm-preview__actions">
+            {asyncModes.map(({ mode, label }) => (
+              <Button
+                key={mode}
+                variant={asyncMode === mode ? 'primary' : 'secondary'}
+                onClick={() => setAsyncMode(mode)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+
+          <AsyncBlock
+            key={asyncMode}
+            isLoading={asyncMode === 'loading'}
+            error={asyncMode === 'error' ? serverError : null}
+            isEmpty={asyncMode === 'empty' || asyncMode === 'filtered'}
+            onRetry={() => setAsyncMode('data')}
+            empty={{
+              message: 'Chưa có phiếu nhập nào',
+              actionLabel: 'Tạo phiếu nhập',
+              onAction: noop,
+              filtered: asyncMode === 'filtered',
+              onClearFilters: () => setAsyncMode('data'),
+            }}
+          >
+            <Table<Product> columns={columns} data={products} rowKey="id" />
+          </AsyncBlock>
+        </div>
+      </section>
+
+      {/* 15. ÁNH XẠ LỖI */}
+      <section className="gm-preview__section">
+        <div className="gm-preview__heading">
+          <span>15</span>
+          <div>
+            <h2>Ánh xạ lỗi API</h2>
+            <p>mapErrorToState: lỗi → trạng thái giao diện (khối, form, hộp thoại, trang).</p>
+          </div>
+        </div>
+
+        <div className="gm-preview__content">
+          <div className="gm-preview__row gm-preview__actions">
+            {errorSamples.map((item, index) => (
+              <Button
+                key={item.label}
+                variant={sampleIndex === index ? 'primary' : 'secondary'}
+                onClick={() => setSampleIndex(index)}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
+
+          <div className="gm-preview__result">
+            <strong>Kết quả (phạm vi: {sample.scope === 'page' ? 'cả trang' : 'một khối'})</strong>
+            <pre style={{ overflowX: 'auto' }}>{JSON.stringify(mappedState, null, 2)}</pre>
+          </div>
+        </div>
+      </section>
+
+      {/* 16. TRANG ĐẶC BIỆT */}
+      <section className="gm-preview__section">
+        <div className="gm-preview__heading">
+          <span>16</span>
+          <div>
+            <h2>Trang đặc biệt &amp; loading toàn màn hình</h2>
+            <p>
+              5 trang lỗi cả trang (hiển thị trong layout) và trang loading toàn màn hình (tự đóng
+              sau 2,5 giây).
+            </p>
+          </div>
+        </div>
+
+        <div className="gm-preview__content">
+          <div className="gm-preview__row gm-preview__actions">
+            {specialPages.map(({ key, label }) => (
+              <Button
+                key={key}
+                variant={specialPage === key ? 'primary' : 'secondary'}
+                onClick={() => setSpecialPage(key)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+
+          <div style={{ border: '1px solid #dfe8e1', borderRadius: 8 }}>
+            {specialPage === 'not-found' && <NotFoundPage onHome={noop} />}
+            {specialPage === 'forbidden' && <ForbiddenPage onHome={noop} onSwitchBranch={noop} />}
+            {specialPage === 'server-error' && (
+              <ServerErrorPage traceId="trace-demo-001" onRetry={noop} />
+            )}
+            {specialPage === 'offline' && <OfflinePage onReconnect={noop} />}
+            {specialPage === 'session-expired' && <SessionExpiredPage onLogin={noop} />}
+          </div>
+
+          <div className="gm-preview__row gm-preview__actions">
+            {fullScreenReasons.map(({ reason, label }) => (
+              <Button key={reason} variant="secondary" onClick={() => showFullScreen(reason)}>
+                Toàn màn hình: {label}
+              </Button>
+            ))}
+          </div>
+
+          {fullScreenReason && <FullScreenLoading reason={fullScreenReason} />}
         </div>
       </section>
 
