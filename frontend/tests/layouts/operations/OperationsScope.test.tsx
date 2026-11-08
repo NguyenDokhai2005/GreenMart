@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -16,10 +17,10 @@ const selectBranch = vi.fn((id: number) => {
   return !!active;
 });
 
-vi.mock('../../features/auth/useAuth', () => ({
+vi.mock('../../../src/features/auth/useAuth', () => ({
   useAuth: () => ({ state: { status: 'authenticated', user } }),
 }));
-vi.mock('../../features/auth/useActiveBranch', () => ({
+vi.mock('../../../src/features/auth/useActiveBranch', () => ({
   useActiveBranch: () => ({
     state: active
       ? { status: 'active', branch: active }
