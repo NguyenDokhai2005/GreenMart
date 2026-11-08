@@ -40,7 +40,6 @@ public class PosIdempotencyService {
     ) {
         validateIdempotencyKey(idempotencyKey);
 
-        // Gắn userId vào Redis key: idempotency:pos:{userId}:{key}
         Long currentUserId = SecurityUtils.getCurrentUserId();
         String redisKey = KEY_PREFIX + currentUserId + ":" + idempotencyKey;
         String requestHash = computeSha256(request);
@@ -54,7 +53,6 @@ public class PosIdempotencyService {
             throw new RuntimeException("Lỗi serialize processing record", e);
         }
 
-        // SET NX PX 30000 để khóa request song song
         Boolean acquired = redisTemplate.opsForValue().setIfAbsent(redisKey, processingJson, LOCK_TIMEOUT);
 
         if (Boolean.TRUE.equals(acquired)) {
@@ -74,13 +72,12 @@ public class PosIdempotencyService {
                 String completedJson = objectMapper.writeValueAsString(completedRecord);
                 redisTemplate.opsForValue().set(redisKey, completedJson, TTL_24_HOURS);
             } catch (Exception e) {
-                log.error("Lỗi lưu trạng thái COMPLETED vào Redis cho đơn orderId={}: {}", response.id(), e.getMessage(), e);
+                log.error("Lỗi lưu trạng thái COMPLETED vào Redis cho đơn id={}: {}", response.id(), e.getMessage(), e);
             }
 
             return new IdempotencyResult(true, response);
         }
 
-        // Key đã tồn tại
         String existingJson = redisTemplate.opsForValue().get(redisKey);
         if (existingJson == null) {
             throw new AppException(ErrorCode.IDEMPOTENCY_CONFLICT, "Yêu cầu trước chưa xử lý xong hoặc xung đột khóa");
@@ -93,7 +90,6 @@ public class PosIdempotencyService {
             throw new RuntimeException("Lỗi deserialize idempotency record", e);
         }
 
-        // Request trước đang PROCESSING
         if ("PROCESSING".equals(existingRecord.status())) {
             throw new AppException(
                     ErrorCode.IDEMPOTENCY_CONFLICT,
@@ -101,7 +97,6 @@ public class PosIdempotencyService {
             );
         }
 
-        // Gửi lại cùng Key nhưng khác body
         if (!requestHash.equals(existingRecord.requestHash())) {
             throw new AppException(
                     ErrorCode.IDEMPOTENCY_CONFLICT,
@@ -109,7 +104,6 @@ public class PosIdempotencyService {
             );
         }
 
-        // Gửi lại cùng Key + cùng body
         return new IdempotencyResult(false, existingRecord.response());
     }
 
