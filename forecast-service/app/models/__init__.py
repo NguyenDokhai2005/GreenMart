@@ -16,6 +16,14 @@ from app.models.baselines import (
     format_report,
     select_best_baseline,
 )
+from app.models.evaluator import (
+    FullEvaluationReport,
+    ModelComparisonMetrics,
+    evaluate_lightgbm_pipeline,
+    format_full_comparison_report,
+)
+from app.models.features import FeatureMatrixBuilder
+from app.models.lightgbm_model import LightGBMDemandModel, calculate_zero_ratio
 from app.models.metrics import calculate_mae, calculate_wape
 
 __all__ = [
@@ -28,4 +36,11 @@ __all__ = [
     "evaluate_baselines_on_daily_sales",
     "select_best_baseline",
     "format_report",
+    "FeatureMatrixBuilder",
+    "LightGBMDemandModel",
+    "calculate_zero_ratio",
+    "ModelComparisonMetrics",
+    "FullEvaluationReport",
+    "evaluate_lightgbm_pipeline",
+    "format_full_comparison_report",
 ]
