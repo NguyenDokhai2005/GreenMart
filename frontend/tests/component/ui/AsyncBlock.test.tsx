@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import AsyncBlock from './AsyncBlock';
+import AsyncBlock from '../../../src/components/ui/tsx/AsyncBlock';
 
 const empty = { message: 'Không có dữ liệu' };
 
