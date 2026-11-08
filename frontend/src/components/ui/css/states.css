@@ -1,0 +1,129 @@
+/* Trạng thái giao diện (#228). Dùng token trong src/components/styles/tokens.css.*/
+
+/* ---------- Skeleton ---------- */
+.gm-skeleton {
+  display: block;
+  border-radius: var(--gm-radius-md);
+  background: linear-gradient(90deg, #e3ece6 25%, var(--gm-color-page) 37%, #e3ece6 63%);
+  background-size: 400% 100%;
+  animation: gm-skeleton-shimmer 1.4s ease infinite;
+}
+
+@keyframes gm-skeleton-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+/* ---------- Khung chung: PageLoader / EmptyState / ErrorState ---------- */
+.gm-page-loader,
+.gm-empty-state,
+.gm-error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gm-space-3);
+  padding: var(--gm-space-8) var(--gm-space-4);
+  text-align: center;
+  color: var(--gm-color-text-secondary);
+  font-family: var(--gm-font-family);
+}
+
+.gm-page-loader {
+  min-height: 240px;
+}
+
+.gm-state__title {
+  margin: 0;
+  font-size: var(--gm-font-size-body);
+  line-height: var(--gm-line-height-body);
+  font-weight: 600;
+  color: var(--gm-color-text);
+}
+
+.gm-state__desc {
+  margin: 0;
+  max-width: 52ch;
+  font-size: var(--gm-font-size-label);
+  line-height: 1.5;
+  color: var(--gm-color-text-secondary);
+}
+
+.gm-error-state {
+  border-radius: var(--gm-radius-md);
+  background: var(--gm-color-page);
+}
+
+.gm-error-state__trace {
+  font-size: var(--gm-font-size-xs);
+  color: var(--gm-color-text-secondary);
+}
+
+/* ---------- Spinner ---------- */
+.gm-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--gm-radius-full);
+  border: 3px solid #dfe8e1;
+  border-top-color: var(--gm-color-primary);
+  animation: gm-spin 0.8s linear infinite;
+}
+
+@keyframes gm-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- Loading toàn màn hình ---------- */
+.gm-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gm-color-page);
+}
+
+/* ---------- Trang đặc biệt (404 / 403 / 500 / Mất kết nối / Phiên hết hạn) ---------- */
+.gm-special-page {
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gm-space-3);
+  padding: 48px var(--gm-space-4);
+  text-align: center;
+  font-family: var(--gm-font-family);
+}
+
+.gm-special-page__code {
+  margin: 0;
+  font-size: var(--gm-font-size-title);
+  line-height: var(--gm-line-height-title);
+  font-weight: 700;
+  color: var(--gm-color-primary);
+}
+
+.gm-special-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--gm-space-2);
+  margin-top: var(--gm-space-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gm-skeleton {
+    animation: none;
+  }
+  .gm-spinner {
+    animation-duration: 3s;
+  }
+}
