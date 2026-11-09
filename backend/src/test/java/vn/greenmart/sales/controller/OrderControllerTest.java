@@ -18,6 +18,7 @@ import vn.greenmart.sales.domain.OrderStatus;
 import vn.greenmart.sales.domain.PaymentMethod;
 import vn.greenmart.sales.domain.PaymentSimulation;
 import vn.greenmart.sales.dto.*;
+import vn.greenmart.sales.service.PosIdempotencyService;
 import vn.greenmart.sales.service.PosOrderService;
 import vn.greenmart.sales.service.QuoteService;
 
@@ -27,7 +28,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -54,6 +55,9 @@ class OrderControllerTest {
 
     @MockitoBean
     private PosOrderService posOrderService;
+
+    @MockitoBean
+    private PosIdempotencyService posIdempotencyService;
 
     @Test
     @DisplayName("POST /api/v1/orders/quote thành công trả về HTTP 200")
@@ -108,8 +112,9 @@ class OrderControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/orders/pos thành công trả về HTTP 201")
+    @DisplayName("POST /api/v1/orders/pos lần đầu thành công -> Trả về HTTP 201 Created")
     void testCreatePosOrder_Success_Returns201() throws Exception {
+        String key = UUID.randomUUID().toString();
         PosOrderRequest request = new PosOrderRequest(
                 1L, null,
                 List.of(new OrderLineRequest(101L, 1)),
@@ -128,16 +133,51 @@ class OrderControllerTest {
                 Collections.emptyList(), null, null, null
         );
 
-        when(posOrderService.createPosOrder(any(), anyString())).thenReturn(mockRes);
+        when(posIdempotencyService.execute(eq(key), any(), any()))
+                .thenReturn(new IdempotencyResult(true, mockRes));
 
         mockMvc.perform(post("/api/v1/orders/pos")
-                .header("Idempotency-Key", UUID.randomUUID().toString())
+                .header("Idempotency-Key", key)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id").value(500))
             .andExpect(jsonPath("$.code").value("POS-GM001-20261105-0042"))
             .andExpect(jsonPath("$.status").value("COMPLETED"));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/orders/pos gửi lại cùng Idempotency-Key trong 24h -> Trả về HTTP 200 OK")
+    void testCreatePosOrder_DuplicateKey_Returns200() throws Exception {
+        String key = UUID.randomUUID().toString();
+        PosOrderRequest request = new PosOrderRequest(
+                1L, null,
+                List.of(new OrderLineRequest(101L, 1)),
+                null,
+                new PaymentRequest(PaymentMethod.CASH, 200000L, PaymentSimulation.SUCCESS),
+                180000L
+        );
+
+        OrderResponse mockRes = new OrderResponse(
+                500L, "POS-GM001-20261105-0042", "POS", null,
+                new BranchRef(1L, "GM-001", "GreenMart Q1"), null,
+                OrderStatus.COMPLETED, 1, 180000L,
+                Instant.now(), Instant.now(), null,
+                Collections.emptyList(), null, null,
+                180000L, 0L, 0L, 0L, 0L,
+                Collections.emptyList(), null, null, null
+        );
+
+        when(posIdempotencyService.execute(eq(key), any(), any()))
+                .thenReturn(new IdempotencyResult(false, mockRes));
+
+        mockMvc.perform(post("/api/v1/orders/pos")
+                .header("Idempotency-Key", key)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(500))
+            .andExpect(jsonPath("$.code").value("POS-GM001-20261105-0042"));
     }
 
     @Test
@@ -158,7 +198,7 @@ class OrderControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/orders/pos gửi simulate sai giá trị -> trả về HTTP 400 VALIDATION_ERROR (Yêu cầu Lead #33)")
+    @DisplayName("POST /api/v1/orders/pos gửi simulate sai giá trị -> trả về HTTP 400 VALIDATION_ERROR")
     void testCreatePosOrder_InvalidSimulate_Returns400() throws Exception {
         String invalidJson = """
             {

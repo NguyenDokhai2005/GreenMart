@@ -1,0 +1,36 @@
+' Kiểu dùng chung cho sơ đồ tuần tự GreenMart
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 12
+skinparam shadowing false
+skinparam backgroundColor #FFFFFF
+skinparam ArrowColor #5C6360
+skinparam sequenceMessageAlign left
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 260
+skinparam sequence {
+  LifeLineBorderColor #5C6360
+  ParticipantBorderColor #2F7D5B
+  ParticipantBackgroundColor #F6F4EE
+  ParticipantFontColor #16302B
+  ActorBorderColor #16302B
+  ActorBackgroundColor #FFFFFF
+  BoxBorderColor #16302B
+  BoxBackgroundColor #FFFFFF
+  GroupBorderColor #B5541C
+  GroupHeaderFontColor #B5541C
+  DividerBackgroundColor #F6F4EE
+}
+skinparam database {
+  BorderColor #2F7D5B
+  BackgroundColor #F6F4EE
+}
+skinparam queue {
+  BorderColor #2F7D5B
+  BackgroundColor #F6F4EE
+}
+skinparam note {
+  BackgroundColor #FBEDE3
+  BorderColor #B5541C
+  FontSize 11
+}
+autonumber "<b>0."

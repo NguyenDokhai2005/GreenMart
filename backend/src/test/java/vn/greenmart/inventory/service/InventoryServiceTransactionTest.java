@@ -2,17 +2,19 @@ package vn.greenmart.inventory.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.springframework.dao.DataAccessException;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,8 +22,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-
 import vn.greenmart.inventory.exception.InsufficientStockException;
+import vn.greenmart.sales.service.PosIdempotencyService;
 
 /**
  * Kiểm tra ranh giới transaction của InventoryService (P2 — review issue #49).
@@ -46,6 +48,7 @@ import vn.greenmart.inventory.exception.InsufficientStockException;
 class InventoryServiceTransactionTest {
 
     @Container
+    @SuppressWarnings("resource")
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(vn.greenmart.inventory.PostgresTestImage.IMAGE)
             .withDatabaseName("greenmart_tx_test")
             .withUsername("greenmart")
@@ -53,13 +56,16 @@ class InventoryServiceTransactionTest {
 
     @DynamicPropertySource
     static void configureDataSource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url",                    postgres::getJdbcUrl);
-        registry.add("spring.datasource.username",               postgres::getUsername);
-        registry.add("spring.datasource.password",               postgres::getPassword);
-        registry.add("spring.jpa.hibernate.ddl-auto",            () -> "validate");
-        registry.add("spring.flyway.enabled",                    () -> "true");
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
+        registry.add("spring.flyway.enabled", () -> "true");
         registry.add("spring.flyway.placeholders.forecast_user", () -> "forecast_ro");
     }
+
+    @MockitoBean
+    private PosIdempotencyService posIdempotencyService;
 
     @Autowired
     private InventoryService inventoryService;
@@ -70,9 +76,11 @@ class InventoryServiceTransactionTest {
     @Autowired
     private PlatformTransactionManager txManager;
 
-    private static final Long BRANCH_ID  = 10L;
+    @Autowired
+    private vn.greenmart.inventory.repository.InventoryRepository repository;
+
+    private static final Long BRANCH_ID = 10L;
     private static final Long PRODUCT_ID = 50L;
-    // Product thứ hai để test rollback multi-row
     private static final Long PRODUCT_ID_2 = 51L;
 
     @ParameterizedTest
@@ -110,7 +118,6 @@ class InventoryServiceTransactionTest {
         try {
             assertThatThrownBy(() -> tx.executeWithoutResult(status -> {
                 inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 1, 5002L);
-                // NOT NULL ref_id fails after the second inventory UPDATE succeeds.
                 inventoryService.sellDirect(BRANCH_ID, PRODUCT_ID, 2, null);
             })).isInstanceOf(DataIntegrityViolationException.class);
             assertThat(jdbc.queryForMap("SELECT on_hand,reserved,version FROM inventory WHERE branch_id=? AND product_id=?",
@@ -145,7 +152,6 @@ class InventoryServiceTransactionTest {
 
     private void cleanupCommittedFixture() {
         new TransactionTemplate(txManager).executeWithoutResult(status -> {
-            // Test-only cleanup on an isolated container; no business delete API.
             jdbc.execute("TRUNCATE inventory_transaction");
             jdbc.update("DELETE FROM inventory WHERE branch_id=? AND product_id=?", BRANCH_ID, PRODUCT_ID);
             jdbc.update("DELETE FROM product WHERE id=?", PRODUCT_ID);
@@ -153,10 +159,6 @@ class InventoryServiceTransactionTest {
             jdbc.update("DELETE FROM category WHERE id=98");
         });
     }
-
-    // -------------------------------------------------------------------------
-    // Test 1: MANDATORY — gọi không có transaction phải bị từ chối bởi Spring proxy
-    // -------------------------------------------------------------------------
 
     @Test
     @DisplayName("reserve không có @Transactional ở caller → IllegalTransactionStateException")
@@ -172,15 +174,11 @@ class InventoryServiceTransactionTest {
                 .isInstanceOf(IllegalTransactionStateException.class);
     }
 
-    // -------------------------------------------------------------------------
-    // Test 2: Thao tác thất bại → exception, inventory không đổi
-    // -------------------------------------------------------------------------
-
     @Test
     @DisplayName("reserve thất bại (InsufficientStock) → exception, reserved không đổi")
     @Transactional
     void reserve_fail_inventoryUnchanged() {
-        insertFixtures(PRODUCT_ID, 2, 0);  // on_hand=2, reserved=0, available=2
+        insertFixtures(PRODUCT_ID, 2, 0);
 
         assertThatThrownBy(() -> inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 5, 1002L))
                 .isInstanceOf(InsufficientStockException.class);
@@ -196,7 +194,7 @@ class InventoryServiceTransactionTest {
     @DisplayName("reserve thành công trong @Transactional → reserved tăng đúng")
     @Transactional
     void reserve_withinTransaction_reservedIncreases() {
-        insertFixtures(PRODUCT_ID, 5, 0);  // on_hand=5, reserved=0, available=5
+        insertFixtures(PRODUCT_ID, 5, 0);
 
         inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 3, 1003L);
 
@@ -206,46 +204,29 @@ class InventoryServiceTransactionTest {
         assertThat(reserved).isEqualTo(3);
     }
 
-    // -------------------------------------------------------------------------
-    // Test 3: Rollback thực sự — thao tác đầu thành công, thao tác sau thất bại
-    // → toàn bộ transaction rollback, cả hai dòng về trạng thái ban đầu
-    //
-    // Không dùng @Transactional ở cấp test để tránh nhầm lẫn:
-    // - @Transactional ở test method tự rollback sau test (Spring Test behaviour)
-    // - Ở đây cần kiểm chứng rollback do exception, đọc kết quả bằng TX độc lập sau đó
-    // -------------------------------------------------------------------------
-
     @Test
     @DisplayName("reserve p1 thành công, reserve p2 thất bại → cả p1 lẫn p2 rollback về 0")
     void reserve_partialFailure_fullRollback() {
-        // Setup: commit fixture trước (ngoài transaction sẽ test)
         TransactionTemplate setup = new TransactionTemplate(txManager);
         setup.execute(status -> {
-            insertFixtures(PRODUCT_ID,   5, 0);  // on_hand=5, available=5
-            insertFixtures(PRODUCT_ID_2, 2, 0);  // on_hand=2, available=2
+            insertFixtures(PRODUCT_ID, 5, 0);
+            insertFixtures(PRODUCT_ID_2, 2, 0);
             return null;
         });
 
-        // Mở transaction qua TransactionTemplate, không dùng @Transactional ở test method
         TransactionTemplate tx = new TransactionTemplate(txManager);
         try {
             tx.execute(status -> {
-                // Thao tác 1: reserve p1 qty=3 — thành công (available=5>=3)
                 inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 3, 2001L);
-
-                // Thao tác 2: reserve p2 qty=5 — thất bại (available=2<5)
-                // InsufficientStockException là RuntimeException → sẽ rollback TX
                 inventoryService.reserve(BRANCH_ID, PRODUCT_ID_2, 5, 2002L);
                 return null;
             });
         } catch (InsufficientStockException expected) {
-            // Exception thoát khỏi TransactionTemplate → TX đã rollback
+            // Rollback thành công
         }
 
-        // Đọc bằng transaction mới để xác nhận rollback thực sự
         TransactionTemplate verify = new TransactionTemplate(txManager);
         verify.execute(status -> {
-            // p1: thao tác thứ nhất phải được rollback — reserved về 0
             Integer reserved1 = jdbc.queryForObject(
                     "SELECT reserved FROM inventory WHERE branch_id=? AND product_id=?",
                     Integer.class, BRANCH_ID, PRODUCT_ID);
@@ -253,7 +234,6 @@ class InventoryServiceTransactionTest {
                     .as("reserved của p1 phải được rollback về 0 sau khi p2 thất bại")
                     .isEqualTo(0);
 
-            // p2: không thay đổi
             Integer reserved2 = jdbc.queryForObject(
                     "SELECT reserved FROM inventory WHERE branch_id=? AND product_id=?",
                     Integer.class, BRANCH_ID, PRODUCT_ID_2);
@@ -264,23 +244,17 @@ class InventoryServiceTransactionTest {
             return null;
         });
 
-        // Dọn fixture vì đã commit (không có @Transactional tự rollback)
         TransactionTemplate cleanup = new TransactionTemplate(txManager);
         cleanup.execute(status -> {
             jdbc.execute("TRUNCATE inventory_transaction");
             jdbc.update("DELETE FROM inventory WHERE branch_id=? AND product_id=?", BRANCH_ID, PRODUCT_ID);
             jdbc.update("DELETE FROM inventory WHERE branch_id=? AND product_id=?", BRANCH_ID, PRODUCT_ID_2);
             jdbc.update("DELETE FROM product WHERE id=? OR id=?", PRODUCT_ID, PRODUCT_ID_2);
-            jdbc.update("DELETE FROM branch  WHERE id=?", BRANCH_ID);
+            jdbc.update("DELETE FROM branch WHERE id=?", BRANCH_ID);
             jdbc.update("DELETE FROM category WHERE id=?", 98);
             return null;
         });
     }
-
-
-
-    @Autowired
-    private vn.greenmart.inventory.repository.InventoryRepository repository;
 
     @Test
     @Transactional
@@ -353,7 +327,6 @@ class InventoryServiceTransactionTest {
                 final long orderId = 4001L + i;
                 futures.add(executor.submit(() -> {
                     ready.countDown();
-                    // Wait before opening a transaction: waiting workers must not hold DB connections.
                     if (!start.await(30, java.util.concurrent.TimeUnit.SECONDS)) {
                         throw new IllegalStateException("Start barrier timed out");
                     }
@@ -362,7 +335,6 @@ class InventoryServiceTransactionTest {
                             if (reserve) inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 1, orderId);
                             else inventoryService.sellDirect(BRANCH_ID, PRODUCT_ID, 1, orderId);
                         });
-                        // Count only after the transaction has committed successfully.
                         if (reserve) successfulReservations.incrementAndGet();
                         else successfulSales.incrementAndGet();
                         return true;
@@ -432,13 +404,11 @@ class InventoryServiceTransactionTest {
             });
         }
     }
-    private void insertFixtures(long productId, int onHand, int reserved) {
-        // Xóa theo thứ tự FK: inventory trước, rồi product
-        // Branch và category chỉ xóa nếu không còn inventory nào tham chiếu
-        jdbc.update("DELETE FROM inventory WHERE branch_id=? AND product_id=?", BRANCH_ID, productId);
-        jdbc.update("DELETE FROM product  WHERE id=?", productId);
 
-        // Tạo branch/category nếu chưa có (ON CONFLICT DO NOTHING)
+    private void insertFixtures(long productId, int onHand, int reserved) {
+        jdbc.update("DELETE FROM inventory WHERE branch_id=? AND product_id=?", BRANCH_ID, productId);
+        jdbc.update("DELETE FROM product WHERE id=?", productId);
+
         jdbc.update("INSERT INTO category (id, name) VALUES (?,?) ON CONFLICT DO NOTHING", 98, "TxTest");
         jdbc.update("INSERT INTO branch (id,code,name,is_active) VALUES (?,?,?,?) ON CONFLICT DO NOTHING",
                 BRANCH_ID, "TX-CN", "TX Branch", true);
