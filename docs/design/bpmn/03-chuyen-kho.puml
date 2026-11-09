@@ -1,0 +1,54 @@
+@startuml 03-chuyen-kho
+!include _style.iuml
+title BPMN 03 · Chuyển kho giữa chi nhánh (UC-07) – BA §6.3
+
+|Thủ kho CN nguồn|
+start
+:Lập phiếu chuyển: CN đích,\nsản phẩm, số lượng;
+
+|Hệ thống|
+if (SL ≤ tồn khả dụng nguồn?) then (không)
+  :Từ chối, báo số tối đa;
+  stop
+endif
+:Lưu phiếu DRAFT;
+
+|QL CN nguồn|
+:Kiểm tra phiếu\n(người lập không tự duyệt);
+if (Duyệt?) then (không)
+  |Hệ thống|
+  :CANCELLED, tồn không đổi;
+  stop
+endif
+|QL CN nguồn|
+:Duyệt và xác nhận xuất;
+
+|Hệ thống|
+partition "Một transaction" {
+  :on_hand nguồn giảm\n(sổ kho TRANSFER_OUT);
+  :Phiếu IN_TRANSIT;
+}
+note right
+  Hàng đang đi đường không thuộc
+  tồn chi nhánh nào; hiện ở báo cáo
+  "Hàng đang chuyển".
+end note
+:Đẩy tồn mới ra kênh;
+
+|Thủ kho CN đích|
+:Nhận hàng, đếm và nhập\nsố thực nhận từng dòng;
+
+|Hệ thống|
+partition "Một transaction" {
+  :on_hand đích tăng theo số thực nhận\n(sổ kho TRANSFER_IN);
+  :Phiếu RECEIVED;
+}
+if (Số thực nhận khác số xuất?) then (khác – EX-09)
+  :Đánh dấu "Có chênh lệch";\nphần thiếu ghi hao hụt;
+  |QL CN nguồn|
+  :Cùng QL CN đích xem chênh lệch;
+endif
+|Hệ thống|
+:Đẩy tồn mới ra kênh;
+stop
+@enduml
