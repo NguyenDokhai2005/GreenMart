@@ -1,5 +1,7 @@
 package vn.greenmart.inventory;
 
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import vn.greenmart.sales.service.PosIdempotencyService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Testcontainers
 class StockExportApiTest {
+    @MockitoBean PosIdempotencyService posIdempotencyService;
     @Container static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(PostgresTestImage.IMAGE);
     @DynamicPropertySource static void database(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
