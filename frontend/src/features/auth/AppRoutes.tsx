@@ -8,6 +8,7 @@ import { useActiveBranch } from './useActiveBranch';
 import { useAuth } from './useAuth';
 import BranchSelectionPage from './BranchSelectionPage';
 import LoginPage from './LoginPage';
+import { OperationsHome, OperationsLayout } from '../../layouts/operations';
 import {
   ADMIN_ROLES,
   APP_PATHS,
@@ -111,7 +112,7 @@ function WorkspaceMountPoint({ title }: { title: string }) {
       <Toast
         variant="warning"
         title="Khu làm việc chưa sẵn sàng"
-        description="Màn hình thuộc layout POS hoặc Operations chưa được tích hợp."
+        description="Màn hình chức năng này chưa được tích hợp."
       />
     </main>
   );
@@ -259,23 +260,29 @@ export function AppRoutes() {
         }
       />
       <Route
-        path={`${APP_PATHS.operations}/*`}
+        path={APP_PATHS.operations}
         element={
           <AuthBoundary allowedRoles={OPERATIONS_ROLES}>
             <BranchBoundary>
-              <WorkspaceMountPoint title="Khu Operations" />
+              <OperationsLayout />
             </BranchBoundary>
           </AuthBoundary>
         }
-      />
+      >
+        <Route index element={<OperationsHome />} />
+        <Route path="*" element={<WorkspaceMountPoint title="Chức năng đang phát triển" />} />
+      </Route>
       <Route
-        path={`${APP_PATHS.admin}/*`}
+        path={APP_PATHS.admin}
         element={
           <AuthBoundary allowedRoles={ADMIN_ROLES}>
-            <WorkspaceMountPoint title="Khu Quản trị" />
+            <OperationsLayout />
           </AuthBoundary>
         }
-      />
+      >
+        <Route index element={<h1>Dashboard</h1>} />
+        <Route path="*" element={<WorkspaceMountPoint title="Chức năng đang phát triển" />} />
+      </Route>
       <Route path={APP_PATHS.forbidden} element={<ForbiddenPage />} />
       <Route path="*" element={<Navigate to={APP_PATHS.home} replace />} />
     </Routes>
