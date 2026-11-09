@@ -544,6 +544,9 @@ def format_full_comparison_report(report: FullEvaluationReport) -> str:
 
     lines.append("## 2. Kết Quả Xác Thực (Validation) & Ngưỡng Hậu Xử Lý Nhóm Bán Chậm")
     lines.append("- Toàn bộ tham số và ngưỡng hậu xử lý chỉ được tìm trên tập Validation (30 ngày trước mốc kiểm tra):")
+    lines.append("- **Số liệu Test chính thức dùng ngưỡng chọn trên Validation (0.4). Có một lần thăm dò ngưỡng 0.3 trên Test trong quá trình phát triển; không dùng để chọn ngưỡng.**")
+    lines.append("- **Lưu ý về hậu xử lý:** Khoảng 99.85% ô dự báo của nhóm 800 SKU bán chậm bằng đúng 0 sau ngưỡng 0.4, xấp xỉ mô hình 'dự báo toàn 0'; WAPE khoảng 100% ở nhóm này là đặc thù của thước đo, không phản ánh năng lực học chuỗi thời gian của mô hình.")
+    lines.append("")
     lines.append("| Tầm | Hàm mục tiêu | Val MAE | Val WAPE | Ngưỡng chọn từ Val | Ghi chú & Quyết định |")
     lines.append("|:---:|:---|:---:|:---:|:---:|:---|")
     for H in report.horizons:
@@ -581,8 +584,8 @@ def format_full_comparison_report(report: FullEvaluationReport) -> str:
             ("rolling_mean_28", "TB trượt 28 ngày (#111)"),
             ("zero_forecast", "Dự báo toàn 0 (Tham chiếu)"),
             ("lgb_regression_l1", "LightGBM [regression_l1] (Tham chiếu: zero-collapse)"),
-            ("lgb_tweedie", "**LightGBM [tweedie] (Gốc)**"),
-            ("lgb_tweedie_postproc", "**LightGBM [tweedie + hậu xử lý]**"),
+            ("lgb_tweedie", "**LightGBM [tweedie] (Số chính)**"),
+            ("lgb_tweedie_postproc", "**LightGBM [tweedie + hậu xử lý] (Tham khảo)**"),
         ]
         for H in report.horizons:
             for m_key, m_label in models_order:
@@ -636,6 +639,10 @@ def format_full_comparison_report(report: FullEvaluationReport) -> str:
     # 6. KẾT LUẬN ĐỐI ĐẦU VÀ TRẠNG THÁI NGHIỆM THU
     lines.append("## 6. Kết Luận Đối Đầu Trung Thực Với Baseline")
     lines.append("")
+    lines.append("> [!NOTE]")
+    lines.append("> **Lưu ý về hậu xử lý:** Khoảng 99.85% ô dự báo của nhóm 800 SKU bán chậm bằng đúng 0 sau ngưỡng 0.4, xấp xỉ mô hình 'dự báo toàn 0'; WAPE khoảng 100% ở nhóm này là đặc thù của thước đo, không phản ánh năng lực học chuỗi thời gian của mô hình.")
+    lines.append("> **Số liệu Test chính thức dùng ngưỡng chọn trên Validation (0.4). Có một lần thăm dò ngưỡng 0.3 trên Test trong quá trình phát triển; không dùng để chọn ngưỡng.**")
+    lines.append("")
 
     for H in report.horizons:
         lines.append(f"### Tầm dự báo {H} ngày:")
@@ -650,29 +657,29 @@ def format_full_comparison_report(report: FullEvaluationReport) -> str:
 
         lines.append(f"1. **Đo theo Từng ô ngày (Daily cell):**")
         lines.append(f"   - Baseline 2 (TB trượt 28 ngày): WAPE Overall = `{ma28_ov_d*100:.2f}%`")
-        lines.append(f"   - LightGBM Tweedie (Gốc): WAPE Overall = `{tw_ov_d*100:.2f}%` $\\rightarrow$ **{status_d_raw}**")
+        lines.append(f"   - LightGBM Tweedie (Số chính): WAPE Overall = `{tw_ov_d*100:.2f}%` $\\rightarrow$ **{status_d_raw}**")
         if "lgb_tweedie_postproc" in report.lgb_results_clean[H]:
-            lines.append(f"   - LightGBM Tweedie (Hậu xử lý ngưỡng val): WAPE Overall = `{tw_post_ov_d*100:.2f}%` $\\rightarrow$ **{status_d_post}**")
+            lines.append(f"   - LightGBM Tweedie (Hậu xử lý ngưỡng val - Tham khảo): WAPE Overall = `{tw_post_ov_d*100:.2f}%` $\\rightarrow$ **{status_d_post}**")
 
         # 2. Theo tuần
         ma28_ov_w = report.weekly_results_clean[H]["rolling_mean_28"]["overall"].wape
         tw_ov_w = report.weekly_results_clean[H]["lgb_tweedie"]["overall"].wape
         status_w = "Thắng" if (tw_ov_w is not None and ma28_ov_w is not None and tw_ov_w < ma28_ov_w) else ("Ngang baseline" if (tw_ov_w is not None and ma28_ov_w is not None and abs(tw_ov_w - ma28_ov_w) < 1e-4) else "Thua")
         lines.append(f"2. **Đo theo Tuần (Weekly aggregate):**")
-        lines.append(f"   - Baseline 2: WAPE Overall = `{ma28_ov_w*100:.2f}%`, LightGBM Tweedie: WAPE Overall = `{tw_ov_w*100:.2f}%` $\\rightarrow$ **{status_w}**")
+        lines.append(f"   - Baseline 2: WAPE Overall = `{ma28_ov_w*100:.2f}%`, LightGBM Tweedie (Số chính): WAPE Overall = `{tw_ov_w*100:.2f}%` $\\rightarrow$ **{status_w}**")
 
         # 3. Tổng cả tầm
         ma28_ov_agg = report.aggregated_results_clean[H]["rolling_mean_28"]["overall"].wape
         tw_ov_agg = report.aggregated_results_clean[H]["lgb_tweedie"]["overall"].wape
         status_agg = "Thắng" if (tw_ov_agg is not None and ma28_ov_agg is not None and tw_ov_agg < ma28_ov_agg) else ("Ngang baseline" if (tw_ov_agg is not None and ma28_ov_agg is not None and abs(tw_ov_agg - ma28_ov_agg) < 1e-4) else "Thua")
         lines.append(f"3. **Đo theo Tổng cả tầm (Series horizon aggregate - ROP):**")
-        lines.append(f"   - Baseline 2: WAPE Overall = `{ma28_ov_agg*100:.2f}%`, LightGBM Tweedie: WAPE Overall = `{tw_ov_agg*100:.2f}%` $\\rightarrow$ **{status_agg}**")
+        lines.append(f"   - Baseline 2: WAPE Overall = `{ma28_ov_agg*100:.2f}%`, LightGBM Tweedie (Số chính): WAPE Overall = `{tw_ov_agg*100:.2f}%` $\\rightarrow$ **{status_agg}**")
 
         # Top 200 Pareto
         tw_top_d = report.lgb_results_clean[H]["lgb_tweedie"]["top_200"].wape
         ma28_top_d = report.lgb_results_clean[H]["rolling_mean_28"]["top_200"].wape
         lines.append(f"4. **Nhóm cốt lõi Top 200 SKU bán chạy (Pareto 80% sản lượng):**")
-        lines.append(f"   - LightGBM Tweedie đạt WAPE = `{tw_top_d*100:.2f}%` so với Baseline 2 `{ma28_top_d*100:.2f}%` $\\rightarrow$ **Thắng áp đảo** ở cả 3 cách đo.")
+        lines.append(f"   - LightGBM Tweedie (Số chính) đạt WAPE = `{tw_top_d*100:.2f}%` so với Baseline 2 `{ma28_top_d*100:.2f}%` $\\rightarrow$ **Thắng áp đảo** ở cả 3 cách đo.")
         lines.append("")
 
     lines.append("> [!IMPORTANT]")
