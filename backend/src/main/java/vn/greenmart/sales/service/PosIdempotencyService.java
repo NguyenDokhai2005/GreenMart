@@ -2,12 +2,13 @@ package vn.greenmart.sales.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
+import vn.greenmart.common.security.SecurityUtils;
 import vn.greenmart.sales.dto.IdempotencyRecord;
 import vn.greenmart.sales.dto.IdempotencyResult;
 import vn.greenmart.sales.dto.OrderResponse;
@@ -21,6 +22,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class PosIdempotencyService {
 
@@ -31,14 +33,6 @@ public class PosIdempotencyService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
 
-    public PosIdempotencyService(
-            @Autowired(required = false) StringRedisTemplate redisTemplate,
-            ObjectMapper objectMapper
-    ) {
-        this.redisTemplate = redisTemplate;
-        this.objectMapper = objectMapper;
-    }
-
     public IdempotencyResult execute(
             String idempotencyKey,
             PosOrderRequest request,
@@ -46,17 +40,10 @@ public class PosIdempotencyService {
     ) {
         validateIdempotencyKey(idempotencyKey);
 
-        // Trường hợp chạy Integration Test không có container Redis
-        if (redisTemplate == null) {
-            log.warn("StringRedisTemplate không khả dụng, bỏ qua kiểm tra Idempotency");
-            OrderResponse response = action.get();
-            return new IdempotencyResult(true, response);
-        }
-
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        String redisKey = KEY_PREFIX + currentUserId + ":" + idempotencyKey;
         String requestHash = computeSha256(request);
-        String redisKey = KEY_PREFIX + idempotencyKey;
 
-        // Payload trạng thái đang xử lý
         String processingJson;
         try {
             processingJson = objectMapper.writeValueAsString(
@@ -66,38 +53,31 @@ public class PosIdempotencyService {
             throw new RuntimeException("Lỗi serialize processing record", e);
         }
 
-        // KỊCH BẢN 4: Thử lấy lock nguyên tử bằng SET NX PX 30s
         Boolean acquired = redisTemplate.opsForValue().setIfAbsent(redisKey, processingJson, LOCK_TIMEOUT);
 
         if (Boolean.TRUE.equals(acquired)) {
-            // KỊCH BẢN 1: Request lần đầu tiên
             OrderResponse response;
             try {
                 response = action.get();
-            } catch (RuntimeException ex) {
-                // Xảy ra lỗi nghiệp vụ (tồn kho, KM, thẻ...) -> Giải phóng lock ngay để lần sau thử lại
-                redisTemplate.delete(redisKey);
-                throw ex;
             } catch (Exception ex) {
                 redisTemplate.delete(redisKey);
+                if (ex instanceof RuntimeException re) {
+                    throw re;
+                }
                 throw new RuntimeException("Lỗi trong quá trình tạo đơn", ex);
             }
 
             try {
                 IdempotencyRecord completedRecord = new IdempotencyRecord("COMPLETED", requestHash, response);
                 String completedJson = objectMapper.writeValueAsString(completedRecord);
-
-                // Lưu kết quả hoàn tất với TTL 24 giờ
                 redisTemplate.opsForValue().set(redisKey, completedJson, TTL_24_HOURS);
-
-                return new IdempotencyResult(true, response);
-            } catch (JsonProcessingException e) {
-                redisTemplate.delete(redisKey);
-                throw new RuntimeException("Lỗi serialize idempotency completed record", e);
+            } catch (Exception e) {
+                log.error("Lỗi lưu trạng thái COMPLETED vào Redis cho đơn id={}: {}", response.id(), e.getMessage(), e);
             }
+
+            return new IdempotencyResult(true, response);
         }
 
-        // Key đã tồn tại -> Kiểm tra giá trị đã lưu
         String existingJson = redisTemplate.opsForValue().get(redisKey);
         if (existingJson == null) {
             throw new AppException(ErrorCode.IDEMPOTENCY_CONFLICT, "Yêu cầu trước chưa xử lý xong hoặc xung đột khóa");
@@ -110,7 +90,6 @@ public class PosIdempotencyService {
             throw new RuntimeException("Lỗi deserialize idempotency record", e);
         }
 
-        // Đang xử lý bởi luồng khác (Kịch bản 4: gửi song song)
         if ("PROCESSING".equals(existingRecord.status())) {
             throw new AppException(
                     ErrorCode.IDEMPOTENCY_CONFLICT,
@@ -118,7 +97,6 @@ public class PosIdempotencyService {
             );
         }
 
-        // KỊCH BẢN 3: Gửi lại cùng Key nhưng KHÁC body
         if (!requestHash.equals(existingRecord.requestHash())) {
             throw new AppException(
                     ErrorCode.IDEMPOTENCY_CONFLICT,
@@ -126,7 +104,6 @@ public class PosIdempotencyService {
             );
         }
 
-        // KỊCH BẢN 2: Gửi lại cùng Key + CÙNG body -> Trả đơn cũ với HTTP 200
         return new IdempotencyResult(false, existingRecord.response());
     }
 
