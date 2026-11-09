@@ -1,10 +1,10 @@
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { REVENUE_30_DAYS, lastDays } from '../../../src/features/dashboard/mock/revenue';
 import RevenueAreaChart from '../../../src/components/charts/RevenueAreaChart';
 import Sparkline from '../../../src/components/charts/Sparkline';
 
-beforeAll(() => {
+beforeEach(() => {
   // jsdom không có ResizeObserver và luôn đo kích thước = 0; ResponsiveContainer cần cả hai.
   globalThis.ResizeObserver = class {
     observe() {}
@@ -23,7 +23,6 @@ beforeAll(() => {
     toJSON: () => ({}),
   });
 });
-afterAll(() => vi.restoreAllMocks());
 afterEach(cleanup);
 
 // jsdom không đo được chữ nên không dựng nội dung nhãn; kiểm tra số tick của trục X.
