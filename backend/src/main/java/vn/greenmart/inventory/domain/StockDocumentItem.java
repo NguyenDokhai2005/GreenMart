@@ -52,4 +52,9 @@ public class StockDocumentItem {
         }
         exportCostPrice = cost;
     }
+
+    void recordReceivedQuantity(int quantity) {
+        document.requireReceivable();
+        receivedQuantity = quantity;
+    }
 }
