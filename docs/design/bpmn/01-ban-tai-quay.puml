@@ -1,0 +1,76 @@
+@startuml 01-ban-tai-quay
+!include _style.iuml
+title BPMN 01 · Bán tại quầy (UC-01) – BA §3
+
+|Khách hàng|
+start
+:Mang hàng ra quầy;
+
+|Thu ngân|
+repeat
+  :Quét mã vạch / tìm theo tên, SKU;
+  |Hệ thống|
+  if (Sản phẩm tồn tại và đang bán?) then (có)
+    :Thêm dòng hoặc tăng SL dòng đã có;
+    :POST /orders/quote\ntính tạm tính, KM dòng, KM đơn;
+    if (SL > tồn khả dụng?) then (có)
+      :Cảnh báo ở dòng (E2);
+    endif
+  else (không)
+    :Báo lỗi, không thêm dòng (E1);
+  endif
+  |Thu ngân|
+repeat while (Còn hàng cần quét?) is (còn)
+-> hết;
+
+:Nhập SĐT khách (tùy chọn);
+:Chọn phương thức: tiền mặt / thẻ / QR;
+if (Tiền mặt?) then (có)
+  :Nhập tiền khách đưa;
+  if (Tiền đưa < tổng?) then (có)
+    :Không cho hoàn tất (E5);
+    stop
+  endif
+endif
+:Bấm Hoàn tất\n(kèm Idempotency-Key);
+
+|Hệ thống|
+if (Cùng Idempotency-Key đã xử lý?) then (có)
+  :Trả lại đơn cũ, không tạo đơn mới (E7);
+else (chưa)
+  :Tính lại báo giá;
+  note right: Từ đây đến "Ghi outbox"\nlà một transaction (ORD-01)
+    if (Tổng khác số thu ngân thấy?\n(KM hết lượt/hết hạn – E6)) then (khác)
+      :422 TOTAL_CHANGED kèm báo giá mới;
+      |Thu ngân|
+      :Xác nhận lại tổng;
+      stop
+    endif
+    |Hệ thống|
+    :Khóa tồn theo productId tăng dần\nvà trừ on_hand từng dòng;
+    if (Dòng nào thiếu tồn? (E3)) then (thiếu)
+      :Rollback toàn bộ;\n409 INSUFFICIENT_STOCK kèm dòng thiếu;
+      |Thu ngân|
+      :Sửa giỏ hàng (giỏ giữ nguyên);
+      stop
+    endif
+    |Hệ thống|
+    if (Thẻ/QR giả lập thành công trong 60 giây?) then (có)
+    else (lỗi / quá hạn – E4)
+      :Rollback toàn bộ;\n422 PAYMENT_FAILED / PAYMENT_TIMEOUT;
+      |Thu ngân|
+      :Chọn phương thức khác;
+      stop
+    endif
+    |Hệ thống|
+    :Tạo đơn COMPLETED, dòng đơn (chụp giá, chiết khấu);
+    :Ghi payment PAID, sổ kho SALE từng dòng;
+    :Tăng lượt dùng KM;
+    :Ghi outbox order.completed, stock.changed;
+endif
+:Hiển thị hóa đơn (ORD-07);
+
+|Khách hàng|
+:Nhận hàng, hóa đơn, tiền thối;
+stop
+@enduml
