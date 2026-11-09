@@ -1,0 +1,81 @@
+{
+  "issue": 150,
+  "executedAt": "2026-11-08T13:03:07.937226+07:00",
+  "sourceCommit": "9de7444bb1040f45839c9682c938f063cd9e76a2",
+  "project": "greenmart-qa150",
+  "k6Version": "k6 v1.3.0+dirty (commit/5870e99ae8-dirty, go1.25.1, linux/amd64)",
+  "k6ExitCode": 0,
+  "passed": true,
+  "before": {
+    "onHand": 5,
+    "reserved": 0,
+    "available": 5,
+    "orders": 0,
+    "quantity": 0,
+    "payments": 0,
+    "ledgerRows": 0,
+    "ledgerDelta": 0,
+    "negativeBalances": 0
+  },
+  "k6": {
+    "issue": 150,
+    "sourceCommit": "9de7444bb1040f45839c9682c938f063cd9e76a2",
+    "scenario": {
+      "executor": "per-vu-iterations",
+      "vus": 100,
+      "iterationsPerVu": 1,
+      "synchronizedStart": true
+    },
+    "attempts": 100,
+    "created": 5,
+    "insufficientStock": 95,
+    "unexpected": 0,
+    "iterations": 100,
+    "finalAvailable": 0,
+    "checksRate": 1,
+    "launchOffsetMaxMs": 60,
+    "posDurationMs": {
+      "med": 525.1796234999999,
+      "max": 709.805403,
+      "p(95)": 604.92174345,
+      "min": 24.64373
+    },
+    "thresholds": {
+      "pos_attempts": {
+        "count==100": true
+      },
+      "final_available": {
+        "value==0": true
+      },
+      "pos_insufficient_stock": {
+        "count==95": true
+      },
+      "iterations": {
+        "count==100": true
+      },
+      "launch_offset_ms": {
+        "max<1000": true
+      },
+      "pos_created": {
+        "count==5": true
+      },
+      "checks": {
+        "rate==1": true
+      },
+      "pos_unexpected": {
+        "count==0": true
+      }
+    }
+  },
+  "after": {
+    "onHand": 0,
+    "reserved": 0,
+    "available": 0,
+    "orders": 5,
+    "quantity": 5,
+    "payments": 5,
+    "ledgerRows": 5,
+    "ledgerDelta": -5,
+    "negativeBalances": 0
+  }
+}
