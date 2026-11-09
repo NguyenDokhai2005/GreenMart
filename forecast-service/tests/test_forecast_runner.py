@@ -20,6 +20,7 @@ from app.pipelines.forecast_runner import (
     complete_forecast_run,
     create_forecast_run,
     fail_forecast_run,
+    persist_forecast_to_db,
     save_forecast_results,
 )
 
@@ -33,6 +34,7 @@ def test_create_forecast_run_returns_run_id():
     run_id = create_forecast_run(mock_conn, model_version="LightGBM-Tweedie-H7-H30")
     assert run_id == 42
     assert mock_cur.execute.called
+    assert mock_conn.commit.called
     query_call = mock_cur.execute.call_args[0][0]
     assert "INSERT INTO forecast_run" in query_call
     assert "RUNNING" in query_call
@@ -119,6 +121,7 @@ def test_fail_forecast_run_updates_status():
 
     fail_forecast_run(mock_conn, run_id=10)
     assert mock_cur.execute.called
+    assert mock_conn.commit.called
     call_args = mock_cur.execute.call_args[0]
     assert "UPDATE forecast_run" in call_args[0]
     assert "FAILED" in call_args[0]
@@ -151,3 +154,74 @@ def test_assemble_forecast_results_dataframe():
     assert len(h30_dates) == 30
     assert min(h30_dates) == date(2026, 10, 2)
     assert max(h30_dates) == date(2026, 10, 31)
+
+
+def test_persist_forecast_to_db_transaction_success():
+    """Kiểm tra persist_forecast_to_db hoàn tất thành công: commit đúng vị trí, không rollback."""
+    mock_conn = MagicMock()
+    mock_cur = MagicMock()
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+    mock_cur.fetchone.return_value = (100,)
+
+    mock_metrics = MagicMock(mae=0.25, wape=0.15)
+    mock_report = MagicMock()
+    mock_report.lgb_results_clean = {
+        7: {
+            "lgb_tweedie": {"overall": mock_metrics},
+            "rolling_mean_28": {"overall": mock_metrics},
+        }
+    }
+
+    df_test = pd.DataFrame({
+        "branch_id": [1],
+        "product_id": [10],
+        "horizon": [7],
+        "target_date": [date(2026, 10, 2)],
+        "predicted_qty": [1.5],
+    })
+
+    run_id, count = persist_forecast_to_db(
+        conn=mock_conn,
+        report=mock_report,
+        results_df=df_test,
+    )
+
+    assert run_id == 100
+    assert count == 1
+    # Kiểm tra commit được gọi ít nhất 2 lần (1 lần cho create_run, 1 lần cho save+complete)
+    assert mock_conn.commit.call_count >= 2
+    assert not mock_conn.rollback.called
+
+
+def test_persist_forecast_to_db_transaction_failure_rollback():
+    """Kiểm tra persist_forecast_to_db khi gặp sự cố: rollback kết quả và ghi nhận FAILED."""
+    mock_conn = MagicMock()
+    mock_cur = MagicMock()
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+    mock_cur.fetchone.return_value = (101,)
+    # Giả lập lỗi khi lưu kết quả
+    mock_cur.executemany.side_effect = RuntimeError("Lỗi mạng DB giữa chừng")
+
+    mock_report = MagicMock()
+
+    df_test = pd.DataFrame({
+        "branch_id": [1],
+        "product_id": [10],
+        "horizon": [7],
+        "target_date": [date(2026, 10, 2)],
+        "predicted_qty": [1.5],
+    })
+
+    with pytest.raises(RuntimeError, match="Lỗi mạng DB giữa chừng"):
+        persist_forecast_to_db(
+            conn=mock_conn,
+            report=mock_report,
+            results_df=df_test,
+        )
+
+    # Rollback phải được kích hoạt để hủy các dòng kết quả dở dang
+    assert mock_conn.rollback.called
+    # Bản ghi run_id 101 phải được cập nhật sang FAILED
+    calls = [call[0][0] for call in mock_cur.execute.call_args_list]
+    assert any("UPDATE forecast_run" in c and "FAILED" in c for c in calls)
+

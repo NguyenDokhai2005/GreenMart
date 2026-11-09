@@ -25,6 +25,7 @@ from app.pipelines.forecast_runner import (
     complete_forecast_run,
     create_forecast_run,
     fail_forecast_run,
+    persist_forecast_to_db,
     save_forecast_results,
 )
 
@@ -140,49 +141,15 @@ def run_training_and_evaluation(
     if save_db:
         print("[5/5] Đang ghi kết quả vào PostgreSQL (forecast_run và forecast_result)...")
         from app.db.connection import get_db_connection
-        from app.models.features import FeatureMatrixBuilder
-
-        builder = FeatureMatrixBuilder(df_daily)
-        predictions_by_h = {}
-        for H in (7, 30):
-            test_dfs = builder.build_test_features_matrix(report.cutoff_date, H)
-            model = best_models[H]
-            pred_cols = [model.predict(sdf) for sdf in test_dfs]
-            p_mat = np.column_stack(pred_cols)
-            th_v = report.optimal_slow_thresholds.get(H, 0.0)
-            if th_v > 0.0:
-                is_top = np.isin(builder.product_ids, list(report.baseline_report.results[H]["weekly_naive"]["top_200"].sample_count))
-                # clip slow moving
-                for i in range(len(p_mat)):
-                    if builder.product_ids[i] not in report.baseline_report.results[H]["weekly_naive"]["top_200"]:
-                        row = p_mat[i]
-                        row[row < th_v] = 0.0
-            predictions_by_h[H] = p_mat
-
-        results_df = assemble_forecast_results_dataframe(
-            series_index=builder.series_index,
-            predictions_by_horizon=predictions_by_h,
-            cutoff_date=report.cutoff_date,
-        )
 
         with get_db_connection() as conn:
-            run_id = create_forecast_run(conn, model_version="LightGBM-Tweedie-H7-H30")
-            print(f"      Đã tạo forecast_run với ID: {run_id}")
-            cnt = save_forecast_results(conn, run_id=run_id, results_df=results_df)
-            print(f"      Đã nạp {cnt:,} dòng vào forecast_result.")
-
-            # Lấy chỉ số tầm 7 ngày Overall làm đại diện theo quy ước Schema V1
-            m_h7_ov = report.lgb_results_clean[7]["lgb_tweedie"]["overall"]
-            b_h7_ov = report.lgb_results_clean[7]["rolling_mean_28"]["overall"]
-            complete_forecast_run(
-                conn,
-                run_id=run_id,
-                mae=m_h7_ov.mae,
-                wape=m_h7_ov.wape,
-                baseline_mae=b_h7_ov.mae,
-                baseline_wape=b_h7_ov.wape,
+            persist_forecast_to_db(
+                conn=conn,
+                report=report,
+                best_models=best_models,
+                df_daily=df_daily,
+                model_version="LightGBM-Tweedie-H7-H30",
             )
-            print(f"      Đã cập nhật forecast_run ID {run_id} sang trạng thái DONE.")
 
     print("=" * 80)
     print(md_report)

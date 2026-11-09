@@ -41,6 +41,8 @@ def create_forecast_run(
         if row is None:
             raise RuntimeError("Không thể tạo bản ghi forecast_run.")
         run_id = int(row[0])
+    if hasattr(conn, "commit"):
+        conn.commit()
     return run_id
 
 
@@ -113,7 +115,14 @@ def complete_forecast_run(
     baseline_mae: Optional[float] = None,
     baseline_wape: Optional[float] = None,
 ) -> None:
-    """Cập nhật trạng thái forecast_run thành DONE kèm các chỉ số đánh giá."""
+    """Cập nhật trạng thái forecast_run thành DONE kèm các chỉ số đánh giá.
+
+    LƯU Ý VỀ SCHEMA V1 (V1__init_schema.sql):
+    Bảng forecast_run trong Schema V1 chỉ có một cặp cột chỉ số (mae, wape) và (baseline_mae, baseline_wape),
+    trong khi mô hình dự báo đồng thời 2 tầm: 7 ngày (đơn hàng tuần) và 30 ngày (kế hoạch tháng).
+    Quy ước hiện tại: Chỉ số lưu vào forecast_run hiện là tầm 7 ngày, nhóm Overall (tầm phục vụ vận hành
+    đặt hàng tuần); khi Lead @NguyenDokhai2005 chốt cách tính WAPE chính sẽ cập nhật theo.
+    """
     sql = """
         UPDATE forecast_run
         SET finished_at = NOW(),
@@ -150,6 +159,8 @@ def fail_forecast_run(
     """
     with conn.cursor() as cur:
         cur.execute(sql, (run_id,))
+    if hasattr(conn, "commit"):
+        conn.commit()
 
 
 def assemble_forecast_results_dataframe(
@@ -193,3 +204,110 @@ def assemble_forecast_results_dataframe(
         return pd.DataFrame(columns=["branch_id", "product_id", "horizon", "target_date", "predicted_qty"])
 
     return pd.concat(dfs, ignore_index=True)
+
+
+def persist_forecast_to_db(
+    conn: Any,
+    report: Any,
+    best_models: Optional[Dict[int, Any]] = None,
+    df_daily: Optional[pd.DataFrame] = None,
+    results_df: Optional[pd.DataFrame] = None,
+    model_version: str = "LightGBM-Tweedie-H7-H30",
+) -> Tuple[int, int]:
+    """Thực thi toàn bộ luồng tạo kết quả dự báo và ghi vào CSDL theo cờ --save-db.
+
+    Quy trình:
+    1. Lấy danh sách Top 200 SKU từ baseline_report (tái dùng mask từ baselines.py).
+    2. Vector hóa: Áp ngưỡng hậu xử lý tối ưu cho nhóm bán chậm (không dùng vòng lặp for).
+    3. Áp dụng fallback chuỗi mới (< 28 ngày) bằng trung bình danh mục.
+    4. Ghép nối thành results_df (37 ngày x N chuỗi).
+    5. Quản lý transaction:
+       - create_forecast_run: Commit ngay (status = 'RUNNING').
+       - try: save_forecast_results + complete_forecast_run -> conn.commit().
+       - except: conn.rollback() -> fail_forecast_run (commit) -> raise err.
+       - Chỉ in thông báo "Đã nạp ... dòng" và "DONE" SAU KHI commit thành công.
+
+    Trả về:
+        (run_id, total_inserted)
+    """
+    if results_df is None:
+        if df_daily is None or best_models is None:
+            raise ValueError("Cần cung cấp df_daily và best_models nếu results_df chưa được tính sẵn.")
+
+        from app.models.features import FeatureMatrixBuilder
+        from app.models.evaluator import apply_short_history_fallback
+
+        builder = FeatureMatrixBuilder(df_daily)
+        # Tái dùng đúng mask/danh sách Top 200 SKU từ baseline_report
+        top_sku_ids = report.baseline_report.top_sku_ids
+        series_product_ids = builder.series_index.get_level_values("product_id").to_numpy()
+        is_top_mask = np.isin(series_product_ids, list(top_sku_ids))
+
+        predictions_by_h: Dict[int, np.ndarray] = {}
+        df_train_only = df_daily[df_daily["sale_date"] <= report.cutoff_date]
+
+        for H in (7, 30):
+            test_dfs = builder.build_test_features_matrix(report.cutoff_date, H)
+            model = best_models[H]
+            pred_cols = [model.predict(sdf) for sdf in test_dfs]
+            p_mat = np.column_stack(pred_cols)
+
+            th_v = report.optimal_slow_thresholds.get(H, 0.0)
+            if th_v > 0.0:
+                # Vector hóa: Áp ngưỡng hậu xử lý chỉ cho chuỗi bán chậm (không thuộc top 200)
+                slow_cells = (~is_top_mask)[:, np.newaxis] & (p_mat < th_v)
+                p_mat = np.where(slow_cells, 0.0, p_mat)
+
+            # Áp dụng quy tắc fallback chuỗi mới (< 28 ngày)
+            apply_short_history_fallback(
+                df_train=df_train_only,
+                series_index=builder.series_index,
+                pred_matrix=p_mat,
+                min_history_days=28,
+            )
+            predictions_by_h[H] = p_mat
+
+        results_df = assemble_forecast_results_dataframe(
+            series_index=builder.series_index,
+            predictions_by_horizon=predictions_by_h,
+            cutoff_date=report.cutoff_date,
+        )
+
+    # Bắt đầu transaction quản lý CSDL
+    run_id = create_forecast_run(conn, model_version=model_version)
+    print(f"      Đã tạo forecast_run với ID: {run_id}")
+
+    try:
+        cnt = save_forecast_results(conn, run_id=run_id, results_df=results_df)
+
+        # Lấy chỉ số tầm 7 ngày Overall làm đại diện theo quy ước Schema V1
+        m_h7_ov = report.lgb_results_clean[7]["lgb_tweedie"]["overall"]
+        b_h7_ov = report.lgb_results_clean[7]["rolling_mean_28"]["overall"]
+        complete_forecast_run(
+            conn,
+            run_id=run_id,
+            mae=m_h7_ov.mae,
+            wape=m_h7_ov.wape,
+            baseline_mae=b_h7_ov.mae,
+            baseline_wape=b_h7_ov.wape,
+        )
+        if hasattr(conn, "commit"):
+            conn.commit()
+
+        # CHỈ IN SAU KHI ĐÃ COMMIT THÀNH CÔNG:
+        print(f"      Đã nạp {cnt:,} dòng vào forecast_result.")
+        print(
+            "      [Lưu ý Schema V1] Chỉ số lưu vào forecast_run hiện là tầm 7 ngày, "
+            "nhóm Overall (chờ Lead @NguyenDokhai2005 chốt cách tính WAPE chính)."
+        )
+        print(f"      Đã cập nhật forecast_run ID {run_id} sang trạng thái DONE.")
+        return run_id, cnt
+    except Exception as err:
+        if hasattr(conn, "rollback"):
+            conn.rollback()
+        try:
+            fail_forecast_run(conn, run_id=run_id)
+        except Exception as fail_err:
+            print(f"      [CẢNH BÁO] Không thể cập nhật trạng thái FAILED: {fail_err}")
+        raise err
+

@@ -12,7 +12,7 @@ Bao gồm:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any, Dict, List, Optional, Set, Tuple
 import numpy as np
@@ -42,6 +42,7 @@ class BaselineEvaluationReport:
     results: Dict[int, Dict[str, Dict[str, BaselineMetrics]]]  # Đã loại bỏ ngày stockout (số chính)
     results_raw: Dict[int, Dict[str, Dict[str, BaselineMetrics]]]  # Gộp toàn bộ ngày (tham chiếu)
     best_baseline: Dict[int, str]  # [horizon] -> "weekly_naive" hoặc "rolling_mean_28"
+    top_sku_ids: Set[int] = field(default_factory=set)
 
 
 class Baseline1WeeklyNaive:
@@ -142,6 +143,19 @@ def select_best_baseline(
     return best_name, best_metrics
 
 
+def extract_top_sku_ids_from_sales(
+    df: pd.DataFrame,
+    cutoff_date: Optional[date] = None,
+    top_k: int = 200,
+) -> Set[int]:
+    """Xác định tập hợp top K SKU bán chạy nhất từ dữ liệu bán hàng (<= cutoff_date)."""
+    df_train = df[df["sale_date"] <= cutoff_date] if cutoff_date is not None else df
+    sku_sales = (
+        df_train.groupby("product_id")["qty_net"].sum().sort_values(ascending=False)
+    )
+    return set(sku_sales.head(top_k).index)
+
+
 def evaluate_baselines_on_daily_sales(
     df_daily: pd.DataFrame,
     cutoff_date: Optional[date] = None,
@@ -198,11 +212,7 @@ def evaluate_baselines_on_daily_sales(
 
     # Xác định Top 200 SKU từ dữ liệu bán ròng tập train (không dùng cột is_top_sku)
     if top_sku_ids is None:
-        df_train_only = df[df["sale_date"] <= cutoff_date]
-        sku_sales = (
-            df_train_only.groupby("product_id")["qty_net"].sum().sort_values(ascending=False)
-        )
-        top_sku_ids = set(sku_sales.head(200).index)
+        top_sku_ids = extract_top_sku_ids_from_sales(df, cutoff_date=cutoff_date, top_k=200)
 
     # Đảm bảo cột stockout tồn tại
     if "stockout" not in df.columns:
@@ -340,6 +350,7 @@ def evaluate_baselines_on_daily_sales(
         results=results_clean,
         results_raw=results_raw,
         best_baseline=best_baselines,
+        top_sku_ids=top_sku_ids,
     )
 
 

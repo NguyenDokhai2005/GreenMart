@@ -210,10 +210,9 @@ def evaluate_lightgbm_pipeline(
         horizons=horizons,
     )
 
-    # Xác định Top 200 SKU từ tập train (<= cutoff_date) giống #111
+    # Xác định Top 200 SKU từ baseline_report (tái dùng mask đồng bộ với baselines.py)
+    top_sku_ids: Set[int] = baseline_report.top_sku_ids
     df_train_only = builder.df[builder.df["sale_date"] <= cutoff_date]
-    sku_sales = df_train_only.groupby("product_id")["qty_net"].sum().sort_values(ascending=False)
-    top_sku_ids: Set[int] = set(sku_sales.head(200).index)
 
     # Mặt nạ phân nhóm sản phẩm
     product_ids_series = builder.product_ids
@@ -378,14 +377,12 @@ def evaluate_lightgbm_pipeline(
         else:
             optimal_slow_thresholds[H] = 0.0
 
-        # ÁP DỤNG NGƯỠNG ĐÃ CHỌN TỪ VALIDATION VÀO BẢN DỰ BÁO HẬU XỬ LÝ TRÊN TEST SET:
+        # ÁP DỤNG NGƯỠNG ĐÃ CHỌN TỪ VALIDATION VÀO BẢN DỰ BÁO HẬU XỬ LÝ TRÊN TEST SET (VECTOR HÓA):
         th_val = optimal_slow_thresholds[H]
         tweedie_pred_mat = all_model_preds_H[f"lgb_{selected_obj}"].copy()
         if th_val > 0.0:
-            for s_idx in range(len(tweedie_pred_mat)):
-                if segment_masks["slow_moving"][s_idx]:
-                    row = tweedie_pred_mat[s_idx]
-                    row[row < th_val] = 0.0
+            slow_cells = segment_masks["slow_moving"][:, np.newaxis] & (tweedie_pred_mat < th_val)
+            tweedie_pred_mat = np.where(slow_cells, 0.0, tweedie_pred_mat)
         all_model_preds_H[f"lgb_{selected_obj}_postproc"] = tweedie_pred_mat
 
         # ÁP DỤNG QUY TẮC CHUỖI MỚI (< 28 NGÀY LỊCH SỬ) CHO TẤT CẢ DỰ BÁO:
