@@ -166,13 +166,19 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         order = salesOrderRepository.save(order);
 
-        // Trừ tồn kho & Ghi dòng đơn hàng
+        // Lấy khóa tồn theo productId tăng dần, kể cả khi thứ tự trên đơn khác nhau.
+        var stockLines = recomputedQuote.lines().stream()
+                .sorted(Comparator.comparing(QuoteLine::productId))
+                .toList();
+        for (QuoteLine line : stockLines) {
+            inventoryService.sellDirect(request.branchId(), line.productId(), line.quantity(), order.getId());
+        }
+
+        // Giữ thứ tự báo giá khi ghi và trả các dòng đơn hàng.
         List<OrderItemResponse> itemResponses = new ArrayList<>();
         int totalItemCount = 0;
 
         for (QuoteLine qLine : recomputedQuote.lines()) {
-            inventoryService.sellDirect(request.branchId(), qLine.productId(), qLine.quantity(), order.getId());
-
             OrderItem orderItem = new OrderItem();
             orderItem.setOrderId(order.getId());
             orderItem.setProductId(qLine.productId());

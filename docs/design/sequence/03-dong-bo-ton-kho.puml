@@ -1,0 +1,59 @@
+@startuml 03-dong-bo-ton-kho
+!include _style.iuml
+title Sequence 03 · Đồng bộ tồn kho ra kênh (SYNC-03, SYNC-04)
+
+participant "InventoryService" as inv
+database "PostgreSQL" as db
+participant "OutboxRelay" as relay
+queue "RabbitMQ\nstock.changed" as mq
+participant "StockSyncConsumer" as sync
+participant "ChannelService" as chs
+participant "Kênh WEB / MARKET\n(mock-connector)" as ch
+actor "Admin" as admin
+
+note over inv
+  Bất kỳ thay đổi tồn nào: bán POS, giữ chỗ / nhả giữ chỗ,
+  hoàn tất đơn online, duyệt phiếu nhập / xuất / chuyển / kiểm kê.
+end note
+inv -> db : UPDATE inventory (version + 1)\nINSERT inventory_transaction
+inv -> db : INSERT outbox_event stock.changed\n{branchId, productId, version}\n(cùng transaction – #59)
+
+relay -> db : SELECT PENDING … FOR UPDATE SKIP LOCKED
+relay -> mq : publish (publisher confirm, messageId)
+relay -> db : status = SENT
+
+mq -> sync : stock.changed
+activate sync
+sync -> db : bỏ qua nếu messageId đã xử lý (at-least-once)
+sync -> chs : kênh nào bán sản phẩm này?\n(channel_product, chi nhánh phục vụ)
+loop từng kênh
+  sync -> db : Σ available của các CN phục vụ kênh
+  note right of sync : quantity = max(0, Σ available − tồn an toàn kênh)\n(mặc định 2)
+  sync -> ch : PUT /mock/{channelCode}/stock\n{channelSku, quantity, version}
+  alt 2xx
+    ch --> sync : nhận (bỏ qua nếu version cũ hơn)
+    sync -> db : sync_log SUCCESS
+  else lỗi / timeout
+    sync -> sync : thử lại sau 1, 2, 4, 8, 16 giây
+    alt vẫn lỗi sau 5 lần
+      sync -> db : sync_log FAILED
+      sync -> mq : chuyển vào hàng đợi lỗi (DLQ)
+    end
+  end
+end
+deactivate sync
+
+admin -> sync : POST gửi lại sync log FAILED (#139)
+sync -> ch : PUT /mock/{channelCode}/stock (tồn hiện tại, version mới nhất)
+
+note over relay, mq
+  RabbitMQ dừng (EX-12): bán hàng vẫn chạy, sự kiện nằm lại
+  outbox_event và được gửi bù khi RabbitMQ chạy lại.
+end note
+note over sync, ch
+  Đã có: outbox, publisher confirm, DLQ (#127), mock-connector nhận
+  bản mới hơn theo version (#128). Đang làm ở Tuần 3: #59 phát
+  stock.changed từ mọi thay đổi tồn, #133 đẩy tồn theo version,
+  issue #134 thử lại và sync_log.
+end note
+@enduml
