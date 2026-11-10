@@ -14,6 +14,8 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.util.AopTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -23,6 +25,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
 
+import vn.greenmart.inventory.exception.InsufficientStockException;
+import vn.greenmart.inventory.service.InventoryService;
 import vn.greenmart.sales.domain.PaymentMethod;
 import vn.greenmart.sales.domain.PaymentSimulation;
 import vn.greenmart.sales.dto.*;
@@ -30,8 +34,9 @@ import vn.greenmart.sales.service.PosIdempotencyService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -67,6 +72,9 @@ class PosOrderIntegrationTest {
 
     @MockitoBean
     private PosIdempotencyService posIdempotencyService;
+
+    @MockitoSpyBean
+    private InventoryService inventoryService;
 
     private static final long CASHIER_ID = 8888L;
     private static final long BRANCH_ID = 1L;
@@ -132,6 +140,7 @@ class PosOrderIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        reset(inventoryService);
         cleanDatabase();
     }
 
@@ -229,13 +238,12 @@ class PosOrderIntegrationTest {
         assertThat(((Number) items.get(1).get("unit_price")).longValue()).isEqualTo(30000L);
         assertThat(((Number) items.get(1).get("line_total")).longValue()).isEqualTo(30000L);
 
-        // Bảng payment: lưu đúng số tiền thanh toán thực tế của đơn
+        // Bảng payment
         var paymentMap = jdbcTemplate.queryForMap(
                 "SELECT * FROM payment WHERE order_id = ?", orderId);
         assertThat(paymentMap.get("status")).isEqualTo("PAID");
         assertThat(paymentMap.get("method")).isEqualTo("CASH");
         assertThat(((Number) paymentMap.get("amount")).longValue()).isEqualTo(70000L);
-        // Kiểm tra tiền thối (change)
 
         // Bảng inventory: on_hand giảm đúng (A giảm 2, B giảm 1), reserved giữ nguyên (BR-02)
         var invA = jdbcTemplate.queryForMap(
@@ -272,8 +280,75 @@ class PosOrderIntegrationTest {
 
     @Test
     @WithMockUser(username = "8888", roles = "CASHIER")
-    @DisplayName("Kịch bản 2: Thiếu tồn ở dòng thứ 2 -> Rollback 100%, dòng 1 tuyệt đối không bị trừ tồn")
+    @DisplayName("Kịch bản 2: Lỗi xảy ra ở dòng thứ 2 khi ghi -> Rollback 100%, dòng 1 hoàn tác không bị trừ tồn")
     void testPosOrder_RollbackOnInsufficientStock_AtomicityMaintained() throws Exception {
+        // Given: Tồn kho ban đầu cả 2 SP đều đủ để qua bước kiểm tra getAvailable ban đầu
+        jdbcTemplate.execute(String.format("""
+            INSERT INTO inventory (branch_id, product_id, on_hand, reserved, reorder_point, version, updated_at)
+            VALUES (%d, %d, 10, 0, 2, 1, NOW()),
+                   (%d, %d, 5, 0, 2, 1, NOW())
+        """, BRANCH_ID, PRODUCT_A_ID, BRANCH_ID, PRODUCT_B_ID));
+
+        // Dùng AopTestUtils để stubbing trên target object gốc, tránh trigger kiểm tra @Transactional(MANDATORY) của Spring Proxy ngoài transaction
+        InventoryService targetInventoryService = AopTestUtils.getTargetObject(inventoryService);
+        doThrow(new InsufficientStockException(BRANCH_ID, PRODUCT_B_ID, "SP-B-TEST", 2, 1))
+                .when(targetInventoryService).sellDirect(eq(BRANCH_ID), eq(PRODUCT_B_ID), anyInt(), anyLong());
+
+        PosOrderRequest posRequest = new PosOrderRequest(
+                BRANCH_ID,
+                null,
+                List.of(
+                        new OrderLineRequest(PRODUCT_A_ID, 2),
+                        new OrderLineRequest(PRODUCT_B_ID, 2)
+                ),
+                null,
+                new PaymentRequest(PaymentMethod.CASH, 200000L, PaymentSimulation.SUCCESS),
+                100000L // 2*20k + 2*30k = 100k
+        );
+
+        // When & Then: API trả về 409 INSUFFICIENT_STOCK
+        mockMvc.perform(post("/api/v1/orders/pos")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(posRequest)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INSUFFICIENT_STOCK"));
+
+        // Xác minh ROLLBACK toàn bộ trong PostgreSQL thật:
+        // Không lưu sales_order
+        Integer orderCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM sales_order", Integer.class);
+        assertThat(orderCount).isEqualTo(0);
+
+        // Không lưu order_item
+        Integer itemCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM order_item", Integer.class);
+        assertThat(itemCount).isEqualTo(0);
+
+        // Không lưu payment
+        Integer paymentCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM payment", Integer.class);
+        assertThat(paymentCount).isEqualTo(0);
+
+        // Tồn kho SP A (dòng 1) ĐÃ ĐƯỢC HOÀN TÁC TRỌN VẸN, vẫn giữ nguyên 10
+        Integer onHandA = jdbcTemplate.queryForObject(
+                "SELECT on_hand FROM inventory WHERE branch_id = ? AND product_id = ?", Integer.class, BRANCH_ID, PRODUCT_A_ID);
+        assertThat(onHandA).isEqualTo(10);
+
+        Integer onHandB = jdbcTemplate.queryForObject(
+                "SELECT on_hand FROM inventory WHERE branch_id = ? AND product_id = ?", Integer.class, BRANCH_ID, PRODUCT_B_ID);
+        assertThat(onHandB).isEqualTo(5);
+
+        // Không có dòng inventory_transaction nào còn sót lại
+        Integer txCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM inventory_transaction", Integer.class);
+        assertThat(txCount).isEqualTo(0);
+
+        // Không có sự kiện outbox nào
+        Integer outboxCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM outbox_event", Integer.class);
+        assertThat(outboxCount).isEqualTo(0);
+    }
+
+    @Test
+    @WithMockUser(username = "8888", roles = "CASHIER")
+    @DisplayName("Kịch bản phụ: Chặn ở bước kiểm tra tồn ban đầu (Fail-fast trước khi ghi DB)")
+    void testPosOrder_FailFast_WhenInsufficientStock() throws Exception {
         // Given: SP A có on_hand = 10; SP B chỉ có on_hand = 1
         jdbcTemplate.execute(String.format("""
             INSERT INTO inventory (branch_id, product_id, on_hand, reserved, reorder_point, version, updated_at)
@@ -291,10 +366,10 @@ class PosOrderIntegrationTest {
                 ),
                 null,
                 new PaymentRequest(PaymentMethod.CASH, 200000L, PaymentSimulation.SUCCESS),
-                130000L // 2*20k + 3*30k = 130k
+                130000L
         );
 
-        // Then: API trả về 409 INSUFFICIENT_STOCK
+        // Then: API chặn fail-fast trả về 409 INSUFFICIENT_STOCK
         mockMvc.perform(post("/api/v1/orders/pos")
                         .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -306,34 +381,7 @@ class PosOrderIntegrationTest {
                 .andExpect(jsonPath("$.details.lines[0].requested").value(3))
                 .andExpect(jsonPath("$.details.lines[0].available").value(1));
 
-        // Xác minh ROLLBACK toàn bộ trong PostgreSQL:
-        // Không tạo đơn hàng nào
         Integer orderCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM sales_order", Integer.class);
         assertThat(orderCount).isEqualTo(0);
-
-        // Không tạo dòng đơn nào
-        Integer itemCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM order_item", Integer.class);
-        assertThat(itemCount).isEqualTo(0);
-
-        // Không tạo giao dịch thanh toán nào
-        Integer paymentCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM payment", Integer.class);
-        assertThat(paymentCount).isEqualTo(0);
-
-        // Tồn kho sản phẩm A ở dòng 1 TUYỆT ĐỐI KHÔNG BỊ TRỪ (vẫn giữ nguyên 10); B vẫn giữ nguyên 1
-        Integer onHandA = jdbcTemplate.queryForObject(
-                "SELECT on_hand FROM inventory WHERE branch_id = ? AND product_id = ?", Integer.class, BRANCH_ID, PRODUCT_A_ID);
-        assertThat(onHandA).isEqualTo(10);
-
-        Integer onHandB = jdbcTemplate.queryForObject(
-                "SELECT on_hand FROM inventory WHERE branch_id = ? AND product_id = ?", Integer.class, BRANCH_ID, PRODUCT_B_ID);
-        assertThat(onHandB).isEqualTo(1);
-
-        // Không có dòng giao dịch kho nào
-        Integer txCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM inventory_transaction", Integer.class);
-        assertThat(txCount).isEqualTo(0);
-
-        // Không có sự kiện outbox nào
-        Integer outboxCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM outbox_event", Integer.class);
-        assertThat(outboxCount).isEqualTo(0);
     }
 }
