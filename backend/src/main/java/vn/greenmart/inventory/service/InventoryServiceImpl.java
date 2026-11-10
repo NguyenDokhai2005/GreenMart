@@ -152,6 +152,13 @@ public class InventoryServiceImpl implements InventoryService {
         } catch (ArithmeticException ex) {
             throw new AppException(ErrorCode.VALIDATION_ERROR, "Giá trị nhập kho vượt giới hạn số tiền");
         }
+        increaseOnHand(branchId, productId, qty);
+        productCost.updateCostPrice(productId, newCost);
+        transactionWriter.appendImport(branchId, productId, qty, documentId, actorId);
+        entityManager.clear(); // Native writes must not leave stale Inventory/Product entities in the caller.
+    }
+
+    private void increaseOnHand(Long branchId, Long productId, int qty) {
         int rows = jdbc.update("""
                 INSERT INTO inventory(branch_id,product_id,on_hand,reserved,version,updated_at)
                 VALUES(?,?,?,0,1,CURRENT_TIMESTAMP)
@@ -160,9 +167,28 @@ public class InventoryServiceImpl implements InventoryService {
                 WHERE inventory.on_hand<=2147483647-EXCLUDED.on_hand
                 """, branchId, productId, qty);
         if (rows != 1) throw new AppException(ErrorCode.VALIDATION_ERROR, "Số lượng tồn vượt giới hạn lưu trữ");
-        productCost.updateCostPrice(productId, newCost);
-        transactionWriter.appendImport(branchId, productId, qty, documentId, actorId);
-        entityManager.clear(); // Native writes must not leave stale Inventory/Product entities in the caller.
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void transferOut(Long branchId, Long productId, int qty, Long documentId, Long actorId) {
+        validateQty(qty);
+        productCost.lockForStockChange(productId);
+        if (inventoryRepository.sellDirect(branchId, productId, qty) != 1) {
+            throw insufficientStock(branchId, productId, qty);
+        }
+        transactionWriter.appendTransfer(branchId, productId, -qty, documentId, actorId);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void transferIn(Long branchId, Long productId, int qty, Long documentId, Long actorId) {
+        validateQty(qty);
+        entityManager.flush();
+        productCost.lockForStockChange(productId);
+        increaseOnHand(branchId, productId, qty);
+        transactionWriter.appendTransfer(branchId, productId, qty, documentId, actorId);
+        entityManager.clear();
     }
 
     @Override

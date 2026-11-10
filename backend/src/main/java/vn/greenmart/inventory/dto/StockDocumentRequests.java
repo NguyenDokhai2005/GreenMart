@@ -23,4 +23,8 @@ public final class StockDocumentRequests {
             @NotNull @Size(min = 1, max = 500) List<@NotNull @Valid Item> items) {}
 
     public record Cancel(@NotBlank @Size(min = 3, max = 255) String reason) {}
+
+    public record Receive(@NotNull @Size(min = 1, max = 500) List<@NotNull @Valid ReceivedItem> items) {}
+
+    public record ReceivedItem(@NotNull @Positive Long itemId, @NotNull @PositiveOrZero Integer receivedQuantity) {}
 }

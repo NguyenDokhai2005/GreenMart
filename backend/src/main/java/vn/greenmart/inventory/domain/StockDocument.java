@@ -100,6 +100,44 @@ public class StockDocument {
         status = StockDocumentStatus.CANCELLED;
     }
 
+    public static StockDocument transferDraft(Long branchId, Long toBranchId, Long actor,
+            String note, List<StockDocumentItem> items) {
+        var document = new StockDocument();
+        document.code = "PC-" + UUID.randomUUID().toString().replace("-", "").substring(0, 24);
+        document.type = StockDocumentType.TRANSFER;
+        document.branchId = branchId;
+        document.status = StockDocumentStatus.DRAFT;
+        document.createdBy = actor;
+        document.createdAt = OffsetDateTime.now();
+        document.reviseTransfer(toBranchId, note, items);
+        return document;
+    }
+
+    public void reviseTransfer(Long destination, String note, List<StockDocumentItem> replacements) {
+        requireDraft();
+        if (destination == null || Objects.equals(branchId, destination)) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Chi nhánh đích phải khác chi nhánh nguồn");
+        }
+        toBranchId = destination;
+        reason = note;
+        items.clear();
+        replacements.forEach(item -> { item.attachTo(this); items.add(item); });
+    }
+
+    public void requireReceivable() {
+        if (type != StockDocumentType.TRANSFER || status != StockDocumentStatus.IN_TRANSIT) {
+            throw new AppException(ErrorCode.INVALID_STATUS, "Chỉ nhận được phiếu chuyển đang vận chuyển");
+        }
+    }
+
+    public void receive(Long actor, Map<Long, Integer> quantities) {
+        requireReceivable();
+        items.forEach(item -> item.recordReceivedQuantity(quantities.get(item.getId())));
+        status = StockDocumentStatus.RECEIVED;
+        receivedBy = actor;
+        receivedAt = OffsetDateTime.now();
+    }
+
     public void requireDraft() {
         if (status != StockDocumentStatus.DRAFT) {
             throw new AppException(ErrorCode.INVALID_STATUS, "Chỉ thao tác được với phiếu nháp",
@@ -116,7 +154,7 @@ public class StockDocument {
 
     public void approve(Long actor) {
         requireApprovableBy(actor);
-        status = StockDocumentStatus.APPROVED;
+        status = type == StockDocumentType.TRANSFER ? StockDocumentStatus.IN_TRANSIT : StockDocumentStatus.APPROVED;
         approvedBy = actor;
         approvedAt = OffsetDateTime.now();
     }

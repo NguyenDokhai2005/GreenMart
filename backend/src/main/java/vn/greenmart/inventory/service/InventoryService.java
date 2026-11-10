@@ -66,6 +66,10 @@ public interface InventoryService {
      */
     int getAvailable(Long branchId, Long productId);
 
+    void transferOut(Long branchId, Long productId, int qty, Long documentId, Long actorId);
+
+    void transferIn(Long branchId, Long productId, int qty, Long documentId, Long actorId);
+
     /** Import approved stock and revalue global cost in the caller's transaction. */
     void importStock(Long branchId, Long productId, int qty, long unitCost, Long documentId, Long actorId);
 
