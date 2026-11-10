@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { REVENUE_30_DAYS, lastDays } from './revenue';
+import { REVENUE_30_DAYS, lastDays } from '../../../src/features/dashboard/mock/revenue';
 
 describe('REVENUE_30_DAYS (mock doanh thu 30 ngày)', () => {
   it('đủ 30 ngày liên tiếp từ 01/10 đến 30/10/2026', () => {
