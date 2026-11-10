@@ -76,6 +76,7 @@ class MixedStockTransactionTest {
 
     @BeforeEach
     void seed() {
+        jdbc.update("DELETE FROM outbox_event");
         jdbc.execute("TRUNCATE branch, category, app_user CASCADE");
         jdbc.update("INSERT INTO branch(id,code,name) VALUES (?, 'B81', 'Branch 81')", BRANCH);
         jdbc.update("INSERT INTO sales_channel(code,name) VALUES ('POS','POS')");
@@ -157,6 +158,12 @@ class MixedStockTransactionTest {
         int onHand = INITIAL_ON_HAND;
         var ledger = jdbc.queryForList("SELECT * FROM inventory_transaction ORDER BY id");
         assertThat(ledger).hasSize(1 + expectedRemovals);
+        var versions = jdbc.queryForList("""
+                SELECT (payload->>'version')::bigint FROM outbox_event
+                WHERE event_type='stock.changed' ORDER BY id
+                """, Long.class);
+        assertThat(versions).containsExactlyElementsOf(
+                java.util.stream.LongStream.rangeClosed(1, 1L + expectedRemovals).boxed().toList());
         for (var row : ledger) {
             int delta = (int) row.get("delta_on_hand");
             var movement = new Movement((String) row.get("type"), (String) row.get("ref_type"),

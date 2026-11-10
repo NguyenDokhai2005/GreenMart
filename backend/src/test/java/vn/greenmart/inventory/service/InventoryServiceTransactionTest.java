@@ -3,6 +3,7 @@ package vn.greenmart.inventory.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -41,7 +42,8 @@ import vn.greenmart.sales.service.PosIdempotencyService;
             "org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration",
         // Tắt health group dùng redis/readiness vì Redis bị excluded trong test này
         "management.endpoint.health.group.readiness.include=readinessState,db",
-        "management.endpoint.health.group.liveness.include=livenessState"
+        "management.endpoint.health.group.liveness.include=livenessState",
+        "greenmart.outbox.enabled=false"
     }
 )
 @Testcontainers
@@ -83,6 +85,11 @@ class InventoryServiceTransactionTest {
     private static final Long PRODUCT_ID = 50L;
     private static final Long PRODUCT_ID_2 = 51L;
 
+    @BeforeEach
+    void clearStockEventsFromPreviousCases() {
+        jdbc.update("DELETE FROM outbox_event WHERE event_type='stock.changed'");
+    }
+
     @ParameterizedTest
     @CsvSource({
             "reserve,RESERVE,3,0,3,10,7",
@@ -109,6 +116,23 @@ class InventoryServiceTransactionTest {
                 .containsEntry("delta_on_hand", deltaOnHand).containsEntry("delta_reserved", deltaReserved)
                 .containsEntry("on_hand_after", onHandAfter).containsEntry("reserved_after", reservedAfter);
         assertThat(entries.getFirst().get("created_at")).isNotNull();
+        assertThat(stockEvents()).containsExactly("10:50:1");
+    }
+
+    @Test
+    void committedChangesPublishEachNewVersionForTheSameStockRow() {
+        var tx = new TransactionTemplate(txManager);
+        try {
+            tx.executeWithoutResult(status -> {
+                insertFixtures(PRODUCT_ID, 5, 0);
+                inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 1, 5010L);
+            });
+            assertThat(stockEvents()).containsExactly("10:50:1");
+            tx.executeWithoutResult(status -> inventoryService.release(BRANCH_ID, PRODUCT_ID, 1, 5010L));
+            assertThat(stockEvents()).containsExactly("10:50:1", "10:50:2");
+        } finally {
+            cleanupCommittedFixture();
+        }
     }
 
     @Test
@@ -118,12 +142,14 @@ class InventoryServiceTransactionTest {
         try {
             assertThatThrownBy(() -> tx.executeWithoutResult(status -> {
                 inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 1, 5002L);
+                assertThat(stockEvents()).containsExactly("10:50:1");
                 inventoryService.sellDirect(BRANCH_ID, PRODUCT_ID, 2, null);
             })).isInstanceOf(DataIntegrityViolationException.class);
             assertThat(jdbc.queryForMap("SELECT on_hand,reserved,version FROM inventory WHERE branch_id=? AND product_id=?",
                     BRANCH_ID, PRODUCT_ID)).containsEntry("on_hand", 5)
                     .containsEntry("reserved", 0).containsEntry("version", 0L);
             assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_transaction", Integer.class)).isZero();
+            assertThat(stockEvents()).isEmpty();
         } finally {
             cleanupCommittedFixture();
         }
@@ -150,8 +176,16 @@ class InventoryServiceTransactionTest {
         }
     }
 
+    private java.util.List<String> stockEvents() {
+        return jdbc.queryForList("""
+                SELECT (payload->>'branchId') || ':' || (payload->>'productId') || ':' || (payload->>'version')
+                FROM outbox_event WHERE event_type='stock.changed' ORDER BY id
+                """, String.class);
+    }
+
     private void cleanupCommittedFixture() {
         new TransactionTemplate(txManager).executeWithoutResult(status -> {
+            jdbc.update("DELETE FROM outbox_event WHERE event_type='stock.changed'");
             jdbc.execute("TRUNCATE inventory_transaction");
             jdbc.update("DELETE FROM inventory WHERE branch_id=? AND product_id=?", BRANCH_ID, PRODUCT_ID);
             jdbc.update("DELETE FROM product WHERE id=?", PRODUCT_ID);

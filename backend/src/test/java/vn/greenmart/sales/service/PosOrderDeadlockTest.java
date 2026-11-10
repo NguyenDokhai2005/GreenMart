@@ -118,6 +118,19 @@ class PosOrderDeadlockTest {
                 .isEqualTo(ROUNDS * 2);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_transaction", Integer.class))
                 .isEqualTo(ROUNDS * 4);
+        for (long product : List.of(PRODUCT_A, PRODUCT_B)) {
+            var versions = jdbc.queryForList("""
+                    SELECT (payload->>'version')::bigint FROM outbox_event
+                    WHERE event_type='stock.changed' AND aggregate_id=?
+                    ORDER BY id
+                    """, Long.class, BRANCH + ":" + product);
+            assertThat(versions).containsExactlyElementsOf(
+                    java.util.stream.LongStream.rangeClosed(1, ROUNDS * 2L).boxed().toList());
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM outbox_event WHERE event_type='stock.changed'", Integer.class))
+                .isEqualTo(ROUNDS * 4);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM outbox_event WHERE event_type='order.completed'", Integer.class))
+                .isEqualTo(ROUNDS * 2);
         assertThat(jdbc.queryForList("SELECT on_hand FROM inventory ORDER BY product_id", Integer.class))
                 .containsExactly(0, 0);
     }
