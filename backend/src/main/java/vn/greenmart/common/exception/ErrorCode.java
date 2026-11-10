@@ -34,6 +34,7 @@ public enum ErrorCode {
 
     // 422
     SELF_APPROVAL_FORBIDDEN(HttpStatus.UNPROCESSABLE_ENTITY, "Người lập không được tự duyệt phiếu"),
+    RECEIVED_QUANTITY_EXCEEDED(HttpStatus.UNPROCESSABLE_ENTITY, "Số lượng nhận vượt số lượng đã chuyển"),
     PRODUCT_INACTIVE(HttpStatus.UNPROCESSABLE_ENTITY, "Sản phẩm đã ngừng kinh doanh"),
     TOTAL_CHANGED(HttpStatus.UNPROCESSABLE_ENTITY, "Tổng giá trị đơn hàng đã thay đổi"),
     CASH_INSUFFICIENT(HttpStatus.UNPROCESSABLE_ENTITY, "Số tiền khách đưa nhỏ hơn tổng tiền phải thanh toán"),
