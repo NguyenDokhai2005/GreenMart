@@ -225,3 +225,60 @@ def test_persist_forecast_to_db_transaction_failure_rollback():
     calls = [call[0][0] for call in mock_cur.execute.call_args_list]
     assert any("UPDATE forecast_run" in c and "FAILED" in c for c in calls)
 
+
+def test_persist_forecast_to_db_handles_datetime64_parquet_format():
+    """Kiểm tra persist_forecast_to_db xử lý an toàn dữ liệu sale_date kiểu datetime64 từ parquet."""
+    mock_conn = MagicMock()
+    mock_cur = MagicMock()
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+    mock_cur.fetchone.return_value = (200,)
+
+    mock_metrics = MagicMock(mae=0.20, wape=0.12)
+    mock_report = MagicMock()
+    mock_report.cutoff_date = date(2026, 10, 1)
+    mock_report.optimal_slow_thresholds = {7: 0.4, 30: 0.4}
+    mock_report.baseline_report.top_sku_ids = {10}
+    mock_report.lgb_results_clean = {
+        7: {
+            "lgb_tweedie": {"overall": mock_metrics},
+            "rolling_mean_28": {"overall": mock_metrics},
+        }
+    }
+
+    # Tạo df_daily với sale_date kiểu datetime64[ms] (đúng định dạng pyarrow đọc từ parquet)
+    start_d = date(2026, 8, 15)
+    end_d = date(2026, 10, 31)
+    days = (end_d - start_d).days + 1
+    dates_list = [start_d + timedelta(days=i) for i in range(days)]
+    records = []
+    for d in dates_list:
+        records.append({
+            "branch_id": 1,
+            "product_id": 10,
+            "sale_date": pd.Timestamp(d),  # datetime64
+            "qty_net": 5.0,
+            "stockout": False,
+        })
+    df_daily_datetime64 = pd.DataFrame(records)
+    # Ép kiểu datetime64[ms] giống hệt parquet
+    df_daily_datetime64["sale_date"] = df_daily_datetime64["sale_date"].astype("datetime64[ms]")
+
+    class DummyModel:
+        def predict(self, feature_df):
+            return np.full(len(feature_df), 3.0)
+
+    mock_models = {7: DummyModel(), 30: DummyModel()}
+
+    # Phải thực thi thành công, không bị TypeError: Invalid comparison between dtype=datetime64 and date
+    run_id, total_inserted = persist_forecast_to_db(
+        conn=mock_conn,
+        report=mock_report,
+        best_models=mock_models,
+        df_daily=df_daily_datetime64,
+    )
+
+    assert run_id == 200
+    assert total_inserted == 1 * (7 + 30)  # 1 series x 37 target dates = 37 rows
+    assert mock_conn.commit.called
+
+

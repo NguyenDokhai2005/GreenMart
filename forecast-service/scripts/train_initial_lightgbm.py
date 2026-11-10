@@ -54,6 +54,8 @@ def run_training_and_evaluation(
     t0 = time.time()
     print("[1/5] Đang nạp dữ liệu daily_sales...")
     df_daily = pd.read_parquet(data_path)
+    if pd.api.types.is_datetime64_any_dtype(df_daily["sale_date"]):
+        df_daily["sale_date"] = pd.to_datetime(df_daily["sale_date"]).dt.date
     print(f"      Đã nạp {len(df_daily):,} dòng dữ liệu ({time.time() - t0:.2f}s).")
 
     t1 = time.time()

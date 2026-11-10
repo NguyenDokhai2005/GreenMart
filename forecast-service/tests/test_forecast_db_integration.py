@@ -332,3 +332,49 @@ def test_persist_forecast_to_db_postgres_failure_rollback(postgres_container, mo
             assert cnt == 0, f"Rollback thất bại: Vẫn còn {cnt} dòng trong forecast_result!"
     finally:
         conn2.close()
+
+
+def test_persist_forecast_to_db_postgres_datetime64_parquet_format(postgres_container):
+    """Kiểm tra persist_forecast_to_db chạy trọn vẹn với sale_date kiểu datetime64[ms] (đúng dạng đọc từ parquet)."""
+    cutoff = date(2026, 10, 1)
+    report = DummyReport(cutoff_date=cutoff, top_sku_ids={101}, optimal_thresholds={7: 0.4, 30: 0.4})
+    df_daily = _make_dummy_daily_sales(cutoff)
+
+    # Ép kiểu sale_date sang datetime64[ms] mô phỏng dữ liệu đọc từ parquet
+    df_daily["sale_date"] = pd.to_datetime(df_daily["sale_date"]).astype("datetime64[ms]")
+
+    pred_values = {101: 8.0, 102: 0.2, 103: 0.15, 104: 0.1}
+    models = {7: DummyModel(pred_values), 30: DummyModel(pred_values)}
+
+    conn1 = _get_pg_connection(postgres_container)
+    try:
+        run_id, total_inserted = persist_forecast_to_db(
+            conn=conn1,
+            report=report,
+            best_models=models,
+            df_daily=df_daily,
+            model_version="LightGBM-Parquet-Datetime64-Test",
+        )
+    finally:
+        conn1.close()
+
+    conn2 = _get_pg_connection(postgres_container)
+    try:
+        with conn2.cursor() as cur:
+            cur.execute(
+                "SELECT status, finished_at FROM forecast_run WHERE id = %s;",
+                (run_id,),
+            )
+            status, finished_at = cur.fetchone()
+            assert status == "DONE"
+            assert finished_at is not None
+
+            expected_rows = 8 * (7 + 30)
+            assert total_inserted == expected_rows
+
+            cur.execute("SELECT COUNT(*), MIN(predicted_qty) FROM forecast_result WHERE run_id = %s;", (run_id,))
+            cnt_res, min_pred = cur.fetchone()
+            assert cnt_res == expected_rows
+            assert float(min_pred) >= 0.0
+    finally:
+        conn2.close()

@@ -234,6 +234,12 @@ def persist_forecast_to_db(
         if df_daily is None or best_models is None:
             raise ValueError("Cần cung cấp df_daily và best_models nếu results_df chưa được tính sẵn.")
 
+        # Chuẩn hóa cột sale_date về datetime.date để đồng nhất mọi phép so sánh với cutoff_date
+        # (ngăn chặn triệt để TypeError: Invalid comparison between dtype=datetime64 and date khi đọc từ parquet)
+        df_daily = df_daily.copy()
+        sale_dates = pd.to_datetime(df_daily["sale_date"]).dt.date
+        df_daily["sale_date"] = sale_dates
+
         from app.models.features import FeatureMatrixBuilder
         from app.models.evaluator import apply_short_history_fallback
 
@@ -244,7 +250,7 @@ def persist_forecast_to_db(
         is_top_mask = np.isin(series_product_ids, list(top_sku_ids))
 
         predictions_by_h: Dict[int, np.ndarray] = {}
-        df_train_only = df_daily[df_daily["sale_date"] <= report.cutoff_date]
+        df_train_only = df_daily[sale_dates <= report.cutoff_date]
 
         for H in (7, 30):
             test_dfs = builder.build_test_features_matrix(report.cutoff_date, H)

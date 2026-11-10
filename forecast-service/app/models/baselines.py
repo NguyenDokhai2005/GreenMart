@@ -149,7 +149,11 @@ def extract_top_sku_ids_from_sales(
     top_k: int = 200,
 ) -> Set[int]:
     """Xác định tập hợp top K SKU bán chạy nhất từ dữ liệu bán hàng (<= cutoff_date)."""
-    df_train = df[df["sale_date"] <= cutoff_date] if cutoff_date is not None else df
+    if cutoff_date is not None:
+        sale_dates = pd.to_datetime(df["sale_date"]).dt.date
+        df_train = df[sale_dates <= cutoff_date]
+    else:
+        df_train = df
     sku_sales = (
         df_train.groupby("product_id")["qty_net"].sum().sort_values(ascending=False)
     )
