@@ -32,7 +32,7 @@ public class ChannelStockPublisher {
 
     record Mapping(long channel, long product, String code, String sku) {}
 
-    @RabbitListener(queues = QUEUE)
+    @RabbitListener(queues = QUEUE, autoStartup = "${greenmart.outbox.enabled:true}")
     @Transactional
     public void onStockChanged(Message message) throws IOException {
         var event = json.readTree(message.getBody());
