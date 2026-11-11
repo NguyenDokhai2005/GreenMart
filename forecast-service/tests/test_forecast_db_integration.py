@@ -599,3 +599,46 @@ def test_api_forecast_run_stale_cleanup_postgres(postgres_container, monkeypatch
     finally:
         conn_verify.close()
 
+
+def test_complete_forecast_run_records_real_clock_timestamp(postgres_container):
+    """Kiểm tra finished_at ghi nhận clock_timestamp thật thay vì transaction start time (#114)."""
+    import time
+    from app.pipelines.forecast_runner import complete_forecast_run
+
+    conn = _get_pg_connection(postgres_container)
+    try:
+        with conn.cursor() as cur:
+            # 1. Bắt đầu transaction và tạo một run mới với clock_timestamp()
+            cur.execute(
+                """
+                INSERT INTO forecast_run (started_at, status, model_version)
+                VALUES (clock_timestamp(), 'RUNNING', 'Clock-Test')
+                RETURNING id, started_at;
+                """
+            )
+            run_id, started_at = cur.fetchone()
+
+            # 2. Chờ 0.6s trong CÙNG transaction
+            time.sleep(0.6)
+
+            # 3. Gọi complete_forecast_run trong cùng connection/transaction này
+            complete_forecast_run(
+                conn,
+                run_id=run_id,
+                mae=0.25,
+                wape=0.15,
+                baseline_mae=0.30,
+                baseline_wape=0.20,
+            )
+
+            # 4. Lấy lại finished_at và kiểm tra chênh lệch thời gian thực tế
+            cur.execute("SELECT started_at, finished_at FROM forecast_run WHERE id = %s;", (run_id,))
+            db_started_at, db_finished_at = cur.fetchone()
+
+            duration = (db_finished_at - db_started_at).total_seconds()
+            assert duration >= 0.5, f"Kỳ vọng duration >= 0.5s nhưng nhận {duration}s"
+        conn.commit()
+    finally:
+        conn.close()
+
+

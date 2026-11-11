@@ -125,7 +125,7 @@ def complete_forecast_run(
     """
     sql = """
         UPDATE forecast_run
-        SET finished_at = NOW(),
+        SET finished_at = clock_timestamp(),
             status = 'DONE',
             mae = %s,
             wape = %s,
@@ -153,7 +153,7 @@ def fail_forecast_run(
     """Đánh dấu lượt chạy forecast_run thất bại (FAILED)."""
     sql = """
         UPDATE forecast_run
-        SET finished_at = NOW(),
+        SET finished_at = clock_timestamp(),
             status = 'FAILED'
         WHERE id = %s;
     """

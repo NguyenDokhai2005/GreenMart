@@ -92,13 +92,13 @@ def start_forecast_run(
             )
 
         # 3. Dọn dẹp các run RUNNING đã kẹt quá timeout (mặc định 30 phút)
-        # Sử dụng started_at < NOW() - INTERVAL '...'
+        # Sử dụng started_at < clock_timestamp() - INTERVAL '...'
         cleanup_sql = f"""
             UPDATE forecast_run
             SET status = 'FAILED',
-                finished_at = NOW()
+                finished_at = clock_timestamp()
             WHERE status = 'RUNNING'
-              AND started_at < NOW() - INTERVAL '{stale_timeout_minutes} minutes';
+              AND started_at < clock_timestamp() - INTERVAL '{stale_timeout_minutes} minutes';
         """
         cur.execute(cleanup_sql)
 
@@ -123,7 +123,7 @@ def start_forecast_run(
         # 5. Tạo lượt chạy mới ở trạng thái RUNNING
         insert_sql = """
             INSERT INTO forecast_run (started_at, status, model_version)
-            VALUES (NOW(), 'RUNNING', %s)
+            VALUES (clock_timestamp(), 'RUNNING', %s)
             RETURNING id, started_at;
         """
         cur.execute(insert_sql, (model_version,))
