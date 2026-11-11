@@ -1,6 +1,7 @@
 package vn.greenmart.sales.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PosOrderServiceImpl implements PosOrderService {
@@ -163,6 +165,8 @@ public class PosOrderServiceImpl implements PosOrderService {
         order.setStatus(OrderStatus.COMPLETED);
         order.setSubtotal(recomputedQuote.subtotal());
         order.setDiscount(recomputedQuote.discount());
+        order.setManualDiscount(recomputedQuote.manualDiscount() != null ? recomputedQuote.manualDiscount() : 0L);
+        order.setManualDiscountReason(request.manualDiscount() != null ? request.manualDiscount().reason() : null);
         order.setTotal(recomputedQuote.total());
         order.setCreatedBy(currentUserId);
         order.setCreatedAt(now);
@@ -170,7 +174,7 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         order = salesOrderRepository.save(order);
 
-        // Lấy khóa tồn theo productId tăng dần, kể cả khi thứ tự trên đơn khác nhau.
+        // Trừ tồn kho trực tiếp
         var stockLines = recomputedQuote.lines().stream()
                 .sorted(Comparator.comparing(QuoteLine::productId))
                 .toList();
@@ -178,10 +182,8 @@ public class PosOrderServiceImpl implements PosOrderService {
             inventoryService.sellDirect(request.branchId(), line.productId(), line.quantity(), order.getId());
         }
 
-        // Giữ thứ tự báo giá khi ghi và trả các dòng đơn hàng.
-        List<OrderItemResponse> itemResponses = new ArrayList<>();
-        int totalItemCount = 0;
-
+        // Lưu chi tiết dòng đơn hàng
+        List<OrderItem> savedItems = new ArrayList<>();
         for (QuoteLine qLine : recomputedQuote.lines()) {
             OrderItem orderItem = new OrderItem();
             orderItem.setOrderId(order.getId());
@@ -193,20 +195,7 @@ public class PosOrderServiceImpl implements PosOrderService {
             orderItem.setPromotionId(qLine.promotion() != null ? qLine.promotion().id() : null);
 
             orderItem = orderItemRepository.save(orderItem);
-
-            itemResponses.add(new OrderItemResponse(
-                    orderItem.getId(),
-                    orderItem.getProductId(),
-                    qLine.sku(),
-                    qLine.name(),
-                    qLine.unit(),
-                    orderItem.getQuantity(),
-                    orderItem.getUnitPrice(),
-                    orderItem.getDiscount(),
-                    orderItem.getLineTotal(),
-                    qLine.promotion()
-            ));
-            totalItemCount += orderItem.getQuantity();
+            savedItems.add(orderItem);
         }
 
         // Tạo bản ghi Payment qua PaymentService
@@ -230,42 +219,7 @@ public class PosOrderServiceImpl implements PosOrderService {
         );
         outboxService.enqueue("stock", order.getBranchId().toString(), "stock.changed", stockPayload);
 
-        BranchRef branchRef = new BranchRef(request.branchId(), branchInfo.code(), branchInfo.name());
-        CustomerRef customerRef = null;
-        if (request.customerId() != null) {
-            CustomerResponse cust = customerService.getCustomer(request.customerId());
-            customerRef = new CustomerRef(cust.id(), cust.phone(), cust.name());
-        }
-
-        String userFullName = authService.getFullName(currentUserId);
-        UserRef userRef = new UserRef(currentUserId, userFullName);
-
-        return new OrderResponse(
-                order.getId(),
-                order.getCode(),
-                "POS",
-                null,
-                branchRef,
-                customerRef,
-                order.getStatus(),
-                totalItemCount,
-                order.getTotal(),
-                order.getCreatedAt(),
-                order.getCompletedAt(),
-                userRef,
-                itemResponses,
-                recomputedQuote.orderPromotion(),
-                request.manualDiscount() != null ? request.manualDiscount().reason() : null,
-                recomputedQuote.subtotal(),
-                recomputedQuote.itemDiscount(),
-                recomputedQuote.orderDiscount(),
-                recomputedQuote.manualDiscount(),
-                recomputedQuote.discount(),
-                List.of(paymentResponse),
-                null,
-                null,
-                null
-        );
+        return mapToOrderResponse(order, savedItems, List.of(paymentResponse));
     }
 
     @Override
@@ -288,11 +242,34 @@ public class PosOrderServiceImpl implements PosOrderService {
         List<OrderItem> items = orderItemRepository.findByOrderId(order.getId());
         List<Payment> payments = paymentRepository.findByOrderId(order.getId());
 
+        List<PaymentResponse> paymentResponses = new ArrayList<>();
+        for (Payment p : payments) {
+            Long cashReceived = null;
+            Long change = null;
+            if (p.getMethod() == PaymentMethod.CASH) {
+                cashReceived = p.getCashReceived();
+                if (cashReceived != null) {
+                    change = cashReceived - p.getAmount();
+                }
+            }
+
+            paymentResponses.add(new PaymentResponse(
+                    p.getId(),
+                    p.getMethod(),
+                    p.getAmount(),
+                    p.getStatus(),
+                    cashReceived,
+                    change,
+                    p.getProviderRef(),
+                    p.getPaidAt()
+            ));
+        }
+
         // Map dữ liệu sang OrderResponse dùng chung
-        return mapToOrderResponse(order, items, payments);
+        return mapToOrderResponse(order, items, paymentResponses);
     }
 
-    private OrderResponse mapToOrderResponse(SalesOrder order, List<OrderItem> items, List<Payment> payments) {
+    private OrderResponse mapToOrderResponse(SalesOrder order, List<OrderItem> items, List<PaymentResponse> paymentResponses) {
         BranchSaleInfo branchInfo = branchService.getSaleInfo(order.getBranchId());
         BranchRef branchRef = new BranchRef(order.getBranchId(), branchInfo.code(), branchInfo.name());
 
@@ -301,7 +278,8 @@ public class PosOrderServiceImpl implements PosOrderService {
             try {
                 CustomerResponse cust = customerService.getCustomer(order.getCustomerId());
                 customerRef = new CustomerRef(cust.id(), cust.phone(), cust.name());
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.warn("Không thể tra cứu thông tin khách hàng id={}: {}", order.getCustomerId(), e.getMessage());
             }
         }
 
@@ -310,7 +288,8 @@ public class PosOrderServiceImpl implements PosOrderService {
             try {
                 String fullName = authService.getFullName(order.getCreatedBy());
                 userRef = new UserRef(order.getCreatedBy(), fullName);
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.warn("Không thể tra cứu nhân viên id={}: {}", order.getCreatedBy(), e.getMessage());
                 userRef = new UserRef(order.getCreatedBy(), "N/A");
             }
         }
@@ -336,7 +315,8 @@ public class PosOrderServiceImpl implements PosOrderService {
                     name = pInfo.name();
                     unit = pInfo.unit();
                 }
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.warn("Không thể tra cứu sản phẩm id={}: {}", item.getProductId(), e.getMessage());
             }
 
             PromotionRef itemPromotion = getPromotionRef(item.getPromotionId(), item.getDiscount());
@@ -355,36 +335,19 @@ public class PosOrderServiceImpl implements PosOrderService {
             ));
         }
 
-        long orderDiscount = Math.max(0L, order.getDiscount() - itemDiscountTotal);
+        long manualDiscount = order.getManualDiscount() != null ? order.getManualDiscount() : 0L;
+        String manualDiscountReason = order.getManualDiscountReason();
+
+        long orderDiscount = Math.max(0L, order.getDiscount() - itemDiscountTotal - manualDiscount);
         PromotionRef orderPromotion = getPromotionRef(order.getPromotionId(), orderDiscount);
-
-        List<PaymentResponse> paymentResponses = new ArrayList<>();
-        for (Payment p : payments) {
-            Long cashReceived = null;
-            Long change = null;
-            if (p.getMethod() == PaymentMethod.CASH) {
-                cashReceived = p.getAmount() != null ? p.getAmount() : order.getTotal();
-                change = 0L;
-            }
-
-            paymentResponses.add(new PaymentResponse(
-                    p.getId(),
-                    p.getMethod(),
-                    p.getAmount(),
-                    p.getStatus(),
-                    cashReceived,
-                    change,
-                    p.getProviderRef(),
-                    p.getPaidAt()
-            ));
-        }
 
         String channelCode = "POS";
         try {
             channelCode = jdbcTemplate.queryForObject(
                     "SELECT code FROM sales_channel WHERE id = ?", String.class, order.getChannelId()
             );
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn("Không thể tra cứu mã kênh bán channelId={}: {}", order.getChannelId(), e.getMessage());
         }
 
         return new OrderResponse(
@@ -402,11 +365,11 @@ public class PosOrderServiceImpl implements PosOrderService {
                 userRef,
                 itemResponses,
                 orderPromotion,
-                null,
+                manualDiscountReason,
                 order.getSubtotal(),
                 itemDiscountTotal,
                 orderDiscount,
-                0L,
+                manualDiscount,
                 order.getDiscount(),
                 paymentResponses,
                 order.getReservedUntil(),
@@ -420,15 +383,16 @@ public class PosOrderServiceImpl implements PosOrderService {
             return null;
         }
         try {
-            List<String> codes = jdbcTemplate.query(
-                    "SELECT code FROM promotion WHERE id = ?",
-                    (rs, rowNum) -> rs.getString("code"),
+            List<PromotionRef> list = jdbcTemplate.query(
+                    "SELECT id, code, name FROM promotion WHERE id = ?",
+                    (rs, rowNum) -> new PromotionRef(rs.getLong("id"), rs.getString("code"), rs.getString("name"), discount != null ? discount : 0L),
                     promotionId
             );
-            if (!codes.isEmpty()) {
-                return new PromotionRef(promotionId, codes.get(0), null, discount != null ? discount : 0L);
+            if (!list.isEmpty()) {
+                return list.get(0);
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn("Lỗi tra cứu khuyến mại id={}: {}", promotionId, e.getMessage());
         }
         return new PromotionRef(promotionId, "KM-" + promotionId, null, discount != null ? discount : 0L);
     }
