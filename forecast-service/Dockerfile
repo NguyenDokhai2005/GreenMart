@@ -3,6 +3,7 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt && useradd --uid 10001 --create-home forecast
+COPY --chown=forecast:forecast scripts/config.py ./scripts/config.py
 COPY --chown=forecast:forecast app ./app
 USER forecast
 EXPOSE 8000
