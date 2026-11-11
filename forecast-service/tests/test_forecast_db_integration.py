@@ -153,7 +153,20 @@ class DummyReport:
     def __init__(self, cutoff_date: date, top_sku_ids: Set[int], optimal_thresholds: Dict[int, float]):
         self.cutoff_date = cutoff_date
         self.horizons = [7, 30]
-        self.baseline_report = type("BaselineReport", (), {"top_sku_ids": top_sku_ids})()
+        baseline_metrics_h7 = DummyMetrics(mae=0.30, wape=0.20)
+        baseline_metrics_h30 = DummyMetrics(mae=0.35, wape=0.22)
+        self.baseline_report = type(
+            "BaselineReport",
+            (),
+            {
+                "top_sku_ids": top_sku_ids,
+                "best_baseline": {7: "rolling_mean_28", 30: "rolling_mean_28"},
+                "results": {
+                    7: {"rolling_mean_28": {"overall": baseline_metrics_h7}},
+                    30: {"rolling_mean_28": {"overall": baseline_metrics_h30}},
+                },
+            },
+        )()
         self.optimal_slow_thresholds = optimal_thresholds
 
         # Tỷ lệ zero mong đợi của nhóm bán chậm khi áp ngưỡng 0.4
@@ -378,3 +391,254 @@ def test_persist_forecast_to_db_postgres_datetime64_parquet_format(postgres_cont
             assert float(min_pred) >= 0.0
     finally:
         conn2.close()
+
+
+def test_api_forecast_run_e2e_postgres(postgres_container, monkeypatch):
+    """Kiểm thử tích hợp API end-to-end trên PostgreSQL 16 thật (#114).
+
+    Kiểm tra:
+    1. POST /forecast/run trả 202, runId và không tạo run thứ hai.
+    2. Background task thực thi, ghi đúng số dòng vào forecast_result và cập nhật DONE.
+    3. GET /forecast/runs/{runId} trả 200 DONE kèm các chỉ số MAE, WAPE.
+    """
+    from contextlib import contextmanager
+    from fastapi.testclient import TestClient
+    from app.main import create_app
+    import app.pipelines.forecast_service as fs_mod
+
+    cutoff = date(2026, 10, 1)
+    df_daily = _make_dummy_daily_sales(cutoff)
+
+    # 1. Nạp dữ liệu vào bảng daily_sales trong PostgreSQL container
+    conn_setup = _get_pg_connection(postgres_container)
+    try:
+        with conn_setup.cursor() as cur:
+            for _, r in df_daily.iterrows():
+                cur.execute(
+                    """
+                    INSERT INTO daily_sales (
+                        sale_date, branch_id, product_id, qty_sold, qty_returned, qty_net,
+                        revenue, promo_flag, promo_discount_pct, stockout
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (sale_date, branch_id, product_id) DO NOTHING;
+                    """,
+                    (
+                        r["sale_date"],
+                        int(r["branch_id"]),
+                        int(r["product_id"]),
+                        int(r["qty_net"]),
+                        0,
+                        int(r["qty_net"]),
+                        int(r["qty_net"] * 1000),
+                        False,
+                        0.0,
+                        False,
+                    ),
+                )
+        conn_setup.commit()
+    finally:
+        conn_setup.close()
+
+    # Context manager connection factory trỏ tới Postgres container
+    @contextmanager
+    def pg_conn_factory():
+        c = _get_pg_connection(postgres_container)
+        try:
+            yield c
+        finally:
+            c.close()
+
+    monkeypatch.setattr("app.pipelines.forecast_service.get_db_connection", pg_conn_factory)
+    monkeypatch.setattr("app.api.router.get_db_connection", pg_conn_factory)
+
+    # Mock phần train để test chạy nhanh (~vài trăm ms), kiểm tra toàn bộ luồng DB thật
+    report = DummyReport(cutoff_date=cutoff, top_sku_ids={101}, optimal_thresholds={7: 0.4, 30: 0.4})
+    pred_values = {101: 9.5, 102: 0.15, 103: 0.10, 104: 0.05}
+    models = {7: DummyModel(pred_values), 30: DummyModel(pred_values)}
+    monkeypatch.setattr(fs_mod, "evaluate_lightgbm_pipeline", lambda df_daily, horizons: (report, models))
+
+    app = create_app(pg_conn_factory)
+    client = TestClient(app)
+
+    # 2. Gọi POST /forecast/run
+    post_res = client.post("/forecast/run")
+    assert post_res.status_code == 202
+    post_data = post_res.json()
+    run_id = post_data["runId"]
+    assert post_data["status"] == "RUNNING"
+    assert "startedAt" in post_data
+
+    # 3. Gọi GET /forecast/runs/{runId}
+    get_res = client.get(f"/forecast/runs/{run_id}")
+    assert get_res.status_code == 200
+    get_data = get_res.json()
+    assert get_data["runId"] == run_id
+    assert get_data["status"] == "DONE"
+    assert get_data["finishedAt"] is not None
+    assert get_data["mae"] == 0.25
+    assert get_data["wape"] == 0.15
+    assert get_data["baselineMae"] == 0.30
+    assert get_data["baselineWape"] == 0.20
+
+    # 4. Kiểm tra trong DB: Đúng số dòng kết quả (8 chuỗi x 37 ngày = 296 dòng) và không có run trùng lặp
+    conn_verify = _get_pg_connection(postgres_container)
+    try:
+        with conn_verify.cursor() as cur:
+            # Kiểm tra duy nhất 1 run cho run_id này
+            cur.execute("SELECT COUNT(*) FROM forecast_run WHERE id = %s;", (run_id,))
+            assert cur.fetchone()[0] == 1
+
+            # Kiểm tra số dòng kết quả
+            cur.execute("SELECT COUNT(*), MIN(predicted_qty) FROM forecast_result WHERE run_id = %s;", (run_id,))
+            cnt, min_qty = cur.fetchone()
+            assert cnt == 8 * (7 + 30)
+            assert float(min_qty) >= 0.0
+    finally:
+        conn_verify.close()
+
+
+def test_api_forecast_run_concurrency_409(postgres_container, monkeypatch):
+    """Kiểm tra chặn đồng thời trả về HTTP 409 khi đã có run RUNNING (#114)."""
+    from contextlib import contextmanager
+    from fastapi.testclient import TestClient
+    from app.main import create_app
+
+    @contextmanager
+    def pg_conn_factory():
+        c = _get_pg_connection(postgres_container)
+        try:
+            yield c
+        finally:
+            c.close()
+
+    monkeypatch.setattr("app.pipelines.forecast_service.get_db_connection", pg_conn_factory)
+    monkeypatch.setattr("app.api.router.get_db_connection", pg_conn_factory)
+
+    # Chèn một run RUNNING vừa mới chạy
+    conn = _get_pg_connection(postgres_container)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO forecast_run (started_at, status, model_version) "
+                "VALUES (NOW(), 'RUNNING', 'Active-Run') RETURNING id;"
+            )
+            active_run_id = cur.fetchone()[0]
+        conn.commit()
+    finally:
+        conn.close()
+
+    app = create_app(pg_conn_factory)
+    client = TestClient(app)
+
+    res = client.post("/forecast/run")
+    assert res.status_code == 409
+    data = res.json()
+    assert data["code"] == "CONFLICT"
+    assert f"run_id={active_run_id}" in data["message"]
+
+
+def test_api_forecast_run_stale_cleanup_postgres(postgres_container, monkeypatch):
+    """Kiểm tra tự động đánh dấu FAILED các run RUNNING quá 30 phút và khởi tạo run mới (#114)."""
+    from contextlib import contextmanager
+    from fastapi.testclient import TestClient
+    from app.main import create_app
+    import app.pipelines.forecast_service as fs_mod
+
+    @contextmanager
+    def pg_conn_factory():
+        c = _get_pg_connection(postgres_container)
+        try:
+            yield c
+        finally:
+            c.close()
+
+    monkeypatch.setattr("app.pipelines.forecast_service.get_db_connection", pg_conn_factory)
+    monkeypatch.setattr("app.api.router.get_db_connection", pg_conn_factory)
+
+    # 1. Chèn một run RUNNING kẹt từ 35 phút trước
+    conn = _get_pg_connection(postgres_container)
+    try:
+        with conn.cursor() as cur:
+            # Xóa các run RUNNING còn sót để đảm bảo test độc lập
+            cur.execute("UPDATE forecast_run SET status = 'DONE' WHERE status = 'RUNNING';")
+            cur.execute(
+                """
+                INSERT INTO forecast_run (started_at, status, model_version)
+                VALUES (NOW() - INTERVAL '35 minutes', 'RUNNING', 'Stale-Run')
+                RETURNING id;
+                """
+            )
+            stale_id = cur.fetchone()[0]
+        conn.commit()
+    finally:
+        conn.close()
+
+    cutoff = date(2026, 10, 1)
+    report = DummyReport(cutoff_date=cutoff, top_sku_ids={101}, optimal_thresholds={7: 0.4, 30: 0.4})
+    models = {7: DummyModel({101: 5.0}), 30: DummyModel({101: 5.0})}
+    monkeypatch.setattr(fs_mod, "evaluate_lightgbm_pipeline", lambda df_daily, horizons: (report, models))
+
+    app = create_app(pg_conn_factory)
+    client = TestClient(app)
+
+    # 2. Gọi POST /forecast/run -> Phải thành công vì run cũ đã quá 30 phút và bị đánh dấu FAILED
+    res = client.post("/forecast/run")
+    assert res.status_code == 202
+    new_run_id = res.json()["runId"]
+    assert new_run_id != stale_id
+
+    # 3. Kiểm tra trong DB: stale_id phải có status FAILED và finished_at không NULL
+    conn_verify = _get_pg_connection(postgres_container)
+    try:
+        with conn_verify.cursor() as cur:
+            cur.execute("SELECT status, finished_at FROM forecast_run WHERE id = %s;", (stale_id,))
+            stale_status, finished_at = cur.fetchone()
+            assert stale_status == "FAILED"
+            assert finished_at is not None
+    finally:
+        conn_verify.close()
+
+
+def test_complete_forecast_run_records_real_clock_timestamp(postgres_container):
+    """Kiểm tra finished_at ghi nhận clock_timestamp thật thay vì transaction start time (#114)."""
+    import time
+    from app.pipelines.forecast_runner import complete_forecast_run
+
+    conn = _get_pg_connection(postgres_container)
+    try:
+        with conn.cursor() as cur:
+            # 1. Bắt đầu transaction và tạo một run mới với clock_timestamp()
+            cur.execute(
+                """
+                INSERT INTO forecast_run (started_at, status, model_version)
+                VALUES (clock_timestamp(), 'RUNNING', 'Clock-Test')
+                RETURNING id, started_at;
+                """
+            )
+            run_id, started_at = cur.fetchone()
+
+            # 2. Chờ 0.6s trong CÙNG transaction
+            time.sleep(0.6)
+
+            # 3. Gọi complete_forecast_run trong cùng connection/transaction này
+            complete_forecast_run(
+                conn,
+                run_id=run_id,
+                mae=0.25,
+                wape=0.15,
+                baseline_mae=0.30,
+                baseline_wape=0.20,
+            )
+
+            # 4. Lấy lại finished_at và kiểm tra chênh lệch thời gian thực tế
+            cur.execute("SELECT started_at, finished_at FROM forecast_run WHERE id = %s;", (run_id,))
+            db_started_at, db_finished_at = cur.fetchone()
+
+            duration = (db_finished_at - db_started_at).total_seconds()
+            assert duration >= 0.5, f"Kỳ vọng duration >= 0.5s nhưng nhận {duration}s"
+        conn.commit()
+    finally:
+        conn.close()
+
+
