@@ -1,0 +1,13 @@
+services:
+  backend:
+    image: greenmart-backend:qa150
+    env_file: !reset []
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      FORECAST_DB_USER: ${FORECAST_DB_USER}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+      JWT_SECRET: ${JWT_SECRET}
+    ports: !override ['127.0.0.1:18082:8080']

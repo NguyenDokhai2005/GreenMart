@@ -9,4 +9,5 @@ public interface StockDocumentService {
     StockDocumentResponse update(Long id, StockDocumentRequests.Update request);
     StockDocumentResponse cancel(Long id, StockDocumentRequests.Cancel request);
     StockDocumentResponse approve(Long id);
+    StockDocumentResponse receive(Long id, StockDocumentRequests.Receive request);
 }
