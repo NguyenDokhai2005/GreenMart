@@ -218,14 +218,6 @@ public class PosOrderServiceImpl implements PosOrderService {
         );
         outboxService.enqueue("order", order.getId().toString(), "order.completed", orderPayload);
 
-        List<Long> changedProductIds = sortedItems.stream().map(OrderLineRequest::productId).toList();
-        Map<String, Object> stockPayload = Map.of(
-                "branchId", order.getBranchId(),
-                "productIds", changedProductIds,
-                "reason", "POS_SALE"
-        );
-        outboxService.enqueue("stock", order.getBranchId().toString(), "stock.changed", stockPayload);
-
         BranchRef branchRef = new BranchRef(request.branchId(), branchInfo.code(), branchInfo.name());
         CustomerRef customerRef = null;
         if (request.customerId() != null) {

@@ -12,6 +12,8 @@ import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Map;
+import vn.greenmart.integration.outbox.OutboxService;
 import vn.greenmart.inventory.exception.InsufficientStockException;
 import vn.greenmart.inventory.repository.InventoryRepository;
 import vn.greenmart.inventory.repository.InventoryTransactionWriter;
@@ -39,6 +41,7 @@ public class InventoryServiceImpl implements InventoryService {
     private final ProductCostService productCost;
     private final JdbcTemplate jdbc;
     private final EntityManager entityManager;
+    private final OutboxService outbox;
 
     /**
      *      WHERE (on_hand - reserved) >= qty
@@ -56,6 +59,7 @@ public class InventoryServiceImpl implements InventoryService {
         }
         log.debug("reserve: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
         transactionWriter.appendOrder(branchId, productId, Type.RESERVE, 0, qty, refId);
+        enqueueStockChanged(branchId, productId);
     }
 
     /**
@@ -77,6 +81,7 @@ public class InventoryServiceImpl implements InventoryService {
         }
         log.debug("release: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
         transactionWriter.appendOrder(branchId, productId, Type.RELEASE, 0, -qty, refId);
+        enqueueStockChanged(branchId, productId);
     }
 
     /**
@@ -98,6 +103,7 @@ public class InventoryServiceImpl implements InventoryService {
         }
         log.debug("commitSale: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
         transactionWriter.appendOrder(branchId, productId, Type.SALE, -qty, -qty, refId);
+        enqueueStockChanged(branchId, productId);
     }
 
     /**
@@ -116,6 +122,7 @@ public class InventoryServiceImpl implements InventoryService {
         }
         log.debug("sellDirect: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
         transactionWriter.appendOrder(branchId, productId, Type.SALE, -qty, 0, refId);
+        enqueueStockChanged(branchId, productId);
     }
 
     /**
@@ -155,6 +162,7 @@ public class InventoryServiceImpl implements InventoryService {
         increaseOnHand(branchId, productId, qty);
         productCost.updateCostPrice(productId, newCost);
         transactionWriter.appendImport(branchId, productId, qty, documentId, actorId);
+        enqueueStockChanged(branchId, productId);
         entityManager.clear(); // Native writes must not leave stale Inventory/Product entities in the caller.
     }
 
@@ -178,6 +186,7 @@ public class InventoryServiceImpl implements InventoryService {
             throw insufficientStock(branchId, productId, qty);
         }
         transactionWriter.appendTransfer(branchId, productId, -qty, documentId, actorId);
+        enqueueStockChanged(branchId, productId);
     }
 
     @Override
@@ -188,6 +197,7 @@ public class InventoryServiceImpl implements InventoryService {
         productCost.lockForStockChange(productId);
         increaseOnHand(branchId, productId, qty);
         transactionWriter.appendTransfer(branchId, productId, qty, documentId, actorId);
+        enqueueStockChanged(branchId, productId);
         entityManager.clear();
     }
 
@@ -205,8 +215,18 @@ public class InventoryServiceImpl implements InventoryService {
         int rows = inventoryRepository.sellDirect(branchId, productId, qty);
         if (rows != 1) throw insufficientStock(branchId, productId, qty);
         transactionWriter.appendExport(branchId, productId, qty, documentId, actorId);
+        enqueueStockChanged(branchId, productId);
         entityManager.clear();
         return cost;
+    }
+
+    private void enqueueStockChanged(Long branchId, Long productId) {
+        // The stock update holds the row lock until commit, so this is its exact version.
+        Long version = jdbc.queryForObject("""
+                SELECT version FROM inventory WHERE branch_id=? AND product_id=?
+                """, Long.class, branchId, productId);
+        outbox.enqueue("stock", branchId + ":" + productId, "stock.changed",
+                Map.of("branchId", branchId, "productId", productId, "version", version));
     }
 
     // Private helpers
