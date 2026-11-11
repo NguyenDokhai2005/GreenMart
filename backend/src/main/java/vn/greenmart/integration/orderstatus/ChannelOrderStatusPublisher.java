@@ -37,7 +37,7 @@ public class ChannelOrderStatusPublisher {
 
     record Destination(String channel, String externalId) {}
 
-    @RabbitListener(queues = QUEUE)
+    @RabbitListener(queues = QUEUE, autoStartup = "${greenmart.outbox.enabled:true}")
     @Transactional
     public void onOrderStatus(Message message) throws IOException {
         var props = message.getMessageProperties();
