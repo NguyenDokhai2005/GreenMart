@@ -3,6 +3,7 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-r
 import type { ReactNode } from 'react';
 import type { Role } from '../../api/client';
 import { Button, Toast } from '../../components/ui';
+import PosLayout from '../../layouts/pos/PosLayout';
 import { evaluateRouteAccess } from './routeAccess';
 import { useActiveBranch } from './useActiveBranch';
 import { useAuth } from './useAuth';
@@ -254,7 +255,7 @@ export function AppRoutes() {
         element={
           <AuthBoundary allowedRoles={POS_ROLES}>
             <BranchBoundary>
-              <WorkspaceMountPoint title="Khu POS" />
+              <PosLayout />
             </BranchBoundary>
           </AuthBoundary>
         }
