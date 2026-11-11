@@ -57,7 +57,7 @@ public class ChannelDelivery {
                         "greenmart.events", "channel.delivery.failed", Map.of()));
     }
 
-    @RabbitListener(queues = QUEUE)
+    @RabbitListener(queues = QUEUE, autoStartup = "${greenmart.outbox.enabled:true}")
     @Transactional
     public void accept(Message message) throws IOException {
         var props = message.getMessageProperties();
