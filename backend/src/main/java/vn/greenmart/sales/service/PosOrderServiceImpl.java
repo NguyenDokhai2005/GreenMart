@@ -201,7 +201,7 @@ public class PosOrderServiceImpl implements PosOrderService {
         // Tạo bản ghi Payment qua PaymentService
         PaymentResponse paymentResponse = paymentService.processPayment(order.getId(), totalAmount, request.payment());
 
-        // Enqueue Outbox events
+        // Enqueue Outbox events (chỉ enqueue order.completed; stock.changed đã được chuyển vào InventoryService ở INV-59)
         Map<String, Object> orderPayload = Map.of(
                 "orderId", order.getId(),
                 "code", order.getCode(),
@@ -210,14 +210,6 @@ public class PosOrderServiceImpl implements PosOrderService {
                 "completedAt", now.toString()
         );
         outboxService.enqueue("order", order.getId().toString(), "order.completed", orderPayload);
-
-        List<Long> changedProductIds = sortedItems.stream().map(OrderLineRequest::productId).toList();
-        Map<String, Object> stockPayload = Map.of(
-                "branchId", order.getBranchId(),
-                "productIds", changedProductIds,
-                "reason", "POS_SALE"
-        );
-        outboxService.enqueue("stock", order.getBranchId().toString(), "stock.changed", stockPayload);
 
         return mapToOrderResponse(order, savedItems, List.of(paymentResponse));
     }

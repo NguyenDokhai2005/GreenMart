@@ -151,7 +151,7 @@ class PosOrderServiceTest {
         verify(paymentRepository).save(any(Payment.class));
         verify(inventoryService).sellDirect(1L, 101L, 2, 500L);
         verify(outboxService).enqueue(eq("order"), eq("500"), eq("order.completed"), any());
-        verify(outboxService).enqueue(eq("stock"), eq("1"), eq("stock.changed"), any());
+        verify(outboxService, never()).enqueue(any(), any(), eq("stock.changed"), any());
     }
 
     @Test

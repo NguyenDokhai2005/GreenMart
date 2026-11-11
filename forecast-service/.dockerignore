@@ -4,5 +4,6 @@ __pycache__
 data
 notebooks
 tests
-scripts
+scripts/*
+!scripts/config.py
 .env*

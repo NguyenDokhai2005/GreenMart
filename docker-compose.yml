@@ -97,6 +97,7 @@ services:
       FORECAST_DB_USER: ${FORECAST_DB_USER:?Set FORECAST_DB_USER}
       FORECAST_DB_PASSWORD: ${FORECAST_DB_PASSWORD:?Set FORECAST_DB_PASSWORD}
       TZ: Asia/Ho_Chi_Minh
+    ports: ['127.0.0.1:8001:8000']
     depends_on:
       postgres: {condition: service_healthy}
       backend: {condition: service_healthy}

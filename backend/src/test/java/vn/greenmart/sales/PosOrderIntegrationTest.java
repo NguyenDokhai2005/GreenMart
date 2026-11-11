@@ -268,14 +268,24 @@ class PosOrderIntegrationTest {
         assertThat(((Number) txs.get(1).get("delta_on_hand")).intValue()).isEqualTo(-1);
         assertThat(((Number) txs.get(1).get("on_hand_after")).intValue()).isEqualTo(4);
 
-        // Bảng outbox_event: 2 sự kiện PENDING (order.completed, stock.changed)
+        // Một sự kiện hoàn tất đơn và một sự kiện cho mỗi dòng tồn đã cập nhật (#59).
         var outboxEvents = jdbcTemplate.queryForList(
                 "SELECT * FROM outbox_event ORDER BY id ASC");
-        assertThat(outboxEvents).hasSize(2);
         assertThat(outboxEvents.stream().map(m -> m.get("event_type")).toList())
-                .containsExactlyInAnyOrder("order.completed", "stock.changed");
+                .containsExactlyInAnyOrder("order.completed", "stock.changed", "stock.changed");
         assertThat(outboxEvents.stream().map(m -> m.get("status")).toList())
                 .containsOnly("PENDING");
+        var stockEvents = jdbcTemplate.queryForList("""
+                SELECT (payload->>'branchId')::bigint AS branch_id,
+                       (payload->>'productId')::bigint AS product_id,
+                       (payload->>'version')::bigint AS version
+                FROM outbox_event WHERE event_type='stock.changed'
+                ORDER BY product_id
+                """);
+        assertThat(stockEvents.get(0)).containsEntry("branch_id", BRANCH_ID)
+                .containsEntry("product_id", PRODUCT_A_ID).containsEntry("version", invA.get("version"));
+        assertThat(stockEvents.get(1)).containsEntry("branch_id", BRANCH_ID)
+                .containsEntry("product_id", PRODUCT_B_ID).containsEntry("version", invB.get("version"));
     }
 
     @Test
