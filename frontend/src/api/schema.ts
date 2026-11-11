@@ -842,6 +842,47 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/reports/revenue': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Báo cáo doanh thu theo thời gian
+     * @description Doanh thu chỉ tính đơn COMPLETED theo ngày hoàn tất; trả hàng trừ vào ngày trả (BR-18, DASH-01).
+     *     Hỗ trợ gom nhóm theo ngày (day), tuần (week), tháng (month).
+     */
+    get: operations['getRevenueReport'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/reports/top-products': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Top sản phẩm bán chạy và bán chậm
+     * @description Top sản phẩm theo số lượng ròng (bán trừ trả) trong kỳ báo cáo (DASH-02, BR-18).
+     */
+    get: operations['getTopProductsReport'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1696,6 +1737,97 @@ export interface components {
     };
     UserPage: components['schemas']['PageMeta'] & {
       content: components['schemas']['User'][];
+    };
+    RevenueSummary: {
+      /**
+       * Format: int64
+       * @description Tổng doanh thu bán (VND)
+       */
+      totalGrossRevenue: number;
+      /**
+       * Format: int64
+       * @description Tổng tiền hoàn trả (VND)
+       */
+      totalReturnAmount: number;
+      /**
+       * Format: int64
+       * @description Doanh thu thuần (VND)
+       */
+      totalNetRevenue: number;
+      /**
+       * Format: int64
+       * @description Tổng số đơn hoàn tất
+       */
+      totalOrders: number;
+      /**
+       * Format: int64
+       * @description Tổng số phiếu trả duyệt
+       */
+      totalReturns: number;
+    };
+    RevenuePoint: {
+      /** @description Mốc thời gian (YYYY-MM-DD hoặc YYYY-MM) */
+      date: string;
+      /**
+       * Format: int64
+       * @description Doanh thu ròng sau trừ trả hàng
+       */
+      revenue: number;
+      /**
+       * Format: int64
+       * @description Doanh thu bán
+       */
+      grossRevenue: number;
+      /**
+       * Format: int64
+       * @description Tiền trả hàng
+       */
+      returnAmount: number;
+      /** Format: int64 */
+      orderCount: number;
+      /** Format: int64 */
+      returnCount: number;
+    };
+    RevenueReportResponse: {
+      summary: components['schemas']['RevenueSummary'];
+      points: components['schemas']['RevenuePoint'][];
+    };
+    ProductSalesItem: {
+      /** Format: int64 */
+      productId: number;
+      sku: string;
+      name: string;
+      categoryName?: string | null;
+      /**
+       * Format: int64
+       * @description Số lượng đã bán
+       */
+      soldQuantity: number;
+      /**
+       * Format: int64
+       * @description Số lượng đã trả
+       */
+      returnedQuantity: number;
+      /**
+       * Format: int64
+       * @description Số lượng ròng (bán - trả)
+       */
+      netQuantity: number;
+      /**
+       * Format: int64
+       * @description Doanh thu từ sản phẩm (VND)
+       */
+      revenue: number;
+    };
+    TopProductsResponse: {
+      period: {
+        /** Format: date */
+        from: string;
+        /** Format: date */
+        to: string;
+      };
+      topSelling: components['schemas']['ProductSalesItem'][];
+      slowSelling: components['schemas']['ProductSalesItem'][];
     };
   };
   responses: {
@@ -3603,6 +3735,74 @@ export interface operations {
       401: components['responses']['Unauthorized'];
       403: components['responses']['Forbidden'];
       404: components['responses']['NotFound'];
+    };
+  };
+  getRevenueReport: {
+    parameters: {
+      query?: {
+        /** @description Ngày bắt đầu (YYYY-MM-DD), mặc định 30 ngày trước */
+        from?: string;
+        /** @description Ngày kết thúc (YYYY-MM-DD), mặc định hôm nay */
+        to?: string;
+        /** @description Chu kỳ gom nhóm (day, week, month) */
+        groupBy?: 'day' | 'week' | 'month';
+        branchId?: components['parameters']['BranchIdQuery'];
+        /** @description Lọc theo kênh bán hàng */
+        channelId?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Báo cáo doanh thu và danh sách các điểm dữ liệu */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RevenueReportResponse'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+    };
+  };
+  getTopProductsReport: {
+    parameters: {
+      query?: {
+        /** @description Tháng báo cáo (YYYY-MM), ví dụ 2026-11 */
+        month?: string;
+        /** @description Tùy chọn ngày bắt đầu (YYYY-MM-DD) */
+        from?: string;
+        /** @description Tùy chọn ngày kết thúc (YYYY-MM-DD) */
+        to?: string;
+        /** @description Số lượng top mỗi danh sách (mặc định 10) */
+        limit?: number;
+        branchId?: components['parameters']['BranchIdQuery'];
+        /** @description Lọc theo kênh bán hàng */
+        channelId?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Top sản phẩm bán chạy và bán chậm */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['TopProductsResponse'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
     };
   };
 }
