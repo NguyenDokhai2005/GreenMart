@@ -182,7 +182,7 @@ def fetch_daily_sales_from_db(conn: Any) -> pd.DataFrame:
 def execute_background_forecast(
     run_id: int,
     optimal_threshold: float = DEFAULT_SLOW_THRESHOLD,
-    evaluate_pipeline_fn: Any = evaluate_lightgbm_pipeline,
+    evaluate_pipeline_fn: Optional[Any] = None,
 ) -> None:
     """Thực thi toàn bộ luồng dự báo chạy nền cho run_id đã được tạo trước.
 
@@ -190,6 +190,7 @@ def execute_background_forecast(
     Mở kết nối DB riêng biệt và xử lý rollback/fail nếu phát sinh lỗi.
     """
     logger.info("Bắt đầu thực thi pipeline dự báo nền cho run_id=%d", run_id)
+    eval_fn = evaluate_pipeline_fn if evaluate_pipeline_fn is not None else evaluate_lightgbm_pipeline
     try:
         with get_db_connection() as conn:
             # 1. Đọc dữ liệu từ bảng daily_sales trong PostgreSQL
@@ -202,7 +203,7 @@ def execute_background_forecast(
                 df_daily["sale_date"] = df_daily["sale_date"].dt.date
 
             # 2. Huấn luyện và đánh giá mô hình LightGBM đối đầu Baseline
-            report, best_models = evaluate_pipeline_fn(
+            report, best_models = eval_fn(
                 df_daily=df_daily,
                 horizons=(7, 30),
             )
