@@ -251,7 +251,13 @@ describe('rendered authentication flow', () => {
       await act(async () =>
         container.querySelector<HTMLButtonElement>('.branch-page__actions button')!.click(),
       );
-      expect(currentPath).toBe(role === 'CASHIER' ? '/pos' : '/operations');
+      expect(currentPath).toBe(
+        role === 'CASHIER'
+          ? '/pos'
+          : role === 'STOREKEEPER'
+            ? '/operations/inventory'
+            : '/operations',
+      );
     },
   );
 

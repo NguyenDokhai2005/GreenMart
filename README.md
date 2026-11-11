@@ -146,7 +146,7 @@ docker compose up -d --wait
 
 `down` giữ volume dữ liệu. `docker compose down -v` xóa toàn bộ dữ liệu của
 project: chỉ dùng khi chủ động reset môi trường demo và đã sao lưu dữ liệu cần giữ.
-Script backup/restore và seed được bổ sung ở các issue sau.
+Xem [sao lưu và phục hồi PostgreSQL](docs/operations/BACKUP-RESTORE.md) và [chạy seed](scripts/README.md).
 
 ## Xử lý lỗi thường gặp
 

@@ -28,7 +28,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,"
                 + "org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration",
-        "management.endpoint.health.group.readiness.include=readinessState,db"
+        "management.endpoint.health.group.readiness.include=readinessState,db",
+        "greenmart.outbox.enabled=false"
 })
 @AutoConfigureMockMvc
 @Testcontainers
@@ -48,6 +49,7 @@ class StockTransferApiTest {
     private static final String DOCUMENTS = "/api/v1/stock-documents";
 
     @BeforeEach void fixtures() {
+        jdbc.update("DELETE FROM outbox_event");
         jdbc.execute("TRUNCATE branch,category,app_user CASCADE");
         jdbc.update("INSERT INTO branch(id,code,name) VALUES(81,'SRC','Source'),(82,'DST','Destination'),(83,'OTH','Other')");
         jdbc.update("INSERT INTO category(id,name) VALUES(81,'Milk')");
@@ -104,6 +106,10 @@ class StockTransferApiTest {
                 SELECT type || ':' || branch_id || ':' || delta_on_hand || ':' || created_by
                 FROM inventory_transaction WHERE ref_type='STOCK_DOCUMENT' AND ref_id=? ORDER BY id
                 """, String.class, id)).containsExactly("TRANSFER_OUT:81:-50:811", "TRANSFER_IN:82:48:812");
+        assertThat(jdbc.queryForList("""
+                SELECT aggregate_id || ':' || (payload->>'version')
+                FROM outbox_event WHERE event_type='stock.changed' ORDER BY id
+                """, String.class)).containsExactly("81:81:1", "82:81:1");
 
         receive(draft, 48, "812").andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("INVALID_STATUS"));
         assertThat(onHand(82)).isEqualTo(48);
