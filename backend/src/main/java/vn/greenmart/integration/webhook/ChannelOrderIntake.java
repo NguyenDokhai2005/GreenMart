@@ -112,10 +112,7 @@ public class ChannelOrderIntake {
         String status = cod ? "CONFIRMED" : "RESERVED";
         var order = orders.insert(config.id(), channel, request.externalOrderId(), branch, customer, status,
                 cod ? null : now.plusMinutes(15), request.orderedAt().toInstant(), total, lines);
-        quantities.forEach((product, qty) -> {
-            inventory.reserve(branch, product, qty, order.id());
-            outbox.enqueue("stock", Long.toString(branch), "stock.changed", Map.of("branchId", branch, "productId", product));
-        });
+        quantities.forEach((product, qty) -> inventory.reserve(branch, product, qty, order.id()));
         orderEvent(order, now, null);
         return new Result(ack(order, null), false, null, Map.of());
     }
