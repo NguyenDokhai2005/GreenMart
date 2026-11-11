@@ -23,9 +23,10 @@ public class ChannelStockAvailability {
         products.stream().sorted().forEach(costs::lockForStockChange);
         var balances = new HashMap<Long, Map<Long, Integer>>();
         jdbc.query("""
-                SELECT branch_id, product_id, on_hand - reserved AS available
-                FROM inventory WHERE branch_id IN (:branches) AND product_id IN (:products)
-                ORDER BY product_id, branch_id FOR UPDATE
+                SELECT i.branch_id, i.product_id, i.on_hand - i.reserved AS available
+                FROM inventory i JOIN branch b ON b.id=i.branch_id AND b.is_active
+                WHERE i.branch_id IN (:branches) AND i.product_id IN (:products)
+                ORDER BY i.product_id, i.branch_id FOR UPDATE OF i
                 """, Map.of("branches", branches, "products", products), rs -> {
             balances.computeIfAbsent(rs.getLong("branch_id"), ignored -> new HashMap<>())
                     .put(rs.getLong("product_id"), rs.getInt("available"));

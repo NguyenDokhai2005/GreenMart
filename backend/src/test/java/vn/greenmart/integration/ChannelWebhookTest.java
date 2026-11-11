@@ -46,15 +46,25 @@ class ChannelWebhookTest {
                 .content(order("webhook-1", "TAMPERED"))).andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INVALID_SIGNATURE"));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM sales_order WHERE external_order_id='webhook-1'", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM customer WHERE phone='09123456789'", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM outbox_event", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT reserved FROM inventory WHERE branch_id=901 AND product_id=205", Integer.class)).isZero();
         mvc.perform(post("/api/v1/integrations/WEB/orders").header("X-Signature", signature).content(body))
                 .andExpect(status().isAccepted()).andExpect(jsonPath("$.status").value("CONFIRMED"));
-        mvc.perform(post("/api/v1/integrations/WEB/orders").header("X-Signature", signature).content(body))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CONFIRMED"));
+        for (int attempt = 0; attempt < 3; attempt++) {
+            mvc.perform(post("/api/v1/integrations/WEB/orders").header("X-Signature", signature).content(body))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CONFIRMED"));
+        }
         assertThat(jdbc.queryForObject("SELECT reserved FROM inventory WHERE branch_id=901 AND product_id=205", Integer.class)).isEqualTo(3);
         var bad = order("webhook-2", "UNKNOWN");
         mvc.perform(post("/api/v1/integrations/WEB/orders").header("X-Signature", signatures.sign("WEB", bad)).content(bad))
                 .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("UNMAPPED_SKU"));
         assertThat(jdbc.queryForObject("SELECT status FROM sales_order WHERE external_order_id='webhook-2'", String.class)).isEqualTo("REJECTED");
+        byte[] tooMany = new String(order("webhook-3", "W-SUA-TH-1L"), StandardCharsets.UTF_8)
+                .replace("\"quantity\":3", "\"quantity\":30").getBytes(StandardCharsets.UTF_8);
+        mvc.perform(post("/api/v1/integrations/WEB/orders").header("X-Signature", signatures.sign("WEB", tooMany)).content(tooMany))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("INSUFFICIENT_STOCK"));
+        assertThat(jdbc.queryForObject("SELECT status FROM sales_order WHERE external_order_id='webhook-3'", String.class)).isEqualTo("REJECTED");
     }
 
     private byte[] order(String id, String sku) {
