@@ -38,4 +38,9 @@ public class OrderController {
         HttpStatus status = result.isCreated() ? HttpStatus.CREATED : HttpStatus.OK;
         return ResponseEntity.status(status).body(result.response());
     }
+
+    @GetMapping("/{orderId}")
+    public ResponseEntity<OrderResponse> getOrder(@PathVariable("orderId") Long orderId) {
+        return ResponseEntity.ok(posOrderService.getOrder(orderId));
+    }
 }

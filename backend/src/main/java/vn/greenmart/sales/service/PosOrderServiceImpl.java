@@ -18,9 +18,12 @@ import vn.greenmart.integration.outbox.OutboxService;
 import vn.greenmart.inventory.service.InventoryService;
 import vn.greenmart.sales.domain.OrderItem;
 import vn.greenmart.sales.domain.OrderStatus;
+import vn.greenmart.sales.domain.Payment;
+import vn.greenmart.sales.domain.PaymentMethod;
 import vn.greenmart.sales.domain.SalesOrder;
 import vn.greenmart.sales.dto.*;
 import vn.greenmart.sales.repository.OrderItemRepository;
+import vn.greenmart.sales.repository.PaymentRepository;
 import vn.greenmart.sales.repository.SalesOrderRepository;
 
 import java.time.Instant;
@@ -47,6 +50,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     private final PaymentService paymentService;
     private final SalesOrderRepository salesOrderRepository;
     private final OrderItemRepository orderItemRepository;
+    private final PaymentRepository paymentRepository;
     private final OutboxService outboxService;
     private final JdbcTemplate jdbcTemplate;
 
@@ -140,7 +144,7 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         Long seq = jdbcTemplate.queryForObject(
                 "INSERT INTO order_sequence (branch_id, order_date, seq) VALUES (?, ?, 1) "
-                + "ON CONFLICT (branch_id, order_date) DO UPDATE SET seq = order_sequence.seq + 1 RETURNING seq",
+                        + "ON CONFLICT (branch_id, order_date) DO UPDATE SET seq = order_sequence.seq + 1 RETURNING seq",
                 Long.class, request.branchId(), localDate
         );
 
@@ -262,5 +266,170 @@ public class PosOrderServiceImpl implements PosOrderService {
                 null,
                 null
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OrderResponse getOrder(Long orderId) {
+        // Phân quyền vai trò: Chỉ OWNER, BRANCH_MANAGER, CASHIER, STOREKEEPER
+        SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER", "CASHIER", "STOREKEEPER");
+
+        // Tìm đơn hàng
+        SalesOrder order = salesOrderRepository.findById(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy đơn hàng"));
+
+        // Phân quyền chi nhánh (BR-11, AUTH-02)
+        List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
+        if (accessibleBranches != null && !accessibleBranches.contains(order.getBranchId())) {
+            throw new AppException(ErrorCode.BRANCH_FORBIDDEN, "Bạn không có quyền thao tác trên chi nhánh này");
+        }
+
+        // Lấy danh sách dòng hàng và thanh toán trực tiếp từ DB
+        List<OrderItem> items = orderItemRepository.findByOrderId(order.getId());
+        List<Payment> payments = paymentRepository.findByOrderId(order.getId());
+
+        // Map dữ liệu sang OrderResponse dùng chung
+        return mapToOrderResponse(order, items, payments);
+    }
+
+    private OrderResponse mapToOrderResponse(SalesOrder order, List<OrderItem> items, List<Payment> payments) {
+        BranchSaleInfo branchInfo = branchService.getSaleInfo(order.getBranchId());
+        BranchRef branchRef = new BranchRef(order.getBranchId(), branchInfo.code(), branchInfo.name());
+
+        CustomerRef customerRef = null;
+        if (order.getCustomerId() != null) {
+            try {
+                CustomerResponse cust = customerService.getCustomer(order.getCustomerId());
+                customerRef = new CustomerRef(cust.id(), cust.phone(), cust.name());
+            } catch (Exception ignored) {
+            }
+        }
+
+        UserRef userRef = null;
+        if (order.getCreatedBy() != null) {
+            try {
+                String fullName = authService.getFullName(order.getCreatedBy());
+                userRef = new UserRef(order.getCreatedBy(), fullName);
+            } catch (Exception ignored) {
+                userRef = new UserRef(order.getCreatedBy(), "N/A");
+            }
+        }
+
+        long itemDiscountTotal = 0L;
+        int totalItemCount = 0;
+        List<OrderItemResponse> itemResponses = new ArrayList<>();
+
+        for (OrderItem item : items) {
+            totalItemCount += item.getQuantity();
+            if (item.getDiscount() != null) {
+                itemDiscountTotal += item.getDiscount();
+            }
+
+            String sku = "N/A";
+            String name = "N/A";
+            String unit = "N/A";
+
+            try {
+                ProductSaleInfo pInfo = productService.getSaleInfo(item.getProductId());
+                if (pInfo != null) {
+                    sku = pInfo.sku();
+                    name = pInfo.name();
+                    unit = pInfo.unit();
+                }
+            } catch (Exception ignored) {
+            }
+
+            PromotionRef itemPromotion = getPromotionRef(item.getPromotionId(), item.getDiscount());
+
+            itemResponses.add(new OrderItemResponse(
+                    item.getId(),
+                    item.getProductId(),
+                    sku,
+                    name,
+                    unit,
+                    item.getQuantity(),
+                    item.getUnitPrice(),
+                    item.getDiscount(),
+                    item.getLineTotal(),
+                    itemPromotion
+            ));
+        }
+
+        long orderDiscount = Math.max(0L, order.getDiscount() - itemDiscountTotal);
+        PromotionRef orderPromotion = getPromotionRef(order.getPromotionId(), orderDiscount);
+
+        List<PaymentResponse> paymentResponses = new ArrayList<>();
+        for (Payment p : payments) {
+            Long cashReceived = null;
+            Long change = null;
+            if (p.getMethod() == PaymentMethod.CASH) {
+                cashReceived = p.getAmount() != null ? p.getAmount() : order.getTotal();
+                change = 0L;
+            }
+
+            paymentResponses.add(new PaymentResponse(
+                    p.getId(),
+                    p.getMethod(),
+                    p.getAmount(),
+                    p.getStatus(),
+                    cashReceived,
+                    change,
+                    p.getProviderRef(),
+                    p.getPaidAt()
+            ));
+        }
+
+        String channelCode = "POS";
+        try {
+            channelCode = jdbcTemplate.queryForObject(
+                    "SELECT code FROM sales_channel WHERE id = ?", String.class, order.getChannelId()
+            );
+        } catch (Exception ignored) {
+        }
+
+        return new OrderResponse(
+                order.getId(),
+                order.getCode(),
+                channelCode,
+                order.getExternalOrderId(),
+                branchRef,
+                customerRef,
+                order.getStatus(),
+                totalItemCount,
+                order.getTotal(),
+                order.getCreatedAt(),
+                order.getCompletedAt(),
+                userRef,
+                itemResponses,
+                orderPromotion,
+                null,
+                order.getSubtotal(),
+                itemDiscountTotal,
+                orderDiscount,
+                0L,
+                order.getDiscount(),
+                paymentResponses,
+                order.getReservedUntil(),
+                null,
+                null
+        );
+    }
+
+    private PromotionRef getPromotionRef(Long promotionId, Long discount) {
+        if (promotionId == null) {
+            return null;
+        }
+        try {
+            List<String> codes = jdbcTemplate.query(
+                    "SELECT code FROM promotion WHERE id = ?",
+                    (rs, rowNum) -> rs.getString("code"),
+                    promotionId
+            );
+            if (!codes.isEmpty()) {
+                return new PromotionRef(promotionId, codes.get(0), null, discount != null ? discount : 0L);
+            }
+        } catch (Exception ignored) {
+        }
+        return new PromotionRef(promotionId, "KM-" + promotionId, null, discount != null ? discount : 0L);
     }
 }

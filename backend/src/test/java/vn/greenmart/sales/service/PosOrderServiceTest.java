@@ -71,7 +71,7 @@ class PosOrderServiceTest {
         posOrderService = new PosOrderServiceImpl(
                 quoteService, productService, customerService, inventoryService,
                 branchService, authService, promotionService, paymentService,
-                salesOrderRepository, orderItemRepository, outboxService, jdbcTemplate
+                salesOrderRepository, orderItemRepository, paymentRepository, outboxService, jdbcTemplate
         );
 
         lenient().when(jdbcTemplate.query(anyString(), ArgumentMatchers.<RowMapper<Long>>any(), any()))
