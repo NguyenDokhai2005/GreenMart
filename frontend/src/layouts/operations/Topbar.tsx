@@ -1,15 +1,7 @@
-import { Icon } from './Icon';
-import { BranchSwitcher } from './BranchSwitcher';
 import type { CurrentUser } from '../../api/client';
-import { ROLE_LABEL, userDisplayName } from './adapters';
-
-const initials = (n: string) =>
-  n
-    .split(' ')
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
+import { BranchSwitcher } from './BranchSwitcher';
+import { Icon } from './Icon';
+import { UserMenu } from './UserMenu';
 
 export function Topbar({ user, section }: { user: CurrentUser; section: string }) {
   return (
@@ -26,14 +18,7 @@ export function Topbar({ user, section }: { user: CurrentUser; section: string }
         <button type="button" className="ops-bell" aria-label="Thông báo">
           <Icon name="bell" size={20} />
         </button>
-        <button type="button" className="ops-user" aria-label="Tài khoản">
-          <span className="ops-avatar">{initials(userDisplayName(user))}</span>
-          <span className="ops-user__text">
-            <b>{userDisplayName(user)}</b>
-            <small>{ROLE_LABEL[user.role]}</small>
-          </span>
-          <Icon name="chevron" size={14} />
-        </button>
+        <UserMenu user={user} />
       </div>
     </header>
   );
