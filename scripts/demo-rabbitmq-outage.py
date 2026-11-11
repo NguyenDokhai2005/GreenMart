@@ -61,7 +61,7 @@ def run(args):
     quote = request(args.backend, "/api/v1/orders/quote", payload, auth)
     require(quote["canComplete"], "Fixture POS order cannot complete")
     trace = "demo138-" + uuid4().hex
-    condition = f"WHERE trace_id='{trace}'"
+    condition = f"WHERE trace_id='{trace}' AND event_type IN ('order.completed','stock.changed')"
     query = f"SELECT event_type || ':' || status FROM outbox_event {condition} ORDER BY id"
     types = {"order.completed", "stock.changed"}
     stock_sql = f"""
