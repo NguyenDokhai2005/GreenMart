@@ -19,6 +19,7 @@ const P: Record<string, string> = {
   check: 'M5 12l5 5 9-10',
   store: 'M4 9l1.5-5h13L20 9M4 9v11h16V9M4 9a3 3 0 006 0 3 3 0 006 0 3 3 0 004 0M10 20v-5h4v5',
   grid: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3z',
+  logout: 'M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9',
 };
 
 export function Icon({
