@@ -16,6 +16,7 @@ const readStored = (userId?: number): string | null => {
       ? raw.slice(`${userId}:`.length)
       : null;
   } catch {
+    // The preference is optional when browser storage is unavailable.
     return null;
   }
 };
@@ -24,7 +25,7 @@ const writeStored = (userId: number | undefined, v: string) => {
   try {
     sessionStorage.setItem(KEY, `${userId}:${v}`);
   } catch {
-    /* bỏ qua */
+    // Keep the current selection in memory when browser storage is unavailable.
   }
 };
 
