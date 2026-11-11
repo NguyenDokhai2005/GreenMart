@@ -1,5 +1,7 @@
 name: CI
 on:
+  push:
+    branches: [develop]
   pull_request:
     branches: [develop, main]
   workflow_dispatch:
@@ -60,3 +62,37 @@ jobs:
       - run: docker build -t greenmart-backend:ci backend
       - run: docker build -t greenmart-frontend:ci frontend
       - run: docker build -t greenmart-forecast:ci forecast-service
+  deploy-staging:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    needs: [backend, frontend, forecast, mock-connector, docker-build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: staging
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Deploy the tested commit and check readiness
+        env:
+          STAGING_HOST: ${{ secrets.STAGING_HOST }}
+          STAGING_USER: ${{ secrets.STAGING_USER }}
+          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          STAGING_KNOWN_HOSTS: ${{ secrets.STAGING_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${STAGING_HOST:?Missing STAGING_HOST}" "${STAGING_USER:?Missing STAGING_USER}"
+          : "${STAGING_SSH_KEY:?Missing STAGING_SSH_KEY}" "${STAGING_KNOWN_HOSTS:?Missing STAGING_KNOWN_HOSTS}"
+          [[ "$STAGING_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ && "$STAGING_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]]
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          umask 077
+          auth=$(mktemp -d)
+          trap 'rm -f "$auth/key" "$auth/known_hosts"; rmdir "$auth"' EXIT
+          printf '%s\n' "$STAGING_SSH_KEY" > "$auth/key"
+          printf '%s\n' "$STAGING_KNOWN_HOSTS" > "$auth/known_hosts"
+          ssh -i "$auth/key" -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$auth/known_hosts" \
+            -o ConnectTimeout=10 "$STAGING_USER@$STAGING_HOST" "bash -s -- $GITHUB_SHA" < scripts/deploy-staging.sh
