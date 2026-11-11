@@ -190,3 +190,69 @@ def test_execute_background_forecast_failure_marks_failed(monkeypatch):
     execute_background_forecast(run_id=77)
 
     assert failed_runs == [77]
+
+
+def test_execute_background_forecast_default_raw_model_no_threshold(monkeypatch):
+    """Kiểm tra khi chạy mặc định, không có dự báo nào bị ép về 0 bởi ngưỡng (#114)."""
+    mock_conn = MagicMock()
+    monkeypatch.setattr("app.pipelines.forecast_service.get_db_connection", lambda: mock_conn)
+    mock_conn.__enter__.return_value = mock_conn
+
+    from datetime import timedelta
+    cutoff = datetime(2026, 10, 1).date()
+    start_date = cutoff - timedelta(days=35)
+    end_date = cutoff + timedelta(days=30)
+    dates = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
+    records = []
+    for d in dates:
+        # SKU 20 là slow-moving (không nằm trong top_sku_ids)
+        records.append({
+            "sale_date": d,
+            "branch_id": 1,
+            "product_id": 20,
+            "qty_sold": 1,
+            "qty_returned": 0,
+            "qty_net": 1,
+            "revenue": 10000,
+            "promo_flag": False,
+            "promo_discount_pct": 0.0,
+            "stockout": False,
+        })
+    df_dummy = pd.DataFrame(records)
+    monkeypatch.setattr("app.pipelines.forecast_service.fetch_daily_sales_from_db", lambda conn: df_dummy)
+
+    mock_metrics = MagicMock(mae=0.20, wape=0.12)
+    mock_report = MagicMock()
+    mock_report.cutoff_date = cutoff
+    mock_report.optimal_slow_thresholds = {7: 0.4, 30: 0.4}
+    mock_report.baseline_report.top_sku_ids = set()  # Không có SKU nào là Top, SKU 20 là slow-moving
+    mock_report.baseline_report.best_baseline = {7: "rolling_mean_28"}
+    mock_report.baseline_report.results = {7: {"rolling_mean_28": {"overall": mock_metrics}}}
+    mock_report.lgb_results_clean = {7: {"lgb_tweedie": {"overall": mock_metrics}}}
+
+    # Model trả về 0.15 (< ngưỡng 0.4 cũ)
+    class DummySlowModel:
+        def predict(self, df):
+            return np.full(len(df), 0.15)
+
+    dummy_evaluator = lambda df_daily, horizons: (mock_report, {7: DummySlowModel(), 30: DummySlowModel()})
+
+    captured_results = []
+    monkeypatch.setattr(
+        "app.pipelines.forecast_service.save_forecast_results",
+        lambda conn, run_id, results_df: captured_results.append(results_df.copy()) or len(results_df),
+    )
+    monkeypatch.setattr(
+        "app.pipelines.forecast_service.complete_forecast_run",
+        lambda conn, run_id, mae, wape, baseline_mae, baseline_wape: None,
+    )
+
+    # Chạy mặc định không truyền optimal_threshold
+    execute_background_forecast(run_id=99, evaluate_pipeline_fn=dummy_evaluator)
+
+    assert len(captured_results) == 1
+    res_df = captured_results[0]
+    # Kiểm tra rằng giá trị 0.15 KHÔNG bị ép về 0.0
+    assert (res_df["predicted_qty"] == 0.15).all(), "Kỳ vọng dự báo thô 0.15 được giữ nguyên, không bị ép về 0"
+    assert (res_df["predicted_qty"] == 0.0).sum() == 0, "Không có dòng nào bị ép về 0"
+

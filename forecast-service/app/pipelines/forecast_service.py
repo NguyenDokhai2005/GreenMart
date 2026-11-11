@@ -35,7 +35,8 @@ logger = logging.getLogger(__name__)
 FORECAST_ADVISORY_LOCK_ID = 1142026
 STALE_RUN_TIMEOUT_MINUTES = 30
 DEFAULT_MODEL_VERSION = "LightGBM-Tweedie-H7-H30"
-DEFAULT_SLOW_THRESHOLD = 0.4
+DEFAULT_SLOW_THRESHOLD = 0.0  # #113 chọn bản thô làm số chính; hậu xử lý chỉ tham khảo, không dùng cho forecast_result
+
 
 
 class ForecastServiceError(Exception):
@@ -225,8 +226,8 @@ def execute_background_forecast(
                 pred_cols = [model.predict(sdf) for sdf in test_dfs]
                 p_mat = np.column_stack(pred_cols)
 
-                # Giữ ngưỡng slow-threshold đã chọn ở #113 (0.4)
-                th_v = optimal_threshold if optimal_threshold is not None else report.optimal_slow_thresholds.get(H, 0.4)
+                # #113 chọn bản thô làm số chính; hậu xử lý chỉ tham khảo, không dùng cho forecast_result
+                th_v = optimal_threshold if optimal_threshold is not None else DEFAULT_SLOW_THRESHOLD
                 if th_v > 0.0:
                     slow_cells = (~is_top_mask)[:, np.newaxis] & (p_mat < th_v)
                     p_mat = np.where(slow_cells, 0.0, p_mat)
