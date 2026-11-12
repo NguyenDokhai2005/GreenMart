@@ -32,6 +32,9 @@ public class Payment {
     @Column(nullable = false, length = 10)
     private PaymentStatus status = PaymentStatus.PENDING;
 
+    @Column(name = "cash_received")
+    private Long cashReceived;
+
     @Column(name = "provider_ref", length = 60)
     private String providerRef;
 

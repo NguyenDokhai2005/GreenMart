@@ -32,4 +32,9 @@ public class StockDocumentController {
 
     @PostMapping("/{id}/approve")
     public StockDocumentResponse approve(@PathVariable Long id) { return service.approve(id); }
+
+    @PostMapping("/{id}/receive")
+    public StockDocumentResponse receive(@PathVariable Long id, @Valid @RequestBody StockDocumentRequests.Receive request) {
+        return service.receive(id, request);
+    }
 }

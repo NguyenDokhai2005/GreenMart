@@ -32,9 +32,9 @@ const customer = {
 const page = <T,>(items: T[], index = 0, total = items.length) => ({
   content: items,
   page: index,
-  size: 3,
+  size: 10,
   totalElements: total,
-  totalPages: Math.ceil(total / 3),
+  totalPages: Math.ceil(total / 10),
 });
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -88,7 +88,7 @@ beforeEach(() => {
   handler = async (url) => {
     if (url.pathname.endsWith('/auth/me')) return json(currentSession.user);
     if (url.pathname.endsWith('/categories')) return json([{ id: 1, name: 'Lương thực' }]);
-    if (url.pathname.endsWith('/products')) return json(page([product], 0, 6));
+    if (url.pathname.endsWith('/products')) return json(page([product], 0, 16));
     if (url.pathname.endsWith('/customers')) return json(page([customer]));
     throw new Error(`Unexpected URL: ${url.pathname}`);
   };
@@ -103,6 +103,17 @@ afterEach(() => {
 });
 
 describe('catalog #72', () => {
+  it('Given CASHIER POS navigation, Then opens real product and customer pages inside the POS shell', async () => {
+    await mount('/pos/products');
+    expect(await screen.findByText(product.name)).toBeTruthy();
+    expect(screen.getByRole('navigation', { name: 'Điều hướng POS' })).toBeTruthy();
+    expect(screen.queryByText('Giá vốn')).toBeNull();
+    fireEvent.click(screen.getByRole('link', { name: /Tra cứu khách/ }));
+    expect(await screen.findByText(customer.name)).toBeTruthy();
+    expect(screen.getByTestId('location').textContent).toBe('/pos/customers');
+    expect(screen.getByRole('button', { name: /Thêm khách hàng/ })).toBeTruthy();
+  });
+
   it('Given CASHIER, When products load, Then hides cost and all product writes even if API supplies cost', async () => {
     await mount();
     expect(await screen.findByText(product.name)).toBeTruthy();
@@ -291,7 +302,7 @@ describe('catalog #72', () => {
     await screen.findByText(product.name);
     fireEvent.click(screen.getByRole('button', { name: `Sửa ${product.name}` }));
     fireEvent.change(screen.getByLabelText(/^Giá bán/), { target: { value: '170000' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+    fireEvent.click(screen.getByRole('button', { name: /^(Lưu thay đổi|Thêm mới)$/ }));
     expect(await screen.findByText('170.000 ₫')).toBeTruthy();
     expect(screen.getByText('Đã lưu sản phẩm thành công')).toBeTruthy();
   });
@@ -312,12 +323,12 @@ describe('catalog #72', () => {
         : base(url, init);
     await mount('/catalog/customers');
     await screen.findByText(customer.name);
-    fireEvent.click(screen.getByRole('button', { name: 'Thêm khách hàng' }));
-    fireEvent.change(screen.getByLabelText(/^Tên khách hàng/), { target: { value: 'Khách mới' } });
+    fireEvent.click(screen.getByRole('button', { name: /Thêm khách hàng/ }));
+    fireEvent.change(screen.getByLabelText(/^Họ và tên/), { target: { value: 'Khách mới' } });
     fireEvent.change(screen.getByLabelText(/^Số điện thoại/), { target: { value: '0901234567' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+    fireEvent.click(screen.getByRole('button', { name: /^(Lưu thay đổi|Thêm mới)$/ }));
     expect(await screen.findByText('Số điện thoại bị từ chối')).toBeTruthy();
-    expect((screen.getByLabelText(/^Tên khách hàng/) as HTMLInputElement).value).toBe('Khách mới');
+    expect((screen.getByLabelText(/^Họ và tên/) as HTMLInputElement).value).toBe('Khách mới');
   });
   it('Given duplicate phone 409, Then keeps entered data and reports server message', async () => {
     const base = handler;
@@ -330,25 +341,44 @@ describe('catalog #72', () => {
     await mount('/catalog/customers');
     await screen.findByText(customer.name);
     fireEvent.click(screen.getByRole('button', { name: `Sửa ${customer.name}` }));
-    fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+    fireEvent.click(screen.getByRole('button', { name: /^(Lưu thay đổi|Thêm mới)$/ }));
     expect(await screen.findByText('Số điện thoại đã tồn tại')).toBeTruthy();
     expect((screen.getByLabelText(/^Số điện thoại/) as HTMLInputElement).value).toBe(
       customer.phone,
     );
   });
+  it('Given CASHIER exact lookup, Then sends phone only after a complete number', async () => {
+    await mount('/catalog/customers?mode=phone');
+    expect(fetchMock.mock.calls.some(([url]) => urlOf(url).pathname.endsWith('/customers'))).toBe(
+      false,
+    );
+    const field = screen.getByLabelText('Số điện thoại chính xác');
+    fireEvent.change(field, { target: { value: '0900' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Tra cứu' }));
+    expect(screen.getByText(/Nhập đầy đủ số điện thoại 10–11 chữ số/)).toBeTruthy();
+    expect(fetchMock.mock.calls.some(([url]) => urlOf(url).pathname.endsWith('/customers'))).toBe(
+      false,
+    );
+    fireEvent.change(field, { target: { value: customer.phone } });
+    fireEvent.click(screen.getByRole('button', { name: 'Tra cứu' }));
+    expect(await screen.findByText(customer.name)).toBeTruthy();
+    const call = fetchMock.mock.calls.find(([url]) => urlOf(url).pathname.endsWith('/customers'))!;
+    expect(urlOf(call[0]).searchParams.get('phone')).toBe(customer.phone);
+    expect(urlOf(call[0]).searchParams.has('q')).toBe(false);
+  });
   it('Given invalid phone, Then no POST request; cancelling dirty form asks confirmation', async () => {
     await mount('/catalog/customers');
     await screen.findByText(customer.name);
-    fireEvent.click(screen.getByRole('button', { name: 'Thêm khách hàng' }));
-    fireEvent.change(screen.getByLabelText(/^Tên khách hàng/), { target: { value: 'Khách mới' } });
+    fireEvent.click(screen.getByRole('button', { name: /Thêm khách hàng/ }));
+    fireEvent.change(screen.getByLabelText(/^Họ và tên/), { target: { value: 'Khách mới' } });
     fireEvent.change(screen.getByLabelText(/^Số điện thoại/), { target: { value: '123' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+    fireEvent.click(screen.getByRole('button', { name: /^(Lưu thay đổi|Thêm mới)$/ }));
     expect(screen.getByText(/Số điện thoại gồm/)).toBeTruthy();
     expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
-    fireEvent.click(screen.getByRole('button', { name: 'Quay lại' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Hủy' }));
     const dialog = screen.getByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Tiếp tục nhập' }));
-    expect((screen.getByLabelText(/^Tên khách hàng/) as HTMLInputElement).value).toBe('Khách mới');
+    expect((screen.getByLabelText(/^Họ và tên/) as HTMLInputElement).value).toBe('Khách mới');
   });
   it('Given a pending save, Then blocks duplicate submits and ignores late results after timeout', async () => {
     vi.useFakeTimers();
@@ -362,16 +392,19 @@ describe('catalog #72', () => {
         : base(url, init);
     await mount('/catalog/customers');
     fireEvent.click(screen.getByRole('button', { name: `Sửa ${customer.name}` }));
-    fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+    fireEvent.click(screen.getByRole('button', { name: /^(Lưu thay đổi|Thêm mới)$/ }));
     const form = document.querySelector('form')!;
     fireEvent.submit(form);
     expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'PUT')).toHaveLength(1);
     await act(async () => vi.advanceTimersByTime(15001));
     expect(screen.getByText(/Chưa xác nhận được kết quả lưu/)).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Lưu' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole('button', { name: /^(Lưu thay đổi|Thêm mới)$/ }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
     await act(async () => reply(json(customer)));
     expect(screen.queryByText('Đã lưu khách hàng thành công')).toBeNull();
-    expect(screen.getByLabelText(/^Tên khách hàng/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Họ và tên/)).toBeTruthy();
   });
   it.each(['ADMIN', 'STOREKEEPER'] as Role[])(
     'Given %s, Then customer write controls are hidden',
@@ -436,12 +469,12 @@ describe('catalog #72', () => {
     };
     await mount('/catalog/customers');
     await screen.findByText(customer.name);
-    fireEvent.click(screen.getByRole('button', { name: 'Thêm khách hàng' }));
-    fireEvent.change(screen.getByLabelText(/^Tên khách hàng/), {
+    fireEvent.click(screen.getByRole('button', { name: /Thêm khách hàng/ }));
+    fireEvent.change(screen.getByLabelText(/^Họ và tên/), {
       target: { value: ' Khách mới ' },
     });
     fireEvent.change(screen.getByLabelText(/^Số điện thoại/), { target: { value: '0901234567' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+    fireEvent.click(screen.getByRole('button', { name: /^(Lưu thay đổi|Thêm mới)$/ }));
     expect(await screen.findByText('Đã lưu khách hàng thành công')).toBeTruthy();
     expect(await screen.findByText('Khách mới')).toBeTruthy();
   });
@@ -465,7 +498,7 @@ describe('catalog #72', () => {
     };
     await mount('/catalog/products', 'OWNER');
     await screen.findByText(product.name);
-    fireEvent.click(screen.getByRole('button', { name: 'Thêm sản phẩm' }));
+    fireEvent.click(screen.getByRole('button', { name: /Thêm sản phẩm/ }));
     for (const [label, value] of [
       ['SKU', 'QA-72'],
       ['Tên sản phẩm', 'Sản phẩm mới'],
@@ -475,8 +508,10 @@ describe('catalog #72', () => {
     ] as const) {
       fireEvent.change(screen.getByLabelText(new RegExp('^' + label)), { target: { value } });
     }
-    fireEvent.change(screen.getByLabelText(/^Danh mục/), { target: { value: '1' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+    fireEvent.change(screen.getByRole('combobox', { name: /^Danh mục/ }), {
+      target: { value: '1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^(Lưu thay đổi|Thêm mới)$/ }));
     expect(await screen.findByText('Đã lưu sản phẩm thành công')).toBeTruthy();
   });
   it('Given known catalog route, Then auth return policy permits it without changing POS/Operations rights', () => {
@@ -528,13 +563,13 @@ describe('catalog #72', () => {
     await mount('/catalog/customers');
     await screen.findByText(customer.name);
     fireEvent.click(screen.getByRole('button', { name: `Sửa ${customer.name}` }));
-    fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+    fireEvent.click(screen.getByRole('button', { name: /^(Lưu thay đổi|Thêm mới)$/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Đăng xuất' }));
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/login'));
     expect(sessionStorage.getItem('greenmart.session')).toBeNull();
     await act(async () => reply(json(customer)));
     expect(screen.queryByText('Đã lưu khách hàng thành công')).toBeNull();
-    expect(screen.queryByLabelText(/^Tên khách hàng/)).toBeNull();
+    expect(screen.queryByLabelText(/^Họ và tên/)).toBeNull();
   });
   it('Given contract phone length, Then accepts 10 and 11 digits and rejects invalid product money', () => {
     expect(validateCatalogForm('customer', { name: 'A', phone: '0901234567' })).toEqual({});

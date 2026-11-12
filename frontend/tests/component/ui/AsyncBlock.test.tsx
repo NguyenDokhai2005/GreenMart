@@ -1,13 +1,16 @@
 // @vitest-environment jsdom
-import { act, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import AsyncBlock from './AsyncBlock';
+import AsyncBlock from '../../../src/components/ui/tsx/AsyncBlock';
 
 const empty = { message: 'Không có dữ liệu' };
 
 describe('AsyncBlock', () => {
   beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
 
   it('đang tải: không bao giờ hiện EmptyState', () => {
     render(

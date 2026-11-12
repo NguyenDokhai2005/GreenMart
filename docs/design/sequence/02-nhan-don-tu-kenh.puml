@@ -1,0 +1,72 @@
+@startuml 02-nhan-don-tu-kenh
+!include _style.iuml
+title Sequence 02 · Nhận đơn từ kênh bán (UC-02, SYNC-02, ORD-02)
+
+participant "Kênh WEB / MARKET\n(mock-connector)" as ch
+box "Backend (Spring Boot)" #FFFFFF
+  participant "IntegrationController\n/integrations/{channelCode}/orders" as ctl
+  participant "ChannelService" as chs
+  participant "OrderService\n(đơn online)" as ord
+  participant "CustomerService" as cus
+  participant "InventoryService" as inv
+  participant "OutboxService" as outbox
+end box
+database "PostgreSQL" as db
+
+ch -> ctl : POST ChannelOrderRequest\nX-Signature: HMAC-SHA256(raw body)
+ctl -> chs : verifySignature(channelCode, rawBody, signature)
+alt sai chữ ký / kênh không hoạt động
+  ctl --> ch : 401, không ghi đơn
+else hợp lệ
+  ctl -> ord : receiveChannelOrder(channel, request)
+  activate ord
+  group @Transactional
+    ord -> db : SELECT sales_order\nWHERE channel_id = ? AND channel_order_code = ?
+    alt đã có (gửi trùng – EX-03)
+      ord --> ctl : đơn cũ
+      ctl --> ch : 200 Order (không giữ chỗ thêm)
+    else đơn mới
+      ord -> chs : mapSku(channel, channelSku) từng dòng
+      alt có SKU chưa ánh xạ
+        ord -> db : INSERT sales_order (REJECTED, UNMAPPED_SKU)
+        ord -> outbox : enqueue order.status_changed
+      else đủ ánh xạ
+      ord -> cus : findOrCreateByPhone(phone, name)
+      ord -> db : INSERT sales_order (NEW), order_item\n(giá theo kênh, đánh dấu chênh lệch)
+      ord -> inv : chọn chi nhánh: mặc định đủ tồn →\nCN phục vụ đủ tồn, tổng khả dụng cao nhất
+      alt không chi nhánh nào đủ
+        ord -> db : UPDATE status = REJECTED (OUT_OF_STOCK)
+      else có chi nhánh
+        loop từng dòng, theo productId tăng dần
+          ord -> inv : reserve(branch, product, qty, orderId)
+          inv -> db : UPDATE inventory SET reserved = reserved + qty\nWHERE on_hand - reserved >= qty
+          inv -> db : INSERT inventory_transaction (RESERVE)
+        end
+        ord -> db : UPDATE status = RESERVED,\nreserved_until = now() + 15 phút\n(COD → CONFIRMED)
+        ord -> outbox : enqueue stock.changed
+      end
+      ord -> outbox : enqueue order.status_changed
+      end
+      outbox -> db : INSERT outbox_event
+    end
+  end
+  ord --> ctl : Order
+  deactivate ord
+  ctl --> ch : 201 Order (status, branch)
+end
+
+== Trạng thái đổi sau đó (#137) ==
+participant "OutboxRelay" as relay
+participant "ChannelNotifier" as notif
+relay -> notif : order.status_changed
+notif -> ch : PUT /mock/{channelCode}/orders/{id}/status\n{status, version, occurredAt}
+note over notif, ch : Kênh chỉ nhận bản mới hơn (version, occurredAt).\nLỗi: thử lại 1, 2, 4, 8, 16 giây rồi vào sync_log FAILED (#134).
+
+note over ctl, inv
+  Thiết kế đích theo OpenAPI 2.0.0 và BA §4.
+  Đang làm ở Tuần 3: #132 webhook + HMAC + chống trùng,
+  issue #40 vòng đời và phân bổ chi nhánh, #137 báo trạng thái.
+  Đã có: mock-connector (#128), sales_channel và ánh xạ SKU (#130),
+  outbox + DLQ (#127).
+end note
+@enduml

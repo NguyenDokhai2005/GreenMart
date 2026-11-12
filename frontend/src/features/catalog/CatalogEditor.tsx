@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Button, Checkbox, Dialog, Input, Select, Toast } from '../../components/ui';
+import { Button, Dialog, Input, Select, Toast } from '../../components/ui';
 import { mapErrorToState } from '../../lib/errors';
 import { validateCatalogForm } from './catalogForm';
 import { catalogApi } from './catalogApi';
@@ -126,6 +126,7 @@ export default function CatalogEditor(props: EditorProps) {
     }
   }
   const title = `${props.initial ? 'Sửa' : 'Thêm'} ${props.kind === 'product' ? 'sản phẩm' : 'khách hàng'}`;
+  const isProduct = props.kind === 'product';
   const input = (field: string, label: string, required = true, type = 'text') => (
     <Input
       label={label}
@@ -134,55 +135,140 @@ export default function CatalogEditor(props: EditorProps) {
       value={values[field] ?? ''}
       error={errors[field]}
       disabled={busy}
+      helperText={
+        field === 'sku'
+          ? '1–40 ký tự; chữ in hoa, số và dấu gạch nối.'
+          : field === 'barcode'
+            ? 'Tối đa 40 ký tự; có thể để trống.'
+            : field === 'unit'
+              ? '1–20 ký tự; ví dụ: Hộp, Chai, Kg.'
+              : field === 'phone'
+                ? '10–11 chữ số, bắt đầu bằng 0.'
+                : field === 'email'
+                  ? 'Email hợp lệ, tối đa 120 ký tự. Có thể để trống.'
+                  : field === 'name'
+                    ? isProduct
+                      ? '1–200 ký tự.'
+                      : '1–120 ký tự.'
+                    : field === 'salePrice' || field === 'costPrice'
+                      ? 'Số nguyên không âm, đơn vị đồng.'
+                      : undefined
+      }
       onChange={(e) => change(field, e.target.value)}
     />
   );
   return (
     <section className="catalog__editor" aria-label={title}>
-      <h2>{title}</h2>
+      <header className="catalog__page-header">
+        <div>
+          <p className="catalog__breadcrumb">Danh mục / {isProduct ? 'Sản phẩm' : 'Khách hàng'}</p>
+          <h1>
+            {props.initial ? 'Chỉnh sửa' : 'Thêm'} {isProduct ? 'sản phẩm' : 'khách hàng'}
+          </h1>
+          <p>
+            {props.initial
+              ? isProduct
+                ? `${props.initial.sku} · ${props.initial.name}`
+                : `${props.initial.name} · ${props.initial.phone}`
+              : `Nhập thông tin ${isProduct ? 'sản phẩm' : 'khách hàng'} mới.`}
+          </p>
+        </div>
+      </header>
       {message && <Toast variant="error" title={message} />}
       {saved && <Toast variant="success" title="Đã lưu thành công" />}
-      <form noValidate onSubmit={(e) => void submit(e)}>
-        <fieldset disabled={busy}>
-          <legend>Thông tin {props.kind === 'product' ? 'sản phẩm' : 'khách hàng'}</legend>
-          {props.kind === 'product' && input('sku', 'SKU')}
-          {input('name', props.kind === 'product' ? 'Tên sản phẩm' : 'Tên khách hàng')}
-          {props.kind === 'product' ? (
+      <div className="catalog__editor-layout">
+        <form noValidate onSubmit={(e) => void submit(e)}>
+          <fieldset className="catalog__fields" disabled={busy}>
+            {isProduct ? (
+              <>
+                <section className="catalog__editor-card">
+                  <h2>Thông tin sản phẩm</h2>
+                  <div className="catalog__editor-grid">
+                    {input('sku', 'SKU')}
+                    {input('barcode', 'Mã vạch', false)}
+                    <div className="catalog__full-width">{input('name', 'Tên sản phẩm')}</div>
+                    {input('unit', 'Đơn vị tính')}
+                    <Select
+                      label="Danh mục"
+                      required
+                      value={values.categoryId}
+                      error={errors.categoryId}
+                      helperText="Chọn một danh mục trong hệ thống."
+                      options={props.categories.map((c) => ({
+                        value: String(c.id),
+                        label: c.name,
+                      }))}
+                      onChange={(e) => change('categoryId', e.target.value)}
+                    />
+                  </div>
+                </section>
+                <section className="catalog__editor-card">
+                  <h2>Giá &amp; trạng thái bán</h2>
+                  <div className="catalog__editor-grid">
+                    {input('costPrice', 'Giá vốn (VND)', true, 'number')}
+                    {input('salePrice', 'Giá bán (VND)', true, 'number')}
+                    <div className="catalog__full-width">
+                      <Select
+                        label="Trạng thái bán"
+                        required
+                        value={values.active}
+                        helperText="Ngừng bán để tạm dừng kinh doanh sản phẩm."
+                        options={[
+                          { value: 'true', label: 'Đang bán' },
+                          { value: 'false', label: 'Ngừng bán' },
+                        ]}
+                        onChange={(e) => change('active', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </section>
+              </>
+            ) : (
+              <section className="catalog__editor-card">
+                <h2>Thông tin liên hệ</h2>
+                <div className="catalog__editor-grid catalog__editor-grid--single">
+                  {input('name', 'Họ và tên')}
+                  {input('phone', 'Số điện thoại', true, 'tel')}
+                  {input('email', 'Email (không bắt buộc)', false, 'email')}
+                </div>
+              </section>
+            )}
+          </fieldset>
+          <div className="catalog__actions">
+            <span>
+              {props.initial
+                ? 'Thông tin đang chỉnh sửa chưa được lưu.'
+                : 'Trường có dấu * là bắt buộc.'}
+            </span>
+            <Button type="button" variant="secondary" disabled={busy} onClick={close}>
+              Hủy
+            </Button>
+            <Button type="submit" disabled={busy || saved || uncertain}>
+              {busy ? 'Đang lưu…' : props.initial ? 'Lưu thay đổi' : 'Thêm mới'}
+            </Button>
+          </div>
+        </form>
+        <aside className="catalog__editor-help">
+          <h2>{isProduct ? 'Lưu ý khi cập nhật' : 'Thông tin cần biết'}</h2>
+          <p>Trường có dấu * là bắt buộc.</p>
+          {isProduct ? (
             <>
-              {input('barcode', 'Barcode', false)}
-              {input('unit', 'Đơn vị')}
-              <Select
-                label="Danh mục"
-                required
-                value={values.categoryId}
-                error={errors.categoryId}
-                options={props.categories.map((c) => ({ value: String(c.id), label: c.name }))}
-                onChange={(e) => change('categoryId', e.target.value)}
-              />
-              {input('salePrice', 'Giá bán (đ)', true, 'number')}
-              {input('costPrice', 'Giá vốn (đ)', true, 'number')}
-              <Checkbox
-                label="Đang bán"
-                checked={values.active === 'true'}
-                onChange={(e) => change('active', String(e.target.checked))}
-              />
+              <p>Chỉ chủ cửa hàng (OWNER) được thêm, sửa và thay đổi giá sản phẩm.</p>
+              <p>Mọi thay đổi giá được ghi nhật ký. Hóa đơn đã tạo vẫn giữ nguyên giá cũ.</p>
+              <p>Ngừng bán để tạm dừng kinh doanh sản phẩm, không xóa dữ liệu.</p>
             </>
           ) : (
             <>
-              {input('phone', 'Số điện thoại', true, 'tel')}
-              {input('email', 'Email', false, 'email')}
+              <p>
+                Số điện thoại dùng để tra cứu chính xác khách hàng tại POS. Mỗi khách hàng dùng một
+                số riêng.
+              </p>
+              <p>Chủ cửa hàng, quản lý chi nhánh và thu ngân được thêm, sửa khách hàng.</p>
+              <p>Quản trị viên và thủ kho chỉ được xem thông tin.</p>
             </>
           )}
-        </fieldset>
-        <div className="catalog__actions">
-          <Button type="button" variant="secondary" disabled={busy} onClick={close}>
-            Quay lại
-          </Button>
-          <Button type="submit" disabled={busy || saved || uncertain}>
-            {busy ? 'Đang xử lý…' : 'Lưu'}
-          </Button>
-        </div>
-      </form>
+        </aside>
+      </div>
       <Dialog
         open={confirmDiscard}
         title="Hủy thay đổi?"

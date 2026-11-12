@@ -13,6 +13,7 @@ __pycache__/
 .venv/
 *.ipynb_checkpoints
 forecast-service/data/
+forecast-service/artifacts/
 # Env & IDE
 .env
 .env.*

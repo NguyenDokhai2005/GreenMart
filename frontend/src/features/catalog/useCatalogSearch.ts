@@ -13,6 +13,7 @@ export function useCatalogSearch() {
     if (navigationType === 'POP') setSearchText(q);
   }
   useEffect(() => {
+    if (params.get('mode') === 'phone') return;
     if (searchText === q) return;
     const timer = setTimeout(
       () =>
@@ -29,15 +30,15 @@ export function useCatalogSearch() {
       300,
     );
     return () => clearTimeout(timer);
-  }, [searchText, q, setParams]);
+  }, [searchText, q, params, setParams]);
   const rawPage = Number(params.get('page') ?? 0);
-  const rawSize = Number(params.get('size') ?? 3);
+  const rawSize = Number(params.get('size') ?? 10);
   return {
     q,
     searchText,
     onSearch: setSearchText,
     page: Number.isSafeInteger(rawPage) && rawPage >= 0 ? rawPage : 0,
-    size: [3, 10, 20, 50].includes(rawSize) ? rawSize : 3,
+    size: [3, 10, 20, 50].includes(rawSize) ? rawSize : 10,
     change: (changes: Record<string, string | null>) => {
       if ('q' in changes) setSearchText(changes.q ?? '');
       setParams(

@@ -11,8 +11,9 @@ Không commit, push hoặc tạo PR cho #72.
 
 Nguồn: Issue #72/#172, CONTRIBUTING, frontend README, SRS §3.2/3.3/8.1/8.2,
 ma trận quyền trong business-analysis, docs/api/openapi.yaml.
-Issue #172 đã đóng completed; comment đọc được chỉ chứa link gửi Lead,
-không tự nhận có comment “Đã duyệt”.
+Issue #172 đã đóng completed. Ngày 10/11/2026, người dùng xác nhận Lead đã duyệt
+thiết kế Figma #172; đây là xác nhận trực tiếp trong cuộc trao đổi, không phải
+comment phê duyệt đã kiểm chứng trên Figma.
 
 ## Thiết kế đã đọc và giới hạn
 
@@ -126,5 +127,76 @@ Sau #71 merge: cập nhật baseline, gắn ProductsPage/CustomersPage vào load
 giữ nguyên guard/layout. Hai page import CSS riêng và không sở hữu auth/provider/POS shell,
 nên tích hợp không cần viết lại nghiệp vụ. Chưa thực hiện tích hợp này trên code Draft.
 
-Chưa đủ DoD/đóng issue: còn lỗi API khách không lọc, tích hợp POS sau #71 và review hình ảnh/route của Lead.
+Chưa đủ DoD/đóng issue: còn lỗi API khách không lọc, tích hợp POS sau #71 và
+đối chiếu triển khai với thiết kế đã duyệt khi công cụ đọc chi tiết Figma hoạt động.
 Không tự coi implementation đã hoàn tất hoặc đủ điều kiện merge.
+
+## Cập nhật giao diện Figma ngày 10/11/2026
+
+- Đối chiếu trực tiếp frame mới #172 trong file Figma, gồm danh sách sản phẩm OWNER
+  (`529:1500`), danh sách khách hàng OWNER (`529:2911`), biểu mẫu sản phẩm và khách hàng.
+  Người dùng đã xác nhận Lead duyệt thiết kế #172. Trạng thái section từng hiển thị
+  “Chờ Lead review” trong lần quan sát trước, nên không dùng nhãn đó làm trạng thái phê duyệt hiện tại.
+- Đưa nút Thêm cạnh tiêu đề; bố trí bộ lọc thành một hàng với nút Tìm kiếm; gộp tên,
+  SKU và mã vạch trong bảng sản phẩm; đặt phân trang trong khung bảng và dùng 10 dòng/trang
+  mặc định như frame. Biểu mẫu chia nhóm thông tin, giá/trạng thái và hướng dẫn bên cạnh.
+- Frame CASHIER tra cứu số điện thoại chính xác được hỗ trợ bằng chế độ tìm kiếm riêng:
+  chỉ gọi `GET /customers?phone=...` sau khi nhập đầy đủ số 10–11 chữ số. Chế độ tìm tên
+  hoặc một phần số điện thoại tiếp tục dùng tham số `q`; cả hai đều thuộc OpenAPI.
+- Chạy tại viewport Chrome 1440 × 1080 với Prism mock để kiểm tra bố cục danh sách sản phẩm
+  và khách hàng. Prism trả ví dụ tĩnh ADMIN và một dòng dữ liệu, vì vậy ảnh kiểm tra này
+  không xác minh danh sách OWNER 10 dòng, CASHIER hoặc lưu dữ liệu với backend thật.
+- `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm test -- --run`
+  (132/132) và `npm run build` đều PASS. `git diff --check` PASS.
+- Figma MCP vẫn báo hết hạn mức đọc chi tiết khi thử lại sau xác nhận phê duyệt;
+  chưa kiểm tra được Code Connect, token từng node
+  hoặc tất cả frame trạng thái qua `get_design_context`. Chưa thể xác nhận pixel-perfect.
+  API backend local không chạy vì Docker daemon không sẵn có; chưa chạy lại integration thật.
+- Tại thời điểm 10/11, PR #262 của layout POS và PR #264 của #72 vẫn Draft. Khung CASHIER
+  khi đó chỉ có các link danh mục đang hoạt động; phần tích hợp sau khi #71 merge được ghi
+  trong mục ngày 13/11 bên dưới.
+
+## Tích hợp POS sau khi #71 merge — 13/11/2026
+
+- PR #262 đã merge vào `origin/develop` (commit `423aef1`). Đưa layout và bộ tải trang POS
+  từ nhánh develop vào nhánh #72, gắn trang sản phẩm và khách hàng thật tại
+  `/pos/products` và `/pos/customers`. Các mục POS còn lại giữ trang placeholder của #71.
+- Kiểm thử CASHIER đi từ sản phẩm sang khách hàng trong POS; ẩn giá vốn và cho phép
+  thêm khách theo quyền. Cập nhật test #71 từ kỳ vọng placeholder sang trang thật.
+- `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm test -- --run`
+  (166/166) và `npm run build` đều PASS; `git diff --check` PASS.
+- Chưa đồng bộ lịch sử Git của nhánh #72 với `origin/develop` vì quy định không tạo commit
+  hoặc viết lại commit khi chưa được duyệt. Các file POS mới trong working tree là bản từ
+  develop để kiểm chứng tích hợp; khi chuẩn bị PR cần đưa branch lên baseline mới.
+- Docker daemon vẫn không chạy tại máy local, nên chưa kiểm thử backend thật. Các route
+  `/catalog/*` cũ vẫn mở được với khung danh mục; menu POS dùng route `/pos/*` mới.
+
+## Kiểm thử backend local ngày 13/11/2026
+
+- Backend healthy (HTTP 200), seed `--verify-only` đạt toàn bộ AC-01. Đã cập nhật
+  integration test #72 dùng route POS và nhãn nút hiện tại.
+- Lần đầu toàn bộ 11 test thất bại do mật khẩu demo nhập sai; CASHIER bị khóa tạm thời.
+  Sau khi dùng mật khẩu đúng và xóa riêng trạng thái khóa do lần test đó trong database
+  demo local, suite đạt 9/11. Test auth về số lần thử còn lại thất bại vì bộ đếm của
+  tài khoản demo khác đã có 3 lần sai từ trước; đặt bộ đếm về 0 và chạy riêng test
+  này thì PASS. Như vậy 10/11 ca độc lập đã đạt; không coi toàn suite đã PASS.
+- Ca còn lỗi: `GET /api/v1/customers?page=0&size=3` trả 500. Gọi cùng API có
+  `q=0` trả 200 và 3 dòng. Backend log cho thấy PostgreSQL SQLState `42883`,
+  `ERROR: function lower(bytea) does not exist` trong câu query `searchCustomers` khi
+  `q` null. Trace local: `40758e3d-c9f5-4fc6-a821-2cc71df7bfa8`.
+- Cần SV02 sửa truy vấn repository/backend, sau đó chạy lại toàn bộ integration
+  trên database demo local. Không thêm `q` giả trong frontend để né lỗi.
+
+## Chuẩn bị đồng bộ develop ngày 13/11/2026
+
+- Đã ghép `origin/develop` vào worktree thử nghiệm bằng `git merge --no-commit`;
+  giải quyết xung đột duy nhất tại `AppRoutes.tsx`, sau đó áp dụng toàn bộ thay đổi
+  giao diện #72 chưa commit. Nhánh PR và remote chưa thay đổi.
+- Trên bản ghép: typecheck, lint, format, build và 227/227 frontend unit tests PASS;
+  diff so với `origin/develop` không có lỗi whitespace. Có 19 file thuộc phạm vi #72.
+- `develop` đã chứa commit `cb9b12a` sửa truy vấn `q=null` của khách hàng
+  (issue #267 đã đóng) và test backend cho trường hợp không lọc. Backend Docker
+  local lúc kiểm thử trước vẫn là image cũ, nên kết quả 500 cũ chưa chứng minh
+  bản sửa trên `develop` thất bại. Cần chạy lại integration với backend mới.
+- Khi được duyệt commit/push, dùng merge thường để đưa nhánh PR lên `develop`;
+  không rebase hoặc force push nhánh đã công bố.

@@ -54,7 +54,7 @@ it('CASHIER searches real product SKU/barcode/name and pages without cost or pro
   const second = await catalogApi.products({ page: 1, size: 3 }, signal);
   expect(second.page).toBe(1);
   expect(second.content[0].id).not.toBe(p.id);
-  await mount('/catalog/products');
+  await mount('/pos/products');
   expect(await screen.findByText(p.name, {}, { timeout: 10000 })).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Thêm sản phẩm' })).toBeNull();
 });
@@ -72,11 +72,11 @@ it('customer search with an explicit keyword loads real rows in the UI', async (
     new AbortController().signal,
   );
   expect(matches.content.length).toBeGreaterThan(0);
-  await mount(`/catalog/customers?q=${encodeURIComponent(matches.content[0].phone)}`);
+  await mount(`/pos/customers?q=${encodeURIComponent(matches.content[0].phone)}`);
   await waitFor(() => expect(document.querySelector('tbody tr td')?.textContent).toBeTruthy(), {
     timeout: 10000,
   });
-  expect(screen.getByRole('button', { name: 'Thêm khách hàng' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: /Thêm khách hàng/ })).toBeTruthy();
 });
 
 it('OWNER changes demo product price in the real UI, verifies persisted value and restores it in finally', async () => {
@@ -102,7 +102,7 @@ it('OWNER changes demo product price in the real UI, verifies persisted value an
     fireEvent.change(screen.getByLabelText(/^Giá bán/), {
       target: { value: String(original.salePrice + 1) },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
     await screen.findByText('Đã lưu sản phẩm thành công', {}, { timeout: 10000 });
     const updated = await catalogApi.product(original.id, signal);
     expect(updated.salePrice).toBe(original.salePrice + 1);

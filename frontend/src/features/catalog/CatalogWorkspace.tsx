@@ -12,20 +12,14 @@ import ProductsPage from './ProductsPage';
 import CustomersPage from './CustomersPage';
 import './catalog.css';
 
-class CatalogBoundary extends Component<
-  { children: ReactNode; navigation: ReactNode },
-  { failed: boolean }
-> {
+class CatalogBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() {
     return { failed: true };
   }
   render() {
     return this.state.failed ? (
-      <>
-        {this.props.navigation}
-        <ServerErrorPage onRetry={() => this.setState({ failed: false })} />
-      </>
+      <ServerErrorPage onRetry={() => this.setState({ failed: false })} />
     ) : (
       this.props.children
     );
@@ -41,8 +35,12 @@ export default function CatalogWorkspace() {
   const user = auth.state.user;
   const branchId = branch.state.status === 'active' ? branch.state.branch.id : '';
   const workspaceKey = `${user.id}:${branchId}:${user.role}`;
+  const isCashier = user.role === 'CASHIER';
   const navigation = (
     <nav className="catalog__nav" aria-label="Danh mục">
+      <span className="catalog__nav-heading">
+        {isCashier ? 'ĐIỀU HƯỚNG POS' : 'QUẢN LÝ DANH MỤC'}
+      </span>
       <Link to={getWorkspacePath(user.role)}>Về khu làm việc</Link>
       {Object.entries(CATALOG_PATHS).map(([key, path]) => (
         <Link
@@ -50,7 +48,13 @@ export default function CatalogWorkspace() {
           to={path}
           aria-current={location.pathname.replace(/\/$/, '') === path ? 'page' : undefined}
         >
-          {key === 'products' ? 'Sản phẩm' : 'Khách hàng'}
+          {key === 'products'
+            ? isCashier
+              ? 'Sản phẩm (chỉ xem)'
+              : 'Sản phẩm'
+            : isCashier
+              ? 'Tra cứu khách'
+              : 'Khách hàng'}
         </Link>
       ))}
     </nav>
@@ -93,21 +97,30 @@ export default function CatalogWorkspace() {
           </Button>
         </div>
       </header>
-      <main className="catalog__content" id="catalog-content" tabIndex={-1}>
-        <CatalogBoundary key={`${workspaceKey}:${location.pathname}`} navigation={navigation}>
-          <div key={workspaceKey}>
-            <Routes>
-              <Route index element={<Navigate to={CATALOG_PATHS.products} replace />} />
-              <Route path="products" element={<ProductsPage navigation={navigation} />} />
-              <Route path="customers" element={<CustomersPage navigation={navigation} />} />
-              <Route
-                path="*"
-                element={<NotFoundPage onHome={() => navigate(CATALOG_PATHS.products)} />}
-              />
-            </Routes>
-          </div>
-        </CatalogBoundary>
-      </main>
+      <div className="catalog__workspace">
+        <aside className="catalog__sidebar">
+          {navigation}
+          <p className="catalog__sidebar-meta">
+            {user.role} ·{' '}
+            {branch.state.status === 'active' ? branch.state.branch.code : 'GreenMart'}
+          </p>
+        </aside>
+        <main className="catalog__content" id="catalog-content" tabIndex={-1}>
+          <CatalogBoundary key={`${workspaceKey}:${location.pathname}`}>
+            <div key={workspaceKey}>
+              <Routes>
+                <Route index element={<Navigate to={CATALOG_PATHS.products} replace />} />
+                <Route path="products" element={<ProductsPage />} />
+                <Route path="customers" element={<CustomersPage />} />
+                <Route
+                  path="*"
+                  element={<NotFoundPage onHome={() => navigate(CATALOG_PATHS.products)} />}
+                />
+              </Routes>
+            </div>
+          </CatalogBoundary>
+        </main>
+      </div>
     </div>
   );
 }

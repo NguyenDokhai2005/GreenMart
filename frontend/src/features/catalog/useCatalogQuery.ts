@@ -9,11 +9,16 @@ interface Result<T> {
   pending: boolean;
 }
 
-export function useCatalogQuery<T>(key: string, load: (signal: AbortSignal) => Promise<T>) {
+export function useCatalogQuery<T>(
+  key: string,
+  load: (signal: AbortSignal) => Promise<T>,
+  enabled = true,
+) {
   const [attempt, setAttempt] = useState(0);
   const requestKey = `${key}:${attempt}`;
   const [result, setResult] = useState<Result<T>>({ key: '', pending: true });
   useEffect(() => {
+    if (!enabled) return;
     const controller = new AbortController();
     let settled = false;
     const timer = setTimeout(() => {
@@ -40,9 +45,13 @@ export function useCatalogQuery<T>(key: string, load: (signal: AbortSignal) => P
       clearTimeout(timer);
       controller.abort();
     };
-  }, [requestKey, load]);
+  }, [requestKey, load, enabled]);
   return {
-    ...(result.key === requestKey ? result : { key: requestKey, pending: true }),
+    ...(enabled
+      ? result.key === requestKey
+        ? result
+        : { key: requestKey, pending: true }
+      : { key: requestKey, pending: false }),
     retry: () => setAttempt((n) => n + 1),
   };
 }

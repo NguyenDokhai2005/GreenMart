@@ -12,6 +12,8 @@ import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Map;
+import vn.greenmart.integration.outbox.OutboxService;
 import vn.greenmart.inventory.exception.InsufficientStockException;
 import vn.greenmart.inventory.repository.InventoryRepository;
 import vn.greenmart.inventory.repository.InventoryTransactionWriter;
@@ -39,6 +41,8 @@ public class InventoryServiceImpl implements InventoryService {
     private final ProductCostService productCost;
     private final JdbcTemplate jdbc;
     private final EntityManager entityManager;
+    private final StockAlertService stockAlerts;
+    private final OutboxService outbox;
 
     /**
      *      WHERE (on_hand - reserved) >= qty
@@ -55,7 +59,9 @@ public class InventoryServiceImpl implements InventoryService {
             throw insufficientStock(branchId, productId, qty);
         }
         log.debug("reserve: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
         transactionWriter.appendOrder(branchId, productId, Type.RESERVE, 0, qty, refId);
+        enqueueStockChanged(branchId, productId);
     }
 
     /**
@@ -76,7 +82,9 @@ public class InventoryServiceImpl implements InventoryService {
                     branchId, productId, qty));
         }
         log.debug("release: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
         transactionWriter.appendOrder(branchId, productId, Type.RELEASE, 0, -qty, refId);
+        enqueueStockChanged(branchId, productId);
     }
 
     /**
@@ -97,7 +105,9 @@ public class InventoryServiceImpl implements InventoryService {
                     branchId, productId, qty));
         }
         log.debug("commitSale: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
         transactionWriter.appendOrder(branchId, productId, Type.SALE, -qty, -qty, refId);
+        enqueueStockChanged(branchId, productId);
     }
 
     /**
@@ -115,7 +125,9 @@ public class InventoryServiceImpl implements InventoryService {
             throw insufficientStock(branchId, productId, qty);
         }
         log.debug("sellDirect: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
         transactionWriter.appendOrder(branchId, productId, Type.SALE, -qty, 0, refId);
+        enqueueStockChanged(branchId, productId);
     }
 
     /**
@@ -152,6 +164,15 @@ public class InventoryServiceImpl implements InventoryService {
         } catch (ArithmeticException ex) {
             throw new AppException(ErrorCode.VALIDATION_ERROR, "Giá trị nhập kho vượt giới hạn số tiền");
         }
+        increaseOnHand(branchId, productId, qty);
+        productCost.updateCostPrice(productId, newCost);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
+        transactionWriter.appendImport(branchId, productId, qty, documentId, actorId);
+        enqueueStockChanged(branchId, productId);
+        entityManager.clear(); // Native writes must not leave stale Inventory/Product entities in the caller.
+    }
+
+    private void increaseOnHand(Long branchId, Long productId, int qty) {
         int rows = jdbc.update("""
                 INSERT INTO inventory(branch_id,product_id,on_hand,reserved,version,updated_at)
                 VALUES(?,?,?,0,1,CURRENT_TIMESTAMP)
@@ -160,9 +181,32 @@ public class InventoryServiceImpl implements InventoryService {
                 WHERE inventory.on_hand<=2147483647-EXCLUDED.on_hand
                 """, branchId, productId, qty);
         if (rows != 1) throw new AppException(ErrorCode.VALIDATION_ERROR, "Số lượng tồn vượt giới hạn lưu trữ");
-        productCost.updateCostPrice(productId, newCost);
-        transactionWriter.appendImport(branchId, productId, qty, documentId, actorId);
-        entityManager.clear(); // Native writes must not leave stale Inventory/Product entities in the caller.
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void transferOut(Long branchId, Long productId, int qty, Long documentId, Long actorId) {
+        validateQty(qty);
+        productCost.lockForStockChange(productId);
+        if (inventoryRepository.sellDirect(branchId, productId, qty) != 1) {
+            throw insufficientStock(branchId, productId, qty);
+        }
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
+        transactionWriter.appendTransfer(branchId, productId, -qty, documentId, actorId);
+        enqueueStockChanged(branchId, productId);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void transferIn(Long branchId, Long productId, int qty, Long documentId, Long actorId) {
+        validateQty(qty);
+        entityManager.flush();
+        productCost.lockForStockChange(productId);
+        increaseOnHand(branchId, productId, qty);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
+        transactionWriter.appendTransfer(branchId, productId, qty, documentId, actorId);
+        enqueueStockChanged(branchId, productId);
+        entityManager.clear();
     }
 
     @Override
@@ -178,9 +222,20 @@ public class InventoryServiceImpl implements InventoryService {
         catch (ArithmeticException ex) { throw new AppException(ErrorCode.VALIDATION_ERROR, "Giá trị hủy vượt giới hạn số tiền"); }
         int rows = inventoryRepository.sellDirect(branchId, productId, qty);
         if (rows != 1) throw insufficientStock(branchId, productId, qty);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
         transactionWriter.appendExport(branchId, productId, qty, documentId, actorId);
+        enqueueStockChanged(branchId, productId);
         entityManager.clear();
         return cost;
+    }
+
+    private void enqueueStockChanged(Long branchId, Long productId) {
+        // The stock update holds the row lock until commit, so this is its exact version.
+        Long version = jdbc.queryForObject("""
+                SELECT version FROM inventory WHERE branch_id=? AND product_id=?
+                """, Long.class, branchId, productId);
+        outbox.enqueue("stock", branchId + ":" + productId, "stock.changed",
+                Map.of("branchId", branchId, "productId", productId, "version", version));
     }
 
     // Private helpers

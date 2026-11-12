@@ -22,5 +22,10 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": [
+    "src",
+    "tests/layouts/operations/menuConfig.test.ts",
+    "tests/layouts/operations/OperationsScope.test.tsx",
+    "tests/features/dashboard/revenue.test.ts"
+  ]
 }
