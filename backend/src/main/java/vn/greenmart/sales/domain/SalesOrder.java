@@ -46,6 +46,12 @@ public class SalesOrder {
     @Column(nullable = false)
     private Long discount = 0L;
 
+    @Column(name = "manual_discount", nullable = false)
+    private Long manualDiscount = 0L;
+
+    @Column(name = "manual_discount_reason", length = 255)
+    private String manualDiscountReason;
+
     @Column(nullable = false)
     private Long total = 0L;
 

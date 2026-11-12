@@ -71,13 +71,15 @@ class PosOrderServiceTest {
         posOrderService = new PosOrderServiceImpl(
                 quoteService, productService, customerService, inventoryService,
                 branchService, authService, promotionService, paymentService,
-                salesOrderRepository, orderItemRepository, outboxService, jdbcTemplate
+                salesOrderRepository, orderItemRepository, paymentRepository, outboxService, jdbcTemplate
         );
 
         lenient().when(jdbcTemplate.query(anyString(), ArgumentMatchers.<RowMapper<Long>>any(), any()))
                 .thenReturn(List.of(1L, 2L));
-        lenient().when(jdbcTemplate.queryForObject(contains("sales_channel"), eq(Long.class)))
+        lenient().when(jdbcTemplate.queryForObject(contains("sales_channel WHERE code"), eq(Long.class)))
                 .thenReturn(1L);
+        lenient().when(jdbcTemplate.queryForObject(contains("sales_channel WHERE id = ?"), eq(String.class), any()))
+                .thenReturn("POS");
         lenient().when(jdbcTemplate.queryForObject(contains("order_sequence"), eq(Long.class), any(), any()))
                 .thenReturn(1L);
         lenient().when(branchService.getSaleInfo(anyLong()))
