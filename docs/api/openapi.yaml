@@ -89,6 +89,8 @@ tags:
     description: Chương trình khuyến mại (PRM-01, PRM-03, BR-07, BR-08)
   - name: Users
     description: Quản trị tài khoản, vai trò, chi nhánh (AUTH-04)
+  - name: Reports
+    description: Báo cáo doanh thu, top sản phẩm, cảnh báo tồn thấp (DASH-01, DASH-02, BR-18)
 security:
   - bearerAuth: []
 
@@ -1457,6 +1459,84 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  # ------------------------------------------------------------------ Reports
+  /reports/revenue:
+    get:
+      tags: [Reports]
+      summary: Báo cáo doanh thu theo thời gian
+      description: |
+        Doanh thu chỉ tính đơn COMPLETED theo ngày hoàn tất; trả hàng trừ vào ngày trả (BR-18, DASH-01).
+        Hỗ trợ gom nhóm theo ngày (day), tuần (week), tháng (month).
+      operationId: getRevenueReport
+      x-roles: [OWNER, BRANCH_MANAGER]
+      parameters:
+        - name: from
+          in: query
+          description: Ngày bắt đầu (YYYY-MM-DD), mặc định 30 ngày trước
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          description: Ngày kết thúc (YYYY-MM-DD), mặc định hôm nay
+          schema: { type: string, format: date }
+        - name: groupBy
+          in: query
+          description: Chu kỳ gom nhóm (day, week, month)
+          schema: { type: string, enum: [day, week, month], default: day }
+        - $ref: '#/components/parameters/BranchIdQuery'
+        - name: channelId
+          in: query
+          description: Lọc theo kênh bán hàng
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Báo cáo doanh thu và danh sách các điểm dữ liệu
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RevenueReportResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /reports/top-products:
+    get:
+      tags: [Reports]
+      summary: Top sản phẩm bán chạy và bán chậm
+      description: |
+        Top sản phẩm theo số lượng ròng (bán trừ trả) trong kỳ báo cáo (DASH-02, BR-18).
+      operationId: getTopProductsReport
+      x-roles: [OWNER, BRANCH_MANAGER]
+      parameters:
+        - name: month
+          in: query
+          description: Tháng báo cáo (YYYY-MM), ví dụ 2026-11
+          schema: { type: string, pattern: '^\d{4}-\d{2}$' }
+        - name: from
+          in: query
+          description: Tùy chọn ngày bắt đầu (YYYY-MM-DD)
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          description: Tùy chọn ngày kết thúc (YYYY-MM-DD)
+          schema: { type: string, format: date }
+        - name: limit
+          in: query
+          description: Số lượng top mỗi danh sách (mặc định 10)
+          schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+        - $ref: '#/components/parameters/BranchIdQuery'
+        - name: channelId
+          in: query
+          description: Lọc theo kênh bán hàng
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Top sản phẩm bán chạy và bán chậm
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TopProductsResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -2460,3 +2540,58 @@ components:
             content:
               type: array
               items: { $ref: '#/components/schemas/User' }
+    RevenueSummary:
+      type: object
+      required: [totalGrossRevenue, totalReturnAmount, totalNetRevenue, totalOrders, totalReturns]
+      properties:
+        totalGrossRevenue: { type: integer, format: int64, description: Tổng doanh thu bán (VND) }
+        totalReturnAmount: { type: integer, format: int64, description: Tổng tiền hoàn trả (VND) }
+        totalNetRevenue: { type: integer, format: int64, description: Doanh thu thuần (VND) }
+        totalOrders: { type: integer, format: int64, description: Tổng số đơn hoàn tất }
+        totalReturns: { type: integer, format: int64, description: Tổng số phiếu trả duyệt }
+    RevenuePoint:
+      type: object
+      required: [date, revenue, grossRevenue, returnAmount, orderCount, returnCount]
+      properties:
+        date: { type: string, description: 'Mốc thời gian (YYYY-MM-DD hoặc YYYY-MM)' }
+        revenue: { type: integer, format: int64, description: Doanh thu ròng sau trừ trả hàng }
+        grossRevenue: { type: integer, format: int64, description: Doanh thu bán }
+        returnAmount: { type: integer, format: int64, description: Tiền trả hàng }
+        orderCount: { type: integer, format: int64 }
+        returnCount: { type: integer, format: int64 }
+    RevenueReportResponse:
+      type: object
+      required: [summary, points]
+      properties:
+        summary: { $ref: '#/components/schemas/RevenueSummary' }
+        points:
+          type: array
+          items: { $ref: '#/components/schemas/RevenuePoint' }
+    ProductSalesItem:
+      type: object
+      required: [productId, sku, name, soldQuantity, returnedQuantity, netQuantity, revenue]
+      properties:
+        productId: { type: integer, format: int64 }
+        sku: { type: string }
+        name: { type: string }
+        categoryName: { type: string, nullable: true }
+        soldQuantity: { type: integer, format: int64, description: Số lượng đã bán }
+        returnedQuantity: { type: integer, format: int64, description: Số lượng đã trả }
+        netQuantity: { type: integer, format: int64, description: Số lượng ròng (bán - trả) }
+        revenue: { type: integer, format: int64, description: Doanh thu từ sản phẩm (VND) }
+    TopProductsResponse:
+      type: object
+      required: [period, topSelling, slowSelling]
+      properties:
+        period:
+          type: object
+          required: [from, to]
+          properties:
+            from: { type: string, format: date }
+            to: { type: string, format: date }
+        topSelling:
+          type: array
+          items: { $ref: '#/components/schemas/ProductSalesItem' }
+        slowSelling:
+          type: array
+          items: { $ref: '#/components/schemas/ProductSalesItem' }
