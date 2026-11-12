@@ -42,6 +42,8 @@ class InventoryServiceImplTest {
     @Mock
     private vn.greenmart.catalog.service.ProductCostService productCost;
 
+    @Mock
+    private StockAlertService stockAlerts;
     @Mock private JdbcTemplate jdbc;
     @Mock private OutboxService outbox;
 
