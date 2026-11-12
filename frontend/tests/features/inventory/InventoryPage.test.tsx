@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../../../src/api/client';
 import type { InventoryItem } from '../../../src/features/inventory/inventoryApi';
 import InventoryPage from '../../../src/features/inventory/InventoryPage';
 
@@ -8,8 +9,8 @@ const { listInventory, scopeRef } = vi.hoisted(() => ({
   listInventory: vi.fn(),
   scopeRef: { current: {} as Record<string, unknown> },
 }));
-vi.mock('./inventoryApi', () => ({ listInventory }));
-vi.mock('../../layouts/operations/useOperationsScope', () => ({
+vi.mock('../../../src/features/inventory/inventoryApi', () => ({ listInventory }));
+vi.mock('../../../src/layouts/operations/useOperationsScope', () => ({
   useOperationsScope: () => scopeRef.current,
 }));
 
@@ -180,7 +181,7 @@ describe('InventoryPage', () => {
   });
 
   it('lỗi API: hiện thông báo lỗi trong khối kèm Thử lại, bấm Thử lại tải lại', async () => {
-    listInventory.mockRejectedValueOnce(new Error('Máy chủ đang bận'));
+    listInventory.mockRejectedValueOnce(new ApiError('Máy chủ đang bận', 503));
     renderPage();
     expect(await screen.findByText('Máy chủ đang bận')).toBeTruthy();
 
