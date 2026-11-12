@@ -41,6 +41,7 @@ public class InventoryServiceImpl implements InventoryService {
     private final ProductCostService productCost;
     private final JdbcTemplate jdbc;
     private final EntityManager entityManager;
+    private final StockAlertService stockAlerts;
     private final OutboxService outbox;
 
     /**
@@ -58,6 +59,7 @@ public class InventoryServiceImpl implements InventoryService {
             throw insufficientStock(branchId, productId, qty);
         }
         log.debug("reserve: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
         transactionWriter.appendOrder(branchId, productId, Type.RESERVE, 0, qty, refId);
         enqueueStockChanged(branchId, productId);
     }
@@ -80,6 +82,7 @@ public class InventoryServiceImpl implements InventoryService {
                     branchId, productId, qty));
         }
         log.debug("release: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
         transactionWriter.appendOrder(branchId, productId, Type.RELEASE, 0, -qty, refId);
         enqueueStockChanged(branchId, productId);
     }
@@ -102,6 +105,7 @@ public class InventoryServiceImpl implements InventoryService {
                     branchId, productId, qty));
         }
         log.debug("commitSale: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
         transactionWriter.appendOrder(branchId, productId, Type.SALE, -qty, -qty, refId);
         enqueueStockChanged(branchId, productId);
     }
@@ -121,6 +125,7 @@ public class InventoryServiceImpl implements InventoryService {
             throw insufficientStock(branchId, productId, qty);
         }
         log.debug("sellDirect: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
         transactionWriter.appendOrder(branchId, productId, Type.SALE, -qty, 0, refId);
         enqueueStockChanged(branchId, productId);
     }
@@ -161,6 +166,7 @@ public class InventoryServiceImpl implements InventoryService {
         }
         increaseOnHand(branchId, productId, qty);
         productCost.updateCostPrice(productId, newCost);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
         transactionWriter.appendImport(branchId, productId, qty, documentId, actorId);
         enqueueStockChanged(branchId, productId);
         entityManager.clear(); // Native writes must not leave stale Inventory/Product entities in the caller.
@@ -185,6 +191,7 @@ public class InventoryServiceImpl implements InventoryService {
         if (inventoryRepository.sellDirect(branchId, productId, qty) != 1) {
             throw insufficientStock(branchId, productId, qty);
         }
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
         transactionWriter.appendTransfer(branchId, productId, -qty, documentId, actorId);
         enqueueStockChanged(branchId, productId);
     }
@@ -196,6 +203,7 @@ public class InventoryServiceImpl implements InventoryService {
         entityManager.flush();
         productCost.lockForStockChange(productId);
         increaseOnHand(branchId, productId, qty);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
         transactionWriter.appendTransfer(branchId, productId, qty, documentId, actorId);
         enqueueStockChanged(branchId, productId);
         entityManager.clear();
@@ -214,6 +222,7 @@ public class InventoryServiceImpl implements InventoryService {
         catch (ArithmeticException ex) { throw new AppException(ErrorCode.VALIDATION_ERROR, "Giá trị hủy vượt giới hạn số tiền"); }
         int rows = inventoryRepository.sellDirect(branchId, productId, qty);
         if (rows != 1) throw insufficientStock(branchId, productId, qty);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
         transactionWriter.appendExport(branchId, productId, qty, documentId, actorId);
         enqueueStockChanged(branchId, productId);
         entityManager.clear();
