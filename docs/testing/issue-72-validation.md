@@ -200,3 +200,15 @@ Không tự coi implementation đã hoàn tất hoặc đủ điều kiện merg
   bản sửa trên `develop` thất bại. Cần chạy lại integration với backend mới.
 - Khi được duyệt commit/push, dùng merge thường để đưa nhánh PR lên `develop`;
   không rebase hoặc force push nhánh đã công bố.
+
+## Kiểm thử sau khi cập nhật PR và backend — 13/11/2026
+
+- Commit `86c9d52` đã được push lên PR #264; PR hết xung đột và toàn bộ CI (frontend,
+  backend, forecast, mock connector, Docker build, gitleaks) PASS.
+- Sao lưu database demo local, xây lại backend từ commit mới rồi kiểm tra health HTTP 200.
+  `npm run test:auth-integration` lần đầu đạt 10/11; test auth STOREKEEPER còn kỳ vọng
+  `/operations` trong khi layout Operations đã merge chuyển đến `/operations/inventory`.
+- Cập nhật đúng kỳ vọng route đó và chạy lại toàn bộ integration: **11/11 PASS, 2 file**.
+  Điều này xác nhận API khách hàng không lọc đã hoạt động với backend mới trên dữ liệu demo.
+- Sửa test và ghi chú này hiện mới ở worktree local, chưa commit/push. Cần cập nhật PR
+  rồi chờ CI của commit mới trước khi chuyển khỏi Draft.
