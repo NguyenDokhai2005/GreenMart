@@ -1,5 +1,7 @@
 # #149 — Postman POS và Newman trong CI
 
+> Cập nhật 13/11/2026: [kiểm tra lại bản sửa SV02](issue-149-recheck-2026-11-13.md) đạt **8 request, 15/15 assertion, receipt HTTP 200** trên develop `8358978`. Nhánh PR đã tích hợp bản sửa; CI mới cần xác minh sau push. Nội dung ngày 07/11 bên dưới là lịch sử, không mô tả receipt 404 là lỗi hiện tại.
+
 Phụ trách: Huynh-Phuc-Dat (SV08 — QA/Security). Issue: https://github.com/NguyenDokhai2005/GreenMart/issues/149. Hạn trên issue: 06/11/2026; thực hiện ngày 07/11/2026.
 
 ## Yêu cầu và phạm vi
