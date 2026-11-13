@@ -873,8 +873,32 @@ export interface paths {
     /**
      * Top sản phẩm bán chạy và bán chậm
      * @description Top sản phẩm theo số lượng ròng (bán trừ trả) trong kỳ báo cáo (DASH-02, BR-18).
+     *     Khi không truyền month, from hoặc to, kỳ báo cáo là từ đầu tháng hiện tại đến hôm nay.
+     *     Nếu truyền month, tháng báo cáo được ưu tiên hơn from và to.
      */
     get: operations['getTopProductsReport'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/alerts/low-stock': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Danh sách cảnh báo tồn thấp và hết hàng
+     * @description Chỉ trả cảnh báo đang mở. Hết hàng (OUT) đứng trước tồn thấp (LOW).
+     *     Trong cùng một mức, cảnh báo mở gần nhất đứng trước.
+     *     Chủ chuỗi xem được mọi chi nhánh, quản lý chỉ xem được chi nhánh được phân quyền.
+     */
+    get: operations['listLowStockAlerts'];
     put?: never;
     post?: never;
     delete?: never;
@@ -1339,6 +1363,24 @@ export interface components {
     };
     OrderSummaryPage: components['schemas']['PageMeta'] & {
       content: components['schemas']['OrderSummary'][];
+    };
+    StockAlert: {
+      /** Format: int64 */
+      id: number;
+      /** Format: int64 */
+      branchId: number;
+      /** Format: int64 */
+      productId: number;
+      sku: string;
+      productName: string;
+      /** @enum {string} */
+      severity: 'LOW' | 'OUT';
+      /** Format: int32 */
+      available: number;
+      /** Format: int32 */
+      reorderPoint: number | null;
+      /** Format: date-time */
+      openedAt: string;
     };
     /**
      * @example {
@@ -3798,6 +3840,32 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['TopProductsResponse'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+    };
+  };
+  listLowStockAlerts: {
+    parameters: {
+      query?: {
+        /** @description Lọc theo chi nhánh. Bỏ qua để xem tất cả chi nhánh có quyền truy cập. */
+        branchId?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Danh sách cảnh báo đang mở, mảng rỗng nếu không có cảnh báo phù hợp */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StockAlert'][];
         };
       };
       400: components['responses']['BadRequest'];
