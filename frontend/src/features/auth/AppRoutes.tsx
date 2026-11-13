@@ -4,6 +4,9 @@ import type { ReactNode } from 'react';
 import type { Role } from '../../api/client';
 import { Button, Toast } from '../../components/ui';
 import PosLayout from '../../layouts/pos/PosLayout';
+import type { PosPageLoader } from '../../layouts/pos/PosRouteContent';
+import ProductsPage from '../catalog/ProductsPage';
+import CustomersPage from '../catalog/CustomersPage';
 import { evaluateRouteAccess } from './routeAccess';
 import { useActiveBranch } from './useActiveBranch';
 import { useAuth } from './useAuth';
@@ -119,6 +122,12 @@ function WorkspaceMountPoint({ title }: { title: string }) {
     </main>
   );
 }
+
+const loadPosPage: PosPageLoader = (item) => {
+  if (item.segment === 'products') return Promise.resolve({ default: ProductsPage });
+  if (item.segment === 'customers') return Promise.resolve({ default: CustomersPage });
+  return import('../../layouts/pos/PosPlaceholderPage');
+};
 
 function ForbiddenPage() {
   const navigate = useNavigate();
@@ -256,7 +265,7 @@ export function AppRoutes() {
         element={
           <AuthBoundary allowedRoles={POS_ROLES}>
             <BranchBoundary>
-              <PosLayout />
+              <PosLayout loadPage={loadPosPage} />
             </BranchBoundary>
           </AuthBoundary>
         }
@@ -272,6 +281,8 @@ export function AppRoutes() {
         }
       >
         <Route index element={<OperationsHome />} />
+        <Route path="products" element={<ProductsPage />} />
+        <Route path="customers" element={<CustomersPage />} />
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="*" element={<WorkspaceMountPoint title="Chức năng đang phát triển" />} />
       </Route>
