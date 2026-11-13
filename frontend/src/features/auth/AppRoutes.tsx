@@ -10,6 +10,7 @@ import { useAuth } from './useAuth';
 import BranchSelectionPage from './BranchSelectionPage';
 import LoginPage from './LoginPage';
 import { OperationsHome, OperationsLayout } from '../../layouts/operations';
+import InventoryPage from '../inventory/InventoryPage';
 import {
   ADMIN_ROLES,
   APP_PATHS,
@@ -271,6 +272,7 @@ export function AppRoutes() {
         }
       >
         <Route index element={<OperationsHome />} />
+        <Route path="inventory" element={<InventoryPage />} />
         <Route path="*" element={<WorkspaceMountPoint title="Chức năng đang phát triển" />} />
       </Route>
       <Route

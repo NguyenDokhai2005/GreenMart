@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Role } from '../../../src/api/client';
 import {
+  breadcrumbFor,
   canPickAllBranches,
   menuForRole,
   operationsHomePath,
@@ -84,5 +85,23 @@ describe('helpers', () => {
     expect(operationsHomePath('STOREKEEPER')).toBe('/operations/inventory');
     expect(operationsHomePath('OWNER')).toBe('/operations');
     expect(operationsHomePath('BRANCH_MANAGER')).toBe('/operations');
+  });
+});
+
+describe('breadcrumbFor', () => {
+  it('mục con của nhóm hiện "Nhóm / Mục"', () => {
+    expect(breadcrumbFor('/operations/inventory')).toBe('Kho / Tồn kho');
+    expect(breadcrumbFor('/operations/stock-documents')).toBe('Kho / Phiếu nhập / xuất');
+    expect(breadcrumbFor('/operations/stock-documents/812')).toBe('Kho / Phiếu nhập / xuất');
+  });
+
+  it('mục thường hiện tên mục; Tổng quan chỉ khớp đúng /operations', () => {
+    expect(breadcrumbFor('/operations')).toBe('Tổng quan');
+    expect(breadcrumbFor('/operations/orders')).toBe('Đơn hàng');
+    expect(breadcrumbFor('/admin')).toBe('Dashboard');
+  });
+
+  it('đường dẫn không có trong menu trả undefined', () => {
+    expect(breadcrumbFor('/operations/khong-co')).toBeUndefined();
   });
 });
