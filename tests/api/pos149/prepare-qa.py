@@ -53,7 +53,7 @@ def main():
     env.update(POSTGRES_DB="greenmart",POSTGRES_USER="greenmart",FORECAST_DB_USER="forecast_ro",
                RABBITMQ_DEFAULT_USER="greenmart")
     for key in ["POSTGRES_PASSWORD","FORECAST_DB_PASSWORD","REDIS_PASSWORD","RABBITMQ_DEFAULT_PASS",
-                "JWT_SECRET","CHANNEL_WEB_SECRET","CHANNEL_MARKET_SECRET"]:
+                "JWT_SECRET","CHANNEL_WEB_SECRET","CHANNEL_MARKET_SECRET","FORECAST_INTERNAL_TOKEN"]:
         env[key] = secrets.token_hex(32)
     compose = ["docker","compose","-p",PROJECT,"-f",str(source / "docker-compose.yml"),
                "-f",str(ROOT / "tests/api/pos149/compose.qa.yml")]
