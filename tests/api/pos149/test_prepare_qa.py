@@ -2,6 +2,8 @@
 import importlib.util
 from pathlib import Path
 import subprocess
+import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -11,6 +13,40 @@ spec.loader.exec_module(qa)
 
 
 class SeedSetupTests(unittest.TestCase):
+    def test_all_tracked_qa_helpers_supply_fresh_forecast_token_to_compose(self):
+        """Exercise setup until config --quiet; never build/start a container."""
+        root = Path(__file__).resolve().parents[3]
+        paths = [root / 'tests/api/pos149/prepare-qa.py',
+                 root / 'tests/api/run_issue148_qa.py',
+                 root / 'tests/load/stock150/run.py']
+        class ValidationReached(Exception):
+            pass
+        for index, source in enumerate(paths):
+            spec = importlib.util.spec_from_file_location(f'qa_token_{index}', source)
+            helper = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(helper)
+            values = []
+            for attempt in range(2):
+                with self.subTest(helper=source.name, attempt=attempt), tempfile.TemporaryDirectory() as work:
+                    def fake_run(command, **kwargs):
+                        if command[-2:] == ['config', '--quiet']:
+                            token = kwargs['env'].get('FORECAST_INTERNAL_TOKEN', '')
+                            self.assertTrue(len(token) == 64 and all(c in '0123456789abcdef' for c in token),
+                                            'QA must generate a 32-byte token for Compose')
+                            self.assertTrue(token != 'inherited-token-must-not-be-reused',
+                                            'QA must not reuse inherited credentials')
+                            values.append(token)
+                            raise ValidationReached()
+                        return subprocess.CompletedProcess(command, 0, '' if kwargs.get('text') else b'', '')
+                    with patch.object(helper, 'ROOT', Path(work)), \
+                            patch.object(helper.subprocess, 'run', side_effect=fake_run), \
+                            patch.object(sys, 'argv', ['qa']), \
+                            patch.dict(helper.os.environ, {'FORECAST_INTERNAL_TOKEN': 'inherited-token-must-not-be-reused'}):
+                        with self.assertRaises(ValidationReached):
+                            (helper.prepare if index == 2 else helper.main)()
+            self.assertTrue(len(values) == 2 and values[0] != values[1],
+                            'Each QA setup must generate a different token')
+
     def test_linux_seed_uses_runner_uid_gid(self):
         source, data = Path("source"), Path("data")
         with patch.object(qa.os, "name", "posix"), \
