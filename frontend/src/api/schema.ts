@@ -482,6 +482,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/integrations/{channelCode}/products/{productId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Thêm hoặc cập nhật ánh xạ SKU kênh (ADMIN) */
+    put: operations['mapChannelProduct'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/integrations/{channelCode}/orders': {
     parameters: {
       query?: never;
@@ -2937,6 +2954,39 @@ export interface operations {
       403: components['responses']['Forbidden'];
       404: components['responses']['NotFound'];
       409: components['responses']['InvalidStatus'];
+    };
+  };
+  mapChannelProduct: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Chỉ kênh online */
+        channelCode: components['parameters']['ChannelCodePath'];
+        productId: number;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          externalSku: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Đã lưu ánh xạ */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['Conflict'];
     };
   };
   receiveChannelOrder: {

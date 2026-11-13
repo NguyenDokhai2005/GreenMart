@@ -806,6 +806,34 @@ paths:
         '409': { $ref: '#/components/responses/InvalidStatus' }
 
   # ------------------------------------------------------------------ Webhook kênh (v2)
+  /integrations/{channelCode}/products/{productId}:
+    put:
+      tags: [Channel webhook]
+      summary: Thêm hoặc cập nhật ánh xạ SKU kênh (ADMIN)
+      operationId: mapChannelProduct
+      parameters:
+        - $ref: '#/components/parameters/ChannelCodePath'
+        - name: productId
+          in: path
+          required: true
+          schema: { type: integer, format: int64, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [externalSku]
+              properties:
+                externalSku: { type: string, minLength: 1, maxLength: 60 }
+      responses:
+        '204': { description: Đã lưu ánh xạ }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
   /integrations/{channelCode}/orders:
     post:
       tags: [Channel webhook]
