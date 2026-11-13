@@ -2403,8 +2403,15 @@ def _write_sql_statements(
             f.write("INSERT INTO inventory_transaction (id, branch_id, product_id, type, delta_on_hand, on_hand_after, delta_reserved, reserved_after, ref_type, ref_id, created_by, created_at) VALUES\n")
             f.write(",\n".join(val_strs) + ";\n\n")
 
-    # 17. Reset sequences cho mọi bảng
-    f.write("-- 20. Thiết lập lại sequence cho tất cả các bảng vừa seed\n")
+    # 17. Dựng lại cảnh báo tồn thấp và hết hàng (stock_alert) từ inventory (#336, #321)
+    f.write("-- 20. Dựng lại cảnh báo tồn kho thấp và hết hàng (stock_alert) từ inventory (#336, #321)\n")
+    f.write("INSERT INTO stock_alert(branch_id, product_id, severity)\n")
+    f.write("SELECT branch_id, product_id, CASE WHEN on_hand = reserved THEN 'OUT' ELSE 'LOW' END\n")
+    f.write("FROM inventory\n")
+    f.write("WHERE on_hand = reserved OR (reorder_point IS NOT NULL AND on_hand - reserved <= reorder_point);\n\n")
+
+    # 18. Reset sequences cho mọi bảng
+    f.write("-- 21. Thiết lập lại sequence cho tất cả các bảng vừa seed\n")
     tables_to_reset = [
         "branch",
         "category",

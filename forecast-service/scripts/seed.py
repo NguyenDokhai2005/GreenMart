@@ -43,7 +43,7 @@ VERIFY_SQL_FILE = MODULE_DIR / "verify_seed.sql"
 GENERATOR_SCRIPT = MODULE_DIR / "generate_data.py"
 TEST_GENERATOR_FILE = SERVICE_DIR / "tests" / "test_generator.py"
 
-# Danh sách 23 bảng được seed dữ liệu cần tính mã vân tay (fingerprint)
+# Danh sách 24 bảng được seed dữ liệu cần tính mã vân tay (fingerprint)
 SEEDED_TABLES: List[str] = [
     "branch",
     "category",
@@ -65,6 +65,7 @@ SEEDED_TABLES: List[str] = [
     "return_item",
     "inventory",
     "inventory_transaction",
+    "stock_alert",
     "stock_document",
     "stock_document_item",
     "audit_log",
@@ -209,13 +210,14 @@ def check_docker_and_service(service_name: str) -> None:
 
 
 def check_flyway_migration(service_name: str) -> None:
-    """Kiểm tra điều kiện tiên quyết: bảng flyway_schema_history phải có đủ V1 - V4 thành công."""
-    query = (
+    """Kiểm tra điều kiện tiên quyết: bảng flyway_schema_history phải có đủ V1 - V4 và V12 thành công (#108, #336)."""
+    # 1. Kiểm tra đủ 4 migration nền tảng V1 - V4
+    query_v4 = (
         "SELECT COUNT(*) FROM flyway_schema_history "
         "WHERE version IN ('1', '2', '3', '4') AND success = true;"
     )
-    cmd = f'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -A -v ON_ERROR_STOP=1 -c "{query}"'
-    code, out, err = run_docker_compose_command(service_name, cmd)
+    cmd_v4 = f'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -A -v ON_ERROR_STOP=1 -c "{query_v4}"'
+    code, out, err = run_docker_compose_command(service_name, cmd_v4)
 
     if code != 0:
         raise SeedError(
@@ -235,7 +237,32 @@ def check_flyway_migration(service_name: str) -> None:
             "Vui lòng khởi động dịch vụ backend để Flyway hoàn tất các bước migration trước khi nạp dữ liệu: docker compose up -d backend",
         )
 
-    print(f"  [OK] Đã hoàn tất đủ {count_val} migration Flyway (V1 - V4) hợp lệ.")
+    # 2. Kiểm tra bắt buộc migration V12 (tạo bảng stock_alert phục vụ dựng lại cảnh báo tồn kho #336)
+    query_v12 = (
+        "SELECT COUNT(*) FROM flyway_schema_history "
+        "WHERE version = '12' AND success = true;"
+    )
+    cmd_v12 = f'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -A -v ON_ERROR_STOP=1 -c "{query_v12}"'
+    code_12, out_12, err_12 = run_docker_compose_command(service_name, cmd_v12)
+
+    if code_12 != 0:
+        raise SeedError(
+            f"Không thể kiểm tra migration V12 trên cơ sở dữ liệu.\nChi tiết: {err_12.strip()}",
+            "Vui lòng kiểm tra lại dịch vụ cơ sở dữ liệu.",
+        )
+
+    try:
+        count_v12 = int(out_12.strip())
+    except ValueError:
+        count_v12 = 0
+
+    if count_v12 < 1:
+        raise SeedError(
+            "Cơ sở dữ liệu chưa áp dụng migration V12 (thiếu cấu trúc bảng stock_alert phục vụ dựng cảnh báo tồn kho).",
+            "Vui lòng khởi động dịch vụ backend để Flyway tự động migrate V12: docker compose up -d --build backend",
+        )
+
+    print(f"  [OK] Đã hoàn tất đủ {count_val} migration Flyway (V1 - V4) và migration V12 (stock_alert) hợp lệ.")
 
 
 def execute_data_generator() -> None:

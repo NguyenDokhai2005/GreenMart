@@ -949,6 +949,22 @@ class TestGeneratorStage4(unittest.TestCase):
         self.assertIn("'W-' || p.sku", sql_content)
         self.assertIn("'M-' || p.sku", sql_content)
 
+    def test_sql_contains_stock_alert_repopulation(self):
+        """Khẳng định SQL sinh ra có bước dựng lại stock_alert từ inventory (#336, #321)."""
+        buf = io.StringIO()
+        generate_data.export_to_sql(
+            branches=[], categories=[], products=[],
+            users=[], customers=[], promotions=[],
+            orders=[], returns=[], audit_logs=[],
+            stock_documents=[], stock_document_items=[],
+            inventories=[], inventory_transactions=[],
+            stream=buf,
+        )
+        sql_content = buf.getvalue()
+        self.assertIn("INSERT INTO stock_alert", sql_content)
+        self.assertIn("CASE WHEN on_hand = reserved THEN 'OUT' ELSE 'LOW' END", sql_content)
+        self.assertIn("WHERE on_hand = reserved OR (reorder_point IS NOT NULL AND on_hand - reserved <= reorder_point)", sql_content)
+
     def test_golden_sha256_checksums(self):
         """Khóa mốc SHA-256 vàng in-memory (newline='\\n', utf-8) để bảo vệ refactor không đổi dữ liệu.
 
@@ -1001,7 +1017,7 @@ class TestGeneratorStage4(unittest.TestCase):
         sql_bytes = buf_sql.getvalue().encode("utf-8")
         actual_sql_sha = hashlib.sha256(sql_bytes).hexdigest()
 
-        GOLDEN_SQL_SHA256 = "d5c300855ef8ff2757a30ebf8769deab99b84b950539e149a9d7d8a329f83663"
+        GOLDEN_SQL_SHA256 = "1de02f18589d4b6186a4ec401309a827a225fca0020e9ce6b02cd67c04010b5e"
         GOLDEN_JSON_SHA256 = "d0226a3d258fa87649db164118a5d600052de8f422e94e5beecb8a3e05d1dc91"
 
         self.assertEqual(actual_sql_sha, GOLDEN_SQL_SHA256, "Mã SHA-256 in-memory của SQL không được thay đổi")

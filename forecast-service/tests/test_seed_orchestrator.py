@@ -160,6 +160,22 @@ class TestMockedExecutionFlow(TestCase):
             self.assertIn("chưa hoàn tất migration Flyway", cm.exception.message)
             self.assertIn("chỉ có 2/4", cm.exception.message)
 
+    def test_flyway_missing_v12_raises_seed_error(self):
+        """Khi V1-V4 đủ nhưng thiếu migration V12, check_flyway_migration phải ném SeedError (#336)."""
+        # Call 1 (V1-V4): count=4, Call 2 (V12): count=0
+        with mock.patch.object(seed, "run_docker_compose_command", side_effect=[(0, "4\n", ""), (0, "0\n", "")]):
+            with self.assertRaises(seed.SeedError) as cm:
+                seed.check_flyway_migration("postgres")
+            self.assertIn("chưa áp dụng migration V12", cm.exception.message)
+            self.assertIn("stock_alert", cm.exception.message)
+
+    def test_flyway_complete_v1_v4_and_v12_succeeds(self):
+        """Khi có đủ V1-V4 và V12 thành công, check_flyway_migration vượt qua an toàn (#336)."""
+        # Call 1 (V1-V4): count=4, Call 2 (V12): count=1
+        with mock.patch.object(seed, "run_docker_compose_command", side_effect=[(0, "4\n", ""), (0, "1\n", "")]):
+            # Không ném lỗi
+            seed.check_flyway_migration("postgres")
+
     def test_confirm_orders_aborted_when_user_declines(self):
         """Khi có đơn hàng cũ và người dùng nhập 'n', tiến trình phải thoát 0 và dừng lại an toàn."""
         # Mock sales_order count = 500
