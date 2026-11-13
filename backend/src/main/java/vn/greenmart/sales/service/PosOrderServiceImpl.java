@@ -288,6 +288,7 @@ public class PosOrderServiceImpl implements PosOrderService {
             String[] sort
     ) {
         // Kiểm tra đăng nhập & lấy danh sách chi nhánh được phép truy cập (BR-11, AUTH-02)
+        SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER", "CASHIER", "STOREKEEPER");
         List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
         if (branchId != null && accessibleBranches != null && !accessibleBranches.contains(branchId)) {
             throw new AppException(ErrorCode.BRANCH_FORBIDDEN, "Bạn không có quyền thao tác trên chi nhánh này");

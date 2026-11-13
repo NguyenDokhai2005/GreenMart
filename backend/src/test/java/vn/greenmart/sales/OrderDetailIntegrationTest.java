@@ -376,8 +376,8 @@ class OrderDetailIntegrationTest {
     }
 
     @Test
-    @DisplayName("ORD-06: OWNER/ADMIN xem toàn chuỗi và lọc theo channel, status, khoảng ngày, từ khóa q")
-    void testListOrders_OwnerAndAdminWithFilters_ReturnsMatchingOrders() throws Exception {
+    @DisplayName("ORD-06: OWNER xem toàn chuỗi và lọc theo channel, status, khoảng ngày, từ khóa q (kể cả ký tự %, _)")
+    void testListOrders_OwnerWithFilters_ReturnsMatchingOrders() throws Exception {
         String today = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")).toString();
 
         // OWNER không truyền branchId -> thấy đủ 2 đơn của cả 2 chi nhánh, đơn mới tạo (order2Id) đứng trước
@@ -388,7 +388,7 @@ class OrderDetailIntegrationTest {
                 .andExpect(jsonPath("$.content[0].id").value(order2Id))
                 .andExpect(jsonPath("$.content[1].id").value(order1Id));
 
-        // ADMIN lọc theo branchId, channel, status, from/to và q
+        // OWNER lọc theo branchId, channel, status, from/to và q
         mvc.perform(get("/api/v1/orders")
                         .param("branchId", String.valueOf(branch1Id))
                         .param("channel", "POS")
@@ -396,26 +396,31 @@ class OrderDetailIntegrationTest {
                         .param("from", today)
                         .param("to", today)
                         .param("q", "POS-GM001-TEST")
-                        .header("Authorization", "Bearer " + tokens.issue(ADMIN_ID, "ADMIN")))
+                        .header("Authorization", "Bearer " + tokens.issue(OWNER_ID, "OWNER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].code").value("POS-GM001-TEST-0001"));
+
+        // Kiểm tra escape ký tự wildcard '%' và '_' trong q 
+        mvc.perform(get("/api/v1/orders")
+                        .param("q", "%")
+                        .header("Authorization", "Bearer " + tokens.issue(OWNER_ID, "OWNER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+
+        mvc.perform(get("/api/v1/orders")
+                        .param("q", "_")
+                        .header("Authorization", "Bearer " + tokens.issue(OWNER_ID, "OWNER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
     }
 
     @Test
-    @DisplayName("ORD-06: Khoảng ngày from > to hoặc status sai -> Trả về HTTP 400 VALIDATION_ERROR")
-    void testListOrders_InvalidFilters_Returns400ValidationError() throws Exception {
+    @DisplayName("ORD-06: ADMIN không thuộc phạm vi xem danh sách đơn -> Trả về HTTP 403 FORBIDDEN")
+    void testListOrders_Admin_Returns403Forbidden() throws Exception {
         mvc.perform(get("/api/v1/orders")
-                        .param("from", "2026-11-20")
-                        .param("to", "2026-11-10")
-                        .header("Authorization", "Bearer " + tokens.issue(OWNER_ID, "OWNER")))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
-
-        mvc.perform(get("/api/v1/orders")
-                        .param("status", "INVALID_STATUS_CODE")
-                        .header("Authorization", "Bearer " + tokens.issue(OWNER_ID, "OWNER")))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+                        .header("Authorization", "Bearer " + tokens.issue(ADMIN_ID, "ADMIN")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 }

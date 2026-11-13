@@ -161,8 +161,12 @@ public class OrderQueryServiceImpl implements OrderQueryService {
         }
 
         if (q != null && !q.trim().isEmpty()) {
-            String kw = "%" + q.trim() + "%";
-            whereClause.append(" AND (o.code ILIKE ? OR COALESCE(o.external_order_id, '') ILIKE ? OR COALESCE(c.phone, '') ILIKE ?) ");
+            String escaped = q.trim()
+                    .replace("\\", "\\\\")
+                    .replace("%", "\\%")
+                    .replace("_", "\\_");
+            String kw = "%" + escaped + "%";
+            whereClause.append(" AND (o.code ILIKE ? ESCAPE '\\' OR COALESCE(o.external_order_id, '') ILIKE ? ESCAPE '\\' OR COALESCE(c.phone, '') ILIKE ? ESCAPE '\\') ");
             params.add(kw);
             params.add(kw);
             params.add(kw);
