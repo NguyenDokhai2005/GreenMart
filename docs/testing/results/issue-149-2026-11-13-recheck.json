@@ -1,0 +1,31 @@
+{
+  "issue": 149,
+  "date": "2026-11-13",
+  "backendCommit": "83589787bd78aec61940177f9863a80853ca6226",
+  "collectionCommit": "f24b779c5adc43fa04959cdc7deb44209e305358",
+  "project": "greenmart-qa149-recheck-20261113",
+  "baseUrl": "http://127.0.0.1:18156/api/v1",
+  "imageTag": "greenmart-backend:qa149-recheck-8358978",
+  "imageId": "sha256:7e2fed7000456bdf1fdce60607a6d2411a4ba4effcbeffa8e18fbac0b79a609b",
+  "verifiedRevision": "83589787bd78aec61940177f9863a80853ca6226",
+  "newmanVersion": "6.2.1",
+  "nodeVersion": "v22.20.0",
+  "realRunExitCode": 0,
+  "regressionScenarios": {
+    "success": 0,
+    "forced-failure": 1,
+    "missing-receipt": 1
+  },
+  "originalFilesUnchanged": true,
+  "sha256": {
+    "run-newman.cjs": "22baf81c9b09a91f16ff20c50d828b3ee0d617c3d3c31b86da24d6c86a5216db",
+    "pos.postman_collection.json": "9fffadd94fc6021fa43892cea3bd2139fff9b55bcf4b6d99c9bbf419e3a7e36b",
+    "fixture.sql": "a584f05eb5094de07b1b7d5748f6c555d8a6197f31d7edaddf62f50ebc13660b",
+    "package-lock.json": "09c254de02b0f8f601ce69eb03d3892535a7974979d4470bffb93a2390966cf7"
+  },
+  "limitations": [
+    "Local real API run, not a new GitHub Actions run.",
+    "Core POS fixture has no promotions; not full RBAC or all payment variants.",
+    "PR254 not merged or rebased by this task."
+  ]
+}
