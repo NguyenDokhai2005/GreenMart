@@ -245,6 +245,8 @@ class InventoryServiceTransactionTest {
         setup.execute(status -> {
             insertFixtures(PRODUCT_ID, 5, 0);
             insertFixtures(PRODUCT_ID_2, 2, 0);
+            jdbc.update("UPDATE inventory SET reorder_point=4 WHERE branch_id=? AND product_id=?",
+                    BRANCH_ID, PRODUCT_ID);
             return null;
         });
 
@@ -252,6 +254,9 @@ class InventoryServiceTransactionTest {
         try {
             tx.execute(status -> {
                 inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 3, 2001L);
+                assertThat(jdbc.queryForObject("SELECT count(*) FROM stock_alert WHERE closed_at IS NULL", Integer.class))
+                        .isEqualTo(1);
+                assertThat(stockEvents()).containsExactly("10:50:1");
                 inventoryService.reserve(BRANCH_ID, PRODUCT_ID_2, 5, 2002L);
                 return null;
             });
@@ -275,6 +280,8 @@ class InventoryServiceTransactionTest {
                     .as("reserved của p2 phải giữ nguyên 0")
                     .isEqualTo(0);
             assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_transaction", Integer.class)).isZero();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM stock_alert", Integer.class)).isZero();
+            assertThat(stockEvents()).isEmpty();
             return null;
         });
 
@@ -437,6 +444,38 @@ class InventoryServiceTransactionTest {
                 jdbc.update("DELETE FROM category WHERE id=?", 98);
             });
         }
+    }
+
+    @Test
+    @Transactional
+    void stockAlertReusesOpenRowAcrossLevelsAndClosesAfterReplenishment() {
+        insertFixtures(PRODUCT_ID, 35, 0);
+        jdbc.update("UPDATE inventory SET reorder_point=34 WHERE branch_id=? AND product_id=?", BRANCH_ID, PRODUCT_ID);
+        jdbc.update("""
+                INSERT INTO app_user(id, username, password_hash, full_name, role)
+                VALUES (9610, 'alert-manager', 'hash', 'Alert Manager', 'BRANCH_MANAGER')
+                """);
+
+        inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 5, 6100L);
+        var open = jdbc.queryForMap("SELECT id, severity FROM stock_alert WHERE closed_at IS NULL");
+        assertThat(open).containsEntry("severity", "LOW");
+        inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 30, 6101L);
+        assertThat(jdbc.queryForMap("SELECT id, severity FROM stock_alert WHERE closed_at IS NULL"))
+                .containsEntry("id", open.get("id")).containsEntry("severity", "OUT");
+        inventoryService.release(BRANCH_ID, PRODUCT_ID, 30, 6101L);
+        assertThat(jdbc.queryForMap("SELECT id, severity FROM stock_alert WHERE closed_at IS NULL"))
+                .containsEntry("id", open.get("id")).containsEntry("severity", "LOW");
+
+        inventoryService.importStock(BRANCH_ID, PRODUCT_ID, 96, 4000L, 6102L, 9610L);
+        assertThat(inventoryService.getAvailable(BRANCH_ID, PRODUCT_ID)).isEqualTo(126);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM stock_alert WHERE closed_at IS NULL", Integer.class))
+                .isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM stock_alert WHERE id=? AND closed_at IS NOT NULL",
+                Integer.class, open.get("id"))).isEqualTo(1);
+
+        inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 92, 6103L);
+        assertThat(jdbc.queryForMap("SELECT id, severity FROM stock_alert WHERE closed_at IS NULL"))
+                .containsEntry("severity", "LOW").doesNotContainEntry("id", open.get("id"));
     }
 
     private void insertFixtures(long productId, int onHand, int reserved) {
