@@ -42,7 +42,7 @@ class ForecastPrivilegesMigrationTest {
                     role, schema + ".app_user")).isTrue();
         }
 
-        migrate(owner, schema, role, "15");
+        migrate(owner, schema, role, "14");
         jdbc.execute("CREATE TABLE " + schema + ".future_table(id INT)");
         var forecast = new DriverManagerDataSource(POSTGRES.getJdbcUrl(), role, password);
         try (var connection = forecast.getConnection(); var statement = connection.createStatement()) {
