@@ -55,6 +55,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     private final PaymentRepository paymentRepository;
     private final OutboxService outboxService;
     private final JdbcTemplate jdbcTemplate;
+    private final OnlineOrderService onlineOrderService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -259,6 +260,16 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         // Map dữ liệu sang OrderResponse dùng chung
         return mapToOrderResponse(order, items, paymentResponses);
+    }
+
+    @Override
+    public OrderResponse completeOnlineOrder(Long orderId) {
+        return onlineOrderService.completeOrder(orderId);
+    }
+
+    @Override
+    public OrderResponse cancelOnlineOrder(Long orderId, CancelOrderRequest request) {
+        return onlineOrderService.cancelOrder(orderId, request);
     }
 
     private OrderResponse mapToOrderResponse(SalesOrder order, List<OrderItem> items, List<PaymentResponse> paymentResponses) {
