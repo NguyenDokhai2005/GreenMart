@@ -1,0 +1,12 @@
+{
+  "sourceCommit": "83589787bd78aec61940177f9863a80853ca6226",
+  "project": "greenmart-qa152-20261113",
+  "checks": [
+    {"id":"RBAC152-001","username":"thungan.gm001","name":"Targeted login","method":"POST","path":"/auth/login","expectedStatus":200,"expectedCode":null,"actualStatus":200,"actualCode":null,"traceId":null,"bodyBranchId":null,"responseEvidence":null,"assertions":{"status":true},"result":"PASS"},
+    {"id":"RBAC152-002","username":"thungan.gm001","name":"Own lookup control","method":"GET","path":"/products/lookup?code=COM-SUON-BI-CHA-0001&branchId=1","expectedStatus":200,"expectedCode":null,"actualStatus":200,"actualCode":null,"traceId":null,"bodyBranchId":null,"responseEvidence":{"branchId":1,"available":23},"assertions":{"status":true},"result":"PASS"},
+    {"id":"RBAC152-003","username":"thungan.gm001","name":"Foreign lookup reproducible","method":"GET","path":"/products/lookup?code=COM-SUON-BI-CHA-0001&branchId=2","expectedStatus":403,"expectedCode":"BRANCH_FORBIDDEN","actualStatus":200,"actualCode":null,"traceId":null,"bodyBranchId":null,"responseEvidence":{"branchId":2,"available":22},"assertions":{"status":false,"code":false,"envelope":false},"result":"FAIL"},
+    {"id":"RBAC152-004","username":"thungan.gm001","name":"Foreign inventory control","method":"GET","path":"/inventory?branchId=2","expectedStatus":403,"expectedCode":"BRANCH_FORBIDDEN","actualStatus":403,"actualCode":"BRANCH_FORBIDDEN","traceId":"35052d86-f608-487b-88e0-5bfb700671ee","bodyBranchId":null,"responseEvidence":null,"assertions":{"status":true,"code":true,"envelope":true},"result":"PASS"},
+    {"id":"RBAC152-005","username":"thungan.gm001","name":"Targeted logout","method":"POST","path":"/auth/logout","expectedStatus":204,"expectedCode":null,"actualStatus":204,"actualCode":null,"traceId":null,"bodyBranchId":null,"responseEvidence":null,"assertions":{"status":true},"result":"PASS"}
+  ],
+  "auditAfterDeniedRequest": {"newRows":0,"actorRows":0}
+}
