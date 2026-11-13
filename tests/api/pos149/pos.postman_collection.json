@@ -1,0 +1,353 @@
+{
+  "info": {
+    "name": "GreenMart #149 POS CI",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Real QA only. Fixture 900001/900002, no promotion. Receipt GET is mandatory; never skip missing endpoints."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:18081/api/v1"
+    },
+    {
+      "key": "forceFailure",
+      "value": "false"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Login CASHIER GM-001",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "noauth"
+        },
+        "url": "{{baseUrl}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"username\":\"thungan.gm001\",\"password\":\"Demo@123\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test(\"Bearer session and cashier identity\", () => {",
+              " pm.expect(b.tokenType).to.eql(\"Bearer\"); pm.expect(b.expiresIn).to.eql(900);",
+              " pm.expect(b.accessToken).to.be.a(\"string\").and.not.empty; pm.expect(b.refreshToken).to.be.a(\"string\").and.not.empty;",
+              " pm.expect(b.user.role).to.eql(\"CASHIER\"); pm.expect(b.user.username).to.eql(\"thungan.gm001\");",
+              " pm.expect(b.user.branches.map(x => x.code)).to.deep.eql([\"GM-001\"]);",
+              "});",
+              "if (b.accessToken) {pm.collectionVariables.set(\"accessToken\", b.accessToken); pm.collectionVariables.set(\"refreshToken\", b.refreshToken); pm.collectionVariables.set(\"userId\", b.user.id);}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Current user",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/auth/me"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test(\"Same cashier and branch\", () => { pm.expect(b.id).to.eql(Number(pm.collectionVariables.get(\"userId\"))); pm.expect(b.role).to.eql(\"CASHIER\"); pm.expect(b.branches.map(x => x.code)).to.deep.eql([\"GM-001\"]); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Inventory before",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/inventory?branchId=1&productId=900001"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test(\"Fixture stock exists\", () => {pm.expect(b.content).to.have.lengthOf(1); pm.expect(b.content[0].available).to.be.at.least(1);});",
+              "if (b.content && b.content[0]) pm.collectionVariables.set(\"availableBefore\", b.content[0].available);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Quote",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/orders/quote",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"branchId\":1,\"items\":[{\"productId\":900001,\"quantity\":1},{\"productId\":900002,\"quantity\":2}]}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test(\"Known fixture prices, no promotion\", () => {",
+              " pm.expect(b.subtotal).to.eql(238000); pm.expect(b.itemDiscount).to.eql(0); pm.expect(b.orderDiscount).to.eql(0);",
+              " pm.expect(b.total).to.eql(pm.collectionVariables.get(\"forceFailure\") === \"true\" ? -1 : 238000);",
+              " pm.expect(b.canComplete).to.eql(true); pm.expect(b.lines.map(x => x.productId).sort()).to.deep.eql([900001,900002]);",
+              " pm.expect(b.lines.reduce((s,x) => s+x.lineTotal,0)).to.eql(b.subtotal-b.itemDiscount);",
+              "});",
+              "pm.collectionVariables.set(\"expectedTotal\", b.total);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 POS cash checkout",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/orders/pos",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"branchId\":1,\"items\":[{\"productId\":900001,\"quantity\":1},{\"productId\":900002,\"quantity\":2}],\"payment\":{\"method\":\"CASH\",\"cashReceived\":250000},\"expectedTotal\":{{expectedTotal}}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.request.headers.upsert({key:\"Idempotency-Key\",value:pm.variables.replaceIn(\"{{$guid}}\")});"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "const b = pm.response.json();",
+              "pm.test(\"Completed order, paid cash and correct change\", () => {",
+              " pm.expect(b.status).to.eql(\"COMPLETED\"); pm.expect(b.branch.id).to.eql(1); pm.expect(b.channel).to.eql(\"POS\");",
+              " pm.expect(b.total).to.eql(238000); pm.expect(b.items).to.have.lengthOf(2); pm.expect(b.itemCount).to.eql(3);",
+              " pm.expect(b.payments).to.have.lengthOf(1); pm.expect(b.payments[0].method).to.eql(\"CASH\");",
+              " pm.expect(b.payments[0].status).to.eql(\"PAID\"); pm.expect(b.payments[0].amount).to.eql(238000);",
+              " pm.expect(b.payments[0].cashReceived).to.eql(250000); pm.expect(b.payments[0].change).to.eql(12000);",
+              " pm.expect(b.createdBy.id).to.eql(Number(pm.collectionVariables.get(\"userId\"))); pm.expect(b.code).to.be.a(\"string\").and.not.empty;",
+              "});",
+              "if (b.id) {pm.collectionVariables.set(\"orderId\", b.id); pm.collectionVariables.set(\"orderCode\", b.code);}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Receipt persisted order",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/orders/{{orderId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test(\"Receipt equals the created order\", () => {",
+              " pm.expect(b.id).to.eql(Number(pm.collectionVariables.get(\"orderId\"))); pm.expect(b.code).to.eql(pm.collectionVariables.get(\"orderCode\"));",
+              " pm.expect(b.status).to.eql(\"COMPLETED\"); pm.expect(b.branch.id).to.eql(1); pm.expect(b.total).to.eql(238000);",
+              " pm.expect(b.items).to.have.lengthOf(2); pm.expect(b.items.map(x=>x.productId).sort()).to.deep.eql([900001,900002]);",
+              " pm.expect(b.payments[0].status).to.eql(\"PAID\"); pm.expect(b.payments[0].amount).to.eql(238000);",
+              " pm.expect(b.payments[0].change).to.eql(12000); pm.expect(b.createdBy.id).to.eql(Number(pm.collectionVariables.get(\"userId\")));",
+              " [\"createdAt\",\"subtotal\",\"discount\",\"itemDiscount\",\"orderDiscount\",\"manualDiscount\"].forEach(k=>pm.expect(b).to.have.property(k));",
+              " pm.expect(b).not.to.have.property(\"passwordHash\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Inventory after",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/inventory?branchId=1&productId=900001"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test(\"Sale reduced available by one\", () => {pm.expect(b.content).to.have.lengthOf(1); pm.expect(b.content[0].available).to.eql(Number(pm.collectionVariables.get(\"availableBefore\"))-1);});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 Logout",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/auth/logout",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{refreshToken}}\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Logout HTTP 204\", () => pm.response.to.have.status(204));",
+              "[\"accessToken\",\"refreshToken\"].forEach(k=>pm.collectionVariables.unset(k));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

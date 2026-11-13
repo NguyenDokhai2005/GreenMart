@@ -7,6 +7,7 @@ import vn.greenmart.customer.dto.CustomerResponse;
 import vn.greenmart.sales.dto.OrderSummaryResponse;
 
 public interface CustomerService {
+    long resolveChannelCustomer(String phone, String name);
 
     CustomerResponse createCustomer(CustomerRequest request);
 
