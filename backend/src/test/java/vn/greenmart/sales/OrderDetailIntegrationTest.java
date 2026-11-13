@@ -25,6 +25,8 @@ import vn.greenmart.sales.domain.PaymentSimulation;
 import vn.greenmart.sales.dto.*;
 import vn.greenmart.sales.service.PosIdempotencyService;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 
@@ -45,7 +47,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @AutoConfigureMockMvc
 @Testcontainers
-@DisplayName("Issue #259: [ORD-07] GET /orders/{orderId} chi tiết đơn và hóa đơn")
+@DisplayName("Issue #259 & #333: [ORD-06/ORD-07] GET /orders và GET /orders/{orderId}")
 class OrderDetailIntegrationTest {
 
     @Container
@@ -349,5 +351,71 @@ class OrderDetailIntegrationTest {
         mvc.perform(get("/api/v1/orders/" + order1Id))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("ORD-06: Thu ngân không truyền branchId -> Chỉ thấy đơn thuộc chi nhánh mình, mới nhất trước")
+    void testListOrders_CashierDefaultScope_ReturnsOnlyOwnBranchOrders() throws Exception {
+        mvc.perform(get("/api/v1/orders")
+                        .header("Authorization", "Bearer " + tokens.issue(CASHIER_CN1_ID, "CASHIER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].id").value(order1Id))
+                .andExpect(jsonPath("$.content[0].branch.id").value(branch1Id))
+                .andExpect(jsonPath("$.content[0].itemCount").value(2));
+    }
+
+    @Test
+    @DisplayName("ORD-06: Thu ngân CN1 lọc branchId của CN2 -> Trả về HTTP 403 BRANCH_FORBIDDEN")
+    void testListOrders_CashierCrossBranch_Returns403BranchForbidden() throws Exception {
+        mvc.perform(get("/api/v1/orders")
+                        .param("branchId", String.valueOf(branch2Id))
+                        .header("Authorization", "Bearer " + tokens.issue(CASHIER_CN1_ID, "CASHIER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("ORD-06: OWNER/ADMIN xem toàn chuỗi và lọc theo channel, status, khoảng ngày, từ khóa q")
+    void testListOrders_OwnerAndAdminWithFilters_ReturnsMatchingOrders() throws Exception {
+        String today = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")).toString();
+
+        // OWNER không truyền branchId -> thấy đủ 2 đơn của cả 2 chi nhánh, đơn mới tạo (order2Id) đứng trước
+        mvc.perform(get("/api/v1/orders")
+                        .header("Authorization", "Bearer " + tokens.issue(OWNER_ID, "OWNER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.content[0].id").value(order2Id))
+                .andExpect(jsonPath("$.content[1].id").value(order1Id));
+
+        // ADMIN lọc theo branchId, channel, status, from/to và q
+        mvc.perform(get("/api/v1/orders")
+                        .param("branchId", String.valueOf(branch1Id))
+                        .param("channel", "POS")
+                        .param("status", "COMPLETED")
+                        .param("from", today)
+                        .param("to", today)
+                        .param("q", "POS-GM001-TEST")
+                        .header("Authorization", "Bearer " + tokens.issue(ADMIN_ID, "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].code").value("POS-GM001-TEST-0001"));
+    }
+
+    @Test
+    @DisplayName("ORD-06: Khoảng ngày from > to hoặc status sai -> Trả về HTTP 400 VALIDATION_ERROR")
+    void testListOrders_InvalidFilters_Returns400ValidationError() throws Exception {
+        mvc.perform(get("/api/v1/orders")
+                        .param("from", "2026-11-20")
+                        .param("to", "2026-11-10")
+                        .header("Authorization", "Bearer " + tokens.issue(OWNER_ID, "OWNER")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        mvc.perform(get("/api/v1/orders")
+                        .param("status", "INVALID_STATUS_CODE")
+                        .header("Authorization", "Bearer " + tokens.issue(OWNER_ID, "OWNER")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 }
