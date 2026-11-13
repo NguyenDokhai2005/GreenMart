@@ -1,0 +1,87 @@
+@startuml 01-tao-don-pos
+!include _style.iuml
+title Sequence 01 · Tạo đơn POS (UC-01, ORD-01, PAY-01)
+
+actor "Thu ngân" as cashier
+participant "Frontend POS\n(React)" as fe
+box "Backend (Spring Boot)" #FFFFFF
+  participant "OrderController" as ctl
+  participant "PosIdempotencyService" as idem
+  participant "PosOrderService" as pos
+  participant "QuoteService" as quote
+  participant "PromotionService" as promo
+  participant "InventoryService" as inv
+  participant "PaymentService" as pay
+  participant "OutboxService" as outbox
+end box
+database "Redis" as redis
+database "PostgreSQL" as db
+
+cashier -> fe : Quét hàng, chọn thanh toán, bấm Hoàn tất
+fe -> ctl : POST /api/v1/orders/pos\nBearer JWT, Idempotency-Key: K\n{branchId, lines, payment, expectedTotal}
+ctl -> idem : execute(K, request)
+idem -> redis : SET idempotency:pos:{userId}:{K}\nPROCESSING NX PX 30s
+alt K đã COMPLETED, cùng body
+  redis --> idem : bản ghi COMPLETED
+  idem --> ctl : đơn cũ
+  ctl --> fe : 200 Order (không tạo đơn mới)
+else K đang PROCESSING hoặc khác body
+  idem --> ctl : IDEMPOTENCY_CONFLICT
+  ctl --> fe : 409
+else lần đầu
+  idem -> pos : createPosOrder(request)
+  activate pos
+  group @Transactional – lỗi bất kỳ ở đây rollback toàn bộ
+    pos -> db : kiểm tra quyền chi nhánh (user_branch)
+    pos -> quote : calculateQuote(lines)
+    quote --> pos : Quote (subtotal, giảm dòng, giảm đơn, total)
+    opt total ≠ expectedTotal
+      pos --> idem : 422 TOTAL_CHANGED {quote}
+    end
+    pos -> promo : recordUsage(promotionId)
+    promo -> db : UPDATE promotion SET used_count+1\nWHERE used_count < usage_limit
+    opt hết lượt
+      pos --> idem : 422 TOTAL_CHANGED {quote mới}
+    end
+    pos -> inv : getAvailable(branch, product) từng dòng
+    opt thiếu tồn
+      pos --> idem : 409 INSUFFICIENT_STOCK {lines}
+    end
+    pos -> pay : validatePayment(total, payment)
+    note right of pay : CASH: cashReceived ≥ total\nCARD/QR: simulate FAILED/TIMEOUT → 422
+    pos -> db : INSERT order_sequence ON CONFLICT\nDO UPDATE seq+1 RETURNING seq\n→ POS-GM001-yyyyMMdd-0001
+    pos -> db : INSERT sales_order (COMPLETED)
+    loop từng dòng, theo productId tăng dần
+      pos -> inv : sellDirect(branch, product, qty, orderId)
+      inv -> db : UPDATE inventory SET on_hand = on_hand - qty\nWHERE on_hand - reserved >= qty
+      inv -> db : INSERT inventory_transaction (SALE)
+    end
+    pos -> db : INSERT order_item (chụp giá, chiết khấu)
+    pos -> pay : processPayment(orderId, total, payment)
+    pay -> db : INSERT payment (PAID, change, providerRef)
+    pos -> outbox : enqueue order.completed, stock.changed
+    outbox -> db : INSERT outbox_event (PENDING)
+  end
+  pos --> idem : OrderResponse
+  deactivate pos
+  idem -> redis : SET COMPLETED {hash body, Order} EX 24h
+  idem --> ctl : created
+  ctl --> fe : 201 Order (hóa đơn)
+end
+fe --> cashier : Hiển thị hóa đơn, tiền thối
+
+note over ctl, outbox
+  Trạng thái trên develop (07/11): bước 10–31 và 36–38 đã có (#31, #32, #33, #127).
+  Đang làm: bước 3–9 và 32 – Idempotency (#34, PR #253); khóa tồn theo
+  productId tăng dần ở bước 23 (#57) – hiện sellDirect còn chạy theo thứ tự dòng;
+  màn POS frontend (#71, #77).
+end note
+
+== Sau commit, bất đồng bộ ==
+participant "OutboxRelay" as relay
+queue "RabbitMQ" as mq
+relay -> db : SELECT … FOR UPDATE SKIP LOCKED\n(status PENDING)
+relay -> mq : publish (publisher confirm, messageId)
+relay -> db : UPDATE outbox_event SET status = SENT
+note over relay, mq : Lỗi publish: tăng attempts, lùi next_attempt_at (2^n, tối đa 60 s).\nXem Sequence 03 cho bước đẩy tồn ra kênh.
+@enduml

@@ -7,13 +7,20 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.jdbc.core.JdbcTemplate;
+import vn.greenmart.integration.outbox.OutboxService;
 import vn.greenmart.inventory.exception.InsufficientStockException;
 import vn.greenmart.inventory.repository.InventoryRepository;
 import vn.greenmart.inventory.repository.InventoryTransactionWriter;
 
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -35,12 +42,22 @@ class InventoryServiceImplTest {
     @Mock
     private vn.greenmart.catalog.service.ProductCostService productCost;
 
+    @Mock
+    private StockAlertService stockAlerts;
+    @Mock private JdbcTemplate jdbc;
+    @Mock private OutboxService outbox;
+
     @InjectMocks
     private InventoryServiceImpl inventoryService;
 
     private static final Long BRANCH_ID  = 1L;
     private static final Long PRODUCT_ID = 5L;
     private static final Long REF_ID     = 100L;
+
+    private void stubNewVersion() {
+        when(jdbc.queryForObject(contains("SELECT version FROM inventory"), eq(Long.class),
+                eq(BRANCH_ID), eq(PRODUCT_ID))).thenReturn(7L);
+    }
 
     // =========================================================================
     // reserve
@@ -53,11 +70,14 @@ class InventoryServiceImplTest {
         @Test
         @DisplayName("thành công khi repository trả về 1 dòng bị tác động")
         void reserve_success() {
+            stubNewVersion();
             when(inventoryRepository.reserve(BRANCH_ID, PRODUCT_ID, 3)).thenReturn(1);
 
             inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 3, REF_ID);   // không throw = pass
 
             verify(inventoryRepository).reserve(BRANCH_ID, PRODUCT_ID, 3);
+            verify(outbox).enqueue("stock", "1:5", "stock.changed",
+                    Map.of("branchId", BRANCH_ID, "productId", PRODUCT_ID, "version", 7L));
         }
 
         @Test
@@ -73,6 +93,7 @@ class InventoryServiceImplTest {
                         assertThat(e.getProductId()).isEqualTo(PRODUCT_ID);
                         assertThat(e.getRequested()).isEqualTo(5);
                     });
+            verifyNoInteractions(outbox);
         }
 
         @Test
@@ -102,6 +123,7 @@ class InventoryServiceImplTest {
         @Test
         @DisplayName("thành công khi repository trả về 1 dòng")
         void release_success() {
+            stubNewVersion();
             when(inventoryRepository.release(BRANCH_ID, PRODUCT_ID, 3)).thenReturn(1);
 
             inventoryService.release(BRANCH_ID, PRODUCT_ID, 3, REF_ID);
@@ -138,6 +160,7 @@ class InventoryServiceImplTest {
         @Test
         @DisplayName("thành công khi repository trả về 1 dòng")
         void commitSale_success() {
+            stubNewVersion();
             when(inventoryRepository.commitSale(BRANCH_ID, PRODUCT_ID, 3)).thenReturn(1);
 
             inventoryService.commitSale(BRANCH_ID, PRODUCT_ID, 3, REF_ID);
@@ -174,6 +197,7 @@ class InventoryServiceImplTest {
         @Test
         @DisplayName("thành công khi repository trả về 1 dòng")
         void sellDirect_success() {
+            stubNewVersion();
             when(inventoryRepository.sellDirect(BRANCH_ID, PRODUCT_ID, 4)).thenReturn(1);
 
             inventoryService.sellDirect(BRANCH_ID, PRODUCT_ID, 4, REF_ID);
@@ -208,6 +232,7 @@ class InventoryServiceImplTest {
             // sellDirect(qty=2) → available đủ → repository.sellDirect trả 1 → success
             // Nếu service dùng on_hand (=5) thay vì available (=2) thì qty=4 sẽ sai cho vào.
             // Ở unit test này chỉ verify service gọi đúng method; SQL logic test ở RepositoryTest.
+            stubNewVersion();
             when(inventoryRepository.sellDirect(BRANCH_ID, PRODUCT_ID, 2)).thenReturn(1);
 
             inventoryService.sellDirect(BRANCH_ID, PRODUCT_ID, 2, REF_ID);

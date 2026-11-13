@@ -22,5 +22,14 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": [
+    "src",
+    "tests/layouts/operations/menuConfig.test.ts",
+    "tests/layouts/operations/OperationsScope.test.tsx",
+    "tests/features/dashboard/revenue.test.ts",
+    "tests/features/inventory/InventoryPage.test.tsx",
+    "tests/features/inventory/inventoryQuery.test.ts",
+    "tests/features/inventory/pagination.test.ts",
+    "tests/features/inventory/useDebouncedCallback.test.ts"
+  ]
 }
