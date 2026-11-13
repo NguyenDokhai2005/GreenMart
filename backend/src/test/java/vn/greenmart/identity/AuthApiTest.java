@@ -187,6 +187,15 @@ class AuthApiTest {
                 .get("code").asText()).isEqualTo("WRONG_PASSWORD");
         postJson("refresh",Map.of("refreshToken",refresh(tokens)),200,null);
     }
+    @Test void rejectsCurrentPasswordAsNewWithoutRevokingSession() throws Exception {
+        var tokens = login();
+        var error = postJson("change-password",
+                Map.of("currentPassword", "Demo@123", "newPassword", "Demo@123"), 400, access(tokens));
+        assertThat(error.get("code").asText()).isEqualTo("VALIDATION_ERROR");
+        postJson("refresh", Map.of("refreshToken", refresh(tokens)), 200, null);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_log WHERE action='CHANGE_PASSWORD'", Integer.class))
+                .isZero();
+    }
     @ParameterizedTest @ValueSource(strings={"short1","onlyletters","12345678"})
     void rejectsWeakNewPassword(String password) throws Exception {
         postJson("change-password",Map.of("currentPassword","Demo@123","newPassword",password),400,access(login()));
