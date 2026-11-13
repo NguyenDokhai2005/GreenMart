@@ -8,9 +8,11 @@ Endpoints:
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+import os
+import secrets
+from typing import Any, Callable, Optional
 
-from fastapi import APIRouter, BackgroundTasks, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, status
 from fastapi.responses import JSONResponse
 
 from app.api.schemas import (
@@ -30,15 +32,63 @@ from app.pipelines.forecast_service import (
 
 logger = logging.getLogger(__name__)
 
+
+class AuthError(HTTPException):
+    """Lỗi xác thực token nội bộ (#311)."""
+
+    def __init__(self, message: str = "Yêu cầu xác thực token nội bộ hợp lệ."):
+        super().__init__(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "UNAUTHORIZED", "message": message},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+def verify_internal_token(
+    authorization: Optional[str] = Header(None, alias="Authorization"),
+) -> None:
+    """Xác thực duy nhất bằng Authorization: Bearer <token> (#311).
+
+    - Cơ chế Fail-Closed: nếu FORECAST_INTERNAL_TOKEN thiếu hoặc rỗng, từ chối mọi request.
+    - So sánh bằng secrets.compare_digest để chống timing attack.
+    - Tuyệt đối không log token hoặc header Authorization.
+    """
+    expected_token = os.environ.get("FORECAST_INTERNAL_TOKEN", "").strip()
+    if not expected_token:
+        logger.warning("Yêu cầu bị từ chối: FORECAST_INTERNAL_TOKEN chưa được cấu hình hoặc rỗng (Fail-Closed)")
+        raise AuthError("Dịch vụ chưa được cấu hình token xác thực nội bộ.")
+
+    if not authorization or not authorization.startswith("Bearer "):
+        logger.warning("Yêu cầu bị từ chối: thiếu hoặc sai định dạng header Authorization Bearer")
+        raise AuthError("Yêu cầu header Authorization: Bearer <token> hợp lệ.")
+
+    token = authorization[7:].strip()
+    if not token or not secrets.compare_digest(token, expected_token):
+        logger.warning("Yêu cầu bị từ chối: Bearer token không khớp")
+        raise AuthError("Token xác thực nội bộ không chính xác.")
+
+
+def register_auth_exception_handler(app_or_router: Any) -> None:
+    """Đăng ký exception handler cho AuthError để trả về format {"code": "...", "message": "..."}."""
+    @app_or_router.exception_handler(AuthError)
+    async def auth_error_handler(request, exc: AuthError):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=exc.detail,
+            headers=exc.headers,
+        )
+
+
 router = APIRouter(prefix="/forecast", tags=["forecast"])
 
 
 def create_forecast_router(
     connection_factory: Callable[[], Any] = get_db_connection,
     background_runner: Callable[..., Any] = execute_background_forecast,
+    auth_verifier: Callable[..., Any] = verify_internal_token,
 ) -> APIRouter:
-    """Tạo APIRouter cho forecast service, hỗ trợ DI connection_factory và background_runner cho test."""
-    r = APIRouter(prefix="/forecast", tags=["forecast"])
+    """Tạo APIRouter cho forecast service, hỗ trợ DI connection_factory, background_runner và auth_verifier."""
+    r = APIRouter(prefix="/forecast", tags=["forecast"], dependencies=[Depends(auth_verifier)])
 
     @r.post(
         "/run",
@@ -46,6 +96,7 @@ def create_forecast_router(
         response_model=ForecastRunCreatedResponse,
         responses={
             status.HTTP_202_ACCEPTED: {"model": ForecastRunCreatedResponse},
+            status.HTTP_401_UNAUTHORIZED: {"model": ErrorResponse},
             status.HTTP_409_CONFLICT: {"model": ErrorResponse},
         },
     )
@@ -99,6 +150,7 @@ def create_forecast_router(
         response_model=ForecastRunDetailResponse,
         responses={
             status.HTTP_200_OK: {"model": ForecastRunDetailResponse},
+            status.HTTP_401_UNAUTHORIZED: {"model": ErrorResponse},
             status.HTTP_404_NOT_FOUND: {"model": ErrorResponse},
         },
     )
