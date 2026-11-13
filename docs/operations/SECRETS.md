@@ -61,3 +61,7 @@ CI chỉ được coi là đạt sau khi workflow chạy thành công trên PR.
 
 Nếu lộ secret thật: thu hồi/đổi secret ngay, đánh giá nơi đã sử dụng và làm sạch
 lịch sử theo quy trình của Lead. Xóa file khỏi commit mới không thu hồi secret cũ.
+
+## Quyền PostgreSQL của tài khoản dự báo
+
+Khi tạo volume mới, script init tạo tài khoản `FORECAST_DB_USER` và cấp quyền kết nối database, sử dụng schema `public`. Flyway cấp quyền cho các bảng và sequence cần dùng. Với volume đã khởi tạo, migration #330 xử lý quyền đã cấp trước đây.
