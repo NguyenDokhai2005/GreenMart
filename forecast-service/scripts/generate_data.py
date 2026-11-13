@@ -2151,6 +2151,8 @@ def _write_sql_statements(
     f.write("    promotion_branch,\n")
     f.write("    promotion,\n")
     f.write("    customer,\n")
+    # Tường minh bổ sung channel_product (dù TRUNCATE ... CASCADE từ product cũng dọn bảng này)
+    f.write("    channel_product,\n")
     f.write("    product,\n")
     f.write("    category,\n")
     f.write("    user_branch,\n")
@@ -2200,6 +2202,24 @@ def _write_sql_statements(
             for p in batch
         ]
         f.write(",\n".join(p_lines) + ";\n\n")
+
+    # 7b. Insert Channel Products (Issue #307 / #327)
+    # Ánh xạ SKU kênh bán cho WEB (tiền tố W-) và MARKET (tiền tố M-)
+    # Lấy channel_id động từ sales_channel.code, không hardcode ID
+    f.write("-- 7b. Ánh xạ SKU kênh bán cho WEB (W-) và MARKET (M-) (Issue #307 / #327)\n")
+    f.write("INSERT INTO channel_product (channel_id, product_id, external_sku)\n")
+    f.write("SELECT c.id, p.id, 'W-' || p.sku\n")
+    f.write("FROM product p\n")
+    f.write("CROSS JOIN sales_channel c\n")
+    f.write("WHERE c.code = 'WEB'\n")
+    f.write("ORDER BY p.id;\n\n")
+
+    f.write("INSERT INTO channel_product (channel_id, product_id, external_sku)\n")
+    f.write("SELECT c.id, p.id, 'M-' || p.sku\n")
+    f.write("FROM product p\n")
+    f.write("CROSS JOIN sales_channel c\n")
+    f.write("WHERE c.code = 'MARKET'\n")
+    f.write("ORDER BY p.id;\n\n")
 
     # 7. Insert App Users & User Branches
     f.write("-- 8. Tài khoản demo (12 người dùng) và phân quyền chi nhánh\n")
@@ -2538,6 +2558,7 @@ def main() -> None:
     print(f"  + Bình thường (OK): {sum(1 for i in inventories if i.on_hand - i.reserved > i.reorder_point)} dòng")
     print(f"- Tỷ lệ Pareto 200 SKU top: {stats['pareto_share']*100:.2f}% sản lượng bán")
     print(f"- Tỷ lệ ô trống (sparsity) trong daily_sales: {stats['zero_cells_pct']:.2f}%")
+    print(f"- Ánh xạ SKU kênh (channel_product): 2.000 bản ghi (1.000 WEB + 1.000 MARKET)")
     print(f"- File SQL: forecast-service/data/{sql_path.name} ({sql_path.stat().st_size / (1024*1024):.2f} MB)")
     print(f"- File Stockout JSON: forecast-service/data/{json_path.name} ({json_path.stat().st_size / 1024:.2f} KB)")
     print("Hoàn tất thành công!")

@@ -31,6 +31,9 @@ DECLARE
     v_milk_on_hand      INT;
     v_milk_reserved     INT;
     v_milk_rop          INT;
+    v_cp_web_cnt        INT;
+    v_cp_market_cnt     INT;
+    v_cp_total_cnt      INT;
 
     -- 2. Biến thông tin mềm
     v_cust_cnt          INT;
@@ -153,12 +156,32 @@ BEGIN
     END IF;
     RAISE NOTICE '[PASS] Mốc neo demo TC-DASH-01: SUA-TH-1L tại GM-001 on_hand = 35, reserved = 0, ROP = 34.';
 
+    -- 9. Kiểm đếm ánh xạ SKU kênh bán cho từng kênh (Issue #307 / #327 - AC-03)
+    SELECT count(*) INTO v_cp_web_cnt
+    FROM channel_product cp JOIN sales_channel c ON c.id = cp.channel_id
+    WHERE c.code = 'WEB';
+
+    IF v_cp_web_cnt <= 0 THEN
+        RAISE EXCEPTION 'THẤT BẠI [TC-AC03-01]: channel_product chưa có ánh xạ cho kênh WEB (số lượng = 0)';
+    END IF;
+
+    SELECT count(*) INTO v_cp_market_cnt
+    FROM channel_product cp JOIN sales_channel c ON c.id = cp.channel_id
+    WHERE c.code = 'MARKET';
+
+    IF v_cp_market_cnt <= 0 THEN
+        RAISE EXCEPTION 'THẤT BẠI [TC-AC03-01]: channel_product chưa có ánh xạ cho kênh MARKET (số lượng = 0)';
+    END IF;
+    RAISE NOTICE '[PASS] Ánh xạ SKU kênh: WEB = % SKU, MARKET = % SKU.',
+        v_cp_web_cnt, v_cp_market_cnt;
+
     -- --------------------------------------------------------------------------
     -- B. CÁC THÔNG TIN MỀM (THỐNG KÊ BỔ SUNG, KHÔNG NÉM NGOẠI LỆ)
     -- --------------------------------------------------------------------------
     SELECT count(*) INTO v_cust_cnt FROM customer;
     SELECT count(*) INTO v_user_cnt FROM app_user;
     SELECT count(*) INTO v_promo_cnt FROM promotion;
+    SELECT count(*) INTO v_cp_total_cnt FROM channel_product;
     SELECT count(*) INTO v_return_doc_cnt FROM return_document;
     SELECT count(*) INTO v_return_item_cnt FROM return_item;
     SELECT count(*) INTO v_stock_doc_cnt FROM stock_document;
@@ -175,6 +198,7 @@ BEGIN
     RAISE NOTICE '- Khách hàng: % bản ghi', v_cust_cnt;
     RAISE NOTICE '- Tài khoản demo: % bản ghi', v_user_cnt;
     RAISE NOTICE '- Chiến dịch khuyến mại: % bản ghi', v_promo_cnt;
+    RAISE NOTICE '- Ánh xạ SKU kênh (channel_product): % bản ghi (% WEB, % MARKET)', v_cp_total_cnt, v_cp_web_cnt, v_cp_market_cnt;
     RAISE NOTICE '- Phiếu đổi trả (return_document): % phiếu (% dòng hàng trả)', v_return_doc_cnt, v_return_item_cnt;
     RAISE NOTICE '- Phiếu nhập kho đầu kỳ (stock_document): % phiếu (% dòng hàng)', v_stock_doc_cnt, v_stock_item_cnt;
     RAISE NOTICE '- Sổ giao dịch kho (inventory_transaction): % giao dịch IMPORT', v_inv_tx_cnt;

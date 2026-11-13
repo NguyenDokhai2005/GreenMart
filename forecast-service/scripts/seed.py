@@ -43,11 +43,12 @@ VERIFY_SQL_FILE = MODULE_DIR / "verify_seed.sql"
 GENERATOR_SCRIPT = MODULE_DIR / "generate_data.py"
 TEST_GENERATOR_FILE = SERVICE_DIR / "tests" / "test_generator.py"
 
-# Danh sách 22 bảng được seed dữ liệu cần tính mã vân tay (fingerprint)
+# Danh sách 23 bảng được seed dữ liệu cần tính mã vân tay (fingerprint)
 SEEDED_TABLES: List[str] = [
     "branch",
     "category",
     "product",
+    "channel_product",
     "app_user",
     "user_branch",
     "sales_channel",
