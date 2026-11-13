@@ -1,0 +1,169 @@
+{
+  "issue": 242,
+  "timestamp": "2026-11-13T13:20:03.598Z",
+  "sourceCommit": "d43b75a546c172fbece49b3ea7ef2d9ceae52010",
+  "requests": 14,
+  "assertions": 26,
+  "failures": 0,
+  "requestErrors": [],
+  "runnerError": false,
+  "passed": true,
+  "cases": [
+    {
+      "request": "TC-AUTH01-30 missing token",
+      "assertion": "TC-AUTH01-30 missing token: HTTP 401",
+      "pass": true,
+      "http": 401
+    },
+    {
+      "request": "TC-AUTH01-30 missing token",
+      "assertion": "TC-AUTH01-30 missing token: error envelope",
+      "pass": true,
+      "http": 401
+    },
+    {
+      "request": "TC-AUTH01-01 login cashier",
+      "assertion": "TC-AUTH01-01 login cashier: HTTP 200",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "TC-AUTH01-01 login cashier",
+      "assertion": "TokenResponse and no password fields",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "TC-AUTH01-40 me branch scope",
+      "assertion": "TC-AUTH01-40 me branch scope: HTTP 200",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "TC-AUTH01-40 me branch scope",
+      "assertion": "CASHIER GM001 only",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "TC-AUTH01-11 rotate refresh",
+      "assertion": "TC-AUTH01-11 rotate refresh: HTTP 200",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "TC-AUTH01-11 rotate refresh",
+      "assertion": "Refresh rotated",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "TC-AUTH01-12 replay denied",
+      "assertion": "TC-AUTH01-12 replay denied: HTTP 401",
+      "pass": true,
+      "http": 401
+    },
+    {
+      "request": "TC-AUTH01-12 replay denied",
+      "assertion": "TC-AUTH01-12 replay denied: error envelope",
+      "pass": true,
+      "http": 401
+    },
+    {
+      "request": "TC-AUTH02-05 branch denied",
+      "assertion": "TC-AUTH02-05 branch denied: HTTP 403",
+      "pass": true,
+      "http": 403
+    },
+    {
+      "request": "TC-AUTH02-05 branch denied",
+      "assertion": "TC-AUTH02-05 branch denied: error envelope",
+      "pass": true,
+      "http": 403
+    },
+    {
+      "request": "TC-AUTH02-12 ledger role denied",
+      "assertion": "TC-AUTH02-12 ledger role denied: HTTP 403",
+      "pass": true,
+      "http": 403
+    },
+    {
+      "request": "TC-AUTH02-12 ledger role denied",
+      "assertion": "TC-AUTH02-12 ledger role denied: error envelope",
+      "pass": true,
+      "http": 403
+    },
+    {
+      "request": "TC-AUTH02-10 product creation denied",
+      "assertion": "TC-AUTH02-10 product creation denied: HTTP 403",
+      "pass": true,
+      "http": 403
+    },
+    {
+      "request": "TC-AUTH02-10 product creation denied",
+      "assertion": "TC-AUTH02-10 product creation denied: error envelope",
+      "pass": true,
+      "http": 403
+    },
+    {
+      "request": "TC-AUTH01-13 invalid refresh",
+      "assertion": "TC-AUTH01-13 invalid refresh: HTTP 401",
+      "pass": true,
+      "http": 401
+    },
+    {
+      "request": "TC-AUTH01-13 invalid refresh",
+      "assertion": "TC-AUTH01-13 invalid refresh: error envelope",
+      "pass": true,
+      "http": 401
+    },
+    {
+      "request": "TC-AUTH01-41 login owner",
+      "assertion": "TC-AUTH01-41 login owner: HTTP 200",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "TC-AUTH01-41 login owner",
+      "assertion": "OWNER all branches",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "TC-AUTH02-08 owner other branch",
+      "assertion": "TC-AUTH02-08 owner other branch: HTTP 200",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "TC-AUTH02-08 owner other branch",
+      "assertion": "Inventory belongs to requested branch",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "TC-AUTH01-20 cashier logout",
+      "assertion": "TC-AUTH01-20 cashier logout: HTTP 204",
+      "pass": true,
+      "http": 204
+    },
+    {
+      "request": "TC-AUTH01-21 refresh after logout",
+      "assertion": "TC-AUTH01-21 refresh after logout: HTTP 401",
+      "pass": true,
+      "http": 401
+    },
+    {
+      "request": "TC-AUTH01-21 refresh after logout",
+      "assertion": "TC-AUTH01-21 refresh after logout: error envelope",
+      "pass": true,
+      "http": 401
+    },
+    {
+      "request": "Owner cleanup logout",
+      "assertion": "Owner cleanup logout: HTTP 204",
+      "pass": true,
+      "http": 204
+    }
+  ]
+}
