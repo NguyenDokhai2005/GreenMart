@@ -76,7 +76,7 @@ class StockTransferApiTest {
         mvc.perform(get(DOCUMENTS + "/{id}", id).with(user("813").roles("STOREKEEPER")))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
         mvc.perform(post(DOCUMENTS + "/{id}/approve", id).with(user("813").roles("STOREKEEPER")))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
         mvc.perform(get(DOCUMENTS + "/{id}", id).with(user("810").roles("STOREKEEPER")))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
