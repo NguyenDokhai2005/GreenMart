@@ -20,7 +20,7 @@ class ChannelCallbackLifecycleTest {
         ThreadPoolTaskScheduler defaultScheduler;
         try (var context = new AnnotationConfigApplicationContext()) {
             context.registerBean(JdbcTemplate.class, () -> mock(JdbcTemplate.class));
-            context.registerBean(ObjectMapper.class, ObjectMapper::new);
+            context.registerBean(ObjectMapper.class, () -> new ObjectMapper());
             context.registerBean(ChannelSignatures.class, () -> mock(ChannelSignatures.class));
             context.registerBean(OutboxService.class, () -> mock(OutboxService.class));
             context.register(ChannelDelivery.class);
