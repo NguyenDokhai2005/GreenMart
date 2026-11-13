@@ -86,6 +86,17 @@ class InventoryQueryApiTest {
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
     }
 
+    @Test
+    void readsSingleStockItemWithBranchScope() throws Exception {
+        mvc.perform(get("/api/v1/inventory/71/71").with(user("700").roles("CASHIER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.available").value(30))
+                .andExpect(jsonPath("$.stockStatus").value("LOW"));
+        mvc.perform(get("/api/v1/inventory/72/71").with(user("700").roles("CASHIER")))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
+        mvc.perform(get("/api/v1/inventory/71/999").with(user("700").roles("CASHIER")))
+                .andExpect(status().isNotFound());
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"CASHIER", "STOREKEEPER", "BRANCH_MANAGER"})
     void omittedBranchNeverLeaksOtherBranches(String role) throws Exception {

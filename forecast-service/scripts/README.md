@@ -4,6 +4,20 @@ Tài liệu này đặc tả chi tiết toàn bộ các tham số cấu hình tr
 
 ---
 
+## Dựng cảnh báo tồn sau khi nạp dữ liệu
+
+Sau khi nạp `inventory`, chạy [rebuild_stock_alerts.sql](rebuild_stock_alerts.sql)
+bằng tài khoản chủ DB trong bước seed, khi ứng dụng chưa nhận giao dịch.
+Ví dụ từ thư mục gốc repo:
+
+```sh
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' < forecast-service/scripts/rebuild_stock_alerts.sql
+```
+
+Script tính `OUT` khi khả dụng bằng 0, tính `LOW` khi khả dụng dương và
+không vượt ngưỡng đặt hàng lại. Chạy lại với cùng dữ liệu giữ nguyên cảnh báo,
+và cảnh báo seed không phát sự kiện nghiệp vụ.
+
 ## 1. Tổng quan & Phạm vi
 
 - **Mục tiêu**: Chuẩn hóa toàn bộ tham số, tỷ lệ xác suất, phân phối mùa vụ và các ràng buộc nghiệp vụ bán lẻ cho 10.000 đơn hàng `COMPLETED`, 1.000 SKU và 3 chi nhánh.
