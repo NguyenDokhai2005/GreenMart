@@ -1,0 +1,104 @@
+{
+  "issue": 149,
+  "timestamp": "2026-11-13T05:06:16.796Z",
+  "sourceCommit": "15d136b21b25cd679cbfab54c93446a544155f9c",
+  "mode": "real-api",
+  "requests": 8,
+  "requestErrors": [],
+  "assertions": 15,
+  "failures": 0,
+  "runnerError": false,
+  "passed": true,
+  "cases": [
+    {
+      "request": "01 Login CASHIER GM-001",
+      "assertion": "HTTP 200",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "01 Login CASHIER GM-001",
+      "assertion": "Bearer session and cashier identity",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "02 Current user",
+      "assertion": "HTTP 200",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "02 Current user",
+      "assertion": "Same cashier and branch",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "03 Inventory before",
+      "assertion": "HTTP 200",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "03 Inventory before",
+      "assertion": "Fixture stock exists",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "04 Quote",
+      "assertion": "HTTP 200",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "04 Quote",
+      "assertion": "Known fixture prices, no promotion",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "05 POS cash checkout",
+      "assertion": "HTTP 201",
+      "pass": true,
+      "http": 201
+    },
+    {
+      "request": "05 POS cash checkout",
+      "assertion": "Completed order, paid cash and correct change",
+      "pass": true,
+      "http": 201
+    },
+    {
+      "request": "06 Receipt persisted order",
+      "assertion": "HTTP 200",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "06 Receipt persisted order",
+      "assertion": "Receipt equals the created order",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "07 Inventory after",
+      "assertion": "HTTP 200",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "07 Inventory after",
+      "assertion": "Sale reduced available by one",
+      "pass": true,
+      "http": 200
+    },
+    {
+      "request": "08 Logout",
+      "assertion": "Logout HTTP 204",
+      "pass": true,
+      "http": 204
+    }
+  ]
+}
