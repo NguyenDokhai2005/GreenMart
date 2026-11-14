@@ -7,45 +7,47 @@ QA: Huynh-Phuc-Dat (SV08). **Đã thực thi bộ kiểm thử; chưa nghiệm t
 | Nhóm | PASS | FAIL | BLOCKED |
 |---|---:|---:|---:|
 | AUTH — 26 mã | 26 | 0 | 0 |
-| RBAC — 23 mã | 17 | 0 | 6 |
+| RBAC — 23 mã | 16 | 0 | 7 |
 | Identity — 16 mã | 13 | 0 | 3 |
-| Tổng mã gốc | **56** | **0** | **9** |
+| Tổng mã gốc | **55** | **0** | **10** |
 | Probe bổ sung audit/lookup | 0 | **2** | 0 |
 | Demo accounts #148 | **26** | 0 | 0 |
 
-Newman core: **14 requests / 26 assertions PASS**, cả lượt chính và recheck. Không cộng các assertion Newman/demo/probe thành 65 TC gốc. Hai FAIL bổ sung là hai lỗi hiện có #309/#310; 9 BLOCKED không được tính PASS.
+Newman core: **14 requests / 26 assertions PASS**, cả lượt chính và recheck. Không cộng các assertion Newman/demo/probe thành 65 TC gốc. Hai FAIL bổ sung là hai lỗi hiện có #309/#310; 10 BLOCKED không được tính PASS.
 
 ## Nguồn và baseline
 
 - Đọc issue [#242](https://github.com/NguyenDokhai2005/GreenMart/issues/242), yêu cầu/assignee và bình luận, repo rules, CODEOWNERS, template bug, SRS/BA/user stories, OpenAPI, README API/backend, test plan/checklist, ba file test case và câu hỏi QA. #241 đã merge; không dùng test SV03 để thay cho bằng chứng QA riêng.
-- Pull ff-only develop từ d4cb341 → **d43b75a546c172fbece49b3ea7ef2d9ceae52010**. Nhánh QA **feature/242-auth-rbac-api-qa**. Không sửa backend/frontend/contract/seed/migration; script QA là thay đổi local chưa commit.
+- Pull ff-only develop từ d4cb341 → **d43b75a546c172fbece49b3ea7ef2d9ceae52010**. Nhánh QA **feature/242-auth-rbac-api-qa**. Không sửa backend/frontend/contract/seed/migration.
 - Cả hai backend build từ source commit trên, image **greenmart-backend:qa242-d43b75a**, OCI label full SHA; image ID và timestamp nằm trong cases.json. Build -DskipTests chỉ tạo image, không nhận là backend unit tests PASS.
-- Lượt đầu **greenmart-qa242-20261113**, backend18158; recheck **greenmart-qa242-recheck-20261113**, backend18159. Mỗi stack có PostgreSQL/Redis/RabbitMQ, network/volumes riêng; seed SV06 generator nguyên bản nạp một lần vào DB mới.
+- Lượt đầu **greenmart-qa242-20261113**, backend cổng 18158; recheck **greenmart-qa242-recheck-20261113**, backend cổng 18159. Mỗi stack có PostgreSQL/Redis/RabbitMQ, network/volumes riêng; seed SV06 generator nguyên bản nạp một lần vào DB mới.
 - Giữ nguyên các stack trước, không reset/xóa volume/đọc .env hoặc xuất secrets. Mật khẩu demo giữ nguyên; tài khoản tạm đổi mật khẩu đã vô hiệu hóa; các phiên thử đã logout, cleanupWarnings rỗng.
 - Fixture riêng mỗi DB: một CASHIER tạm + gán GM001, một sản phẩm OWNER tạo, một IMPORT draft chưa duyệt và một branch inactive. Chưa phê duyệt phiếu kho hoặc thay tồn để thử quyền.
 
 ## Quyết định dùng cho expected
 
-- Q-29: #241 chốt Redis chỉ giữ hash SHA-256, expiry phiên và TTL7 ngày. TC-AUTH01-15 đưa score một refresh của tài khoản tạm về quá khứ rồi gọi API thật; không chỉ kiểm tra code và không chờ7 ngày.
+- Q-29: #241 chốt Redis chỉ giữ hash SHA-256, expiry phiên và TTL 7 ngày. TC-AUTH01-15 đưa score một refresh của tài khoản tạm về quá khứ rồi gọi API thật; không chỉ kiểm tra code và không chờ 7 ngày.
 - TC-AUTH01-22/31: dùng JWT đã hết hạn, ký HS256 đúng bằng key ngẫu nhiên chỉ dành QA trong process startup. Các JWT sai chữ ký/alg:none chạy riêng, không dùng chúng thay ca hết hạn.
 - Q-30: ErrorResponse + traceId theo #241 được kiểm tra thực tế ở 401/validation/security errors.
-- [Quyết định mới của Lead tại #310](https://github.com/NguyenDokhai2005/GreenMart/issues/310#issuecomment-6854060178): Q-27 action BRANCH_FORBIDDEN, actor từ token, entity branch, entity_id chuỗi branch ID, detail branchId/method/path/traceId; transaction riêng; không lưu query/body. Role FORBIDDEN hiện chưa ghi audit (Q-31), tách issue tương lai nếu cần.
-- Lượt đầu trước khi đọc được quyết định mới:55PASS/10BLOCKED. Recheck áp dụng quyết định cho TC-AUTH02-41:56PASS/9BLOCKED; giữ nguyên JSON lịch sử, không sửa kết quả cũ thành PASS. Tài liệu QA questions/test case lịch sử đang chờ cập nhật cùng PR SV03 #310; report và runner #242 dùng quyết định có dẫn nguồn.
+- [Quyết định Q-27 tại #310](https://github.com/NguyenDokhai2005/GreenMart/issues/310#issuecomment-6854060178): action BRANCH_FORBIDDEN, actor từ token, entity branch, entity_id chuỗi branch ID, detail branchId/method/path/traceId; transaction riêng; không lưu query/body.
+- **Q-31 chưa được Lead chốt.** Bình luận #310 chỉ tách audit cho 403 FORBIDDEN do sai vai trò ra khỏi phạm vi #310; không quyết định rằng không cần audit. TC-AUTH02-41 giữ **BLOCKED — chờ chốt Q-31**, dù quan sát runtime là 403 FORBIDDEN và 0 dòng audit mới.
+- Theo review CHANGES_REQUESTED của Lead trên PR #354 ngày 14/11, tổng đánh giá đúng là **55 PASS / 0 FAIL / 10 BLOCKED**. Lượt đầu đã có cùng tổng này; JSON recheck lịch sử từng phân loại sai TC41 thành PASS được giữ nguyên để truy vết, không dùng tổng 56/9 làm kết luận nghiệm thu.
+- [Assessment đã sửa theo review](results/issue-242-review-assessment-2026-11-14.json) chứa đủ 65 mã, hash SHA-256 artifact gốc và lý do điều chỉnh. Đây là sửa phân loại theo review, **không phải chạy API mới**; mọi quan sát HTTP/DB cũ được giữ nguyên.
 
 ## Các mục bị chặn và lỗi có issue
 
-- **#333 / SV02 @t-boai:** GET /orders trả404: TC-AUTH02-01/06/07/20/22/40 BLOCKED. Không đổi sang API hóa đơn hoặc inventory để nhận các mã gốc PASS. TC40 còn cần metadata audit theo Q-27 khi endpoint sẵn sàng.
-- **#335 / chưa có assignee, Lead chốt:** GET /branches trả404: ID-070/071/072 BLOCKED, kể cả đã chuẩn bị branch inactive riêng cho bộ lọc.
-- **#309 / SV02 @t-boai:** CASHIER GM001 lookup sản phẩm branch2 nhận200 thay vì403; probe bổ sung FAIL. Không mở issue trùng.
-- **#310 / SV03 @Dat9161:** inventory branch2 nhận403 đúng nhưng không có audit mới. Probe actor/metadata FAIL, traceId trong JSON. Đã tái kiểm tra predicate đủ actor/action/entity/detail theo quyết định Lead trong supplemental-recheck.json. Không mở issue trùng.
-- Lead theo dõi **@NguyenDokhai2005**. Chưa đăng tag/comment/issue; nếu cần xuất bản bằng chứng sẽ trình người dùng duyệt.
+- **#333 / SV02 @t-boai:** GET /orders trả 404: TC-AUTH02-01/06/07/20/22/40 BLOCKED. Không đổi sang API hóa đơn hoặc inventory để nhận các mã gốc PASS. TC40 còn cần metadata audit theo Q-27 khi endpoint sẵn sàng.
+- **#335 / chưa có assignee, Lead chốt:** GET /branches trả 404: ID-070/071/072 BLOCKED, kể cả đã chuẩn bị branch inactive riêng cho bộ lọc.
+- **#309 / SV02 @t-boai:** CASHIER GM001 lookup sản phẩm branch2 nhận 200 thay vì 403; probe bổ sung FAIL. Không mở issue trùng.
+- **#310 / SV03 @Dat9161:** inventory branch2 nhận 403 đúng nhưng không có audit mới. Probe actor/metadata FAIL, traceId trong JSON. Đã tái kiểm tra predicate đủ actor/action/entity/detail theo quyết định Lead trong supplemental-recheck.json. Không mở issue trùng.
+- Các lỗi được liệt kê theo backend commit đã chạy ngày 13/11; không suy ra trạng thái lỗi trên develop mới hơn. Lead theo dõi **@NguyenDokhai2005**.
 
-## Bảng kết quả từng mã (recheck)
+## Bảng kết quả từng mã (đánh giá đã sửa theo review 14/11)
 
 | Mã | Nội dung | Kết quả | Bằng chứng chính |
 |---|---|---|---|
 | ID-050 | Password lưu dạng BCrypt | PASS | predicate/API-DB; xem JSON |
-| ID-051 | Không có plain text trong DB | PASS | mô phỏng expiry trên QA |
+| ID-051 | Không có plain text trong DB | PASS | Schema và predicate BCrypt; không xuất raw values |
 | ID-052 | Cùng password → hash khác nhau | PASS | predicate/API-DB; xem JSON |
 | ID-053 | API không trả password hash | PASS | predicate/API-DB; xem JSON |
 | ID-060 | Đổi thành công | PASS | HTTP 204 |
@@ -108,19 +110,20 @@ Newman core: **14 requests / 26 assertions PASS**, cả lượt chính và reche
 | TC-AUTH02-32 | BRANCH_MANAGER thấy costPrice | PASS | HTTP 200 |
 | TC-AUTH02-33 | OWNER thấy costPrice | PASS | HTTP 200 |
 | TC-AUTH02-40 | BRANCH_FORBIDDEN ghi audit_log | BLOCKED | HTTP 404; #333 |
-| TC-AUTH02-41 | FORBIDDEN (sai role) – kiểm tra audit_log | PASS | HTTP 403; 403 FORBIDDEN; audit mới=0 theo Lead |
+| TC-AUTH02-41 | FORBIDDEN (sai role) – kiểm tra audit_log | BLOCKED | Chờ Lead chốt Q-31; quan sát HTTP 403 FORBIDDEN, 0 audit mới |
 
 ## Artifact và cách chạy
 
 - Lượt đầu: `docs/testing/results/issue-242-2026-11-13/cases.json`, `demo-accounts.json`, `auth242/summary.json`.
 - Recheck: `docs/testing/results/issue-242-2026-11-13-recheck/cases.json`, `demo-accounts.json`, `auth242/summary.json`, `supplemental-recheck.json`.
 - Hướng dẫn: `tests/api/auth242/README.md`. Script tạo QA từ chối stack/volume tồn tại, không seed lại; report cases.json không bị ghi đè.
-- Tích hợp core Newman vào lệnh `npm run pos` hiện được QA POS Newman CI gọi; regression runner nằm trong `npm test`. Không sửa workflow .github, không thêm dependency. CI remote chưa chạy thay đổi này vì chưa commit/push/PR.
+- Tích hợp core Newman vào lệnh `npm run pos` hiện được QA POS Newman CI gọi; regression runner nằm trong `npm test`. Không sửa workflow .github hoặc thêm dependency. Job vẫn tên QA POS Newman nhưng thực thi cả POS và AUTH; xem README trong tests/api/pos149.
 
 ## Kiểm tra công cụ và giới hạn
 
+- Bản sửa theo review ngày 14/11: regression Q-31/token Compose **5/5 PASS**, runner POS **3/3 PASS**, runner AUTH **3/3 PASS**, seed helper **3/3 PASS**. Đây là kiểm tra công cụ với doubles; không chạy API/Docker mới hoặc thay baseline kết quả ngày 13/11.
 - Newman HTTP doubles: success→0, sai quyền→1, mất kết nối→1; đều đi đến cleanup và artifact không chứa token/password. Đây là test runner, không phải bằng chứng backend.
-- Runner POS149 regression3/3; seed helper regression3/3; compile Python/Node và diff check. Không chạy lại toàn bộ unit backend hoặc gitleaks trong lượt này.
-- ID-051 là schema + predicate BCrypt, không xuất toàn bộ giá trị DB; ID-052 so sánh hash boolean của tài khoản demo. TC-AUTH01-05 mô phỏng hết khóa bằng timestamp; không chờ15 phút thực.
-- Không kiểm thử UI, toàn bộ OWASP, rate limit IP429 hoặc mọi hành vi audit #154 trong phạm vi #242. Không tự sửa lỗi backend để làm xanh.
-- Chưa Done: còn9 mã gốc BLOCKED,2 probe FAIL, báo cáo/Newman chưa được review/CI/merge. Không ghi Closes #242 hoặc tự đóng issue.
+- Runner POS149 regression 3/3; seed helper regression 3/3; compile Python/Node và diff check. Không chạy lại toàn bộ unit backend hoặc gitleaks trong lượt này.
+- ID-051 là schema + predicate BCrypt, không xuất toàn bộ giá trị DB; ID-052 so sánh hash boolean của tài khoản demo. TC-AUTH01-05 mô phỏng hết khóa bằng timestamp; không chờ 15 phút thực.
+- Không kiểm thử UI, toàn bộ OWASP, rate limit IP 429 hoặc mọi hành vi audit #154 trong phạm vi #242. Không tự sửa lỗi backend để làm xanh.
+- Chưa nghiệm thu #242: còn 10 mã gốc BLOCKED và 2 probe FAIL tại baseline đã chạy. Lead đã review PR #354 và yêu cầu chỉnh sửa; CI 7/7 xanh được ghi nhận cho commit review 8ff53d5, không tự áp dụng cho bản sửa mới. PR dùng Refs #242 đến khi đủ điều kiện nghiệm thu.

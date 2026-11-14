@@ -75,6 +75,16 @@ def put(case, ok=True, **evidence):
     CASES[case] = dict(id=case, result='PASS' if ok else 'FAIL', **evidence)
 
 
+def record_pending_role_audit(status, data, new_audit):
+    """Q-31 has no approved audit expectation; observed row count is evidence only."""
+    denied = status == 403 and isinstance(data, dict) and data.get('code') == 'FORBIDDEN'
+    CASES['TC-AUTH02-41'] = dict(id='TC-AUTH02-41', result='BLOCKED' if denied else 'FAIL',
+        actualStatus=status, actualCode=data.get('code') if isinstance(data, dict) else None,
+        newAuditRows=new_audit, assertions={'roleDenied': denied},
+        reason='Chờ Lead chốt Q-31: yêu cầu audit khi FORBIDDEN do sai vai trò chưa được quyết định',
+        policyQuestion='Q-31')
+
+
 def check(case, method, path, expected, session=None, body=None, code=None,
           verify=None, dependency=None, **kwargs):
     status, data = http(method, path, session, body, **kwargs)
@@ -265,9 +275,7 @@ def main():
     before=int(sql('SELECT coalesce(max(id),0) FROM audit_log;'))
     status,data=http('POST','/products',cashier,body)
     new_audit=int(sql(f'SELECT count(*) FROM audit_log WHERE id>{before};'))
-    put(r(41),status==403 and data.get('code')=='FORBIDDEN' and new_audit==0,
-        actualStatus=status,newAuditRows=new_audit,
-        decision='Lead issue310 comment6854060178: role FORBIDDEN currently does not write audit; separate future issue if needed')
+    record_pending_role_audit(status, data, new_audit)
     predicate=sql("SELECT bool_and(password_hash ~ '^[$]2[ab][$]' AND substring(password_hash,5,2)::int>=10) FROM app_user;")=='t'
     put('ID-050',predicate)
     put('ID-051',sql("SELECT count(*)=0 FROM information_schema.columns WHERE table_name='app_user' AND column_name IN ('password','plain_password','password_plaintext');")=='t',

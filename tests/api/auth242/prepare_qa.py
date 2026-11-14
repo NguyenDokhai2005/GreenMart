@@ -32,7 +32,7 @@ def main():
         if run(command).strip(): raise SystemExit('QA242 exists; refuse reset/reseed. Use a new QA242 project/port.')
     env.update(POSTGRES_DB='greenmart',POSTGRES_USER='greenmart',FORECAST_DB_USER='forecast_ro',RABBITMQ_DEFAULT_USER='greenmart')
     for key in ['POSTGRES_PASSWORD','FORECAST_DB_PASSWORD','REDIS_PASSWORD','RABBITMQ_DEFAULT_PASS',
-                'JWT_SECRET','CHANNEL_WEB_SECRET','CHANNEL_MARKET_SECRET']:
+                'JWT_SECRET','CHANNEL_WEB_SECRET','CHANNEL_MARKET_SECRET','FORECAST_INTERNAL_TOKEN']:
         env[key]=secrets.token_hex(32)
     env.update(QA242_PROJECT=project,QA242_PORT=str(port),QA242_SOURCE_COMMIT=source,
                QA242_JWT_TEST_SECRET=env['JWT_SECRET'])

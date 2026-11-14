@@ -44,14 +44,23 @@ npm test --prefix tests/api/pos149
 
 Không thêm dependency/lockfile riêng: dùng `npm ci --ignore-scripts --no-audit --no-fund` trong `tests/api/pos149` khi chưa có Newman. Với lệnh `npm run pos` của workflow QA POS Newman hiện có, POS #149 phải PASS trước, rồi collection AUTH/RBAC #242 mới chạy. `npm test` chạy regression cả hai runner. Artifact auth nằm ở thư mục con `auth242`, không ghi đè summary POS.
 
-Không sửa `.github/workflows`; CI remote chỉ có kết quả sau khi thay đổi được người dùng cho phép commit/push/PR. 65 TC với fixture DB không được nhận là đã chạy trong CI chỉ vì collection core PASS.
+Job CI vẫn tên QA POS Newman nhưng chạy cả POS và AUTH; xem `../pos149/README.md`. 65 TC với fixture DB không được nhận là đã chạy trong CI chỉ vì collection core PASS.
 
 ## Quyết định và giới hạn
 
 - Q-29: quyết định Redis hash/TTL 7 ngày tại #241; mô phỏng expiry theo lưu trữ thật của `RefreshTokenStore`.
 - Q-30: #241 yêu cầu security ErrorResponse có traceId; kiểm tra HTTP thật, không dựa vào mock.
-- Q-27/Q-31: [Lead chốt trong #310](https://github.com/NguyenDokhai2005/GreenMart/issues/310#issuecomment-6854060178): branch denial ghi audit đủ actor/action/entity/branchId/method/path/traceId, không ghi query/body; role denial hiện chưa ghi audit. Tài liệu lịch sử còn ghi câu hỏi mở; báo cáo execution dẫn quyết định mới này. Không sửa phần tài liệu SV03 đang cập nhật cùng PR #310.
+- Q-27: [Lead chốt trong #310](https://github.com/NguyenDokhai2005/GreenMart/issues/310#issuecomment-6854060178): branch denial ghi actor/action/entity/branchId/method/path/traceId, không ghi query/body.
+- **Q-31 chưa chốt.** #310 chỉ nói audit role FORBIDDEN nằm ngoài phạm vi của issue đó. TC-AUTH02-41 là BLOCKED bất kể có 0 hay 1 audit mới, nếu quyền trả đúng 403 FORBIDDEN; lỗi quyền vẫn FAIL. Tổng đúng tại baseline đã chạy là 55 PASS / 10 BLOCKED; assessment sửa phân loại ngày 14/11 không phải lượt chạy API mới.
+- Helper sinh FORECAST_INTERNAL_TOKEN ngẫu nhiên trong process để tương thích Compose khi #353 đã merge; không xuất token vào artifact.
+
 - Chưa có GET orders (#333) và GET branches (#335) thì các mã phụ thuộc BLOCKED. Không thay bằng endpoint khác để nhận mã đó PASS; probe inventory riêng chỉ là bằng chứng bổ sung.
-- Hai probe còn FAIL đã có #309/#310; không tạo issue trùng. Mọi nội dung đăng GitHub phải được người dùng duyệt trước.
+- Hai probe còn FAIL đã có #309/#310; không tạo issue trùng. Kết quả lỗi áp dụng cho commit backend ghi trong báo cáo, không đại diện develop mới hơn.
 
 Kết quả từng mã và giới hạn: `docs/testing/issue-242-execution-2026-11-13.md`.
+
+Regression cho bản sửa review Q-31/token Compose (không gọi Docker hoặc API thật):
+
+```text
+python -m unittest discover -s tests/api/auth242 -p test_review_fixes.py -v
+```
