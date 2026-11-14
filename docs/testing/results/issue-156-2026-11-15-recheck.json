@@ -1,0 +1,108 @@
+{
+  "issue": 156,
+  "date": "2026-11-14T18:49:52.419Z",
+  "sourceCommit": "917a36e1fc87739077c93fe79d741d6826806d5c",
+  "project": "greenmart-qa156-20261115-r2",
+  "api": "http://127.0.0.1:18168/api/v1",
+  "ui": "http://127.0.0.1:13168",
+  "status": "passed",
+  "acceptance": "BLOCKED",
+  "summary": {
+    "passed": 3,
+    "skipped": 2
+  },
+  "tests": [
+    {
+      "title": "API POS: quote → pay → COMPLETED → detail, stock and idempotency",
+      "status": "passed",
+      "durationMs": 616,
+      "annotations": [
+        {
+          "type": "qa-evidence",
+          "description": "{\"orderId\":10203,\"productId\":1003,\"total\":62000,\"status\":\"COMPLETED\",\"stock\":{\"onHand\":18,\"reserved\":0},\"saleRows\":1,\"replaySameOrder\":true}"
+        },
+        {
+          "type": "qa-stage",
+          "description": "Docker isolation check: exec"
+        },
+        {
+          "type": "qa-evidence",
+          "description": "{\"httpSteps\":[{\"method\":\"POST\",\"path\":\"/products\",\"expectedStatus\":201,\"actualStatus\":201},{\"method\":\"POST\",\"path\":\"/stock-documents\",\"expectedStatus\":201,\"actualStatus\":201},{\"method\":\"POST\",\"path\":\"/stock-documents/6/approve\",\"expectedStatus\":200,\"actualStatus\":200},{\"method\":\"POST\",\"path\":\"/orders/quote\",\"expectedStatus\":200,\"actualStatus\":200},{\"method\":\"POST\",\"path\":\"/orders/pos\",\"expectedStatus\":201,\"actualStatus\":201},{\"method\":\"POST\",\"path\":\"/orders/pos\",\"expectedStatus\":200,\"actualStatus\":200},{\"method\":\"GET\",\"path\":\"/orders/10203\",\"expectedStatus\":200,\"actualStatus\":200}]}"
+        }
+      ]
+    },
+    {
+      "title": "API online: signed WEB → RESERVED → PAID → CONFIRMED → COMPLETED",
+      "status": "passed",
+      "durationMs": 1703,
+      "annotations": [
+        {
+          "type": "qa-evidence",
+          "description": "{\"orderId\":10204,\"productId\":1004,\"transitions\":[\"RESERVED\",\"CONFIRMED\",\"COMPLETED\"],\"total\":93000,\"stock\":{\"onHand\":17,\"reserved\":0},\"events\":{\"reserved\":1,\"completed\":1},\"saleRows\":1,\"paidReplaySameOrder\":true,\"repeatedCompleteStatus\":409}"
+        },
+        {
+          "type": "qa-stage",
+          "description": "Docker isolation check: exec"
+        },
+        {
+          "type": "qa-evidence",
+          "description": "{\"httpSteps\":[{\"method\":\"POST\",\"path\":\"/products\",\"expectedStatus\":201,\"actualStatus\":201},{\"method\":\"POST\",\"path\":\"/stock-documents\",\"expectedStatus\":201,\"actualStatus\":201},{\"method\":\"POST\",\"path\":\"/stock-documents/7/approve\",\"expectedStatus\":200,\"actualStatus\":200},{\"method\":\"POST\",\"path\":\"/integrations/WEB/orders\",\"expectedStatus\":202,\"actualStatus\":202},{\"method\":\"POST\",\"path\":\"/integrations/WEB/orders/QA156-10D60A520F8E/events\",\"expectedStatus\":200,\"actualStatus\":200},{\"method\":\"POST\",\"path\":\"/integrations/WEB/orders/QA156-10D60A520F8E/events\",\"expectedStatus\":200,\"actualStatus\":200},{\"method\":\"POST\",\"path\":\"/orders/10204/complete\",\"expectedStatus\":200,\"actualStatus\":200},{\"method\":\"GET\",\"path\":\"/orders/10204\",\"expectedStatus\":200,\"actualStatus\":200},{\"method\":\"POST\",\"path\":\"/orders/10204/complete\",\"expectedStatus\":409,\"actualStatus\":409}]}"
+        }
+      ]
+    },
+    {
+      "title": "Browser smoke: real login → POS shell → logout",
+      "status": "passed",
+      "durationMs": 1139,
+      "annotations": [
+        {
+          "type": "qa-evidence",
+          "description": "{\"route\":\"/pos\",\"browserVersion\":\"148.0.7778.96\",\"observed\":\"Current business screen is a placeholder; smoke only\"}"
+        },
+        {
+          "type": "qa-stage",
+          "description": "Browser logout"
+        }
+      ]
+    },
+    {
+      "title": "Browser POS business checkout",
+      "status": "skipped",
+      "durationMs": 743,
+      "annotations": [
+        {
+          "type": "blocked",
+          "description": "POS cart/payment UI not implemented; dependencies #73/#75, SV04; no API substitution for UI checkout"
+        },
+        {
+          "type": "qa-stage",
+          "description": "Browser logout"
+        }
+      ]
+    },
+    {
+      "title": "Browser online order through completion",
+      "status": "skipped",
+      "durationMs": 683,
+      "annotations": [
+        {
+          "type": "qa-evidence",
+          "description": "{\"route\":\"/operations/orders\",\"observed\":\"Business order screen is a development placeholder\"}"
+        },
+        {
+          "type": "blocked",
+          "description": "Online list/detail UI #80/#81 awaits implementation/design #176 (SV04). API lifecycle test is separate."
+        },
+        {
+          "type": "qa-stage",
+          "description": "test started"
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Skipped business UI tests are BLOCKED, never counted as completed POS/online E2E.",
+    "API lifecycle is reported separately from browser business interaction.",
+    "Traces/video/storage state/raw errors/headers/request bodies are not exported."
+  ]
+}

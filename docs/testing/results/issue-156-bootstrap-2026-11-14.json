@@ -1,0 +1,47 @@
+{
+  "issue": 156,
+  "date": "2026-11-14",
+  "sourceCommit": "4c3a4fa597345fc4e3aeaf6aa538161d829beb12",
+  "branch": "feature/156-playwright-e2e",
+  "project": "greenmart-qa156-20261114",
+  "intendedApi": "http://127.0.0.1:18166/api/v1",
+  "intendedUi": "http://127.0.0.1:13166",
+  "acceptance": "BLOCKED",
+  "execution": "NOT_RUN",
+  "backendDockerBuild": "PASS",
+  "frontendDockerBuild": "PASS",
+  "composeUpWait": "FAILED",
+  "dockerEngineObservation": {
+    "httpStatus": 500,
+    "failedOperations": [
+      "containers list",
+      "backend state inspect",
+      "docker info",
+      "docker stats"
+    ],
+    "cause": "Not determined; no memory/config diagnosis claimed"
+  },
+  "playwrightVersion": "1.65.1",
+  "discovery": {
+    "count": 5,
+    "executedBusinessFlows": 0
+  },
+  "guardTests": {
+    "passed": 4,
+    "failed": 0
+  },
+  "limitations": [
+    "Build used skip Maven tests; not a backend suite PASS.",
+    "Discovery and guard tests do not execute POS/online business flows.",
+    "No Docker logs/environment values read; no credential artifact persisted.",
+    "Frontend placeholders and OPEN dependencies observed by source/GitHub review, not a successful live browser session."
+  ],
+  "dependencies": [
+    73,
+    75,
+    80,
+    81,
+    174,
+    176
+  ]
+}
