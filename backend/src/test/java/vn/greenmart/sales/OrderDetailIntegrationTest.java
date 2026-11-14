@@ -211,15 +211,12 @@ class OrderDetailIntegrationTest {
     }
 
     private void cleanTestData() {
-        jdbc.execute("TRUNCATE audit_log");
-        jdbc.execute("DELETE FROM outbox_event");
+        jdbc.execute("TRUNCATE TABLE audit_log CASCADE");
         jdbc.execute("DELETE FROM order_item");
         jdbc.execute("DELETE FROM payment");
         jdbc.execute("DELETE FROM sales_order");
-        jdbc.execute(String.format("DELETE FROM user_branch WHERE user_id IN (%d, %d, %d, %d, %d)",
-                CASHIER_CN1_ID, CASHIER_CN2_ID, OWNER_ID, ADMIN_ID, MANAGER_CN1_ID));
-        jdbc.execute(String.format("DELETE FROM app_user WHERE id IN (%d, %d, %d, %d, %d)",
-                CASHIER_CN1_ID, CASHIER_CN2_ID, OWNER_ID, ADMIN_ID, MANAGER_CN1_ID));
+        jdbc.execute("DELETE FROM user_branch WHERE user_id IN (701, 702, 703, 704, 705)");
+        jdbc.execute("DELETE FROM app_user WHERE id IN (701, 702, 703, 704, 705)");
     }
 
     @Test
@@ -402,7 +399,7 @@ class OrderDetailIntegrationTest {
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].code").value("POS-GM001-TEST-0001"));
 
-        // Kiểm tra escape ký tự wildcard '%' và '_' trong q 
+        // Kiểm tra escape ký tự wildcard '%' và '_' trong q
         mvc.perform(get("/api/v1/orders")
                         .param("q", "%")
                         .header("Authorization", "Bearer " + tokens.issue(OWNER_ID, "OWNER")))
@@ -423,5 +420,31 @@ class OrderDetailIntegrationTest {
                         .header("Authorization", "Bearer " + tokens.issue(ADMIN_ID, "ADMIN")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("ORD-06: Lọc với from sau to, status hoặc channel không hợp lệ -> Trả về HTTP 400 VALIDATION_ERROR")
+    void testListOrders_InvalidFilters_Returns400ValidationError() throws Exception {
+        // 1. from sau to -> 400 VALIDATION_ERROR
+        mvc.perform(get("/api/v1/orders")
+                        .param("from", "2026-11-10")
+                        .param("to", "2026-11-05")
+                        .header("Authorization", "Bearer " + tokens.issue(OWNER_ID, "OWNER")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        // 2. status không thuộc enum OrderStatus -> 400 VALIDATION_ERROR
+        mvc.perform(get("/api/v1/orders")
+                        .param("status", "INVALID_STATUS_CODE")
+                        .header("Authorization", "Bearer " + tokens.issue(OWNER_ID, "OWNER")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        // 3. channel không hợp lệ -> 400 VALIDATION_ERROR
+        mvc.perform(get("/api/v1/orders")
+                        .param("channel", "ABC")
+                        .header("Authorization", "Bearer " + tokens.issue(OWNER_ID, "OWNER")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 }
