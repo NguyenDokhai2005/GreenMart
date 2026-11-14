@@ -281,4 +281,67 @@ class OnlineOrderLifecycleIntegrationTest {
         String payStatus = jdbc.queryForObject("SELECT status FROM payment WHERE order_id = ?", String.class, expOrderId);
         assertThat(payStatus).isEqualTo("REFUNDED");
     }
+
+    @Test
+    @DisplayName("Đồng thời (Race condition): Job hết hạn và webhook PAID chạy song song trên cùng 1 đơn -> không âm reserved, chỉ ghi 1 trạng thái")
+    void testConcurrentExpiryJobAndPaidEvent_NoDoubleReleaseOrNegativeReserved() throws Exception {
+        Long orderId = insertOnlineOrder("WEB-RACE-001", "EXT-RACE-001", "RESERVED", 3, "NOW() - INTERVAL '5 seconds'");
+        String paidBody = objectMapper.writeValueAsString(Map.of(
+                "type", "PAID",
+                "occurredAt", "2026-11-14T10:00:00+07:00",
+                "providerRef", "VNP-RACE-1"
+        ));
+        String validSig = signatures.sign("WEB", paidBody.getBytes(StandardCharsets.UTF_8));
+
+        var executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+        var barrier = new java.util.concurrent.CyclicBarrier(2);
+        try {
+            var expiryFuture = executor.submit(() -> {
+                barrier.await(5, java.util.concurrent.TimeUnit.SECONDS);
+                return onlineOrderService.expireOverdueOrders();
+            });
+
+            var paidFuture = executor.submit(() -> {
+                barrier.await(5, java.util.concurrent.TimeUnit.SECONDS);
+                return mvc.perform(post("/api/v1/integrations/WEB/orders/EXT-RACE-001/events")
+                                .header("X-Signature", validSig)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(paidBody))
+                        .andReturn().getResponse().getStatus();
+            });
+
+            expiryFuture.get(15, java.util.concurrent.TimeUnit.SECONDS);
+            int httpStatus = paidFuture.get(15, java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(httpStatus).isEqualTo(200);
+        } finally {
+            executor.shutdownNow();
+            executor.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS);
+        }
+
+        String finalStatus = jdbc.queryForObject("SELECT status FROM sales_order WHERE id = ?", String.class, orderId);
+        assertThat(finalStatus).isIn("EXPIRED", "CONFIRMED");
+
+        Integer reserved = jdbc.queryForObject(
+                "SELECT reserved FROM inventory WHERE branch_id = ? AND product_id = ?", Integer.class, branch1Id, productId);
+        assertThat(reserved).isNotNegative();
+
+        Integer expiredEventCount = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM outbox_event
+                WHERE aggregate_id = ? AND event_type = 'order.expired'
+                """, Integer.class, orderId.toString());
+        Integer confirmedEventCount = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM outbox_event
+                WHERE aggregate_id = ? AND event_type = 'order.confirmed'
+                """, Integer.class, orderId.toString());
+
+        if ("EXPIRED".equals(finalStatus)) {
+            assertThat(reserved).isEqualTo(0);
+            assertThat(expiredEventCount).isEqualTo(1);
+            assertThat(confirmedEventCount).isEqualTo(0);
+        } else {
+            assertThat(reserved).isEqualTo(3);
+            assertThat(expiredEventCount).isBetween(0, 1);
+            assertThat(confirmedEventCount).isEqualTo(1);
+        }
+    }
 }

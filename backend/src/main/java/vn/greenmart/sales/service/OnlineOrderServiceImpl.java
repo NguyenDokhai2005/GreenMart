@@ -67,22 +67,25 @@ public class OnlineOrderServiceImpl implements OnlineOrderService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public OrderResponse completeOrder(Long orderId) {
-        // Phân quyền vai trò & chi nhánh
+        // 1. Phân quyền vai trò & chi nhánh (openapi.yaml: BRANCH_MANAGER, STOREKEEPER)
         SecurityUtils.requireRole("BRANCH_MANAGER", "STOREKEEPER");
 
-        SalesOrder order = salesOrderRepository.findById(orderId)
-                .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy đơn hàng"));
+        // Khóa dòng đơn hàng trước khi đọc trạng thái để tránh race condition
+        SalesOrder order = lockOrderForUpdate(orderId);
 
         List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
         if (accessibleBranches != null && !accessibleBranches.contains(order.getBranchId())) {
             throw new AppException(ErrorCode.BRANCH_FORBIDDEN, "Bạn không có quyền thao tác trên chi nhánh này");
         }
 
-        // Kiểm tra trạng thái hiện tại phải là CONFIRMED
-        if (order.getStatus() != OrderStatus.CONFIRMED) {
+        // Chặn đơn kênh POS 
+        String channelCode = jdbcTemplate.queryForObject(
+                "SELECT code FROM sales_channel WHERE id = ?", String.class, order.getChannelId()
+        );
+        if ("POS".equalsIgnoreCase(channelCode) || order.getStatus() != OrderStatus.CONFIRMED) {
             throw new AppException(
                     ErrorCode.INVALID_STATUS,
-                    "Chỉ hoàn tất được đơn hàng ở trạng thái CONFIRMED",
+                    "Chỉ hoàn tất được đơn hàng online ở trạng thái CONFIRMED",
                     Map.of("currentStatus", order.getStatus().name(), "allowed", List.of("CONFIRMED"))
             );
         }
@@ -155,8 +158,7 @@ public class OnlineOrderServiceImpl implements OnlineOrderService {
             );
         }
 
-        SalesOrder order = salesOrderRepository.findById(orderId)
-                .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy đơn hàng"));
+        SalesOrder order = lockOrderForUpdate(orderId);
 
         List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
         if (accessibleBranches != null && !accessibleBranches.contains(order.getBranchId())) {
@@ -198,8 +200,8 @@ public class OnlineOrderServiceImpl implements OnlineOrderService {
         var locked = channelOrderStore.lockAndFind(config.id(), externalOrderId)
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy đơn hàng của kênh"));
 
-        SalesOrder order = salesOrderRepository.findById(locked.id())
-                .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy đơn hàng"));
+        // Khóa dòng sales_order (FOR UPDATE) để loại trừ hoàn toàn với job hết hạn (FOR UPDATE SKIP LOCKED)
+        SalesOrder order = lockOrderForUpdate(locked.id());
 
         Instant occurredAt = event.occurredAt().toInstant();
 
@@ -524,5 +526,18 @@ public class OnlineOrderServiceImpl implements OnlineOrderService {
                 base.itemDiscount(), base.orderDiscount(), base.manualDiscount(), base.discount(),
                 base.payments(), base.reservedUntil(), statusReason, statusNote
         );
+    }
+
+    private SalesOrder lockOrderForUpdate(Long orderId) {
+        List<Long> lockedIds = jdbcTemplate.queryForList(
+                "SELECT id FROM sales_order WHERE id = ? FOR UPDATE",
+                Long.class,
+                orderId
+        );
+        if (lockedIds.isEmpty()) {
+            throw new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy đơn hàng");
+        }
+        return salesOrderRepository.findById(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy đơn hàng"));
     }
 }
