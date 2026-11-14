@@ -211,12 +211,15 @@ class OrderDetailIntegrationTest {
     }
 
     private void cleanTestData() {
-        jdbc.execute("TRUNCATE TABLE audit_log CASCADE");
+        jdbc.execute("TRUNCATE audit_log");
+        jdbc.execute("DELETE FROM outbox_event");
         jdbc.execute("DELETE FROM order_item");
         jdbc.execute("DELETE FROM payment");
         jdbc.execute("DELETE FROM sales_order");
-        jdbc.execute("DELETE FROM user_branch WHERE user_id IN (701, 702, 703, 704, 705)");
-        jdbc.execute("DELETE FROM app_user WHERE id IN (701, 702, 703, 704, 705)");
+        jdbc.execute(String.format("DELETE FROM user_branch WHERE user_id IN (%d, %d, %d, %d, %d)",
+                CASHIER_CN1_ID, CASHIER_CN2_ID, OWNER_ID, ADMIN_ID, MANAGER_CN1_ID));
+        jdbc.execute(String.format("DELETE FROM app_user WHERE id IN (%d, %d, %d, %d, %d)",
+                CASHIER_CN1_ID, CASHIER_CN2_ID, OWNER_ID, ADMIN_ID, MANAGER_CN1_ID));
     }
 
     @Test

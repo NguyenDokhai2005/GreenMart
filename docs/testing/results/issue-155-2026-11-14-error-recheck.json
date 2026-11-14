@@ -1,0 +1,82 @@
+{
+  "issue": 155,
+  "date": "2026-11-14T11:15:55.591641+00:00",
+  "sourceCommit": "c25ae39477f8b2de72b2f022bbfda03c00d28073",
+  "mode": "error-only",
+  "project": "greenmart-qa155-20261114",
+  "base": "http://127.0.0.1:18165/api/v1",
+  "fixturePrefix": "QA155-9F4CC6A7",
+  "runtime": {
+    "imageTag": "greenmart-backend:qa155-c25ae39",
+    "imageId": "sha256:de7ef8e93e3cb34b9b8fb058482cd919fc372f756e3734abda8cee5f288a2b6c",
+    "verifiedRevision": "c25ae39477f8b2de72b2f022bbfda03c00d28073"
+  },
+  "summary": {
+    "PASS": 4
+  },
+  "interrupted": null,
+  "checks": [
+    {
+      "id": "SEC155-001",
+      "name": "Login thungan.gm001",
+      "result": "PASS",
+      "assertions": {
+        "authenticated": true
+      },
+      "evidence": {
+        "status": 200
+      }
+    },
+    {
+      "id": "SEC155-002",
+      "name": "Known #316 null-item server error has no stack trace",
+      "result": "PASS",
+      "assertions": {
+        "errorStatus": true,
+        "envelope": true,
+        "noStackOrSqlInternals": true,
+        "noStackFields": true
+      },
+      "evidence": {
+        "status": 500,
+        "code": "INTERNAL_SERVER_ERROR",
+        "traceId": "ee26c2e0-b462-4887-8b3d-b9c45e0b6c8a"
+      }
+    },
+    {
+      "id": "SEC155-003",
+      "name": "Invalid quote has no order/ledger side effect",
+      "result": "PASS",
+      "assertions": {
+        "unchanged": true
+      },
+      "evidence": null
+    },
+    {
+      "id": "SEC155-004",
+      "name": "Logout session 1",
+      "result": "PASS",
+      "assertions": {
+        "http204": true
+      },
+      "evidence": {
+        "status": 204
+      }
+    }
+  ],
+  "observations": [
+    {
+      "name": "Known #316 quote null-item diagnostic",
+      "status": 500,
+      "code": "INTERNAL_SERVER_ERROR",
+      "relatedIssue": 316,
+      "classification": "Functional bug and information-leak acceptance are separate"
+    }
+  ],
+  "limitations": [
+    "User confirms rate threshold/window and CORS allowlist are not approved; do not invent acceptance policy.",
+    "Bounded API probes and source review are not a full penetration test or a browser XSS execution test.",
+    "Account gm003 remains temporarily locked in dedicated QA155; no shared account was changed.",
+    "No additional Docker logs read after safety review; no full log-secret/correlation assurance."
+  ]
+}

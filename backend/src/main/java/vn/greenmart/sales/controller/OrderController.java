@@ -68,4 +68,17 @@ public class OrderController {
     public ResponseEntity<OrderResponse> getOrder(@PathVariable("orderId") Long orderId) {
         return ResponseEntity.ok(posOrderService.getOrder(orderId));
     }
+
+    @PostMapping("/{orderId}/complete")
+    public ResponseEntity<OrderResponse> completeOnlineOrder(@PathVariable("orderId") Long orderId) {
+        return ResponseEntity.ok(posOrderService.completeOnlineOrder(orderId));
+    }
+
+    @PostMapping("/{orderId}/cancel")
+    public ResponseEntity<OrderResponse> cancelOnlineOrder(
+            @PathVariable("orderId") Long orderId,
+            @Valid @RequestBody CancelOrderRequest request
+    ) {
+        return ResponseEntity.ok(posOrderService.cancelOnlineOrder(orderId, request));
+    }
 }
