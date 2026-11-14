@@ -1,0 +1,49 @@
+{
+  "issue": 156,
+  "sourceCommit": "917a36e1fc87739077c93fe79d741d6826806d5c",
+  "project": "greenmart-qa156-20261115-r2",
+  "services": [
+    {
+      "service": "backend",
+      "container": "greenmart-qa156-20261115-r2-backend-1",
+      "imageId": "sha256:9cb9622b7f41d8d481b09b03cc7a1a9cd619c3bb28fe243d4136f9c8f4b017f4",
+      "status": "running",
+      "health": "healthy",
+      "revision": "917a36e1fc87739077c93fe79d741d6826806d5c"
+    },
+    {
+      "service": "frontend",
+      "container": "greenmart-qa156-20261115-r2-frontend-1",
+      "imageId": "sha256:3b2bf3752bfd943dae1277430fb7c6aa1db10522bbd3069f31418e24db24cad0",
+      "status": "running",
+      "health": "healthy",
+      "revision": "917a36e1fc87739077c93fe79d741d6826806d5c"
+    },
+    {
+      "service": "postgres",
+      "container": "greenmart-qa156-20261115-r2-postgres-1",
+      "imageId": "sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "service": "redis",
+      "container": "greenmart-qa156-20261115-r2-redis-1",
+      "imageId": "sha256:3b73847e72874be07e6657b129a94761662b79bc0f679273757d4218573b2a98",
+      "status": "running",
+      "health": "healthy"
+    },
+    {
+      "service": "rabbitmq",
+      "container": "greenmart-qa156-20261115-r2-rabbitmq-1",
+      "imageId": "sha256:606d8c0d6b3c18d1da9afc53bc7cdb2a8d5486df91b5a9830e9e07626c9ae281",
+      "status": "running",
+      "health": "healthy"
+    }
+  ],
+  "finalResult": {
+    "passed": 3,
+    "blocked": 2
+  },
+  "testReport": "issue-156-2026-11-15-recheck.json"
+}
