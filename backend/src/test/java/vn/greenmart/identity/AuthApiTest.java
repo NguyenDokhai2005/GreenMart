@@ -16,6 +16,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -67,6 +69,7 @@ class AuthApiTest {
     @Autowired StringRedisTemplate redis;
     @Autowired PasswordEncoder passwords;
     @Autowired MutableClock clock;
+    @Autowired ApplicationContext applicationContext;
     @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
     vn.greenmart.identity.repository.RefreshTokenStore refreshStore;
 
@@ -186,6 +189,9 @@ class AuthApiTest {
         assertThat(postJson("change-password",Map.of("currentPassword","wrong","newPassword","Updated@456"),422,access(tokens))
                 .get("code").asText()).isEqualTo("WRONG_PASSWORD");
         postJson("refresh",Map.of("refreshToken",refresh(tokens)),200,null);
+    }
+    @Test void applicationDoesNotCreateDefaultSpringSecurityUser() {
+        assertThat(applicationContext.getBeansOfType(InMemoryUserDetailsManager.class)).isEmpty();
     }
     @ParameterizedTest @ValueSource(strings={"short1","onlyletters","12345678"})
     void rejectsWeakNewPassword(String password) throws Exception {

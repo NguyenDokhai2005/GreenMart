@@ -33,6 +33,7 @@ public class SecurityConfig {
                     .accessDeniedHandler((request,response,ex)->SecurityErrors.write(response,mapper,ErrorCode.FORBIDDEN)))
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers(HttpMethod.POST, "/api/v1/integrations/*/orders").permitAll()
+                    .requestMatchers(HttpMethod.PUT, "/api/v1/integrations/*/products/*").hasRole("ADMIN")
                     .requestMatchers("/api/v1/auth/login","/api/v1/auth/refresh","/actuator/health","/actuator/health/**").permitAll()
                     .requestMatchers("/api/v1/reports/**").hasAnyRole("OWNER", "BRANCH_MANAGER")
                     .requestMatchers("/api/v1/inventory/transactions").hasAnyRole("OWNER", "BRANCH_MANAGER", "STOREKEEPER")

@@ -111,6 +111,9 @@ public class AuthServiceImpl implements AuthService {
             if (request.newPassword().getBytes(java.nio.charset.StandardCharsets.UTF_8).length>72) {
                 throw new AppException(ErrorCode.VALIDATION_ERROR,"Mật khẩu BCrypt không được vượt quá 72 byte UTF-8");
             }
+            if (matches(request.newPassword(), user.passwordHash())) {
+                throw new AppException(ErrorCode.VALIDATION_ERROR, "Mật khẩu mới phải khác mật khẩu hiện tại");
+            }
             String encoded=passwords.encode(request.newPassword());
             // Same user row lock as login/refresh: no concurrent refresh can escape revokeAll.
             // Redis failure aborts password update. A later DB failure can revoke sessions, never restore them.
