@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.greenmart.catalog.domain.Category;
@@ -43,6 +44,7 @@ public class ProductServiceImpl implements ProductService {
     private final CategoryRepository categoryRepository;
     private final AuditLogRepository auditLogRepository;
     private final InventoryService inventoryService;
+    private final JdbcTemplate jdbcTemplate;
 
     @Override
     @Transactional(readOnly = true)
@@ -167,6 +169,12 @@ public class ProductServiceImpl implements ProductService {
             throw new AppException(ErrorCode.VALIDATION_ERROR, "Mã tra cứu không được để trống");
         }
         String searchCode = code.trim();
+
+        SecurityUtils.requireRole("ADMIN", "OWNER", "BRANCH_MANAGER", "CASHIER", "STOREKEEPER");
+        List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
+        if (branchId != null && accessibleBranches != null && !accessibleBranches.contains(branchId)) {
+            throw new AppException(ErrorCode.BRANCH_FORBIDDEN, "Bạn không có quyền thao tác trên chi nhánh này");
+        }
 
         Product p = productRepository.findByBarcode(searchCode)
                 .or(() -> productRepository.findBySku(searchCode))
