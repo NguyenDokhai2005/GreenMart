@@ -180,7 +180,7 @@ public class PosOrderServiceImpl implements PosOrderService {
                 .sorted(Comparator.comparing(QuoteLine::productId))
                 .toList();
         for (QuoteLine line : stockLines) {
-            inventoryService.sellDirect(request.branchId(), line.productId(), line.quantity(), order.getId());
+            inventoryService.sellDirect(request.branchId(), line.productId(), line.quantity(), order.getId(), currentUserId);
         }
 
         // Lưu chi tiết dòng đơn hàng

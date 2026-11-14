@@ -208,7 +208,8 @@ class OrderDetailIntegrationTest {
         cleanTestData();
     }
 
-    private void cleanTestData() {
+   private void cleanTestData() {
+        jdbc.execute("TRUNCATE TABLE inventory_transaction CASCADE");
         jdbc.execute("TRUNCATE audit_log");
         jdbc.execute("DELETE FROM outbox_event");
         jdbc.execute("DELETE FROM order_item");
