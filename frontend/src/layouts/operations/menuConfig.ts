@@ -86,6 +86,7 @@ export const canPickAllBranches = (role: Role) => role === 'OWNER' || role === '
 
 /** Trang đầu của khu Operations: THỦ KHO không có Tổng quan nên vào Tồn kho. */
 export const operationsHomePath = (role: Role) => (role === 'STOREKEEPER' ? `${OP}/inventory` : OP);
+
 /**
  * Nhãn breadcrumb cho đường dẫn hiện tại: mục con của nhóm hiện "Nhóm / Mục" (vd "Kho / Tồn kho"), mục thường hiện tên mục.
  */

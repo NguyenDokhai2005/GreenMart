@@ -152,6 +152,9 @@
   color: var(--gm-color-text);
   font-weight: 500;
 }
+.ops-crumb .ops-crumb__path {
+  color: var(--gm-color-text);
+}
 .ops-topbar__right {
   display: flex;
   align-items: center;

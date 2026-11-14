@@ -14,16 +14,15 @@ export function getPageItems(current: number, total: number): PageItem[] {
   if (current >= total - 1) [start, end] = [total - 2, total];
 
   const pages = new Set<number>([1, total]);
-  for (let p = Math.max(1, start); p <= Math.min(total, end); p++) pages.add(p);
+  for (let page = Math.max(1, start); page <= Math.min(total, end); page++) pages.add(page);
 
   const sorted = [...pages].sort((a, b) => a - b);
   const items: PageItem[] = [];
-  sorted.forEach((p, i) => {
-    const prev = sorted[i - 1];
-    if (prev !== undefined && p - prev === 2)
-      items.push(prev + 1); // khoảng hở 1 trang: hiện luôn số
-    else if (prev !== undefined && p - prev > 2) items.push('ellipsis');
-    items.push(p);
+  sorted.forEach((page, i) => {
+    const previous = sorted[i - 1];
+    if (previous !== undefined && page - previous === 2) items.push(previous + 1);
+    else if (previous !== undefined && page - previous > 2) items.push('ellipsis');
+    items.push(page);
   });
   return items;
 }

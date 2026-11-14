@@ -31,6 +31,15 @@
     "tests/features/inventory/inventoryQuery.test.ts",
     "tests/features/inventory/pagination.test.ts",
     "tests/features/inventory/useDebouncedCallback.test.ts",
-    "tests/features/catalog/catalog.test.tsx"
+    "tests/features/catalog/catalog.test.tsx",
+    "tests/features/transfer/TransferListPage.test.tsx",
+    "tests/features/transfer/formErrors.test.ts",
+    "tests/features/transfer/receiveCalc.test.ts",
+    "tests/features/transfer/TransferDetailPage.test.tsx",
+    "tests/features/transfer/transferForm.test.ts",
+    "tests/features/transfer/TransferFormPage.test.tsx",
+    "tests/features/transfer/transferPermissions.test.ts",
+    "tests/features/transfer/transferQuery.test.ts",
+    "tests/features/transfer/transferStatus.test.ts"
   ]
 }
