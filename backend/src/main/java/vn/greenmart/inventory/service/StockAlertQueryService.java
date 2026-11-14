@@ -30,7 +30,7 @@ public class StockAlertQueryService {
         var branches = SecurityUtils.getAccessibleBranchIds(jdbc);
         if (branchId != null) {
             if (branches != null && !branches.contains(branchId)) {
-                throw new AppException(ErrorCode.BRANCH_FORBIDDEN);
+                throw AppException.branchForbidden(branchId);
             }
             branches = List.of(branchId);
         }

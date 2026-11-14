@@ -55,6 +55,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     private final PaymentRepository paymentRepository;
     private final OutboxService outboxService;
     private final JdbcTemplate jdbcTemplate;
+    private final OnlineOrderService onlineOrderService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -63,7 +64,7 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
         if (accessibleBranches != null && !accessibleBranches.contains(request.branchId())) {
-            throw new AppException(ErrorCode.BRANCH_FORBIDDEN, "Bạn không có quyền thao tác trên chi nhánh này");
+            throw AppException.branchForbidden(request.branchId(), "Bạn không có quyền thao tác trên chi nhánh này");
         }
 
         // Tính lại Báo giá & Kiểm tra expectedTotal
@@ -227,7 +228,7 @@ public class PosOrderServiceImpl implements PosOrderService {
         // Phân quyền chi nhánh (BR-11, AUTH-02)
         List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
         if (accessibleBranches != null && !accessibleBranches.contains(order.getBranchId())) {
-            throw new AppException(ErrorCode.BRANCH_FORBIDDEN, "Bạn không có quyền thao tác trên chi nhánh này");
+            throw AppException.branchForbidden(order.getBranchId(), "Bạn không có quyền thao tác trên chi nhánh này");
         }
 
         // Lấy danh sách dòng hàng và thanh toán trực tiếp từ DB
@@ -259,6 +260,16 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         // Map dữ liệu sang OrderResponse dùng chung
         return mapToOrderResponse(order, items, paymentResponses);
+    }
+
+    @Override
+    public OrderResponse completeOnlineOrder(Long orderId) {
+        return onlineOrderService.completeOrder(orderId);
+    }
+
+    @Override
+    public OrderResponse cancelOnlineOrder(Long orderId, CancelOrderRequest request) {
+        return onlineOrderService.cancelOrder(orderId, request);
     }
 
     private OrderResponse mapToOrderResponse(SalesOrder order, List<OrderItem> items, List<PaymentResponse> paymentResponses) {

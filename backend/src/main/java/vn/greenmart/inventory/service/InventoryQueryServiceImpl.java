@@ -34,7 +34,7 @@ public class InventoryQueryServiceImpl implements InventoryQueryService {
         SecurityUtils.requireRole("ADMIN", "OWNER", "BRANCH_MANAGER", "CASHIER", "STOREKEEPER");
         var allowedBranches = SecurityUtils.getAccessibleBranchIds(jdbc);
         if (branchId != null && allowedBranches != null && !allowedBranches.contains(branchId)) {
-            throw new AppException(ErrorCode.BRANCH_FORBIDDEN);
+            throw AppException.branchForbidden(branchId);
         }
         var pageable = PageUtils.createPageable(page, size, sort, Sort.by("branchId", "productId"),
                 InventoryQueryRepository.SORT_COLUMNS.keySet());
