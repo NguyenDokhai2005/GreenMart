@@ -91,10 +91,16 @@ describe('Given authenticated POS staff, When opening the workspace', () => {
   );
 
   it.each(POS_NAVIGATION)(
-    'Then direct URL $path renders the matching placeholder and active menu after reload',
+    'Then direct URL $path renders the matching page and active menu after reload',
     async (item) => {
+      const heading =
+        item.segment === 'customers'
+          ? 'Tra cứu khách hàng'
+          : item.segment === 'products'
+            ? 'Sản phẩm'
+            : item.title;
       const view = renderApp(`${item.path}?range=today#detail`);
-      await screen.findByRole('heading', { name: item.title });
+      await screen.findByRole('heading', { name: heading });
       expect(screen.getByRole('link', { name: item.label }).getAttribute('aria-current')).toBe(
         'page',
       );
@@ -103,7 +109,7 @@ describe('Given authenticated POS staff, When opening the workspace', () => {
       ).toHaveLength(1);
       view.unmount();
       renderApp(`${item.path}?range=today#detail`);
-      await screen.findByRole('heading', { name: item.title });
+      await screen.findByRole('heading', { name: heading });
       expect(screen.getByTestId('location').textContent).toBe(`${item.path}?range=today#detail`);
     },
   );
@@ -150,7 +156,14 @@ describe('Given POS shortcuts, When using keyboard navigation', () => {
         altKey: true,
       });
       expect(accepted).toBe(false);
-      await screen.findByRole('heading', { name: item.title });
+      await screen.findByRole('heading', {
+        name:
+          item.segment === 'customers'
+            ? 'Tra cứu khách hàng'
+            : item.segment === 'products'
+              ? 'Sản phẩm'
+              : item.title,
+      });
       expect(screen.getByTestId('location').textContent).toBe(item.path);
     }
   });
@@ -287,13 +300,13 @@ describe('Given the existing authentication and branch guards', () => {
       fireEvent.submit(document.querySelector('form')!);
       await screen.findByRole('heading', { name: 'Bán hàng tại quầy' });
       fireEvent.click(screen.getByRole('link', { name: 'Tra cứu khách' }));
-      await screen.findByRole('heading', { name: 'Tra cứu khách' });
+      await screen.findByRole('heading', { name: 'Tra cứu khách hàng' });
       await act(async () => {
         if (outcome === 'resolve') complete(new Response(null, { status: 204 }));
         else fail(new TypeError('Failed to fetch'));
       });
       expect(screen.getByTestId('location').textContent).toBe('/pos/customers');
-      expect(screen.getByRole('banner').textContent).toContain('Tài khoản mới');
+      expect(document.querySelector('.pos-layout__header')?.textContent).toContain('Tài khoản mới');
       expect(JSON.parse(sessionStorage.getItem('greenmart.session')!).refreshToken).toBe(
         'new-refresh',
       );
@@ -323,7 +336,7 @@ describe('Given the existing authentication and branch guards', () => {
     expect(screen.queryByRole('navigation')).toBeNull();
     fireEvent.click(document.querySelector<HTMLButtonElement>('.branch-page__row-select')!);
     fireEvent.click(document.querySelector<HTMLButtonElement>('.branch-page__actions button')!);
-    await screen.findByRole('heading', { name: 'Tra cứu khách' });
+    await screen.findByRole('heading', { name: 'Tra cứu khách hàng' });
     expect(screen.getByTestId('location').textContent).toBe(
       '/pos/customers?phone=0901234567#result',
     );

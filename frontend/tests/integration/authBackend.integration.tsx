@@ -120,7 +120,7 @@ const accounts: Array<{
     username: 'thukho.gm001',
     role: 'STOREKEEPER',
     branches: 1,
-    workspace: '/operations',
+    workspace: '/operations/inventory',
     forbidden: '/pos',
   },
   { username: 'owner', role: 'OWNER', branches: 3, workspace: '/operations', forbidden: '/admin' },
