@@ -1,0 +1,982 @@
+{
+  "issue": 242,
+  "timestamp": "2026-11-13T13:22:59.512602+00:00",
+  "sourceCommit": "d43b75a546c172fbece49b3ea7ef2d9ceae52010",
+  "project": "greenmart-qa242-recheck-20261113",
+  "port": 18159,
+  "imageId": "sha256:370989256f895c5466150d4f9901fbf771e253e6ae5bbac8e9b5307471518f36",
+  "runtimeInterrupted": false,
+  "cleanupWarnings": [],
+  "summary": {
+    "PASS": 56,
+    "BLOCKED": 9
+  },
+  "supplemental": [
+    {
+      "id": "SUPP-AUDIT",
+      "result": "FAIL",
+      "method": "GET",
+      "path": "/inventory?branchId=2",
+      "expectedStatus": 403,
+      "actualStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "591b01e5-13bf-4041-90a3-5e880cf0385f",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true,
+        "auditCreated": false
+      },
+      "relatedIssue": 310
+    },
+    {
+      "id": "SUPP-LOOKUP",
+      "result": "FAIL",
+      "method": "GET",
+      "path": "/products/lookup?code=COM-SUON-BI-CHA-0001&branchId=2",
+      "expectedStatus": 403,
+      "actualStatus": 200,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualCode": null,
+      "traceId": null,
+      "assertions": {
+        "status": false,
+        "code": false,
+        "safeError": false
+      },
+      "relatedIssue": 309
+    }
+  ],
+  "cases": [
+    {
+      "id": "ID-050",
+      "result": "PASS"
+    },
+    {
+      "id": "ID-051",
+      "result": "PASS",
+      "methodology": "Schema check plus BCrypt predicate; no raw values exported"
+    },
+    {
+      "id": "ID-052",
+      "result": "PASS"
+    },
+    {
+      "id": "ID-053",
+      "result": "PASS"
+    },
+    {
+      "id": "ID-060",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/change-password",
+      "expectedStatus": 204,
+      "actualStatus": 204,
+      "expectedCode": null,
+      "actualCode": null,
+      "traceId": null,
+      "assertions": {
+        "status": true
+      },
+      "allRefreshSessionsRevoked": true,
+      "sessionsTested": 2
+    },
+    {
+      "id": "ID-061",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 200,
+      "actualStatus": 200,
+      "expectedCode": null,
+      "actualCode": null,
+      "traceId": null,
+      "assertions": {
+        "status": true
+      }
+    },
+    {
+      "id": "ID-062",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "expectedCode": "INVALID_CREDENTIALS",
+      "actualCode": "INVALID_CREDENTIALS",
+      "traceId": "6093d41a-d307-4edd-a2ed-99ab6e7ac83b",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "ID-063",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/change-password",
+      "expectedStatus": 422,
+      "actualStatus": 422,
+      "expectedCode": "WRONG_PASSWORD",
+      "actualCode": "WRONG_PASSWORD",
+      "traceId": "4dcc1ef6-bb28-4ea9-afe6-f3f1d32cf36c",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "ID-064",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/change-password",
+      "expectedStatus": 400,
+      "actualStatus": 400,
+      "expectedCode": "VALIDATION_ERROR",
+      "actualCode": "VALIDATION_ERROR",
+      "traceId": "a47328bf-9218-4349-9310-ef8e2cd17c97",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "ID-065",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/change-password",
+      "expectedStatus": 400,
+      "actualStatus": 400,
+      "expectedCode": "VALIDATION_ERROR",
+      "actualCode": "VALIDATION_ERROR",
+      "traceId": "01cf8e9c-3484-4cca-b863-529bf218e57c",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "ID-066",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/change-password",
+      "expectedStatus": 400,
+      "actualStatus": 400,
+      "expectedCode": "VALIDATION_ERROR",
+      "actualCode": "VALIDATION_ERROR",
+      "traceId": "0a6109f7-67c6-48da-9e20-5d1aa2e61d3d",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "ID-070",
+      "result": "BLOCKED",
+      "method": "GET",
+      "path": "/branches",
+      "expectedStatus": 200,
+      "actualStatus": 404,
+      "expectedCode": null,
+      "actualCode": "NOT_FOUND",
+      "traceId": "e83910c5-fbcb-4875-b46c-6c5524781ef1",
+      "assertions": {
+        "status": false
+      },
+      "relatedIssue": 335,
+      "reason": "Required endpoint not implemented on tested commit"
+    },
+    {
+      "id": "ID-071",
+      "result": "BLOCKED",
+      "method": "GET",
+      "path": "/branches",
+      "expectedStatus": 200,
+      "actualStatus": 404,
+      "expectedCode": null,
+      "actualCode": "NOT_FOUND",
+      "traceId": "3c5e366a-cd57-42f8-9597-6f25384223da",
+      "assertions": {
+        "status": false
+      },
+      "relatedIssue": 335,
+      "reason": "Required endpoint not implemented on tested commit"
+    },
+    {
+      "id": "ID-072",
+      "result": "BLOCKED",
+      "method": "GET",
+      "path": "/branches?active=false",
+      "expectedStatus": 200,
+      "actualStatus": 404,
+      "expectedCode": null,
+      "actualCode": "NOT_FOUND",
+      "traceId": "cf965a76-54db-4ac3-aae3-4157c8777862",
+      "assertions": {
+        "status": false
+      },
+      "relatedIssue": 335,
+      "reason": "Required endpoint not implemented on tested commit"
+    },
+    {
+      "id": "ID-080",
+      "result": "PASS"
+    },
+    {
+      "id": "ID-081",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-01",
+      "result": "PASS",
+      "actualStatus": 200,
+      "jwtLifetimeSeconds": 900
+    },
+    {
+      "id": "TC-AUTH01-02",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-03",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "expectedCode": "INVALID_CREDENTIALS",
+      "actualCode": "INVALID_CREDENTIALS",
+      "traceId": "e2ae1680-afbf-49e8-b18e-5474cb971175",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true,
+        "remainingAttempts": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-04",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "expectedCode": "ACCOUNT_LOCKED",
+      "actualCode": "ACCOUNT_LOCKED",
+      "traceId": "a42aa71d-6421-4bec-a51c-69fb21a632d7",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true,
+        "lockedUntil": true,
+        "databaseLocked": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-05",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 200,
+      "actualStatus": 200,
+      "expectedCode": null,
+      "actualCode": null,
+      "traceId": null,
+      "assertions": {
+        "status": true,
+        "counterReset": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-06",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "expectedCode": "ACCOUNT_LOCKED",
+      "actualCode": "ACCOUNT_LOCKED",
+      "traceId": "000a4bff-08ed-475d-9857-6c9a0255a5df",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-07",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "expectedCode": "INVALID_CREDENTIALS",
+      "actualCode": "INVALID_CREDENTIALS",
+      "traceId": "129a4e47-4ec2-4f26-a333-4b0ceebacbf8",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true,
+        "sameMessage": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-08",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "expectedCode": "INVALID_CREDENTIALS",
+      "actualCode": "INVALID_CREDENTIALS",
+      "traceId": "d97a4656-662f-4eaf-b457-1fcf5d89326d",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-09",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 400,
+      "actualStatus": 400,
+      "expectedCode": "VALIDATION_ERROR",
+      "actualCode": "VALIDATION_ERROR",
+      "traceId": "48f95611-49ba-4c79-baa2-091125fe8e66",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true,
+        "field": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-10",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 400,
+      "actualStatus": 400,
+      "expectedCode": "VALIDATION_ERROR",
+      "actualCode": "VALIDATION_ERROR",
+      "traceId": "c9b80715-e0b9-4bee-a56d-8e52d976bb26",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-11",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/refresh",
+      "expectedStatus": 200,
+      "actualStatus": 200,
+      "expectedCode": null,
+      "actualCode": null,
+      "traceId": null,
+      "assertions": {
+        "status": true,
+        "rotated": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-12",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/refresh",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "expectedCode": "INVALID_REFRESH_TOKEN",
+      "actualCode": "INVALID_REFRESH_TOKEN",
+      "traceId": "21c29b73-3ce5-4950-b4cf-6a2d292576b0",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-13",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/refresh",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "expectedCode": "INVALID_REFRESH_TOKEN",
+      "actualCode": "INVALID_REFRESH_TOKEN",
+      "traceId": "ca77f5a0-e74c-492e-9c6d-7e9d2de7ae62",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-14",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/refresh",
+      "expectedStatus": 400,
+      "actualStatus": 400,
+      "expectedCode": "VALIDATION_ERROR",
+      "actualCode": "VALIDATION_ERROR",
+      "traceId": "55e09b52-4c02-4052-ac6f-bd98696e3a76",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-15",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/refresh",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "expectedCode": "INVALID_REFRESH_TOKEN",
+      "actualCode": "INVALID_REFRESH_TOKEN",
+      "traceId": "0ace16b2-8c68-414e-b516-362fcdd5b152",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      },
+      "methodology": "Simulated 7-day expiry via past Redis session score; no clock wait"
+    },
+    {
+      "id": "TC-AUTH01-20",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/logout",
+      "expectedStatus": 204,
+      "actualStatus": 204,
+      "expectedCode": null,
+      "actualCode": null,
+      "traceId": null,
+      "assertions": {
+        "status": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-21",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/refresh",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "expectedCode": "INVALID_REFRESH_TOKEN",
+      "actualCode": "INVALID_REFRESH_TOKEN",
+      "traceId": "fcefc60a-0337-4c54-8a0b-6a91f87d8cf7",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-22",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/logout",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "traceId": "fcd7b9cc-d2e5-4fa5-8fb0-f278f2deec5f",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      },
+      "methodology": "Correctly signed expired JWT using ephemeral QA test key"
+    },
+    {
+      "id": "TC-AUTH01-30",
+      "result": "PASS",
+      "method": "GET",
+      "path": "/auth/me",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "traceId": "a00403dc-4b5c-427e-9904-71c7a25bd885",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-31",
+      "result": "PASS",
+      "method": "GET",
+      "path": "/auth/me",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "traceId": "a409518e-b057-4080-b0d2-0b1fed2bcfb3",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      },
+      "methodology": "Correctly signed expired JWT using ephemeral QA test key"
+    },
+    {
+      "id": "TC-AUTH01-32",
+      "result": "PASS",
+      "method": "GET",
+      "path": "/auth/me",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "traceId": "9765918d-98bd-4fa4-b47a-afa854c717f4",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-33",
+      "result": "PASS",
+      "method": "GET",
+      "path": "/auth/me",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "traceId": "8cf6fb54-aba2-43cd-a4b0-bf8c0e0e296f",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-34",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/auth/refresh",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "expectedCode": "INVALID_REFRESH_TOKEN",
+      "actualCode": "INVALID_REFRESH_TOKEN",
+      "traceId": "871232cc-ea4e-4266-9d39-746c2bfff4dd",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-35",
+      "result": "PASS",
+      "method": "GET",
+      "path": "/auth/me",
+      "expectedStatus": 401,
+      "actualStatus": 401,
+      "expectedCode": "UNAUTHORIZED",
+      "actualCode": "UNAUTHORIZED",
+      "traceId": "70a394a9-437b-405e-b432-2d8f8b25544d",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true,
+        "fields": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-40",
+      "result": "PASS",
+      "method": "GET",
+      "path": "/auth/me",
+      "expectedStatus": 200,
+      "actualStatus": 200,
+      "expectedCode": null,
+      "actualCode": null,
+      "traceId": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      }
+    },
+    {
+      "id": "TC-AUTH01-41",
+      "result": "PASS",
+      "method": "GET",
+      "path": "/auth/me",
+      "expectedStatus": 200,
+      "actualStatus": 200,
+      "expectedCode": null,
+      "actualCode": null,
+      "traceId": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      }
+    },
+    {
+      "id": "TC-AUTH02-01",
+      "result": "BLOCKED",
+      "method": "GET",
+      "path": "/orders?branchId=2",
+      "expectedStatus": 403,
+      "actualStatus": 404,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualCode": "NOT_FOUND",
+      "traceId": "b406353a-5f5b-4f4d-ac7d-cc69f4c660c2",
+      "assertions": {
+        "status": false,
+        "code": false,
+        "safeError": true
+      },
+      "relatedIssue": 333,
+      "reason": "Required endpoint not implemented on tested commit"
+    },
+    {
+      "id": "TC-AUTH02-02",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/orders/pos",
+      "expectedStatus": 403,
+      "actualStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "d4c3753c-e0b0-4802-9cbf-8b74f7b820c1",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "TC-AUTH02-03",
+      "result": "PASS",
+      "method": "GET",
+      "path": "/inventory/2/1",
+      "expectedStatus": 403,
+      "actualStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "00e3e70f-b8c8-418d-b4f2-f0b0a55aecc3",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "TC-AUTH02-04",
+      "result": "PASS",
+      "method": "GET",
+      "path": "/stock-documents?branchId=2",
+      "expectedStatus": 403,
+      "actualStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "32446569-bf5f-4dee-9cbe-e7b20babcc1d",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "TC-AUTH02-05",
+      "result": "PASS",
+      "method": "GET",
+      "path": "/inventory?branchId=2",
+      "expectedStatus": 403,
+      "actualStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "3f6ed7fc-6eae-4562-9d5c-c0d85378ea2b",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "TC-AUTH02-06",
+      "result": "BLOCKED",
+      "method": "GET",
+      "path": "/orders?branchId=1",
+      "expectedStatus": 200,
+      "actualStatus": 404,
+      "expectedCode": null,
+      "actualCode": "NOT_FOUND",
+      "traceId": "1fff50d4-b30a-42bf-85e6-d33444290aa6",
+      "assertions": {
+        "status": false
+      },
+      "relatedIssue": 333,
+      "reason": "Required endpoint not implemented on tested commit"
+    },
+    {
+      "id": "TC-AUTH02-07",
+      "result": "BLOCKED",
+      "method": "GET",
+      "path": "/orders?branchId=2",
+      "expectedStatus": 200,
+      "actualStatus": 404,
+      "expectedCode": null,
+      "actualCode": "NOT_FOUND",
+      "traceId": "20884a06-756e-4ced-8e22-81a074a66382",
+      "assertions": {
+        "status": false
+      },
+      "relatedIssue": 333,
+      "reason": "Required endpoint not implemented on tested commit"
+    },
+    {
+      "id": "TC-AUTH02-08",
+      "result": "PASS",
+      "method": "GET",
+      "path": "/inventory?branchId=3",
+      "expectedStatus": 200,
+      "actualStatus": 200,
+      "expectedCode": null,
+      "actualCode": null,
+      "traceId": null,
+      "assertions": {
+        "status": true
+      }
+    },
+    {
+      "id": "TC-AUTH02-10",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/products",
+      "expectedStatus": 403,
+      "actualStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualCode": "FORBIDDEN",
+      "traceId": "28ce0aad-a63a-486a-b302-ada33ea8caa1",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "TC-AUTH02-11",
+      "result": "PASS",
+      "method": "PUT",
+      "path": "/products/1",
+      "expectedStatus": 403,
+      "actualStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualCode": "FORBIDDEN",
+      "traceId": "aca66a9f-e689-4795-b9ae-5803179de63f",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "TC-AUTH02-12",
+      "result": "PASS",
+      "method": "GET",
+      "path": "/inventory/transactions?branchId=1",
+      "expectedStatus": 403,
+      "actualStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualCode": "FORBIDDEN",
+      "traceId": "5d64b851-b006-4653-b903-428a74661dde",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "TC-AUTH02-13",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/stock-documents/4/approve",
+      "expectedStatus": 403,
+      "actualStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualCode": "FORBIDDEN",
+      "traceId": "da0e6271-fe72-49e1-a696-550740cbf312",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true
+      }
+    },
+    {
+      "id": "TC-AUTH02-14",
+      "result": "PASS",
+      "method": "POST",
+      "path": "/products",
+      "expectedStatus": 201,
+      "actualStatus": 201,
+      "expectedCode": null,
+      "actualCode": null,
+      "traceId": null,
+      "assertions": {
+        "status": true
+      }
+    },
+    {
+      "id": "TC-AUTH02-15",
+      "result": "PASS",
+      "method": "GET",
+      "path": "/inventory/transactions?branchId=1",
+      "expectedStatus": 200,
+      "actualStatus": 200,
+      "expectedCode": null,
+      "actualCode": null,
+      "traceId": null,
+      "assertions": {
+        "status": true
+      }
+    },
+    {
+      "id": "TC-AUTH02-20",
+      "result": "BLOCKED",
+      "method": "GET",
+      "path": "/orders",
+      "expectedStatus": 200,
+      "actualStatus": 404,
+      "expectedCode": null,
+      "actualCode": "NOT_FOUND",
+      "traceId": "fbf93f1b-3903-4e19-bb4c-0fe9cfb8d009",
+      "assertions": {
+        "status": false
+      },
+      "relatedIssue": 333,
+      "reason": "Required endpoint not implemented on tested commit"
+    },
+    {
+      "id": "TC-AUTH02-21",
+      "result": "PASS",
+      "actualStatus": 200,
+      "seenBranchIds": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "TC-AUTH02-22",
+      "result": "BLOCKED",
+      "method": "GET",
+      "path": "/orders",
+      "expectedStatus": 200,
+      "actualStatus": 404,
+      "expectedCode": null,
+      "actualCode": "NOT_FOUND",
+      "traceId": "18dfbbd7-f51e-4dd7-aa99-1d19d9af189c",
+      "assertions": {
+        "status": false
+      },
+      "relatedIssue": 333,
+      "reason": "Required endpoint not implemented on tested commit"
+    },
+    {
+      "id": "TC-AUTH02-30",
+      "result": "PASS",
+      "method": "GET",
+      "path": "/products/1",
+      "expectedStatus": 200,
+      "actualStatus": 200,
+      "expectedCode": null,
+      "actualCode": null,
+      "traceId": null,
+      "assertions": {
+        "status": true,
+        "costPrice": true
+      }
+    },
+    {
+      "id": "TC-AUTH02-31",
+      "result": "PASS",
+      "method": "GET",
+      "path": "/products/1",
+      "expectedStatus": 200,
+      "actualStatus": 200,
+      "expectedCode": null,
+      "actualCode": null,
+      "traceId": null,
+      "assertions": {
+        "status": true,
+        "costPrice": true
+      }
+    },
+    {
+      "id": "TC-AUTH02-32",
+      "result": "PASS",
+      "method": "GET",
+      "path": "/products/1",
+      "expectedStatus": 200,
+      "actualStatus": 200,
+      "expectedCode": null,
+      "actualCode": null,
+      "traceId": null,
+      "assertions": {
+        "status": true,
+        "costPrice": true
+      }
+    },
+    {
+      "id": "TC-AUTH02-33",
+      "result": "PASS",
+      "method": "GET",
+      "path": "/products/1",
+      "expectedStatus": 200,
+      "actualStatus": 200,
+      "expectedCode": null,
+      "actualCode": null,
+      "traceId": null,
+      "assertions": {
+        "status": true,
+        "costPrice": true
+      }
+    },
+    {
+      "id": "TC-AUTH02-40",
+      "result": "BLOCKED",
+      "method": "GET",
+      "path": "/orders?branchId=2",
+      "expectedStatus": 403,
+      "actualStatus": 404,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualCode": "NOT_FOUND",
+      "traceId": "957d22c2-94da-4ea6-b6b9-15c6155bc14e",
+      "assertions": {
+        "status": false,
+        "code": false,
+        "safeError": true
+      },
+      "relatedIssue": 333,
+      "reason": "Required endpoint not implemented on tested commit",
+      "newAuditRows": 0,
+      "decision": "Q-27 confirmed in issue310 comment6854060178; exact endpoint blocked by #333"
+    },
+    {
+      "id": "TC-AUTH02-41",
+      "result": "PASS",
+      "actualStatus": 403,
+      "newAuditRows": 0,
+      "decision": "Lead issue310 comment6854060178: role FORBIDDEN currently does not write audit; separate future issue if needed"
+    }
+  ]
+}

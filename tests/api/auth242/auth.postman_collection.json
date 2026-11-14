@@ -1,0 +1,422 @@
+{
+  "info": {
+    "name": "GreenMart AUTH RBAC core #242",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Core real API auth/RBAC checks; full 65-case evidence comes from check_api.py. No database mutation, reset, or raw token artifacts."
+  },
+  "item": [
+    {
+      "name": "TC-AUTH01-30 missing token",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/me"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('TC-AUTH01-30 missing token: HTTP 401',()=>pm.response.to.have.status(401));",
+              "pm.test('TC-AUTH01-30 missing token: error envelope',()=>{const d=pm.response.json();pm.expect(d.code).to.eql('UNAUTHORIZED');pm.expect(d.traceId).to.be.a('string').and.not.empty;pm.expect(d).not.to.have.property('stackTrace');});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "TC-AUTH01-01 login cashier",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"username\": \"thungan.gm001\", \"password\": \"{{demoPassword}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('TC-AUTH01-01 login cashier: HTTP 200',()=>pm.response.to.have.status(200));",
+              "if(pm.response.code===200){const d=pm.response.json();pm.collectionVariables.set('cashierAccess',d.accessToken);pm.collectionVariables.set('oldRefresh',d.refreshToken);pm.test('TokenResponse and no password fields',()=>{pm.expect(d.tokenType).to.eql('Bearer');pm.expect(d.expiresIn).to.eql(900);pm.expect(d.user.role).to.eql('CASHIER');pm.expect(JSON.stringify(d)).not.to.match(/passwordHash|password_hash|\"password\"/);});}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "TC-AUTH01-40 me branch scope",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{cashierAccess}}"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/me"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('TC-AUTH01-40 me branch scope: HTTP 200',()=>pm.response.to.have.status(200));",
+              "pm.test('CASHIER GM001 only',()=>{const d=pm.response.json();pm.expect(d.role).to.eql('CASHIER');pm.expect(d.branches.map(b=>b.id)).to.eql([1]);});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "TC-AUTH01-11 rotate refresh",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/refresh",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\": \"{{oldRefresh}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('TC-AUTH01-11 rotate refresh: HTTP 200',()=>pm.response.to.have.status(200));",
+              "if(pm.response.code===200){const d=pm.response.json();pm.test('Refresh rotated',()=>pm.expect(d.refreshToken).not.to.eql(pm.collectionVariables.get('oldRefresh')));pm.collectionVariables.set('cashierAccess',d.accessToken);pm.collectionVariables.set('cashierRefresh',d.refreshToken);}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "TC-AUTH01-12 replay denied",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/refresh",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\": \"{{oldRefresh}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('TC-AUTH01-12 replay denied: HTTP 401',()=>pm.response.to.have.status(401));",
+              "pm.test('TC-AUTH01-12 replay denied: error envelope',()=>{const d=pm.response.json();pm.expect(d.code).to.eql('INVALID_REFRESH_TOKEN');pm.expect(d.traceId).to.be.a('string').and.not.empty;pm.expect(d).not.to.have.property('stackTrace');});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "TC-AUTH02-05 branch denied",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{cashierAccess}}"
+          }
+        ],
+        "url": "{{baseUrl}}/inventory?branchId=2"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('TC-AUTH02-05 branch denied: HTTP 403',()=>pm.response.to.have.status(403));",
+              "pm.test('TC-AUTH02-05 branch denied: error envelope',()=>{const d=pm.response.json();pm.expect(d.code).to.eql('BRANCH_FORBIDDEN');pm.expect(d.traceId).to.be.a('string').and.not.empty;pm.expect(d).not.to.have.property('stackTrace');});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "TC-AUTH02-12 ledger role denied",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{cashierAccess}}"
+          }
+        ],
+        "url": "{{baseUrl}}/inventory/transactions?branchId=1"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('TC-AUTH02-12 ledger role denied: HTTP 403',()=>pm.response.to.have.status(403));",
+              "pm.test('TC-AUTH02-12 ledger role denied: error envelope',()=>{const d=pm.response.json();pm.expect(d.code).to.eql('FORBIDDEN');pm.expect(d.traceId).to.be.a('string').and.not.empty;pm.expect(d).not.to.have.property('stackTrace');});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "TC-AUTH02-10 product creation denied",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{cashierAccess}}"
+          }
+        ],
+        "url": "{{baseUrl}}/products",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"sku\": \"QA242-DENIED\", \"name\": \"QA242 denied\", \"unit\": \"unit\", \"categoryId\": 1, \"salePrice\": 10000, \"costPrice\": 8000, \"active\": true}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('TC-AUTH02-10 product creation denied: HTTP 403',()=>pm.response.to.have.status(403));",
+              "pm.test('TC-AUTH02-10 product creation denied: error envelope',()=>{const d=pm.response.json();pm.expect(d.code).to.eql('FORBIDDEN');pm.expect(d.traceId).to.be.a('string').and.not.empty;pm.expect(d).not.to.have.property('stackTrace');});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "TC-AUTH01-13 invalid refresh",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/refresh",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\": \"invalid\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('TC-AUTH01-13 invalid refresh: HTTP 401',()=>pm.response.to.have.status(401));",
+              "pm.test('TC-AUTH01-13 invalid refresh: error envelope',()=>{const d=pm.response.json();pm.expect(d.code).to.eql('INVALID_REFRESH_TOKEN');pm.expect(d.traceId).to.be.a('string').and.not.empty;pm.expect(d).not.to.have.property('stackTrace');});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "TC-AUTH01-41 login owner",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"username\": \"owner\", \"password\": \"{{demoPassword}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('TC-AUTH01-41 login owner: HTTP 200',()=>pm.response.to.have.status(200));",
+              "if(pm.response.code===200){const d=pm.response.json();pm.collectionVariables.set('ownerAccess',d.accessToken);pm.collectionVariables.set('ownerRefresh',d.refreshToken);pm.test('OWNER all branches',()=>pm.expect(d.user.branches.map(b=>b.id)).to.have.members([1,2,3]));}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "TC-AUTH02-08 owner other branch",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{ownerAccess}}"
+          }
+        ],
+        "url": "{{baseUrl}}/inventory?branchId=3&size=2"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('TC-AUTH02-08 owner other branch: HTTP 200',()=>pm.response.to.have.status(200));",
+              "pm.test('Inventory belongs to requested branch',()=>{const d=pm.response.json();pm.expect(d.content).not.to.be.empty;d.content.forEach(x=>pm.expect(x.branch.id).to.eql(3));});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "TC-AUTH01-20 cashier logout",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{cashierAccess}}"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/logout",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\": \"{{cashierRefresh}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('TC-AUTH01-20 cashier logout: HTTP 204',()=>pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "TC-AUTH01-21 refresh after logout",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/refresh",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\": \"{{cashierRefresh}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('TC-AUTH01-21 refresh after logout: HTTP 401',()=>pm.response.to.have.status(401));",
+              "pm.test('TC-AUTH01-21 refresh after logout: error envelope',()=>{const d=pm.response.json();pm.expect(d.code).to.eql('INVALID_REFRESH_TOKEN');pm.expect(d.traceId).to.be.a('string').and.not.empty;pm.expect(d).not.to.have.property('stackTrace');});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Owner cleanup logout",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{ownerAccess}}"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/logout",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\": \"{{ownerRefresh}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Owner cleanup logout: HTTP 204',()=>pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": []
+}
