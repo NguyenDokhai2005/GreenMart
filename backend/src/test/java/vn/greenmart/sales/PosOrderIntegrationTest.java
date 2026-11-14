@@ -256,17 +256,19 @@ class PosOrderIntegrationTest {
         assertThat(((Number) invB.get("on_hand")).intValue()).isEqualTo(4);
         assertThat(((Number) invB.get("reserved")).intValue()).isEqualTo(0);
 
-        // Bảng inventory_transaction: 2 dòng SALE, delta âm (INV-06, BR-06)
+        // Bảng inventory_transaction: 2 dòng SALE, delta âm (INV-06, BR-06), ghi đủ người bán created_by (#332)
         var txs = jdbcTemplate.queryForList(
                 "SELECT * FROM inventory_transaction WHERE ref_id = ? AND ref_type = 'ORDER' ORDER BY product_id ASC", orderId);
         assertThat(txs).hasSize(2);
         assertThat(txs.get(0).get("type")).isEqualTo("SALE");
         assertThat(((Number) txs.get(0).get("delta_on_hand")).intValue()).isEqualTo(-2);
         assertThat(((Number) txs.get(0).get("on_hand_after")).intValue()).isEqualTo(8);
+        assertThat(((Number) txs.get(0).get("created_by")).longValue()).isEqualTo(CASHIER_ID);
 
         assertThat(txs.get(1).get("type")).isEqualTo("SALE");
         assertThat(((Number) txs.get(1).get("delta_on_hand")).intValue()).isEqualTo(-1);
         assertThat(((Number) txs.get(1).get("on_hand_after")).intValue()).isEqualTo(4);
+        assertThat(((Number) txs.get(1).get("created_by")).longValue()).isEqualTo(CASHIER_ID);
 
         // Một sự kiện hoàn tất đơn và một sự kiện cho mỗi dòng tồn đã cập nhật (#59).
         var outboxEvents = jdbcTemplate.queryForList(
@@ -302,7 +304,7 @@ class PosOrderIntegrationTest {
         // Dùng AopTestUtils để stubbing trên target object gốc, tránh trigger kiểm tra @Transactional(MANDATORY) của Spring Proxy ngoài transaction
         InventoryService targetInventoryService = AopTestUtils.getTargetObject(inventoryService);
         doThrow(new InsufficientStockException(BRANCH_ID, PRODUCT_B_ID, "SP-B-TEST", 2, 1))
-                .when(targetInventoryService).sellDirect(eq(BRANCH_ID), eq(PRODUCT_B_ID), anyInt(), anyLong());
+                .when(targetInventoryService).sellDirect(eq(BRANCH_ID), eq(PRODUCT_B_ID), anyInt(), anyLong(), any());
 
         PosOrderRequest posRequest = new PosOrderRequest(
                 BRANCH_ID,
