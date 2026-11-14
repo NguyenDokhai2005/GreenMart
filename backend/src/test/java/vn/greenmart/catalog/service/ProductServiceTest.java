@@ -265,6 +265,7 @@ class ProductServiceTest {
         // CASHIER mặc định chỉ có chi nhánh 1L -> gọi chi nhánh 2L phải bị chặn 403 BRANCH_FORBIDDEN
         AppException ex = assertThrows(AppException.class, () -> productService.lookupProduct("8935217400013", 2L));
         assertEquals(ErrorCode.BRANCH_FORBIDDEN.name(), ex.getCode());
+        assertEquals(2L, ex.getDeniedBranchId());
         verifyNoInteractions(inventoryService);
     }
 
@@ -364,4 +365,6 @@ class ProductServiceTest {
         AppException ex = assertThrows(AppException.class, () -> productService.getSaleInfo(999L));
         assertEquals(ErrorCode.NOT_FOUND.name(), ex.getCode());
     }
+
+
 }
