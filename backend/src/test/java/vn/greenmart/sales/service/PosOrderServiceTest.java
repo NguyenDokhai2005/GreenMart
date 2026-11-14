@@ -48,7 +48,7 @@ import static org.mockito.Mockito.*;
 @DisplayName("PosOrderService - Unit Tests")
 class PosOrderServiceTest {
 
-   @Mock private QuoteService quoteService;
+    @Mock private QuoteService quoteService;
     @Mock private ProductService productService;
     @Mock private CustomerService customerService;
     @Mock private InventoryService inventoryService;
@@ -60,6 +60,7 @@ class PosOrderServiceTest {
     @Mock private PaymentRepository paymentRepository;
     @Mock private OutboxService outboxService;
     @Mock private JdbcTemplate jdbcTemplate;
+    @Mock private OrderQueryService orderQueryService;
     @Mock private OnlineOrderService onlineOrderService;
 
     private PosOrderServiceImpl posOrderService;
@@ -73,6 +74,7 @@ class PosOrderServiceTest {
                 quoteService, productService, customerService, inventoryService,
                 branchService, authService, promotionService, paymentService,
                 salesOrderRepository, orderItemRepository, paymentRepository, outboxService, jdbcTemplate,
+                orderQueryService, // <-- Truyền thêm orderQueryService vào đây
                 onlineOrderService
         );
 
