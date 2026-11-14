@@ -30,6 +30,7 @@
     "tests/features/inventory/InventoryPage.test.tsx",
     "tests/features/inventory/inventoryQuery.test.ts",
     "tests/features/inventory/pagination.test.ts",
-    "tests/features/inventory/useDebouncedCallback.test.ts"
+    "tests/features/inventory/useDebouncedCallback.test.ts",
+    "tests/features/catalog/catalog.test.tsx"
   ]
 }
