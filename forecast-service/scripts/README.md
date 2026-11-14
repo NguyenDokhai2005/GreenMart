@@ -277,7 +277,7 @@ Tùy theo môi trường, bạn có thể thực thi từ thư mục gốc của
 
 ### 4.5 Ý nghĩa SHA256SUMS và Database Fingerprint
 - **File SHA256SUMS**: Bảo chứng tính xác định (deterministic) ở tầng tệp văn bản. Cùng một seed ngẫu nhiên sẽ luôn tạo ra 2 file SQL và JSON có mã băm SHA-256 giống hệt nhau:
-  - `seed_data.sql`: `d5c300855ef8ff2757a30ebf8769deab99b84b950539e149a9d7d8a329f83663`
+  - `seed_data.sql`: `beaea9a74a8d2fe9f62ed2413e6f48398ce6da49e166a97523f7e521941bbf5d`
   - `stockout_schedule.json`: `d0226a3d258fa87649db164118a5d600052de8f422e94e5beecb8a3e05d1dc91`
 - **Database Fingerprint**: Bảo chứng tính tái lập (idempotent) ở tầng cơ sở dữ liệu. Sau khi seed 2 lần liên tiếp, mã MD5 trên toàn bộ dữ liệu của từng bảng phải trùng khớp 100%.
 
