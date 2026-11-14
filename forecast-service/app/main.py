@@ -7,7 +7,7 @@ import psycopg
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from app.api.router import create_forecast_router
+from app.api.router import create_forecast_router, register_auth_exception_handler
 
 log = logging.getLogger(__name__)
 
@@ -50,6 +50,7 @@ def database_ready(connection_factory: Callable = connect) -> bool:
 
 def create_app(connection_factory: Callable = connect) -> FastAPI:
     application = FastAPI(title="GreenMart Forecast Service", docs_url=None, redoc_url=None)
+    register_auth_exception_handler(application)
 
     @application.get("/healthz")
     def health():

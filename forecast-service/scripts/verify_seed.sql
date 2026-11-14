@@ -31,11 +31,21 @@ DECLARE
     v_milk_on_hand      INT;
     v_milk_reserved     INT;
     v_milk_rop          INT;
+    v_cp_web_cnt        INT;
+    v_cp_market_cnt     INT;
+    v_cp_total_cnt      INT;
+    v_alert_open_cnt    INT;
+    v_inv_need_alert_cnt INT;
+    v_missing_alert_cnt INT;
+    v_orphan_alert_cnt  INT;
+    v_mismatched_severity_cnt INT;
 
     -- 2. Biến thông tin mềm
     v_cust_cnt          INT;
     v_user_cnt          INT;
     v_promo_cnt         INT;
+    v_alert_out_cnt     INT;
+    v_alert_low_cnt     INT;
     v_return_doc_cnt    INT;
     v_return_item_cnt   INT;
     v_stock_doc_cnt     INT;
@@ -153,18 +163,99 @@ BEGIN
     END IF;
     RAISE NOTICE '[PASS] Mốc neo demo TC-DASH-01: SUA-TH-1L tại GM-001 on_hand = 35, reserved = 0, ROP = 34.';
 
+    -- 9. Kiểm đếm ánh xạ SKU kênh bán cho từng kênh (Issue #307 / #327 - AC-03)
+    SELECT count(*) INTO v_cp_web_cnt
+    FROM channel_product cp JOIN sales_channel c ON c.id = cp.channel_id
+    WHERE c.code = 'WEB';
+
+    IF v_cp_web_cnt <= 0 THEN
+        RAISE EXCEPTION 'THẤT BẠI [TC-AC03-01]: channel_product chưa có ánh xạ cho kênh WEB (số lượng = 0)';
+    END IF;
+
+    SELECT count(*) INTO v_cp_market_cnt
+    FROM channel_product cp JOIN sales_channel c ON c.id = cp.channel_id
+    WHERE c.code = 'MARKET';
+
+    IF v_cp_market_cnt <= 0 THEN
+        RAISE EXCEPTION 'THẤT BẠI [TC-AC03-01]: channel_product chưa có ánh xạ cho kênh MARKET (số lượng = 0)';
+    END IF;
+    RAISE NOTICE '[PASS] Ánh xạ SKU kênh: WEB = % SKU, MARKET = % SKU.',
+        v_cp_web_cnt, v_cp_market_cnt;
+
+    -- 10. Kiểm đếm toàn diện cảnh báo tồn kho (stock_alert) sau seed (Issue #336 / #321)
+    SELECT count(*) INTO v_alert_open_cnt FROM stock_alert WHERE closed_at IS NULL;
+    SELECT count(*) INTO v_inv_need_alert_cnt FROM inventory
+    WHERE on_hand = reserved OR (reorder_point IS NOT NULL AND on_hand - reserved <= reorder_point);
+
+    -- 10.1 Khớp tổng số lượng (TC-ALERT-01)
+    IF v_alert_open_cnt <> v_inv_need_alert_cnt OR v_alert_open_cnt = 0 THEN
+        RAISE EXCEPTION 'THẤT BẠI [TC-ALERT-01]: Số cảnh báo mở trong stock_alert (%) không khớp số dòng inventory cần cảnh báo (%), hoặc bằng 0',
+            v_alert_open_cnt, v_inv_need_alert_cnt;
+    END IF;
+
+    -- 10.2 Không thiếu cảnh báo (TC-ALERT-02 - No Missing Alert)
+    SELECT count(*) INTO v_missing_alert_cnt
+    FROM inventory i
+    WHERE (i.on_hand = i.reserved OR (i.reorder_point IS NOT NULL AND i.on_hand - i.reserved <= i.reorder_point))
+      AND NOT EXISTS (
+          SELECT 1 FROM stock_alert a
+          WHERE a.branch_id = i.branch_id
+            AND a.product_id = i.product_id
+            AND a.closed_at IS NULL
+      );
+
+    IF v_missing_alert_cnt > 0 THEN
+        RAISE EXCEPTION 'THẤT BẠI [TC-ALERT-02]: Có % dòng tồn kho cần cảnh báo nhưng thiếu trong stock_alert', v_missing_alert_cnt;
+    END IF;
+
+    -- 10.3 Không thừa cảnh báo hoặc cảnh báo mồ côi (TC-ALERT-03 - No Orphan / False Alert)
+    SELECT count(*) INTO v_orphan_alert_cnt
+    FROM stock_alert a
+    LEFT JOIN inventory i ON a.branch_id = i.branch_id AND a.product_id = i.product_id
+    WHERE a.closed_at IS NULL
+      AND (
+          i.branch_id IS NULL
+          OR
+          NOT (i.on_hand = i.reserved OR (i.reorder_point IS NOT NULL AND i.on_hand - i.reserved <= i.reorder_point))
+      );
+
+    IF v_orphan_alert_cnt > 0 THEN
+        RAISE EXCEPTION 'THẤT BẠI [TC-ALERT-03]: Có % cảnh báo mở thừa hoặc mồ côi trong stock_alert (thiếu inventory hoặc không thỏa điều kiện cảnh báo)', v_orphan_alert_cnt;
+    END IF;
+
+    -- 10.4 Khớp chính xác mức độ severity (TC-ALERT-04 - Exact Severity Match)
+    SELECT count(*) INTO v_mismatched_severity_cnt
+    FROM stock_alert a
+    JOIN inventory i ON a.branch_id = i.branch_id AND a.product_id = i.product_id
+    WHERE a.closed_at IS NULL
+      AND (
+          (i.on_hand = i.reserved AND a.severity <> 'OUT')
+          OR
+          (i.on_hand > i.reserved AND a.severity <> 'LOW')
+      );
+
+    IF v_mismatched_severity_cnt > 0 THEN
+        RAISE EXCEPTION 'THẤT BẠI [TC-ALERT-04]: Có % cảnh báo có mức độ severity không khớp với trạng thái tồn kho (OUT/LOW)', v_mismatched_severity_cnt;
+    END IF;
+
+    RAISE NOTICE '[PASS] Cảnh báo tồn kho (stock_alert): Có % cảnh báo mở khớp chính xác 100%% với % dòng tồn kho (0 thiếu, 0 thừa, 0 sai severity).',
+        v_alert_open_cnt, v_inv_need_alert_cnt;
+
     -- --------------------------------------------------------------------------
     -- B. CÁC THÔNG TIN MỀM (THỐNG KÊ BỔ SUNG, KHÔNG NÉM NGOẠI LỆ)
     -- --------------------------------------------------------------------------
     SELECT count(*) INTO v_cust_cnt FROM customer;
     SELECT count(*) INTO v_user_cnt FROM app_user;
     SELECT count(*) INTO v_promo_cnt FROM promotion;
+    SELECT count(*) INTO v_cp_total_cnt FROM channel_product;
     SELECT count(*) INTO v_return_doc_cnt FROM return_document;
     SELECT count(*) INTO v_return_item_cnt FROM return_item;
     SELECT count(*) INTO v_stock_doc_cnt FROM stock_document;
     SELECT count(*) INTO v_stock_item_cnt FROM stock_document_item;
     SELECT count(*) INTO v_inv_tx_cnt FROM inventory_transaction;
     SELECT count(*) INTO v_audit_log_cnt FROM audit_log;
+    SELECT count(*) INTO v_alert_out_cnt FROM stock_alert WHERE closed_at IS NULL AND severity = 'OUT';
+    SELECT count(*) INTO v_alert_low_cnt FROM stock_alert WHERE closed_at IS NULL AND severity = 'LOW';
 
     SELECT count(*) INTO v_inv_out_cnt FROM inventory WHERE on_hand - reserved = 0;
     SELECT count(*) INTO v_inv_low_cnt FROM inventory WHERE on_hand - reserved > 0 AND on_hand - reserved <= reorder_point;
@@ -175,6 +266,8 @@ BEGIN
     RAISE NOTICE '- Khách hàng: % bản ghi', v_cust_cnt;
     RAISE NOTICE '- Tài khoản demo: % bản ghi', v_user_cnt;
     RAISE NOTICE '- Chiến dịch khuyến mại: % bản ghi', v_promo_cnt;
+    RAISE NOTICE '- Cảnh báo tồn kho mở (stock_alert): % cảnh báo (% OUT, % LOW)', v_alert_open_cnt, v_alert_out_cnt, v_alert_low_cnt;
+    RAISE NOTICE '- Ánh xạ SKU kênh (channel_product): % bản ghi (% WEB, % MARKET)', v_cp_total_cnt, v_cp_web_cnt, v_cp_market_cnt;
     RAISE NOTICE '- Phiếu đổi trả (return_document): % phiếu (% dòng hàng trả)', v_return_doc_cnt, v_return_item_cnt;
     RAISE NOTICE '- Phiếu nhập kho đầu kỳ (stock_document): % phiếu (% dòng hàng)', v_stock_doc_cnt, v_stock_item_cnt;
     RAISE NOTICE '- Sổ giao dịch kho (inventory_transaction): % giao dịch IMPORT', v_inv_tx_cnt;
