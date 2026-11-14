@@ -14,6 +14,9 @@ import ProductsPage from '../catalog/ProductsPage';
 import CustomersPage from '../catalog/CustomersPage';
 import { OperationsHome, OperationsLayout } from '../../layouts/operations';
 import InventoryPage from '../inventory/InventoryPage';
+import TransferDetailPage from '../transfers/TransferDetailPage';
+import TransferListPage from '../transfers/TransferListPage';
+import { TransferCreatePage, TransferEditPage } from '../transfers/TransferFormPage';
 import {
   ADMIN_ROLES,
   APP_PATHS,
@@ -284,6 +287,10 @@ export function AppRoutes() {
         <Route path="products" element={<ProductsPage />} />
         <Route path="customers" element={<CustomersPage />} />
         <Route path="inventory" element={<InventoryPage />} />
+        <Route path="transfers" element={<TransferListPage />} />
+        <Route path="transfers/new" element={<TransferCreatePage />} />
+        <Route path="transfers/:id" element={<TransferDetailPage />} />
+        <Route path="transfers/:id/edit" element={<TransferEditPage />} />
         <Route path="*" element={<WorkspaceMountPoint title="Chức năng đang phát triển" />} />
       </Route>
       <Route

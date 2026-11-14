@@ -212,51 +212,10 @@
   color: var(--gm-status-cancelled-text);
 }
 
-/* Phân trang */
 .inv-list__foot {
   display: flex;
   justify-content: flex-end;
   padding: var(--gm-space-3) var(--gm-space-6);
-}
-.inv-pager {
-  display: flex;
-  align-items: center;
-  gap: var(--gm-space-2);
-}
-.inv-pager button {
-  display: inline-grid;
-  place-items: center;
-  min-width: 36px;
-  height: 36px;
-  padding: 0 var(--gm-space-2);
-  border: var(--gm-border-width) solid var(--inv-line);
-  border-radius: var(--gm-radius-md);
-  background: var(--gm-color-surface);
-  color: var(--gm-color-text);
-  font: inherit;
-  cursor: pointer;
-}
-.inv-pager button:hover:not(:disabled) {
-  background: var(--gm-table-row-hover);
-}
-.inv-pager button[aria-current='page'] {
-  border-color: var(--gm-color-primary);
-  background: var(--gm-color-primary);
-  color: var(--gm-color-text-inverse);
-  font-weight: 600;
-}
-.inv-pager button:disabled {
-  color: var(--gm-color-text-disabled);
-  cursor: default;
-}
-.inv-pager button:focus-visible {
-  outline: none;
-  box-shadow: var(--gm-focus-ring);
-}
-.inv-pager__gap {
-  min-width: 36px;
-  text-align: center;
-  color: var(--gm-color-text-secondary);
 }
 
 .inv-note {
