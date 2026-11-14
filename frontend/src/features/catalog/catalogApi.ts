@@ -8,7 +8,7 @@ export type CustomerInput = components['schemas']['CustomerRequest'];
 export type ProductQuery = NonNullable<operations['listProducts']['parameters']['query']>;
 export type CustomerQuery = NonNullable<operations['listCustomers']['parameters']['query']>;
 
-// Feature adapters reuse #69 transport, refresh and generated contract types.
+// Dùng lại transport, refresh của #69 và kiểu dữ liệu sinh từ hợp đồng API.
 export const catalogApi = {
   products: (query: ProductQuery, signal: AbortSignal) =>
     request('/products', 'get', { query, signal }),

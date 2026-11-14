@@ -96,7 +96,10 @@ it('OWNER changes demo product price in the real UI, verifies persisted value an
     active: original.active,
   };
   try {
-    await mount('/catalog/products');
+    await mount('/operations/products');
+    await screen.findByRole('heading', { name: 'Bắt đầu ca làm việc' });
+    fireEvent.click(document.querySelector<HTMLButtonElement>('.branch-page__row-select')!);
+    fireEvent.click(document.querySelector<HTMLButtonElement>('.branch-page__actions button')!);
     await screen.findByRole('button', { name: `Sửa ${original.name}` }, { timeout: 10000 });
     fireEvent.click(screen.getByRole('button', { name: `Sửa ${original.name}` }));
     fireEvent.change(screen.getByLabelText(/^Giá bán/), {

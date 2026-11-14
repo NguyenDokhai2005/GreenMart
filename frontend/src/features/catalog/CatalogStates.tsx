@@ -7,7 +7,7 @@ import SessionExpiredPage from '../../pages/SessionExpiredPage';
 export function CatalogFailure({ error, retry }: { error: unknown; retry: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
-  // A failed list is a block failure: filters and the other blocks remain usable.
+  // Lỗi danh sách chỉ ảnh hưởng khối kết quả; bộ lọc và khối khác vẫn dùng được.
   const state = mapErrorToState(error, 'block');
   if (state.kind === 'page') {
     switch (state.page) {
@@ -50,8 +50,8 @@ export default function CatalogStates({
   clear: () => void;
   children: ReactNode;
 }) {
-  // #228 AsyncBlock renders children during the first 300ms. Never pass an empty
-  // Table then: it would announce an empty response before any API has completed.
+  // #228 AsyncBlock render children trong 300 ms đầu. Không đưa bảng rỗng vào lúc này
+  // vì sẽ báo không có kết quả trước khi API hoàn tất.
   return (
     <AsyncBlock
       isLoading={pending}

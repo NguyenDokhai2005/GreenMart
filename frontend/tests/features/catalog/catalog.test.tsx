@@ -64,7 +64,7 @@ function Location() {
     </output>
   );
 }
-async function mount(path = '/catalog/products', role: Role = 'CASHIER') {
+async function mount(path = '/pos/products', role: Role = 'CASHIER') {
   currentSession = makeSession(role);
   sessionStorage.setItem('greenmart.session', JSON.stringify(currentSession));
   await act(async () => {
@@ -103,6 +103,20 @@ afterEach(() => {
 });
 
 describe('catalog #72', () => {
+  it.each(['OWNER', 'BRANCH_MANAGER', 'STOREKEEPER'] as Role[])(
+    'Given %s in Operations, Then the catalog menu opens real product and customer pages',
+    async (role) => {
+      await mount('/operations', role);
+      expect(screen.getByRole('navigation', { name: 'Menu Operations' })).toBeTruthy();
+      fireEvent.click(screen.getByRole('link', { name: 'Sản phẩm' }));
+      expect(await screen.findByText(product.name)).toBeTruthy();
+      expect(screen.getByTestId('location').textContent).toBe('/operations/products');
+      fireEvent.click(screen.getByRole('link', { name: 'Khách hàng' }));
+      expect(await screen.findByText(customer.name)).toBeTruthy();
+      expect(screen.getByTestId('location').textContent).toBe('/operations/customers');
+    },
+  );
+
   it('Given CASHIER POS navigation, Then opens real product and customer pages inside the POS shell', async () => {
     await mount('/pos/products');
     expect(await screen.findByText(product.name)).toBeTruthy();
@@ -122,10 +136,10 @@ describe('catalog #72', () => {
     expect(screen.queryByRole('button', { name: /Sửa|Thêm sản phẩm/ })).toBeNull();
     expect(screen.getByText('150.000 ₫')).toBeTruthy();
   });
-  it.each(['ADMIN', 'BRANCH_MANAGER', 'STOREKEEPER'] as Role[])(
+  it.each(['BRANCH_MANAGER', 'STOREKEEPER'] as Role[])(
     'Given %s, Then product mutation remains hidden',
     async (role) => {
-      await mount('/catalog/products', role);
+      await mount('/operations/products', role);
       await screen.findByText(product.name);
       expect(screen.queryByRole('button', { name: /Sửa|Thêm sản phẩm/ })).toBeNull();
     },
@@ -133,7 +147,7 @@ describe('catalog #72', () => {
   it.each(['Gạo', 'GM001', '8930000000019'])(
     'Given search %s, When entered, Then sends q and resets page',
     async (q) => {
-      await mount('/catalog/products?page=1');
+      await mount('/pos/products?page=1');
       await screen.findByText(product.name);
       fireEvent.change(screen.getByLabelText('Tìm sản phẩm'), { target: { value: q } });
       await waitFor(() =>
@@ -148,7 +162,7 @@ describe('catalog #72', () => {
     },
   );
   it('Given page/filter URL, When refreshed directly, Then preserves valid filters', async () => {
-    await mount('/catalog/products?q=GM001&categoryId=1&active=false&page=1&size=10');
+    await mount('/pos/products?q=GM001&categoryId=1&active=false&page=1&size=10');
     await screen.findByText(product.name);
     const call = fetchMock.mock.calls.find(([url]) => urlOf(url).pathname.endsWith('/products'))!;
     expect(urlOf(call[0]).searchParams.toString()).toBe(
@@ -169,7 +183,7 @@ describe('catalog #72', () => {
     const base = handler;
     handler = (url, init) =>
       url.searchParams.has('q') ? Promise.resolve(json(page([]))) : base(url, init);
-    await mount('/catalog/products?q=no-match');
+    await mount('/pos/products?q=no-match');
     await screen.findByText('Không có kết quả phù hợp');
     fireEvent.click(screen.getByRole('button', { name: 'Xóa bộ lọc' }));
     expect(await screen.findByText(product.name)).toBeTruthy();
@@ -298,7 +312,7 @@ describe('catalog #72', () => {
       if (url.pathname.endsWith('/products')) return Promise.resolve(json(page([updated])));
       return base(url, init);
     };
-    await mount('/catalog/products', 'OWNER');
+    await mount('/operations/products', 'OWNER');
     await screen.findByText(product.name);
     fireEvent.click(screen.getByRole('button', { name: `Sửa ${product.name}` }));
     fireEvent.change(screen.getByLabelText(/^Giá bán/), { target: { value: '170000' } });
@@ -321,7 +335,7 @@ describe('catalog #72', () => {
             ),
           )
         : base(url, init);
-    await mount('/catalog/customers');
+    await mount('/pos/customers');
     await screen.findByText(customer.name);
     fireEvent.click(screen.getByRole('button', { name: /Thêm khách hàng/ }));
     fireEvent.change(screen.getByLabelText(/^Họ và tên/), { target: { value: 'Khách mới' } });
@@ -338,7 +352,7 @@ describe('catalog #72', () => {
             json({ code: 'DUPLICATE_PHONE', message: 'Số điện thoại đã tồn tại' }, 409),
           )
         : base(url, init);
-    await mount('/catalog/customers');
+    await mount('/pos/customers');
     await screen.findByText(customer.name);
     fireEvent.click(screen.getByRole('button', { name: `Sửa ${customer.name}` }));
     fireEvent.click(screen.getByRole('button', { name: /^(Lưu thay đổi|Thêm mới)$/ }));
@@ -348,7 +362,7 @@ describe('catalog #72', () => {
     );
   });
   it('Given CASHIER exact lookup, Then sends phone only after a complete number', async () => {
-    await mount('/catalog/customers?mode=phone');
+    await mount('/pos/customers?mode=phone');
     expect(fetchMock.mock.calls.some(([url]) => urlOf(url).pathname.endsWith('/customers'))).toBe(
       false,
     );
@@ -367,7 +381,7 @@ describe('catalog #72', () => {
     expect(urlOf(call[0]).searchParams.has('q')).toBe(false);
   });
   it('Given invalid phone, Then no POST request; cancelling dirty form asks confirmation', async () => {
-    await mount('/catalog/customers');
+    await mount('/pos/customers');
     await screen.findByText(customer.name);
     fireEvent.click(screen.getByRole('button', { name: /Thêm khách hàng/ }));
     fireEvent.change(screen.getByLabelText(/^Họ và tên/), { target: { value: 'Khách mới' } });
@@ -390,7 +404,7 @@ describe('catalog #72', () => {
             reply = r;
           })
         : base(url, init);
-    await mount('/catalog/customers');
+    await mount('/pos/customers');
     fireEvent.click(screen.getByRole('button', { name: `Sửa ${customer.name}` }));
     fireEvent.click(screen.getByRole('button', { name: /^(Lưu thay đổi|Thêm mới)$/ }));
     const form = document.querySelector('form')!;
@@ -406,16 +420,16 @@ describe('catalog #72', () => {
     expect(screen.queryByText('Đã lưu khách hàng thành công')).toBeNull();
     expect(screen.getByLabelText(/^Họ và tên/)).toBeTruthy();
   });
-  it.each(['ADMIN', 'STOREKEEPER'] as Role[])(
+  it.each(['STOREKEEPER'] as Role[])(
     'Given %s, Then customer write controls are hidden',
     async (role) => {
-      await mount('/catalog/customers', role);
+      await mount('/operations/customers', role);
       await screen.findByText(customer.name);
       expect(screen.queryByRole('button', { name: /Sửa|Thêm khách hàng/ })).toBeNull();
     },
   );
   it('Given unknown catalog URL, Then 404 without business request', async () => {
-    await mount('/catalog/unknown');
+    await mount('/pos/unknown');
     expect(screen.getByText('Không tìm thấy trang')).toBeTruthy();
     expect(fetchMock.mock.calls.every(([url]) => urlOf(url).pathname.endsWith('/auth/me'))).toBe(
       true,
@@ -424,7 +438,7 @@ describe('catalog #72', () => {
   it('Given no session, Then direct catalog URL goes to Login without catalog requests', async () => {
     await act(async () => {
       render(
-        <MemoryRouter initialEntries={['/catalog/products']}>
+        <MemoryRouter initialEntries={['/pos/products']}>
           <Location />
           <AuthProvider>
             <ActiveBranchProvider>
@@ -446,7 +460,7 @@ describe('catalog #72', () => {
         : base(url, init);
     await mount();
     expect(await screen.findByText('Lỗi hệ thống')).toBeTruthy();
-    expect(screen.getByRole('navigation', { name: 'Danh mục' })).toBeTruthy();
+    expect(screen.getByRole('navigation', { name: 'Điều hướng POS' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Đăng xuất' })).toBeTruthy();
     log.mockRestore();
   });
@@ -467,7 +481,7 @@ describe('catalog #72', () => {
         return Promise.resolve(json(page([{ ...customer, name: 'Khách mới' }])));
       return base(url, init);
     };
-    await mount('/catalog/customers');
+    await mount('/pos/customers');
     await screen.findByText(customer.name);
     fireEvent.click(screen.getByRole('button', { name: /Thêm khách hàng/ }));
     fireEvent.change(screen.getByLabelText(/^Họ và tên/), {
@@ -496,7 +510,7 @@ describe('catalog #72', () => {
       }
       return base(url, init);
     };
-    await mount('/catalog/products', 'OWNER');
+    await mount('/operations/products', 'OWNER');
     await screen.findByText(product.name);
     fireEvent.click(screen.getByRole('button', { name: /Thêm sản phẩm/ }));
     for (const [label, value] of [
@@ -514,11 +528,12 @@ describe('catalog #72', () => {
     fireEvent.click(screen.getByRole('button', { name: /^(Lưu thay đổi|Thêm mới)$/ }));
     expect(await screen.findByText('Đã lưu sản phẩm thành công')).toBeTruthy();
   });
-  it('Given known catalog route, Then auth return policy permits it without changing POS/Operations rights', () => {
-    expect(canOpenRoutePath('OWNER', '/catalog/products')).toBe(true);
-    expect(canOpenRoutePath('CASHIER', '/catalog/customers')).toBe(true);
+  it('Given known catalog routes, Then route policy keeps Operations and POS roles separate', () => {
+    expect(canOpenRoutePath('OWNER', '/operations/products')).toBe(true);
+    expect(canOpenRoutePath('CASHIER', '/pos/customers')).toBe(true);
     expect(canOpenRoutePath('OWNER', '/pos')).toBe(false);
     expect(canOpenRoutePath('CASHIER', '/operations')).toBe(false);
+    expect(canOpenRoutePath('OWNER', '/catalog/products')).toBe(false);
   });
   it('Given expired refresh, When signing in again, Then returns to the catalog URL with filters', async () => {
     let expired = true;
@@ -534,7 +549,7 @@ describe('catalog #72', () => {
       }
       return base(url, init);
     };
-    await mount('/catalog/products?q=GM001&page=1#results');
+    await mount('/pos/products?q=GM001&page=1#results');
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/login'));
     fireEvent.change(screen.getByLabelText(/^Tên đăng nhập/), {
       target: { value: 'catalog-test' },
@@ -543,7 +558,7 @@ describe('catalog #72', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Đăng nhập' }));
     await waitFor(() =>
       expect(screen.getByTestId('location').textContent).toBe(
-        '/catalog/products?q=GM001&page=1#results',
+        '/pos/products?q=GM001&page=1#results',
       ),
     );
     expect(await screen.findByText(product.name)).toBeTruthy();
@@ -560,7 +575,7 @@ describe('catalog #72', () => {
         });
       return base(url, init);
     };
-    await mount('/catalog/customers');
+    await mount('/pos/customers');
     await screen.findByText(customer.name);
     fireEvent.click(screen.getByRole('button', { name: `Sửa ${customer.name}` }));
     fireEvent.click(screen.getByRole('button', { name: /^(Lưu thay đổi|Thêm mới)$/ }));

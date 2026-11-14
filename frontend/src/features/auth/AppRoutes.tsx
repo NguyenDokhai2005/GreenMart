@@ -10,11 +10,10 @@ import { useActiveBranch } from './useActiveBranch';
 import { useAuth } from './useAuth';
 import BranchSelectionPage from './BranchSelectionPage';
 import LoginPage from './LoginPage';
-import CatalogWorkspace from '../catalog/CatalogWorkspace';
 import ProductsPage from '../catalog/ProductsPage';
 import CustomersPage from '../catalog/CustomersPage';
-import { CATALOG_ROOT, CATALOG_ROLES } from '../catalog/catalogPolicy';
 import { OperationsHome, OperationsLayout } from '../../layouts/operations';
+import InventoryPage from '../inventory/InventoryPage';
 import {
   ADMIN_ROLES,
   APP_PATHS,
@@ -252,14 +251,6 @@ export function AppRoutes() {
         }
       />
       <Route
-        path={`${CATALOG_ROOT}/*`}
-        element={
-          <AuthBoundary allowedRoles={CATALOG_ROLES}>
-            <CatalogWorkspace />
-          </AuthBoundary>
-        }
-      />
-      <Route
         path={`${APP_PATHS.stockDocuments}/*`}
         element={
           <AuthBoundary allowedRoles={STOCK_DOCUMENT_ROLES}>
@@ -290,6 +281,9 @@ export function AppRoutes() {
         }
       >
         <Route index element={<OperationsHome />} />
+        <Route path="products" element={<ProductsPage />} />
+        <Route path="customers" element={<CustomersPage />} />
+        <Route path="inventory" element={<InventoryPage />} />
         <Route path="*" element={<WorkspaceMountPoint title="Chức năng đang phát triển" />} />
       </Route>
       <Route

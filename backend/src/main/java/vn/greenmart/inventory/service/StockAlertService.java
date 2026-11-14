@@ -6,11 +6,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import vn.greenmart.inventory.dto.StockStatus;
+import vn.greenmart.integration.outbox.OutboxService;
+
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class StockAlertService {
     private final JdbcTemplate jdbc;
+    private final OutboxService outbox;
 
     /** The caller must already hold the lock on the updated inventory row. */
     @Transactional(propagation = Propagation.MANDATORY)
@@ -27,13 +31,24 @@ public class StockAlertService {
                     WHERE branch_id=? AND product_id=? AND closed_at IS NULL
                     """, branchId, productId);
         } else {
-            jdbc.update("""
+            var opened = jdbc.query("""
                     INSERT INTO stock_alert(branch_id, product_id, severity, opened_at)
                     VALUES (?, ?, ?, clock_timestamp())
                     ON CONFLICT (branch_id, product_id) WHERE closed_at IS NULL
-                    DO UPDATE SET severity=EXCLUDED.severity
-                    WHERE stock_alert.severity <> EXCLUDED.severity
-                    """, branchId, productId, status.name());
+                    DO NOTHING
+                    RETURNING id
+                    """, (rs, row) -> rs.getLong("id"), branchId, productId, status.name());
+            if (!opened.isEmpty()) {
+                long alertId = opened.getFirst();
+                outbox.enqueue("stock_alert", Long.toString(alertId), "stock.low",
+                        Map.of("alertId", alertId, "branchId", branchId, "productId", productId,
+                                "severity", status.name()));
+            } else {
+                jdbc.update("""
+                        UPDATE stock_alert SET severity=?
+                        WHERE branch_id=? AND product_id=? AND closed_at IS NULL AND severity<>?
+                        """, status.name(), branchId, productId, status.name());
+            }
         }
     }
 

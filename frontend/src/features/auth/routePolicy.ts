@@ -1,6 +1,5 @@
 import type { Role } from '../../api/client';
 import type { ActiveBranchState } from './ActiveBranchContext';
-import { CATALOG_ROOT, CATALOG_ROLES } from '../catalog/catalogPolicy';
 
 export const APP_PATHS = {
   home: '/',
@@ -54,7 +53,6 @@ export function resolveAuthHomeRedirect(
 }
 
 export function getRolesForPath(pathname: string): readonly Role[] | undefined {
-  if (pathname === CATALOG_ROOT || pathname.startsWith(`${CATALOG_ROOT}/`)) return CATALOG_ROLES;
   if (
     pathname === APP_PATHS.stockDocuments ||
     pathname.startsWith(`${APP_PATHS.stockDocuments}/`)

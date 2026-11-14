@@ -78,7 +78,7 @@ export default function CatalogEditor(props: EditorProps) {
     pending.current = controller;
     setBusy(true);
     setMessage('');
-    // A timed-out write may have reached the server: never replay it automatically.
+    // Lệnh ghi quá hạn có thể đã đến máy chủ; không tự gửi lại.
     timeout.current = setTimeout(() => {
       controller.abort();
       pending.current = null;

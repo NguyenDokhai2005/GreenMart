@@ -212,3 +212,18 @@ Không tự coi implementation đã hoàn tất hoặc đủ điều kiện merg
   Điều này xác nhận API khách hàng không lọc đã hoạt động với backend mới trên dữ liệu demo.
 - Sửa test và ghi chú này hiện mới ở worktree local, chưa commit/push. Cần cập nhật PR
   rồi chờ CI của commit mới trước khi chuyển khỏi Draft.
+
+## Sửa theo review Lead — 14/11/2026
+
+- Lead yêu cầu OWNER, BRANCH_MANAGER và STOREKEEPER mở danh mục qua menu Operations.
+  Đã gắn `ProductsPage` và `CustomersPage` vào `/operations/products` và
+  `/operations/customers` trong `OperationsLayout`; CASHIER tiếp tục dùng POS.
+  Bỏ route và khung `/catalog/*` riêng. Test click menu ba vai trò và quyền sửa
+  sản phẩm/khách hàng đã được cập nhật.
+- Thêm test catalog vào `tsconfig.app.json`, bỏ comment route tạm, thống nhất comment
+  trong feature catalog bằng tiếng Việt.
+- Trên worktree ghép với `origin/develop`: 37/37 test catalog, 251/251 test frontend;
+  typecheck, lint, format, build đều PASS. Thay đổi này chưa commit/push lên PR #264.
+- Sau khi bật Docker và backend healthy, integration lần đầu đạt 10/11: ca OWNER
+  dùng route Operations cần chọn chi nhánh trước khi sửa giá. Đã cập nhật test
+  theo luồng thực tế; chạy lại toàn bộ integration với backend demo: **11/11 PASS**.
