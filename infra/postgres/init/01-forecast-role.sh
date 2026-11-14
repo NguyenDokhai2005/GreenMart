@@ -7,7 +7,5 @@ psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
 CREATE ROLE :"forecast_user" LOGIN PASSWORD :'forecast_password';
 GRANT CONNECT ON DATABASE :"DBNAME" TO :"forecast_user";
 GRANT USAGE ON SCHEMA public TO :"forecast_user";
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO :"forecast_user";
 SQL
-# SV03 migrations must grant INSERT/UPDATE on daily_sales, forecast_run and
-# forecast_result (and required sequence usage) after creating those objects.
+# Flyway migrations grant access to the specific forecast tables and sequences.
