@@ -73,7 +73,7 @@ def prepare():
     data.mkdir(parents=True,exist_ok=False)
     env = os.environ.copy()
     env.update(POSTGRES_DB='greenmart',POSTGRES_USER='greenmart',FORECAST_DB_USER='forecast_ro',RABBITMQ_DEFAULT_USER='greenmart')
-    for key in ['POSTGRES_PASSWORD','FORECAST_DB_PASSWORD','REDIS_PASSWORD','RABBITMQ_DEFAULT_PASS','JWT_SECRET','CHANNEL_WEB_SECRET','CHANNEL_MARKET_SECRET']:
+    for key in ['POSTGRES_PASSWORD','FORECAST_DB_PASSWORD','REDIS_PASSWORD','RABBITMQ_DEFAULT_PASS','JWT_SECRET','CHANNEL_WEB_SECRET','CHANNEL_MARKET_SECRET','FORECAST_INTERNAL_TOKEN']:
         env[key] = secrets.token_hex(32)
     compose = ['docker','compose','-p',PROJECT,'-f',str(ROOT/'docker-compose.yml'),'-f',str(Path(__file__).with_name('compose.qa.yml'))]
     print('Build QA150 backend/seed runtime and obtain pinned k6...',flush=True)

@@ -133,9 +133,9 @@ Mô tả endpoint: **"Mật khẩu mới tối thiểu 8 ký tự, có chữ và
 > TC ghi log khi truy cập sai chi nhánh (BRANCH_FORBIDDEN) đã chuyển sang
 > `rbac-branch-filter-test-cases.md` (TC-AUTH02-40, issue #146).
 >
-> ⚠️ **Câu hỏi mở Q-25..27** (xem `docs/testing/qa-questions-week1.md`):
-> Tên `action` chính xác chưa có trong SRS hay openapi.yaml — cần SV02 xác nhận trước khi chạy test.
-> Giá trị dưới đây là giả định tạm thời. Q-27 (tên action BRANCH_FORBIDDEN) đã chuyển sang TC-AUTH02-40 tại `rbac-branch-filter-test-cases.md`.
+> ⚠️ **Câu hỏi mở Q-25 và Q-26** (xem `docs/testing/qa-questions-week1.md`):
+> Tên `action` cho các ca đăng nhập bên dưới cần SV02 xác nhận trước khi chạy test.
+> Q-27 đã chốt `action = BRANCH_FORBIDDEN` cho TC-AUTH02-40 tại `rbac-branch-filter-test-cases.md`.
 
 | ID | Tiêu đề | Hành động | Kiểm tra DB | Mức độ |
 |---|---|---|---|---|

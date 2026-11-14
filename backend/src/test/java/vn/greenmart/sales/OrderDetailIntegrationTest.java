@@ -211,6 +211,7 @@ class OrderDetailIntegrationTest {
     }
 
     private void cleanTestData() {
+        jdbc.execute("TRUNCATE audit_log");
         jdbc.execute("DELETE FROM outbox_event");
         jdbc.execute("DELETE FROM order_item");
         jdbc.execute("DELETE FROM payment");

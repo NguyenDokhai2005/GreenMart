@@ -16,6 +16,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -67,6 +69,7 @@ class AuthApiTest {
     @Autowired StringRedisTemplate redis;
     @Autowired PasswordEncoder passwords;
     @Autowired MutableClock clock;
+    @Autowired ApplicationContext applicationContext;
     @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
     vn.greenmart.identity.repository.RefreshTokenStore refreshStore;
 
@@ -96,6 +99,31 @@ class AuthApiTest {
     }
     private String access(JsonNode tokens) { return tokens.get("accessToken").asText(); }
     private String refresh(JsonNode tokens) { return tokens.get("refreshToken").asText(); }
+
+    @Test void recordsDeniedBranchWithTokenActorAndSafeRequestMetadata() throws Exception {
+        String authorization = "Bearer " + access(login());
+        var response = mvc.perform(get("/api/v1/inventory?branchId=2&q=private-search")
+                        .header("Authorization", authorization))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"))
+                .andReturn().getResponse();
+        String traceId = json.readTree(response.getContentAsString()).get("traceId").asText();
+
+        mvc.perform(get("/api/v1/inventory/transactions").header("Authorization", authorization))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        var entry = jdbc.queryForMap("""
+                SELECT user_id, entity, entity_id, detail::text AS detail
+                FROM audit_log WHERE action = 'BRANCH_FORBIDDEN'
+                """);
+        assertThat(entry).containsEntry("user_id", 7L).containsEntry("entity", "branch")
+                .containsEntry("entity_id", "2");
+        assertThat(json.readTree((String) entry.get("detail"))).isEqualTo(json.valueToTree(Map.of(
+                "branchId", 2, "method", "GET", "path", "/api/v1/inventory", "traceId", traceId)));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_log WHERE action = 'FORBIDDEN'", Integer.class))
+                .isZero();
+    }
 
     @Test void loginAndMeUseRealSignedTokenAndAssignedBranch() throws Exception {
         var tokens=login();
@@ -186,6 +214,9 @@ class AuthApiTest {
         assertThat(postJson("change-password",Map.of("currentPassword","wrong","newPassword","Updated@456"),422,access(tokens))
                 .get("code").asText()).isEqualTo("WRONG_PASSWORD");
         postJson("refresh",Map.of("refreshToken",refresh(tokens)),200,null);
+    }
+    @Test void applicationDoesNotCreateDefaultSpringSecurityUser() {
+        assertThat(applicationContext.getBeansOfType(InMemoryUserDetailsManager.class)).isEmpty();
     }
     @ParameterizedTest @ValueSource(strings={"short1","onlyletters","12345678"})
     void rejectsWeakNewPassword(String password) throws Exception {

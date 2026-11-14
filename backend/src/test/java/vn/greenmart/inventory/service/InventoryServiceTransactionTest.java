@@ -101,11 +101,15 @@ class InventoryServiceTransactionTest {
     void writesExactlyOneLedgerEntryWithPostUpdateBalances(String operation, String type,
             int qty, int deltaOnHand, int deltaReserved, int onHandAfter, int reservedAfter) {
         insertFixtures(PRODUCT_ID, 10, 4);
+        jdbc.update("""
+                INSERT INTO app_user(id, username, password_hash, full_name, role)
+                VALUES (7100, 'ledger-actor', 'fixture', 'Ledger actor', 'CASHIER')
+                """);
         switch (operation) {
-            case "reserve" -> inventoryService.reserve(BRANCH_ID, PRODUCT_ID, qty, 5001L);
-            case "release" -> inventoryService.release(BRANCH_ID, PRODUCT_ID, qty, 5001L);
-            case "commitSale" -> inventoryService.commitSale(BRANCH_ID, PRODUCT_ID, qty, 5001L);
-            case "sellDirect" -> inventoryService.sellDirect(BRANCH_ID, PRODUCT_ID, qty, 5001L);
+            case "reserve" -> inventoryService.reserve(BRANCH_ID, PRODUCT_ID, qty, 5001L, 7100L);
+            case "release" -> inventoryService.release(BRANCH_ID, PRODUCT_ID, qty, 5001L, 7100L);
+            case "commitSale" -> inventoryService.commitSale(BRANCH_ID, PRODUCT_ID, qty, 5001L, 7100L);
+            case "sellDirect" -> inventoryService.sellDirect(BRANCH_ID, PRODUCT_ID, qty, 5001L, 7100L);
             default -> throw new IllegalArgumentException(operation);
         }
         var entries = jdbc.queryForList("SELECT * FROM inventory_transaction WHERE ref_id=5001");
@@ -113,6 +117,7 @@ class InventoryServiceTransactionTest {
         assertThat(entries.getFirst()).containsEntry("type", type)
                 .containsEntry("branch_id", BRANCH_ID).containsEntry("product_id", PRODUCT_ID)
                 .containsEntry("ref_type", "ORDER").containsEntry("ref_id", 5001L)
+                .containsEntry("created_by", 7100L)
                 .containsEntry("delta_on_hand", deltaOnHand).containsEntry("delta_reserved", deltaReserved)
                 .containsEntry("on_hand_after", onHandAfter).containsEntry("reserved_after", reservedAfter);
         assertThat(entries.getFirst().get("created_at")).isNotNull();

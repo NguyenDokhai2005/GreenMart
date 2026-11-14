@@ -15,6 +15,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import vn.greenmart.catalog.domain.Category;
 import vn.greenmart.catalog.domain.Product;
 import vn.greenmart.catalog.dto.CategoryRequest;
+import vn.greenmart.catalog.dto.ProductLookupResponse;
 import vn.greenmart.catalog.dto.ProductRequest;
 import vn.greenmart.catalog.dto.ProductResponse;
 import vn.greenmart.catalog.repository.CategoryRepository;
@@ -239,5 +240,94 @@ class CatalogDbIntegrationTest {
 
         AppException ex = assertThrows(AppException.class, () -> productService.updateProduct(pId, req));
         assertEquals(ErrorCode.UNAUTHORIZED.name(), ex.getCode());
+    }
+
+    @Test
+    @WithMockUser(username = "2", roles = "CASHIER")
+    void testAC8_LookupProduct_BranchMatrix_AndRoles() {
+        Product p = new Product();
+        p.setSku("LOOKUP-MATRIX");
+        p.setName("Sản phẩm Test Matrix");
+        p.setUnit("cái");
+        p.setCategoryId(catChild.getId());
+        p.setSalePrice(15000L);
+        p.setCostPrice(10000L);
+        productRepository.save(p);
+
+        jdbcTemplate.execute("INSERT INTO branch (id, code, name, is_active) VALUES (1, 'GM-001', 'CN 1', true), (2, 'GM-002', 'CN 2', true) ON CONFLICT (id) DO NOTHING");
+        jdbcTemplate.execute("INSERT INTO app_user (id, username, password_hash, full_name, role, is_active) VALUES (2, 'cashier_1', '$2a$10$abcdefghijklmnopqrstuvwxyz123456', 'Thu ngan 1', 'CASHIER', true) ON CONFLICT (id) DO NOTHING");
+        jdbcTemplate.execute("INSERT INTO user_branch (user_id, branch_id) VALUES (2, 1) ON CONFLICT DO NOTHING");
+
+        // Gọi đúng chi nhánh được gán (CN1) -> 200 OK
+        ProductLookupResponse okRes = productService.lookupProduct("LOOKUP-MATRIX", 1L);
+        assertEquals(1L, okRes.branchId());
+
+        // Gọi chéo chi nhánh (CN2) -> 403 BRANCH_FORBIDDEN
+        AppException ex = assertThrows(AppException.class, () -> productService.lookupProduct("LOOKUP-MATRIX", 2L));
+        assertEquals(ErrorCode.BRANCH_FORBIDDEN.name(), ex.getCode());
+    }
+
+    @Test
+    @WithMockUser(username = "3", roles = "BRANCH_MANAGER")
+    void testAC9_LookupProduct_BranchManagerCrossBranch_ThrowsForbidden() {
+        Product p = new Product();
+        p.setSku("LOOKUP-BM");
+        p.setName("Sản phẩm BM");
+        p.setUnit("cái");
+        p.setCategoryId(catChild.getId());
+        p.setSalePrice(15000L);
+        p.setCostPrice(10000L);
+        productRepository.save(p);
+
+        AppException ex = assertThrows(AppException.class, () -> productService.lookupProduct("LOOKUP-BM", 2L));
+        assertEquals(ErrorCode.BRANCH_FORBIDDEN.name(), ex.getCode());
+    }
+
+    @Test
+    @WithMockUser(username = "4", roles = "STOREKEEPER")
+    void testAC10_LookupProduct_StorekeeperCrossBranch_ThrowsForbidden() {
+        Product p = new Product();
+        p.setSku("LOOKUP-SK");
+        p.setName("Sản phẩm SK");
+        p.setUnit("cái");
+        p.setCategoryId(catChild.getId());
+        p.setSalePrice(15000L);
+        p.setCostPrice(10000L);
+        productRepository.save(p);
+
+        AppException ex = assertThrows(AppException.class, () -> productService.lookupProduct("LOOKUP-SK", 2L));
+        assertEquals(ErrorCode.BRANCH_FORBIDDEN.name(), ex.getCode());
+    }
+
+    @Test
+    @WithMockUser(username = "5", roles = "ADMIN")
+    void testAC11_LookupProduct_AdminAllBranches_Success() {
+        Product p = new Product();
+        p.setSku("LOOKUP-ADMIN");
+        p.setName("Sản phẩm Admin");
+        p.setUnit("cái");
+        p.setCategoryId(catChild.getId());
+        p.setSalePrice(20000L);
+        p.setCostPrice(15000L);
+        productRepository.save(p);
+
+        ProductLookupResponse res = productService.lookupProduct("LOOKUP-ADMIN", 2L);
+        assertEquals(2L, res.branchId());
+    }
+
+    @Test
+    @WithMockUser(username = "1", roles = "OWNER")
+    void testAC12_LookupProduct_OwnerAllBranches_Success() {
+        Product p = new Product();
+        p.setSku("LOOKUP-OWNER");
+        p.setName("Sản phẩm Owner");
+        p.setUnit("cái");
+        p.setCategoryId(catChild.getId());
+        p.setSalePrice(20000L);
+        p.setCostPrice(15000L);
+        productRepository.save(p);
+
+        ProductLookupResponse res = productService.lookupProduct("LOOKUP-OWNER", 2L);
+        assertEquals(2L, res.branchId());
     }
 }

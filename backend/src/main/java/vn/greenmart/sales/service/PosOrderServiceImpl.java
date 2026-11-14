@@ -75,7 +75,7 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
         if (accessibleBranches != null && !accessibleBranches.contains(request.branchId())) {
-            throw new AppException(ErrorCode.BRANCH_FORBIDDEN, "Bạn không có quyền thao tác trên chi nhánh này");
+            throw AppException.branchForbidden(request.branchId(), "Bạn không có quyền thao tác trên chi nhánh này");
         }
 
         // Tính lại Báo giá & Kiểm tra expectedTotal
@@ -239,7 +239,7 @@ public class PosOrderServiceImpl implements PosOrderService {
         // Phân quyền chi nhánh (BR-11, AUTH-02)
         List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
         if (accessibleBranches != null && !accessibleBranches.contains(order.getBranchId())) {
-            throw new AppException(ErrorCode.BRANCH_FORBIDDEN, "Bạn không có quyền thao tác trên chi nhánh này");
+            throw AppException.branchForbidden(order.getBranchId(), "Bạn không có quyền thao tác trên chi nhánh này");
         }
 
         // Lấy danh sách dòng hàng và thanh toán trực tiếp từ DB
