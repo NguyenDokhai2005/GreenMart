@@ -27,4 +27,4 @@ Backend local tại `127.0.0.1:8080` trả HTTP 200 cho đăng nhập tài kho�
 
 - Figma MCP báo hết hạn lượt gọi; đã xem bố cục trong trình duyệt và đối chiếu nội dung với comment duyệt #174, nhưng chưa có so sánh ảnh 1440 px trực tiếp với bản render Figma.
 - #73 dừng ở nút Thanh toán; luồng hoàn tất đơn và hóa đơn thuộc #75/#77, chưa được kiểm tra trong bằng chứng này.
-- Chưa commit, push, mở PR hoặc chạy CI theo quy tắc Git của repo.
+- [PR #371](https://github.com/NguyenDokhai2005/GreenMart/pull/371) đã mở vào `develop`. CI của commit triển khai `549558a` qua 7/7 check, gồm frontend, backend, Docker build, QA POS Newman và Gitleaks; còn chờ review và merge.
