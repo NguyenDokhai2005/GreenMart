@@ -57,7 +57,7 @@ public class OrderController {
         IdempotencyResult result = posIdempotencyService.execute(
                 idempotencyKey,
                 request,
-                () -> posOrderService.createPosOrder(request, idempotencyKey)
+                () -> posOrderService.createPosOrder(request, idempotencyKey, posIdempotencyService.currentRequestHash())
         );
 
         HttpStatus status = result.isCreated() ? HttpStatus.CREATED : HttpStatus.OK;

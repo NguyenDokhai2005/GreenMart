@@ -20,7 +20,6 @@ import vn.greenmart.sales.domain.PaymentMethod;
 import vn.greenmart.sales.domain.PaymentSimulation;
 import vn.greenmart.sales.dto.*;
 import vn.greenmart.sales.repository.SalesOrderRepository;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -53,8 +52,6 @@ class PosIdempotencyServiceTest {
     @Mock
     private PosOrderService posOrderService;
 
-    @Mock private JdbcTemplate jdbcTemplate;
-
     private final ObjectMapper objectMapper = new ObjectMapper()
             .findAndRegisterModules()
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -73,7 +70,7 @@ class PosIdempotencyServiceTest {
 
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         idempotencyService = new PosIdempotencyService(
-        redisTemplate, objectMapper, salesOrderRepository, posOrderService, jdbcTemplate);
+                redisTemplate, objectMapper, salesOrderRepository, posOrderService);
 
         key = UUID.randomUUID().toString();
         defaultRequest = new PosOrderRequest(
@@ -298,4 +295,31 @@ void testExecute_LockExpiredAfter30s_DbUniqueConstraintReturnsExistingOrder() {
     assertThat(result.response().id()).isEqualTo(500L);
 
     }
+
+    @Test
+    @DisplayName("Issue #313 (Review): Gửi lại cùng Idempotency-Key sau 24 giờ -> Ném 409 IDEMPOTENCY_CONFLICT thay vì 500")
+    void testExecute_ReuseKeyAfter24Hours_Throws409Conflict() {
+        String expectedRedisKey = "idempotency:pos:1:" + key;
+        when(valueOperations.setIfAbsent(eq(expectedRedisKey), anyString(), any(Duration.class)))
+                .thenReturn(true);
+
+        vn.greenmart.sales.domain.SalesOrder expiredOrder = new vn.greenmart.sales.domain.SalesOrder();
+        expiredOrder.setId(500L);
+        expiredOrder.setCreatedBy(1L);
+        expiredOrder.setIdempotencyKey(key);
+        expiredOrder.setCreatedAt(Instant.now().minus(Duration.ofHours(25)));
+
+        when(salesOrderRepository.findByCreatedByAndIdempotencyKey(1L, key))
+                .thenReturn(java.util.Optional.of(expiredOrder));
+
+        assertThatThrownBy(() -> idempotencyService.execute(key, defaultRequest, action))
+                .isInstanceOf(AppException.class)
+                .satisfies(ex -> {
+                    AppException appEx = (AppException) ex;
+                    assertThat(appEx.getCode()).isEqualTo(ErrorCode.IDEMPOTENCY_CONFLICT.name());
+                    assertThat(appEx.getMessage()).contains("quá 24 giờ");
+                });
+
+        verify(action, never()).get();
+    }   
 }

@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
@@ -36,14 +35,18 @@ public class PosIdempotencyService {
     private static final String KEY_PREFIX = "idempotency:pos:";
     private static final Duration LOCK_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration TTL_24_HOURS = Duration.ofHours(24);
+    private static final ThreadLocal<String> CURRENT_REQUEST_HASH = new ThreadLocal<>();
+
+    public String currentRequestHash() {
+        return CURRENT_REQUEST_HASH.get();
+    }
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final SalesOrderRepository salesOrderRepository;
     private final PosOrderService posOrderService;
-    private final JdbcTemplate jdbcTemplate;
 
-    public IdempotencyResult execute(
+   public IdempotencyResult execute(
             String idempotencyKey,
             PosOrderRequest request,
             Supplier<OrderResponse> action
@@ -80,9 +83,9 @@ public class PosIdempotencyService {
             }
 
             OrderResponse response;
+            CURRENT_REQUEST_HASH.set(requestHash);
             try {
                 response = action.get();
-                saveRequestHashToDb(response.id(), requestHash);
             } catch (DataIntegrityViolationException dive) {
                 deleteRedisKeySilently(redisKey);
                 Optional<IdempotencyResult> concurrentOrder = findExistingOrderInDb(currentUserId, idempotencyKey, requestHash);
@@ -97,6 +100,8 @@ public class PosIdempotencyService {
                     throw re;
                 }
                 throw new RuntimeException("Lỗi trong quá trình tạo đơn", ex);
+            } finally {
+                CURRENT_REQUEST_HASH.remove();
             }
 
             cacheCompletedSilently(redisKey, requestHash, response);
@@ -159,7 +164,11 @@ public class PosIdempotencyService {
         SalesOrder existingOrder = existingOpt.get();
         if (existingOrder.getCreatedAt() != null
                 && existingOrder.getCreatedAt().isBefore(Instant.now().minus(TTL_24_HOURS))) {
-            return Optional.empty();
+            // Key đã dùng quá 24h: chặn bằng 409 thay vì cho insert tiếp rồi văng 500 unique violation
+            throw new AppException(
+                    ErrorCode.IDEMPOTENCY_CONFLICT,
+                    "Idempotency-Key đã dùng quá 24 giờ, hãy tạo key mới"
+            );
         }
         if (existingOrder.getRequestHash() != null && !requestHash.equals(existingOrder.getRequestHash())) {
             throw new AppException(
@@ -169,17 +178,6 @@ public class PosIdempotencyService {
         }
         OrderResponse orderResponse = posOrderService.getOrder(existingOrder.getId());
         return Optional.of(new IdempotencyResult(false, orderResponse));
-    }
-
-    private void saveRequestHashToDb(Long orderId, String requestHash) {
-        if (orderId == null || requestHash == null) {
-            return;
-        }
-        try {
-            jdbcTemplate.update("UPDATE sales_order SET request_hash = ? WHERE id = ?", requestHash, orderId);
-        } catch (Exception e) {
-            log.warn("Không thể lưu request_hash cho đơn id={}: {}", orderId, e.getMessage());
-        }
     }
 
     private void cacheCompletedSilently(String redisKey, String requestHash, OrderResponse response) {
