@@ -1,0 +1,95 @@
+{
+  "issue": 156,
+  "date": "2026-11-14T18:49:07.688Z",
+  "sourceCommit": "917a36e1fc87739077c93fe79d741d6826806d5c",
+  "project": "greenmart-qa156-20261115-r2",
+  "api": "http://127.0.0.1:18168/api/v1",
+  "ui": "http://127.0.0.1:13168",
+  "status": "failed",
+  "acceptance": "FAILED",
+  "summary": {
+    "passed": 2,
+    "timedOut": 3
+  },
+  "tests": [
+    {
+      "title": "API POS: quote → pay → COMPLETED → detail, stock and idempotency",
+      "status": "passed",
+      "durationMs": 1509,
+      "annotations": [
+        {
+          "type": "qa-evidence",
+          "description": "{\"orderId\":10201,\"productId\":1001,\"total\":62000,\"status\":\"COMPLETED\",\"stock\":{\"onHand\":18,\"reserved\":0},\"saleRows\":1,\"replaySameOrder\":true}"
+        },
+        {
+          "type": "qa-stage",
+          "description": "Docker isolation check: exec"
+        },
+        {
+          "type": "qa-evidence",
+          "description": "{\"httpSteps\":[{\"method\":\"POST\",\"path\":\"/products\",\"expectedStatus\":201,\"actualStatus\":201},{\"method\":\"POST\",\"path\":\"/stock-documents\",\"expectedStatus\":201,\"actualStatus\":201},{\"method\":\"POST\",\"path\":\"/stock-documents/4/approve\",\"expectedStatus\":200,\"actualStatus\":200},{\"method\":\"POST\",\"path\":\"/orders/quote\",\"expectedStatus\":200,\"actualStatus\":200},{\"method\":\"POST\",\"path\":\"/orders/pos\",\"expectedStatus\":201,\"actualStatus\":201},{\"method\":\"POST\",\"path\":\"/orders/pos\",\"expectedStatus\":200,\"actualStatus\":200},{\"method\":\"GET\",\"path\":\"/orders/10201\",\"expectedStatus\":200,\"actualStatus\":200}]}"
+        }
+      ]
+    },
+    {
+      "title": "API online: signed WEB → RESERVED → PAID → CONFIRMED → COMPLETED",
+      "status": "passed",
+      "durationMs": 1851,
+      "annotations": [
+        {
+          "type": "qa-evidence",
+          "description": "{\"orderId\":10202,\"productId\":1002,\"transitions\":[\"RESERVED\",\"CONFIRMED\",\"COMPLETED\"],\"total\":93000,\"stock\":{\"onHand\":17,\"reserved\":0},\"events\":{\"reserved\":1,\"completed\":1},\"saleRows\":1,\"paidReplaySameOrder\":true,\"repeatedCompleteStatus\":409}"
+        },
+        {
+          "type": "qa-stage",
+          "description": "Docker isolation check: exec"
+        },
+        {
+          "type": "qa-evidence",
+          "description": "{\"httpSteps\":[{\"method\":\"POST\",\"path\":\"/products\",\"expectedStatus\":201,\"actualStatus\":201},{\"method\":\"POST\",\"path\":\"/stock-documents\",\"expectedStatus\":201,\"actualStatus\":201},{\"method\":\"POST\",\"path\":\"/stock-documents/5/approve\",\"expectedStatus\":200,\"actualStatus\":200},{\"method\":\"POST\",\"path\":\"/integrations/WEB/orders\",\"expectedStatus\":202,\"actualStatus\":202},{\"method\":\"POST\",\"path\":\"/integrations/WEB/orders/QA156-AEEB9470A871/events\",\"expectedStatus\":200,\"actualStatus\":200},{\"method\":\"POST\",\"path\":\"/integrations/WEB/orders/QA156-AEEB9470A871/events\",\"expectedStatus\":200,\"actualStatus\":200},{\"method\":\"POST\",\"path\":\"/orders/10202/complete\",\"expectedStatus\":200,\"actualStatus\":200},{\"method\":\"GET\",\"path\":\"/orders/10202\",\"expectedStatus\":200,\"actualStatus\":200},{\"method\":\"POST\",\"path\":\"/orders/10202/complete\",\"expectedStatus\":409,\"actualStatus\":409}]}"
+        }
+      ]
+    },
+    {
+      "title": "Browser smoke: real login → POS shell → logout",
+      "status": "timedOut",
+      "durationMs": 60061,
+      "annotations": [
+        {
+          "type": "qa-stage",
+          "description": "Browser login form"
+        }
+      ],
+      "error": "Assertion or prerequisite failed; raw errors withheld to protect credentials"
+    },
+    {
+      "title": "Browser POS business checkout",
+      "status": "timedOut",
+      "durationMs": 60090,
+      "annotations": [
+        {
+          "type": "qa-stage",
+          "description": "Browser login form"
+        }
+      ],
+      "error": "Assertion or prerequisite failed; raw errors withheld to protect credentials"
+    },
+    {
+      "title": "Browser online order through completion",
+      "status": "timedOut",
+      "durationMs": 60040,
+      "annotations": [
+        {
+          "type": "qa-stage",
+          "description": "test started"
+        }
+      ],
+      "error": "Assertion or prerequisite failed; raw errors withheld to protect credentials"
+    }
+  ],
+  "limitations": [
+    "Skipped business UI tests are BLOCKED, never counted as completed POS/online E2E.",
+    "API lifecycle is reported separately from browser business interaction.",
+    "Traces/video/storage state/raw errors/headers/request bodies are not exported."
+  ]
+}

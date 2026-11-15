@@ -8,6 +8,7 @@ from collections import Counter
 from datetime import datetime, timezone
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -17,13 +18,23 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[2]
 PROJECT = os.environ.get('QA152_PROJECT', 'greenmart-qa152-20261113')
+SOURCE = os.environ.get('QA152_SOURCE_COMMIT')
 VERSIONS = {'20261111': (18152, '81ddef8'), '20261112': (18153, '15d136b'),
             '20261113': (18154, '8358978')}
-if PROJECT not in ['greenmart-qa152-' + day for day in VERSIONS]:
-    raise ValueError('Only isolated QA152 projects are allowed')
-PORT, REVISION = VERSIONS[PROJECT[-8:]]
+if SOURCE:
+    if not re.fullmatch(r'[0-9a-f]{40}', SOURCE) or not re.fullmatch(r'greenmart-qa152-[a-z0-9-]+', PROJECT):
+        raise ValueError('Explicit source SHA and isolated QA152 project required')
+    PORT, REVISION = int(os.environ['QA152_PORT']), SOURCE[:7]
+    if not 18000 <= PORT < 19000:
+        raise ValueError('QA port must be in the isolated QA range')
+else:
+    if PROJECT not in ['greenmart-qa152-' + day for day in VERSIONS]:
+        raise ValueError('Only isolated QA152 projects are allowed')
+    PORT, REVISION = VERSIONS[PROJECT[-8:]]
 BASE = f'http://127.0.0.1:{PORT}/api/v1'
-OUT = ROOT / f'docs/testing/results/issue-152-{PROJECT[-8:-4]}-{PROJECT[-4:-2]}-{PROJECT[-2:]}.json'
+OUT = Path(os.environ.get('QA152_REPORT', str(ROOT / f'docs/testing/results/issue-152-{PROJECT[-8:-4]}-{PROJECT[-4:-2]}-{PROJECT[-2:]}.json')))
+if OUT.exists():
+    raise ValueError('Evidence exists; choose a new QA152_REPORT, never overwrite history')
 RESULTS, SESSIONS = [], []
 RUNTIME = {}
 PASSWORD = os.environ['GREENMART_DEMO_PASSWORD']
@@ -38,7 +49,7 @@ def sql(query):
         raise RuntimeError('Expected exactly one isolated QA152 postgres')
     p = subprocess.run(['docker', 'exec', '-i', ids[0], 'psql', '-X', '-At',
         '-U', 'greenmart', '-d', 'greenmart', '-v', 'ON_ERROR_STOP=1'],
-        input=query, text=True, capture_output=True, timeout=20)
+        input=query, text=True, encoding='utf-8', capture_output=True, timeout=20)
     if p.returncode:
         raise RuntimeError('Read-only QA152 SQL failed; output withheld')
     return json.loads(p.stdout)
@@ -61,6 +72,7 @@ def http(method, path, session=None, body=None):
 
 def check(username, name, method, path, expected, session=None, body=None,
           code=None, verify=None):
+    audit_before = sql("SELECT to_json(coalesce(max(id),0)) FROM audit_log;") if SOURCE and code == 'BRANCH_FORBIDDEN' else None
     status, data = http(method, path, session, body)
     assertions = {'status': status == expected}
     if code:
@@ -73,6 +85,25 @@ def check(username, name, method, path, expected, session=None, body=None,
             assertions.update(verify(data))
         except (KeyError, TypeError, ValueError):
             assertions['shape'] = False
+    audit = None
+    if audit_before is not None:
+        actor = int(session['user']['id'])
+        trace = data.get('traceId') if isinstance(data, dict) else None
+        if status == 403 and re.fullmatch(r'[a-fA-F0-9-]{36}', trace or ''):
+            clean_path = '/api/v1' + path.split('?')[0]
+            audit = sql(f"""SELECT json_build_object('newRows',count(*),
+                'actorRows',count(*) FILTER (WHERE user_id={actor}),
+                'missingBranchRows',count(*) FILTER (WHERE entity_id IS NULL OR NOT (detail ? 'branchId')),
+                'completeRows',count(*) FILTER (WHERE user_id={actor}
+                  AND action='BRANCH_FORBIDDEN' AND entity='branch'
+                  AND entity_id IN ('1','2','3') AND detail->>'branchId'=entity_id
+                  AND detail->>'method'='{method}' AND detail->>'path'='{clean_path}'
+                  AND detail->>'traceId'='{trace}'
+                  AND detail - ARRAY['branchId','method','path','traceId'] = '{{}}'::jsonb))
+                FROM audit_log WHERE id>{int(audit_before)} AND detail->>'traceId'='{trace}';""")
+            assertions['auditMetadata'] = audit['newRows'] == audit['completeRows'] == 1
+        else:
+            assertions['auditMetadata'] = False
     RESULTS.append({'id': f'RBAC152-{len(RESULTS)+1:03}', 'username': username,
         'name': name, 'method': method, 'path': path, 'expectedStatus': expected,
         'expectedCode': code, 'actualStatus': status,
@@ -81,6 +112,7 @@ def check(username, name, method, path, expected, session=None, body=None,
         'bodyBranchId': body.get('branchId') if isinstance(body, dict) else None,
         'responseEvidence': {key: data[key] for key in ['branchId', 'available'] if key in data}
             if isinstance(data, dict) and '/products/lookup?' in path else None,
+        'auditEvidence': audit,
         'assertions': assertions, 'result': 'PASS' if all(assertions.values()) else 'FAIL'})
     return data
 
@@ -97,6 +129,12 @@ def main():
     if not image.startswith(expected_tag + '|'):
         raise RuntimeError('QA backend image does not match intended baseline')
     RUNTIME.update(imageTag=expected_tag, imageId=image.split('|')[1])
+    if SOURCE:
+        revision = subprocess.check_output(['docker', 'image', 'inspect', image.split('|')[1],
+            '--format', '{{index .Config.Labels "org.opencontainers.image.revision"}}'], text=True, timeout=15).strip()
+        if revision != SOURCE:
+            raise RuntimeError('QA image source revision mismatch')
+        RUNTIME['sourceRevision'] = revision
     accounts = [('admin', 'ADMIN', None), ('owner', 'OWNER', None), ('owner.pho', 'OWNER', None)]
     accounts += [(f'{prefix}.gm00{i}', role, i) for prefix, role in
         [('quanly', 'BRANCH_MANAGER'), ('thungan', 'CASHIER'), ('thukho', 'STOREKEEPER')]
@@ -120,8 +158,8 @@ def main():
     customer = sql("SELECT to_json(customer_id) FROM sales_order WHERE customer_id IS NOT NULL GROUP BY customer_id HAVING count(DISTINCT branch_id)=3 ORDER BY customer_id LIMIT 1;")
     if not customer:
         raise RuntimeError('Need one seeded customer with orders across all branches')
-    # Q-27 leaves the audit action name open. Inspect new rows rather than assume
-    # that an implementation must use a particular DENIED/FORBIDDEN action string.
+    # Legacy probe retained; explicit-source runs additionally verify full metadata
+    # on every branch denial per Lead's Q-27 decision in issue #310.
     audit_before = sql("SELECT to_json(coalesce(max(id),0)) FROM audit_log;")
     check('thungan.gm001', 'Dedicated audit probe: foreign inventory', 'GET',
         '/inventory?branchId=2', 403, sessions['thungan.gm001'], code='BRANCH_FORBIDDEN')
@@ -148,6 +186,7 @@ def main():
             verify=lambda d: {'inTransit': d['status'] == 'IN_TRANSIT'})
     before = snapshot()
     for username, role, assigned in accounts:
+        print('Checking role/branch matrix for ' + username + '...', flush=True)
         session = sessions[username]
         for branch in range(1, 4):
             allowed = assigned is None or assigned == branch
@@ -174,7 +213,7 @@ def main():
                 check(username, 'Report role then branch: ' + endpoint, 'GET',
                     f'/reports/{endpoint}?branchId={branch}&from=2026-10-01&to=2026-10-31',
                     status if report_role else 403, session, code=code if report_role else 'FORBIDDEN')
-            if PROJECT.endswith('20261113') and report_role:
+            if (SOURCE or PROJECT.endswith('20261113')) and report_role:
                 check(username, 'Low-stock alerts branch guard (#61 supplemental)', 'GET',
                     f'/alerts/low-stock?branchId={branch}', status, session, code=code,
                     verify=(lambda d, b=branch: {'list': isinstance(d, list),
@@ -257,12 +296,13 @@ if __name__ == '__main__':
                 blocked = 'Logout cleanup incomplete; session may remain until expiry'
         OUT.parent.mkdir(parents=True, exist_ok=True)
         OUT.write_text(json.dumps({'issue': 152, 'date': datetime.now(timezone.utc).isoformat(),
-            'sourceCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
+            'sourceCommit': SOURCE or subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
             'project': PROJECT, 'base': BASE, 'runtime': RUNTIME, 'summary': dict(Counter(r['result'] for r in RESULTS)),
             'blocked': blocked, 'checks': RESULTS,
             'limitations': ['No browser E2E claim.', 'Role restrictions follow OpenAPI, ADMIN/OWNER only bypass branch restrictions.',
-                'Order list and single inventory route not implemented at baseline; not substituted with fake PASS.',
+                'Order list/branches routes outside this legacy matrix require supplemental checks; never infer PASS.',
                 'Transfers use one product/unit in isolated QA; not all discrepancy/stock failure scenarios.',
-                'Full audit attribution requires separate cases.']}, ensure_ascii=False, indent=2), encoding='utf-8')
+                'Full audit metadata checked on branch denials only for explicit-source runs.',
+                'ADMIN receipt403 follows Lead confirmation on issue259.']}, ensure_ascii=False, indent=2), encoding='utf-8')
         print(json.dumps({'summary': dict(Counter(r['result'] for r in RESULTS)), 'blocked': blocked}))
     sys.exit(1 if blocked or any(r['result'] == 'FAIL' for r in RESULTS) else 0)

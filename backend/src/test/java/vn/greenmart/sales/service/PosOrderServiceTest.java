@@ -60,6 +60,8 @@ class PosOrderServiceTest {
     @Mock private PaymentRepository paymentRepository;
     @Mock private OutboxService outboxService;
     @Mock private JdbcTemplate jdbcTemplate;
+    @Mock private OrderQueryService orderQueryService;
+    @Mock private OnlineOrderService onlineOrderService;
 
     private PosOrderServiceImpl posOrderService;
 
@@ -71,7 +73,9 @@ class PosOrderServiceTest {
         posOrderService = new PosOrderServiceImpl(
                 quoteService, productService, customerService, inventoryService,
                 branchService, authService, promotionService, paymentService,
-                salesOrderRepository, orderItemRepository, paymentRepository, outboxService, jdbcTemplate
+                salesOrderRepository, orderItemRepository, paymentRepository, outboxService, jdbcTemplate,
+                orderQueryService, // <-- Truyền thêm orderQueryService vào đây
+                onlineOrderService
         );
 
         lenient().when(jdbcTemplate.query(anyString(), ArgumentMatchers.<RowMapper<Long>>any(), any()))
