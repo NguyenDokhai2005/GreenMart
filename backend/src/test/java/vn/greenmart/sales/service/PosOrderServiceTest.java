@@ -48,7 +48,7 @@ import static org.mockito.Mockito.*;
 @DisplayName("PosOrderService - Unit Tests")
 class PosOrderServiceTest {
 
-    @Mock private QuoteService quoteService;
+   @Mock private QuoteService quoteService;
     @Mock private ProductService productService;
     @Mock private CustomerService customerService;
     @Mock private InventoryService inventoryService;
@@ -60,6 +60,7 @@ class PosOrderServiceTest {
     @Mock private PaymentRepository paymentRepository;
     @Mock private OutboxService outboxService;
     @Mock private JdbcTemplate jdbcTemplate;
+    @Mock private OnlineOrderService onlineOrderService;
 
     private PosOrderServiceImpl posOrderService;
 
@@ -71,7 +72,8 @@ class PosOrderServiceTest {
         posOrderService = new PosOrderServiceImpl(
                 quoteService, productService, customerService, inventoryService,
                 branchService, authService, promotionService, paymentService,
-                salesOrderRepository, orderItemRepository, paymentRepository, outboxService, jdbcTemplate
+                salesOrderRepository, orderItemRepository, paymentRepository, outboxService, jdbcTemplate,
+                onlineOrderService
         );
 
         lenient().when(jdbcTemplate.query(anyString(), ArgumentMatchers.<RowMapper<Long>>any(), any()))

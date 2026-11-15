@@ -2,11 +2,13 @@
 
 Issue #11. Mục tiêu: một đơn POS đi trọn từ màn hình thu ngân → API → PostgreSQL (đơn, dòng đơn, thanh toán, tồn, sổ kho, outbox) → hóa đơn, trên stack Docker Compose thật.
 
-Ngày rà: 07/11/2026, `develop` tại `64a3b6c`.
+Lần rà 1: 07/11/2026, `develop` tại `64a3b6c`. Lần rà 2: 13/11/2026, `develop` tại `15d136b` (kết quả ở mục "Lần chạy lại 13/11").
 
 ## Kết luận
 
-**Chưa chạy trọn được từ giao diện.** Phần API → CSDL đã có bằng chứng chạy thật; phần giao diện POS và API hóa đơn chưa có. Issue #11 giữ mở và chạy lại khi các mục ở "Chặn" xong.
+**Đoạn API → CSDL → hóa đơn đã chạy trọn trên stack thật** (13/11): Newman 8 request, 15/15 assertion PASS, kể cả bước hóa đơn; dữ liệu trong PostgreSQL khớp; gửi lại cùng `Idempotency-Key` không tạo đơn thứ hai.
+
+**Chưa chạy được từ giao diện**, vì màn POS dùng API thật (#73–#77) chưa có. Issue #11 giữ mở cho đoạn giao diện.
 
 ## Đoạn đã có bằng chứng
 
@@ -20,13 +22,13 @@ Ngày rà: 07/11/2026, `develop` tại `64a3b6c`.
 
 ## Chặn
 
-| # | Chặn | Issue | Phụ trách | Hạn |
+| # | Chặn | Issue | Phụ trách | Trạng thái 13/11 |
 | --- | --- | --- | --- | --- |
-| 1 | Chưa có `GET /orders/{orderId}` nên không hiển thị được hóa đơn sau khi bán | #259 | SV02 | 10/11 |
-| 2 | Chưa có màn POS dùng API thật (layout, giỏ hàng, thanh toán, hóa đơn) | #71, #77 | SV04 | theo issue |
-| 3 | Idempotency-Key chưa chặn bấm Hoàn tất hai lần | #34 (PR #253 đang sửa) | SV02 | theo issue |
-| 4 | Khóa tồn theo `productId` tăng dần chưa có trên `develop` (PR #257 đã đóng, chưa merge) | #57 | SV03 | theo issue |
-| 5 | Job CI `pos-newman` của PR #254 dừng ở bước nạp seed, Newman chưa chạy trên CI; log bị ẩn (`raw output withheld`) nên không xem được nguyên nhân | #149 (PR #254) | SV08 | trước khi merge #254 |
+| 1 | Chưa có `GET /orders/{orderId}` nên không hiển thị được hóa đơn sau khi bán | #259 | SV02 | **Hết chặn**: #289 đã merge, bước 06 PASS |
+| 2 | Chưa có màn POS dùng API thật (giỏ hàng, thanh toán, hóa đơn) | #73–#77 | SV04 | **Còn chặn**: layout #71 đã có, các màn bán chưa bắt đầu |
+| 3 | Idempotency-Key chưa chặn bấm Hoàn tất hai lần | #34 | SV02 | **Hết chặn**: #253 đã merge, chạy lại thấy không tạo đơn thứ hai |
+| 4 | Khóa tồn theo `productId` tăng dần chưa có trên `develop` | #57, #268 | SV03 | **Hết chặn**: #269 và #273 đã merge |
+| 5 | Job CI `pos-newman` của PR #254 chưa chạy được trên CI | #149 (PR #254) | SV08 | **Còn mở**: chạy local PASS (dưới đây), PR #254 cần gộp `develop` để CI chạy lại |
 
 ## Cách chạy lại khi hết chặn
 
@@ -43,3 +45,31 @@ Ngày rà: 07/11/2026, `develop` tại `64a3b6c`.
 6. Màn hóa đơn hiển thị đủ mục ORD-07 và khớp `GET /api/v1/orders/{orderId}`.
 7. Bấm Hoàn tất lần hai với cùng `Idempotency-Key` (giả lập mất mạng): không có đơn thứ hai.
 8. Ghi kết quả, ảnh chụp màn hình và câu truy vấn vào cuối file này, rồi đóng #11.
+
+## Lần chạy lại 13/11
+
+Môi trường: máy Lead, Docker Desktop 29.8.1, `develop` tại `15d136b` (migration tới V12). Dùng bộ QA của PR #254 (`tests/api/pos149`, project Compose riêng `greenmart-qa149`, cổng 18081, dữ liệu dev không bị đụng tới).
+
+```powershell
+npm --prefix tests/api/pos149 ci --ignore-scripts --no-audit --no-fund
+npm --prefix tests/api/pos149 test          # 3/3 kịch bản runner PASS
+python tests/api/pos149/prepare-qa.py --source-root .
+npm --prefix tests/api/pos149 run pos
+python tests/api/pos149/prepare-qa.py --stop
+```
+
+**Newman:** 8 request, 15 assertion, 0 lỗi, exit 0. Bằng chứng: [issue-11-2026-11-13-newman-summary.json](results/issue-11-2026-11-13-newman-summary.json).
+
+**Kiểm tra trong CSDL** sau đơn `POS-GM001-20261113-0001` (1 gạo 180.000 đ + 2 sữa 29.000 đ, khách đưa 250.000 đ):
+
+| Bảng | Kết quả |
+| --- | --- |
+| `sales_order` | `COMPLETED`, subtotal 238.000, giảm 0, total 238.000 |
+| `order_item` | 2 dòng, giá chụp 180.000 và 29.000, thành tiền 180.000 và 58.000 |
+| `payment` | `CASH`, `PAID`, amount 238.000, `cash_received` 250.000, thối 12.000 |
+| `inventory_transaction` | 2 dòng `SALE`: −1 gạo, −2 sữa; tồn còn 9 và 18 |
+| `outbox_event` | 1 `order.completed` + 2 `stock.changed`, cả 3 đã `SENT` |
+
+**Bấm Hoàn tất hai lần (bước 7):** gửi `POST /orders/pos` hai lần cùng `Idempotency-Key`. Lần 1 trả 201 (đơn `POS-GM001-20261113-0002`, 33 ms); lần 2 trả 200 với **cùng id và mã đơn**. Trong CSDL chỉ có 2 đơn của ngày (1 từ Newman, 1 từ lần thử này), không có đơn thứ ba; tồn gạo giảm đúng 1.
+
+**Còn lại để đóng #11:** bước 4 và 6 trên giao diện (bán từ màn thu ngân, đo thời gian theo NFR-12, màn hóa đơn) khi #73–#77 xong.

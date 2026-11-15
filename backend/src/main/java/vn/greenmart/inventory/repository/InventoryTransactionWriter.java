@@ -27,19 +27,19 @@ public class InventoryTransactionWriter {
 
     /**
      * The UPDATE row lock lasts until commit, so these balances belong to this change.
-     * JdbcTemplate shares the JPA transaction's datasource connection. Actor remains
-     * nullable until Identity provides the authenticated user; never invent a user id.
+     * JdbcTemplate shares the JPA transaction's datasource connection.
+     * Actor is nullable for system operations.
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public void appendOrder(Long branchId, Long productId, Type type,
-                            int deltaOnHand, int deltaReserved, Long orderId) {
+                            int deltaOnHand, int deltaReserved, Long orderId, Long actorId) {
         int inserted = jdbc.update("""
                 INSERT INTO inventory_transaction
                     (branch_id, product_id, type, delta_on_hand, on_hand_after,
-                     delta_reserved, reserved_after, ref_type, ref_id)
-                SELECT branch_id, product_id, ?, ?, on_hand, ?, reserved, 'ORDER', ?
+                     delta_reserved, reserved_after, ref_type, ref_id, created_by)
+                SELECT branch_id, product_id, ?, ?, on_hand, ?, reserved, 'ORDER', ?, ?
                 FROM inventory WHERE branch_id = ? AND product_id = ?
-                """, type.name(), deltaOnHand, deltaReserved, orderId, branchId, productId);
+                """, type.name(), deltaOnHand, deltaReserved, orderId, actorId, branchId, productId);
         if (inserted != 1) {
             throw new IllegalStateException("Không tìm thấy tồn kho để ghi sổ giao dịch");
         }

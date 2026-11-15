@@ -1,0 +1,478 @@
+{
+  "issue": 155,
+  "date": "2026-11-14T11:17:05.667872+00:00",
+  "sourceCommit": "c25ae39477f8b2de72b2f022bbfda03c00d28073",
+  "mode": "full",
+  "project": "greenmart-qa155-20261114",
+  "base": "http://127.0.0.1:18165/api/v1",
+  "fixturePrefix": "QA155-8372621F",
+  "runtime": {
+    "imageTag": "greenmart-backend:qa155-c25ae39",
+    "imageId": "sha256:de7ef8e93e3cb34b9b8fb058482cd919fc372f756e3734abda8cee5f288a2b6c",
+    "verifiedRevision": "c25ae39477f8b2de72b2f022bbfda03c00d28073"
+  },
+  "summary": {
+    "PASS": 28,
+    "BLOCKED": 3
+  },
+  "interrupted": null,
+  "checks": [
+    {
+      "id": "SEC155-001",
+      "name": "Login owner",
+      "result": "PASS",
+      "assertions": {
+        "authenticated": true
+      },
+      "evidence": {
+        "status": 200
+      }
+    },
+    {
+      "id": "SEC155-002",
+      "name": "Login thungan.gm001",
+      "result": "PASS",
+      "assertions": {
+        "authenticated": true
+      },
+      "evidence": {
+        "status": 200
+      }
+    },
+    {
+      "id": "SEC155-003",
+      "name": "Create controlled search product",
+      "result": "PASS",
+      "assertions": {
+        "created": true
+      },
+      "evidence": {
+        "status": 201
+      }
+    },
+    {
+      "id": "SEC155-004",
+      "name": "/products baseline is nonempty",
+      "result": "PASS",
+      "assertions": {
+        "http200": true,
+        "nonempty": true
+      },
+      "evidence": {
+        "status": 200
+      }
+    },
+    {
+      "id": "SEC155-005",
+      "name": "Literal product-search positive control",
+      "result": "PASS",
+      "assertions": {
+        "http200": true,
+        "onlyOwnProduct": true
+      },
+      "evidence": null
+    },
+    {
+      "id": "SEC155-006",
+      "name": "/products SQL-like q stays literal: ' OR 1=1 --",
+      "result": "PASS",
+      "assertions": {
+        "http200": true,
+        "noRows": true
+      },
+      "evidence": {
+        "status": 200,
+        "totalElements": 0
+      }
+    },
+    {
+      "id": "SEC155-007",
+      "name": "/products SQL-like q stays literal: ' OR 1=2 --",
+      "result": "PASS",
+      "assertions": {
+        "http200": true,
+        "noRows": true
+      },
+      "evidence": {
+        "status": 200,
+        "totalElements": 0
+      }
+    },
+    {
+      "id": "SEC155-008",
+      "name": "/products SQL-like q stays literal: ' UNION SELECT NULL --",
+      "result": "PASS",
+      "assertions": {
+        "http200": true,
+        "noRows": true
+      },
+      "evidence": {
+        "status": 200,
+        "totalElements": 0
+      }
+    },
+    {
+      "id": "SEC155-009",
+      "name": "/customers baseline is nonempty",
+      "result": "PASS",
+      "assertions": {
+        "http200": true,
+        "nonempty": true
+      },
+      "evidence": {
+        "status": 200
+      }
+    },
+    {
+      "id": "SEC155-010",
+      "name": "/customers SQL-like q stays literal: ' OR 1=1 --",
+      "result": "PASS",
+      "assertions": {
+        "http200": true,
+        "noRows": true
+      },
+      "evidence": {
+        "status": 200,
+        "totalElements": 0
+      }
+    },
+    {
+      "id": "SEC155-011",
+      "name": "/customers SQL-like q stays literal: ' OR 1=2 --",
+      "result": "PASS",
+      "assertions": {
+        "http200": true,
+        "noRows": true
+      },
+      "evidence": {
+        "status": 200,
+        "totalElements": 0
+      }
+    },
+    {
+      "id": "SEC155-012",
+      "name": "/customers SQL-like q stays literal: ' UNION SELECT NULL --",
+      "result": "PASS",
+      "assertions": {
+        "http200": true,
+        "noRows": true
+      },
+      "evidence": {
+        "status": 200,
+        "totalElements": 0
+      }
+    },
+    {
+      "id": "SEC155-013",
+      "name": "Login SQL-like username cannot authenticate",
+      "result": "PASS",
+      "assertions": {
+        "http401": true,
+        "noToken": true
+      },
+      "evidence": {
+        "status": 401
+      }
+    },
+    {
+      "id": "SEC155-014",
+      "name": "Read-only injection probes preserve row counts",
+      "result": "PASS",
+      "assertions": {
+        "unchanged": true
+      },
+      "evidence": {
+        "before": {
+          "products": 1002,
+          "customers": 1500,
+          "users": 12
+        },
+        "after": {
+          "products": 1002,
+          "customers": 1500,
+          "users": 12
+        }
+      }
+    },
+    {
+      "id": "SEC155-015",
+      "name": "Malformed login JSON has no stack trace",
+      "result": "PASS",
+      "assertions": {
+        "errorStatus": true,
+        "envelope": true,
+        "noStackOrSqlInternals": true,
+        "noStackFields": true
+      },
+      "evidence": {
+        "status": 400,
+        "code": "VALIDATION_ERROR",
+        "traceId": "433f8c1c-990d-415d-9827-403171fb3656"
+      }
+    },
+    {
+      "id": "SEC155-016",
+      "name": "Invalid product ID has no stack trace",
+      "result": "PASS",
+      "assertions": {
+        "errorStatus": true,
+        "envelope": true,
+        "noStackOrSqlInternals": true,
+        "noStackFields": true
+      },
+      "evidence": {
+        "status": 400,
+        "code": "VALIDATION_ERROR",
+        "traceId": "040e62a7-2b09-4232-a97f-1c8471d43f07"
+      }
+    },
+    {
+      "id": "SEC155-017",
+      "name": "Missing lookup code has no stack trace",
+      "result": "PASS",
+      "assertions": {
+        "errorStatus": true,
+        "envelope": true,
+        "noStackOrSqlInternals": true,
+        "noStackFields": true
+      },
+      "evidence": {
+        "status": 400,
+        "code": "VALIDATION_ERROR",
+        "traceId": "7c69be2d-adfa-4ce7-97f8-51bf592f2c8a"
+      }
+    },
+    {
+      "id": "SEC155-018",
+      "name": "Invalid quantity has no stack trace",
+      "result": "PASS",
+      "assertions": {
+        "errorStatus": true,
+        "envelope": true,
+        "noStackOrSqlInternals": true,
+        "noStackFields": true
+      },
+      "evidence": {
+        "status": 400,
+        "code": "VALIDATION_ERROR",
+        "traceId": "2e6c78c3-a17b-4eba-a9b7-e460b0a9106e"
+      }
+    },
+    {
+      "id": "SEC155-019",
+      "name": "Null-item error response has no stack trace",
+      "result": "PASS",
+      "assertions": {
+        "errorStatus": true,
+        "envelope": true,
+        "noStackOrSqlInternals": true,
+        "noStackFields": true
+      },
+      "evidence": {
+        "status": 500,
+        "code": "INTERNAL_SERVER_ERROR",
+        "traceId": "4212aec5-be87-4fe4-b63b-aba543278c10"
+      }
+    },
+    {
+      "id": "SEC155-020",
+      "name": "No-token error has no stack trace",
+      "result": "PASS",
+      "assertions": {
+        "errorStatus": true,
+        "envelope": true,
+        "noStackOrSqlInternals": true,
+        "noStackFields": true
+      },
+      "evidence": {
+        "status": 401,
+        "code": "UNAUTHORIZED",
+        "traceId": "2a617170-0615-44fe-be5b-6369030046aa"
+      }
+    },
+    {
+      "id": "SEC155-021",
+      "name": "Untrusted CORS origin is not readable: https://untrusted.qa.invalid",
+      "result": "PASS",
+      "assertions": {
+        "notAllowed": true,
+        "preflightNotAllowed": true
+      },
+      "evidence": {
+        "status": 200,
+        "preflightStatus": 403,
+        "allowOrigin": null
+      }
+    },
+    {
+      "id": "SEC155-022",
+      "name": "Untrusted CORS origin is not readable: null",
+      "result": "PASS",
+      "assertions": {
+        "notAllowed": true,
+        "preflightNotAllowed": true
+      },
+      "evidence": {
+        "status": 200,
+        "preflightStatus": 403,
+        "allowOrigin": null
+      }
+    },
+    {
+      "id": "SEC155-023",
+      "name": "Approved frontend CORS allowlist and positive preflight",
+      "result": "BLOCKED",
+      "reason": "Lead has not approved origins; localhost:3000 candidate also has no ACAO and preflight is denied. Same-origin proxy differs from direct cross-origin API."
+    },
+    {
+      "id": "SEC155-024",
+      "name": "No framework-version headers",
+      "result": "PASS",
+      "assertions": {
+        "noPoweredBy": true,
+        "noVersionedServer": true
+      },
+      "evidence": {
+        "hasPoweredBy": false,
+        "hasServerHeader": false
+      }
+    },
+    {
+      "id": "SEC155-025",
+      "name": "IP rate-limit threshold/window and recovery acceptance",
+      "result": "BLOCKED",
+      "reason": "Lead has not specified threshold/window/cooldown or IP/proxy trust policy. Observed burst is evidence, not proof of policy compliance or no limiter at any threshold."
+    },
+    {
+      "id": "SEC155-026",
+      "name": "Account lockout after five wrong passwords (separate from IP limiter)",
+      "result": "PASS",
+      "assertions": {
+        "all401": true,
+        "firstFourInvalid": true,
+        "fifthLocked": true
+      },
+      "evidence": {
+        "username": "thungan.gm002",
+        "statuses": [
+          401,
+          401,
+          401,
+          401,
+          401
+        ],
+        "codes": [
+          "INVALID_CREDENTIALS",
+          "INVALID_CREDENTIALS",
+          "INVALID_CREDENTIALS",
+          "INVALID_CREDENTIALS",
+          "ACCOUNT_LOCKED"
+        ]
+      }
+    },
+    {
+      "id": "SEC155-027",
+      "name": "Correct password cannot bypass active account lock",
+      "result": "PASS",
+      "assertions": {
+        "http401": true,
+        "locked": true
+      },
+      "evidence": {
+        "status": 401
+      }
+    },
+    {
+      "id": "SEC155-028",
+      "name": "Lock deadline approximately fifteen minutes",
+      "result": "PASS",
+      "assertions": {
+        "fiveFailures": true,
+        "fifteenMinutes": true
+      },
+      "evidence": {
+        "failures": 5,
+        "remainingSeconds": 899.599897
+      }
+    },
+    {
+      "id": "SEC155-029",
+      "name": "Additional application-log secret/correlation checks",
+      "result": "BLOCKED",
+      "reason": "Raw Docker log access is excluded after automatic safety review; API responses are checked without logs. No full log-secret assurance."
+    },
+    {
+      "id": "SEC155-030",
+      "name": "Logout session 1",
+      "result": "PASS",
+      "assertions": {
+        "http204": true
+      },
+      "evidence": {
+        "status": 204
+      }
+    },
+    {
+      "id": "SEC155-031",
+      "name": "Logout session 2",
+      "result": "PASS",
+      "assertions": {
+        "http204": true
+      },
+      "evidence": {
+        "status": 204
+      }
+    }
+  ],
+  "observations": [
+    {
+      "name": "Null-item error response has no stack trace",
+      "status": 500,
+      "code": "INTERNAL_SERVER_ERROR",
+      "classification": "Functional server error; error sanitization assessed separately",
+      "relatedIssue": 316
+    },
+    {
+      "name": "CORS origin observation",
+      "origin": "https://untrusted.qa.invalid",
+      "actualStatus": 200,
+      "allowOrigin": null,
+      "preflightStatus": 403,
+      "preflightAllowOrigin": null
+    },
+    {
+      "name": "CORS origin observation",
+      "origin": "null",
+      "actualStatus": 200,
+      "allowOrigin": null,
+      "preflightStatus": 403,
+      "preflightAllowOrigin": null
+    },
+    {
+      "name": "CORS origin observation",
+      "origin": "http://localhost:3000",
+      "actualStatus": 200,
+      "allowOrigin": null,
+      "preflightStatus": 403,
+      "preflightAllowOrigin": null
+    },
+    {
+      "name": "Bounded single-IP login burst",
+      "requests": 60,
+      "elapsedSeconds": 11.91,
+      "statuses": {
+        "401": 60
+      },
+      "codes": {
+        "INVALID_CREDENTIALS": 60
+      },
+      "ipMethod": "One direct local client; no forged forwarding headers; distinct nonexistent usernames"
+    }
+  ],
+  "limitations": [
+    "User confirms rate threshold/window and CORS allowlist are not approved; do not invent acceptance policy.",
+    "Bounded API probes and source review are not a full penetration test or a browser XSS execution test.",
+    "Dedicated QA demo account remains temporarily locked after lockout probe; no shared account was changed.",
+    "No additional Docker logs read after safety review; no full log-secret/correlation assurance."
+  ]
+}

@@ -50,6 +50,12 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void reserve(Long branchId, Long productId, int qty, Long refId) {
+        reserve(branchId, productId, qty, refId, null);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void reserve(Long branchId, Long productId, int qty, Long refId, Long actorId) {
         validateQty(qty);
         productCost.lockForStockChange(productId);
         int rows = inventoryRepository.reserve(branchId, productId, qty);
@@ -60,7 +66,7 @@ public class InventoryServiceImpl implements InventoryService {
         }
         log.debug("reserve: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
         stockAlerts.reconcileAfterStockUpdate(branchId, productId);
-        transactionWriter.appendOrder(branchId, productId, Type.RESERVE, 0, qty, refId);
+        transactionWriter.appendOrder(branchId, productId, Type.RESERVE, 0, qty, refId, actorId);
         enqueueStockChanged(branchId, productId);
     }
 
@@ -72,6 +78,12 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void release(Long branchId, Long productId, int qty, Long refId) {
+        release(branchId, productId, qty, refId, null);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void release(Long branchId, Long productId, int qty, Long refId, Long actorId) {
         validateQty(qty);
         productCost.lockForStockChange(productId);
         int rows = inventoryRepository.release(branchId, productId, qty);
@@ -83,7 +95,7 @@ public class InventoryServiceImpl implements InventoryService {
         }
         log.debug("release: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
         stockAlerts.reconcileAfterStockUpdate(branchId, productId);
-        transactionWriter.appendOrder(branchId, productId, Type.RELEASE, 0, -qty, refId);
+        transactionWriter.appendOrder(branchId, productId, Type.RELEASE, 0, -qty, refId, actorId);
         enqueueStockChanged(branchId, productId);
     }
 
@@ -95,6 +107,12 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void commitSale(Long branchId, Long productId, int qty, Long refId) {
+        commitSale(branchId, productId, qty, refId, null);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void commitSale(Long branchId, Long productId, int qty, Long refId, Long actorId) {
         validateQty(qty);
         productCost.lockForStockChange(productId);
         int rows = inventoryRepository.commitSale(branchId, productId, qty);
@@ -106,7 +124,7 @@ public class InventoryServiceImpl implements InventoryService {
         }
         log.debug("commitSale: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
         stockAlerts.reconcileAfterStockUpdate(branchId, productId);
-        transactionWriter.appendOrder(branchId, productId, Type.SALE, -qty, -qty, refId);
+        transactionWriter.appendOrder(branchId, productId, Type.SALE, -qty, -qty, refId, actorId);
         enqueueStockChanged(branchId, productId);
     }
 
@@ -118,6 +136,12 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void sellDirect(Long branchId, Long productId, int qty, Long refId) {
+        sellDirect(branchId, productId, qty, refId, null);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void sellDirect(Long branchId, Long productId, int qty, Long refId, Long actorId) {
         validateQty(qty);
         productCost.lockForStockChange(productId);
         int rows = inventoryRepository.sellDirect(branchId, productId, qty);
@@ -126,7 +150,7 @@ public class InventoryServiceImpl implements InventoryService {
         }
         log.debug("sellDirect: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
         stockAlerts.reconcileAfterStockUpdate(branchId, productId);
-        transactionWriter.appendOrder(branchId, productId, Type.SALE, -qty, 0, refId);
+        transactionWriter.appendOrder(branchId, productId, Type.SALE, -qty, 0, refId, actorId);
         enqueueStockChanged(branchId, productId);
     }
 

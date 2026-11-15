@@ -1,15 +1,17 @@
 package vn.greenmart.catalog.service;
 
-import vn.greenmart.catalog.dto.ProductSaleInfo;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -20,6 +22,7 @@ import vn.greenmart.catalog.domain.Product;
 import vn.greenmart.catalog.dto.ProductLookupResponse;
 import vn.greenmart.catalog.dto.ProductRequest;
 import vn.greenmart.catalog.dto.ProductResponse;
+import vn.greenmart.catalog.dto.ProductSaleInfo;
 import vn.greenmart.catalog.repository.CategoryRepository;
 import vn.greenmart.catalog.repository.ProductRepository;
 import vn.greenmart.common.audit.AuditLog;
@@ -33,6 +36,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,12 +54,19 @@ class ProductServiceTest {
     @Mock
     private InventoryService inventoryService;
 
+    @Mock
+    private JdbcTemplate jdbcTemplate;
+
     @InjectMocks
     private ProductServiceImpl productService;
 
     @BeforeEach
     void setUp(TestInfo testInfo) {
         SecurityContextHolder.clearContext();
+        // Mặc định giả lập user thuộc chi nhánh 1L cho các test cũ
+        lenient().when(jdbcTemplate.query(anyString(), ArgumentMatchers.<RowMapper<Long>>any(), any()))
+                .thenReturn(List.of(1L));
+
         testInfo.getTestMethod().ifPresent(method -> {
             WithMockUser withMockUser = method.getAnnotation(WithMockUser.class);
             if (withMockUser != null) {
@@ -246,6 +257,32 @@ class ProductServiceTest {
         assertNotNull(res);
         assertEquals(12, res.available());
         assertEquals("SUA-TH-1L", res.product().sku());
+    }
+
+    @Test
+    @WithMockUser(roles = "CASHIER")
+    void testLookupProduct_CrossBranch_ThrowsBranchForbidden() {
+        // CASHIER mặc định chỉ có chi nhánh 1L -> gọi chi nhánh 2L phải bị chặn 403 BRANCH_FORBIDDEN
+        AppException ex = assertThrows(AppException.class, () -> productService.lookupProduct("8935217400013", 2L));
+        assertEquals(ErrorCode.BRANCH_FORBIDDEN.name(), ex.getCode());
+        verifyNoInteractions(inventoryService);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void testLookupProduct_AdminCrossBranch_Success() {
+        Product p = new Product();
+        p.setId(205L);
+        p.setSku("SUA-TH-1L");
+        p.setCategoryId(1L);
+
+        when(productRepository.findByBarcode("SUA-TH-1L")).thenReturn(Optional.of(p));
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(new Category()));
+        when(inventoryService.getAvailable(2L, 205L)).thenReturn(99);
+
+        ProductLookupResponse res = productService.lookupProduct("SUA-TH-1L", 2L);
+        assertEquals(2L, res.branchId());
+        assertEquals(99, res.available());
     }
 
     @Test

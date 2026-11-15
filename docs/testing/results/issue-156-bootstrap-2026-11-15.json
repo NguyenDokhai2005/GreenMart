@@ -1,0 +1,31 @@
+{
+  "issue": 156,
+  "date": "2026-11-15",
+  "sourceCommit": "917a36e1fc87739077c93fe79d741d6826806d5c",
+  "project": "greenmart-qa156-20261115",
+  "execution": "NOT_RUN",
+  "stage": "frontend Docker build",
+  "outcome": "bootstrap failed before service start/seed/Playwright",
+  "dockerObservation": "Docker Engine HTTP 500 and API timeout",
+  "hostObservation": {
+    "totalVisibleMemoryKiB": 16471556,
+    "freePhysicalMemoryKiB": 627500,
+    "interpretation": "Resource pressure observed; exact Engine failure cause not proved"
+  },
+  "recovery": {
+    "userApprovedDesktopRestart": true,
+    "restartCommandSucceeded": true,
+    "userApprovedOldQaStop": true,
+    "stoppedContainers": 20,
+    "projects": [
+      "greenmart-qa152-20261114",
+      "greenmart-qa153-20261114",
+      "greenmart-qa154-20261114",
+      "greenmart-qa155-20261114",
+      "greenmart-qa156-20261114"
+    ],
+    "volumesDeleted": false,
+    "developmentContainersSelectedForStop": false
+  },
+  "nextProject": "greenmart-qa156-20261115-r2"
+}
