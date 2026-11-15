@@ -1,0 +1,110 @@
+{
+  "sourceCommit": "c25ae39477f8b2de72b2f022bbfda03c00d28073",
+  "project": "greenmart-qa152-20261114",
+  "probes": [
+    {
+      "id": "RBAC152-001",
+      "username": "thungan.gm001",
+      "name": "Independent inventory",
+      "method": "GET",
+      "path": "/inventory?branchId=2",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "49de2c25-8daf-4c44-8781-b6ceb0880c35",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS",
+      "auditFields": {
+        "userId": 7,
+        "action": "BRANCH_FORBIDDEN",
+        "entity": "branch",
+        "entityId": "2",
+        "detailBranchId": 2,
+        "method": "GET",
+        "path": "/api/v1/inventory",
+        "traceIdMatches": true
+      }
+    },
+    {
+      "id": "RBAC152-002",
+      "username": "thungan.gm001",
+      "name": "Independent lookup-SKU",
+      "method": "GET",
+      "path": "/products/lookup?code=COM-SUON-BI-CHA-0001&branchId=2",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "13146bdc-798f-4058-a590-8d442b496c73",
+      "bodyBranchId": null,
+      "responseEvidence": {},
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 1,
+        "completeRows": 0
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": false
+      },
+      "result": "FAIL",
+      "auditFields": {
+        "userId": 7,
+        "action": "BRANCH_FORBIDDEN",
+        "entity": "branch",
+        "entityId": null,
+        "detailBranchId": null,
+        "method": "GET",
+        "path": "/api/v1/products/lookup",
+        "traceIdMatches": true
+      }
+    }
+  ],
+  "availability": [
+    {
+      "path": "/orders?branchId=2",
+      "actualStatus": 404,
+      "result": "BLOCKED",
+      "relatedIssue": 333,
+      "traceId": "c8f28ee7-3470-4a02-9e79-070a72f590c6"
+    },
+    {
+      "path": "/branches",
+      "actualStatus": 404,
+      "result": "BLOCKED",
+      "relatedIssue": 335,
+      "traceId": "c4606c26-b99b-4af4-9332-abeb3eb0ad26"
+    }
+  ],
+  "cleanup": [
+    {
+      "username": "thungan.gm001",
+      "status": 204
+    },
+    {
+      "username": "owner",
+      "status": 204
+    },
+    {
+      "username": "admin",
+      "status": 204
+    }
+  ]
+}

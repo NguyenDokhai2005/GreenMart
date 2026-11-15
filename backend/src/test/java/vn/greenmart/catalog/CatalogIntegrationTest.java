@@ -310,4 +310,17 @@ class CatalogIntegrationTest {
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }
+
+    @Test
+    @WithMockUser(roles = "CASHIER")
+    void testLookupProduct_CrossBranch_Returns403() throws Exception {
+        when(productService.lookupProduct("COM-SUON-BI-CHA-0001", 2L))
+            .thenThrow(new AppException(ErrorCode.BRANCH_FORBIDDEN, "Bạn không có quyền thao tác trên chi nhánh này"));
+
+        mockMvc.perform(get("/api/v1/products/lookup")
+                .param("code", "COM-SUON-BI-CHA-0001")
+                .param("branchId", "2"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
+    }
 }

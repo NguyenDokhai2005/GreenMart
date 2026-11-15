@@ -100,6 +100,31 @@ class AuthApiTest {
     private String access(JsonNode tokens) { return tokens.get("accessToken").asText(); }
     private String refresh(JsonNode tokens) { return tokens.get("refreshToken").asText(); }
 
+    @Test void recordsDeniedBranchWithTokenActorAndSafeRequestMetadata() throws Exception {
+        String authorization = "Bearer " + access(login());
+        var response = mvc.perform(get("/api/v1/inventory?branchId=2&q=private-search")
+                        .header("Authorization", authorization))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"))
+                .andReturn().getResponse();
+        String traceId = json.readTree(response.getContentAsString()).get("traceId").asText();
+
+        mvc.perform(get("/api/v1/inventory/transactions").header("Authorization", authorization))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        var entry = jdbc.queryForMap("""
+                SELECT user_id, entity, entity_id, detail::text AS detail
+                FROM audit_log WHERE action = 'BRANCH_FORBIDDEN'
+                """);
+        assertThat(entry).containsEntry("user_id", 7L).containsEntry("entity", "branch")
+                .containsEntry("entity_id", "2");
+        assertThat(json.readTree((String) entry.get("detail"))).isEqualTo(json.valueToTree(Map.of(
+                "branchId", 2, "method", "GET", "path", "/api/v1/inventory", "traceId", traceId)));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_log WHERE action = 'FORBIDDEN'", Integer.class))
+                .isZero();
+    }
+
     @Test void loginAndMeUseRealSignedTokenAndAssignedBranch() throws Exception {
         var tokens=login();
         assertThat(tokens.get("expiresIn").asInt()).isEqualTo(900);

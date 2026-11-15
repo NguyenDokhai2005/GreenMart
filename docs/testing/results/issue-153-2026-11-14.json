@@ -1,0 +1,964 @@
+{
+  "issue": 153,
+  "date": "2026-11-14T10:44:29.869777+00:00",
+  "sourceCommit": "c25ae39477f8b2de72b2f022bbfda03c00d28073",
+  "project": "greenmart-qa153-20261114",
+  "base": "http://127.0.0.1:18161/api/v1",
+  "runtime": {
+    "imageTag": "greenmart-backend:qa153-c25ae39",
+    "imageId": "sha256:3a89d5fa9bf8e8e217d35944eb0f47f498a56edd552d2b3059abe94420f8b7a4",
+    "verifiedRevision": "c25ae39477f8b2de72b2f022bbfda03c00d28073"
+  },
+  "fixturePrefix": "QA153-46821E8A",
+  "summary": {
+    "PASS": 30,
+    "FAIL": 7,
+    "BLOCKED": 4
+  },
+  "interrupted": null,
+  "checks": [
+    {
+      "id": "EDGE153-001",
+      "name": "Login owner",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/auth/login",
+        "expectedStatus": 200,
+        "actualStatus": 200
+      }
+    },
+    {
+      "id": "EDGE153-002",
+      "name": "Login quanly.gm001",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/auth/login",
+        "expectedStatus": 200,
+        "actualStatus": 200
+      }
+    },
+    {
+      "id": "EDGE153-003",
+      "name": "Login thungan.gm001",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/auth/login",
+        "expectedStatus": 200,
+        "actualStatus": 200
+      }
+    },
+    {
+      "id": "EDGE153-004",
+      "name": "Login thukho.gm001",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/auth/login",
+        "expectedStatus": 200,
+        "actualStatus": 200
+      }
+    },
+    {
+      "id": "EDGE153-005",
+      "name": "Create QA product 100000",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/products",
+        "expectedStatus": 201,
+        "actualStatus": 201
+      }
+    },
+    {
+      "id": "EDGE153-006",
+      "name": "Create QA product 180000",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/products",
+        "expectedStatus": 201,
+        "actualStatus": 201
+      }
+    },
+    {
+      "id": "EDGE153-007",
+      "name": "Create QA product 223000",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/products",
+        "expectedStatus": 201,
+        "actualStatus": 201
+      }
+    },
+    {
+      "id": "EDGE153-008",
+      "name": "Create QA product 250000",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/products",
+        "expectedStatus": 201,
+        "actualStatus": 201
+      }
+    },
+    {
+      "id": "EDGE153-009",
+      "name": "Create QA product 260000",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/products",
+        "expectedStatus": 201,
+        "actualStatus": 201
+      }
+    },
+    {
+      "id": "EDGE153-010",
+      "name": "Create QA product 350000",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/products",
+        "expectedStatus": 201,
+        "actualStatus": 201
+      }
+    },
+    {
+      "id": "EDGE153-011",
+      "name": "Create QA product 240000",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/products",
+        "expectedStatus": 201,
+        "actualStatus": 201
+      }
+    },
+    {
+      "id": "EDGE153-012",
+      "name": "Prepare stock through IMPORT API",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/stock-documents",
+        "expectedStatus": 201,
+        "actualStatus": 201
+      }
+    },
+    {
+      "id": "EDGE153-013",
+      "name": "Approve QA fixture import",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/stock-documents/4/approve",
+        "expectedStatus": 200,
+        "actualStatus": 200
+      }
+    },
+    {
+      "id": "EDGE153-014",
+      "name": "Control quote without promotions",
+      "result": "PASS",
+      "assertions": {
+        "http": true,
+        "total": true,
+        "discount": true,
+        "stock": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/orders/quote",
+        "expectedStatus": 200,
+        "actualStatus": 200,
+        "quote": {
+          "branchId": 1,
+          "subtotal": 100000,
+          "itemDiscount": 0,
+          "orderDiscount": 0,
+          "discount": 0,
+          "total": 100000,
+          "orderPromotion": null,
+          "canComplete": true
+        }
+      }
+    },
+    {
+      "id": "EDGE153-015",
+      "name": "Control successful POS before campaign setup",
+      "result": "PASS",
+      "assertions": {
+        "http": true,
+        "total": true,
+        "completed": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/orders/pos",
+        "expectedStatus": 201,
+        "actualStatus": 201
+      }
+    },
+    {
+      "id": "EDGE153-016",
+      "name": "Promotion fixture ready QA153-46821E8A-10",
+      "result": "PASS",
+      "assertions": {
+        "ready": true
+      },
+      "evidence": {
+        "id": 38,
+        "code": "QA153-46821E8A-10",
+        "type": "PERCENT",
+        "level": "ORDER",
+        "value": 10,
+        "minOrder": 200000,
+        "maxDiscount": 30000,
+        "status": "ACTIVE",
+        "usageLimit": null,
+        "usedCount": 0,
+        "effectiveNow": true,
+        "branches": [
+          1
+        ],
+        "channels": [
+          "POS"
+        ]
+      }
+    },
+    {
+      "id": "EDGE153-017",
+      "name": "Promotion fixture ready QA153-46821E8A-25K",
+      "result": "PASS",
+      "assertions": {
+        "ready": true
+      },
+      "evidence": {
+        "id": 39,
+        "code": "QA153-46821E8A-25K",
+        "type": "AMOUNT",
+        "level": "ORDER",
+        "value": 25000,
+        "minOrder": 300000,
+        "maxDiscount": null,
+        "status": "ACTIVE",
+        "usageLimit": null,
+        "usedCount": 0,
+        "effectiveNow": true,
+        "branches": [
+          1
+        ],
+        "channels": [
+          "POS"
+        ]
+      }
+    },
+    {
+      "id": "EDGE153-018",
+      "name": "BA7 amount 180000",
+      "result": "PASS",
+      "assertions": {
+        "http": true,
+        "subtotal": true,
+        "orderDiscount": true,
+        "total": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/orders/quote",
+        "expectedStatus": 200,
+        "actualStatus": 200,
+        "quote": {
+          "branchId": 1,
+          "subtotal": 180000,
+          "itemDiscount": 0,
+          "orderDiscount": 0,
+          "discount": 0,
+          "total": 180000,
+          "orderPromotion": null,
+          "canComplete": true
+        }
+      }
+    },
+    {
+      "id": "EDGE153-019",
+      "name": "BA7 amount 223000",
+      "result": "FAIL",
+      "assertions": {
+        "http": true,
+        "subtotal": true,
+        "orderDiscount": false,
+        "total": false
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/orders/quote",
+        "expectedStatus": 200,
+        "actualStatus": 200,
+        "quote": {
+          "branchId": 1,
+          "subtotal": 223000,
+          "itemDiscount": 0,
+          "orderDiscount": 0,
+          "discount": 0,
+          "total": 223000,
+          "orderPromotion": null,
+          "canComplete": true
+        }
+      }
+    },
+    {
+      "id": "EDGE153-020",
+      "name": "BA7 amount 260000",
+      "result": "FAIL",
+      "assertions": {
+        "http": true,
+        "subtotal": true,
+        "orderDiscount": false,
+        "total": false
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/orders/quote",
+        "expectedStatus": 200,
+        "actualStatus": 200,
+        "quote": {
+          "branchId": 1,
+          "subtotal": 260000,
+          "itemDiscount": 0,
+          "orderDiscount": 0,
+          "discount": 0,
+          "total": 260000,
+          "orderPromotion": null,
+          "canComplete": true
+        }
+      }
+    },
+    {
+      "id": "EDGE153-021",
+      "name": "BA7 amount 350000",
+      "result": "FAIL",
+      "assertions": {
+        "http": true,
+        "subtotal": true,
+        "orderDiscount": false,
+        "total": false
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/orders/quote",
+        "expectedStatus": 200,
+        "actualStatus": 200,
+        "quote": {
+          "branchId": 1,
+          "subtotal": 350000,
+          "itemDiscount": 0,
+          "orderDiscount": 0,
+          "discount": 0,
+          "total": 350000,
+          "orderPromotion": null,
+          "canComplete": true
+        }
+      }
+    },
+    {
+      "id": "EDGE153-022",
+      "name": "Quote must not consume campaign usage or create orders",
+      "result": "PASS",
+      "assertions": {
+        "unchanged": true
+      },
+      "evidence": {
+        "before": {
+          "uses": 0,
+          "orders": 10201
+        },
+        "after": {
+          "uses": 0,
+          "orders": 10201
+        }
+      }
+    },
+    {
+      "id": "EDGE153-023",
+      "name": "BA7 channel outside campaign scope",
+      "result": "PASS",
+      "assertions": {
+        "http": true,
+        "discount": true,
+        "total": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/orders/quote",
+        "expectedStatus": 200,
+        "actualStatus": 200,
+        "quote": {
+          "branchId": 1,
+          "subtotal": 240000,
+          "itemDiscount": 0,
+          "orderDiscount": 0,
+          "discount": 0,
+          "total": 240000,
+          "orderPromotion": null,
+          "canComplete": true
+        }
+      }
+    },
+    {
+      "id": "EDGE153-024",
+      "name": "Equal discount chooses earlier expiry",
+      "result": "FAIL",
+      "assertions": {
+        "http": true,
+        "discount": false,
+        "chosen": false,
+        "total": false
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/orders/quote",
+        "expectedStatus": 200,
+        "actualStatus": 200,
+        "quote": {
+          "branchId": 1,
+          "subtotal": 250000,
+          "itemDiscount": 0,
+          "orderDiscount": 0,
+          "discount": 0,
+          "total": 250000,
+          "orderPromotion": null,
+          "canComplete": true
+        }
+      }
+    },
+    {
+      "id": "EDGE153-025",
+      "name": "Paused campaigns do not apply",
+      "result": "PASS",
+      "assertions": {
+        "http": true,
+        "discount": true,
+        "total": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/orders/quote",
+        "expectedStatus": 200,
+        "actualStatus": 200,
+        "quote": {
+          "branchId": 1,
+          "subtotal": 250000,
+          "itemDiscount": 0,
+          "orderDiscount": 0,
+          "discount": 0,
+          "total": 250000,
+          "orderPromotion": null,
+          "canComplete": true
+        }
+      }
+    },
+    {
+      "id": "EDGE153-026",
+      "name": "Promotion fixture ready QA153-46821E8A-LAST",
+      "result": "PASS",
+      "assertions": {
+        "ready": true
+      },
+      "evidence": {
+        "id": 40,
+        "code": "QA153-46821E8A-LAST",
+        "type": "PERCENT",
+        "level": "ORDER",
+        "value": 10,
+        "minOrder": 0,
+        "maxDiscount": null,
+        "status": "ACTIVE",
+        "usageLimit": 1,
+        "usedCount": 0,
+        "effectiveNow": true,
+        "branches": [
+          1
+        ],
+        "channels": [
+          "POS"
+        ]
+      }
+    },
+    {
+      "id": "EDGE153-027",
+      "name": "EX10 eligible quote 1",
+      "result": "FAIL",
+      "assertions": {
+        "http": true,
+        "discount": false,
+        "total": false
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/orders/quote",
+        "expectedStatus": 200,
+        "actualStatus": 200,
+        "quote": {
+          "branchId": 1,
+          "subtotal": 100000,
+          "itemDiscount": 0,
+          "orderDiscount": 0,
+          "discount": 0,
+          "total": 100000,
+          "orderPromotion": null,
+          "canComplete": true
+        }
+      }
+    },
+    {
+      "id": "EDGE153-028",
+      "name": "EX10 eligible quote 2",
+      "result": "FAIL",
+      "assertions": {
+        "http": true,
+        "discount": false,
+        "total": false
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/orders/quote",
+        "expectedStatus": 200,
+        "actualStatus": 200,
+        "quote": {
+          "branchId": 1,
+          "subtotal": 100000,
+          "itemDiscount": 0,
+          "orderDiscount": 0,
+          "discount": 0,
+          "total": 100000,
+          "orderPromotion": null,
+          "canComplete": true
+        }
+      }
+    },
+    {
+      "id": "EDGE153-029",
+      "name": "EX10 concurrent last-use",
+      "result": "BLOCKED",
+      "reason": "Valid ACTIVE last-use campaign is not applied by quote; cannot create the required discounted quote precondition. No fabricated stale total submitted.",
+      "dependency": [
+        39
+      ]
+    },
+    {
+      "id": "EDGE153-030",
+      "name": "Exhausted campaign control",
+      "result": "PASS",
+      "assertions": {
+        "http": true,
+        "noDiscount": true,
+        "total": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/orders/quote",
+        "expectedStatus": 200,
+        "actualStatus": 200,
+        "quote": {
+          "branchId": 1,
+          "subtotal": 100000,
+          "itemDiscount": 0,
+          "orderDiscount": 0,
+          "discount": 0,
+          "total": 100000,
+          "orderPromotion": null,
+          "canComplete": true
+        }
+      }
+    },
+    {
+      "id": "EDGE153-031",
+      "name": "Expired campaign control (not order expiry)",
+      "result": "PASS",
+      "assertions": {
+        "http": true,
+        "noDiscount": true,
+        "total": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/orders/quote",
+        "expectedStatus": 200,
+        "actualStatus": 200,
+        "quote": {
+          "branchId": 1,
+          "subtotal": 100000,
+          "itemDiscount": 0,
+          "orderDiscount": 0,
+          "discount": 0,
+          "total": 100000,
+          "orderPromotion": null,
+          "canComplete": true
+        }
+      }
+    },
+    {
+      "id": "EDGE153-032",
+      "name": "EX05 create real signed ONLINE order",
+      "result": "PASS",
+      "assertions": {
+        "http": true,
+        "reserved": true
+      },
+      "evidence": {
+        "actualStatus": 202,
+        "orderId": 10202
+      }
+    },
+    {
+      "id": "EDGE153-033",
+      "name": "EX05 real reservation quantity and 15-minute deadline",
+      "result": "PASS",
+      "assertions": {
+        "reservedThree": true,
+        "onHandUnchanged": true,
+        "deadline900seconds": true
+      },
+      "evidence": {
+        "orderId": 10202,
+        "status": "RESERVED",
+        "branchId": 1,
+        "deadlinePassed": false,
+        "originalWindowSeconds": 900.140098,
+        "onHand": 19,
+        "reserved": 3,
+        "available": 16,
+        "releaseRows": 0,
+        "expiredEvents": 0
+      }
+    },
+    {
+      "id": "EDGE153-034",
+      "name": "EX05 scheduler expires order and releases stock",
+      "result": "FAIL",
+      "assertions": {
+        "expired": false,
+        "released": false,
+        "onHandUnchanged": true,
+        "oneRelease": false,
+        "oneExpiryEvent": false
+      },
+      "evidence": {
+        "initial": {
+          "onHand": 19,
+          "reserved": 0
+        },
+        "final": {
+          "orderId": 10202,
+          "status": "RESERVED",
+          "branchId": 1,
+          "deadlinePassed": true,
+          "originalWindowSeconds": -0.453947,
+          "onHand": 19,
+          "reserved": 3,
+          "available": 16,
+          "releaseRows": 0,
+          "expiredEvents": 0
+        },
+        "polls": [
+          {
+            "elapsedSeconds": 0.3,
+            "status": "RESERVED",
+            "reserved": 3
+          },
+          {
+            "elapsedSeconds": 5.5,
+            "status": "RESERVED",
+            "reserved": 3
+          },
+          {
+            "elapsedSeconds": 10.8,
+            "status": "RESERVED",
+            "reserved": 3
+          },
+          {
+            "elapsedSeconds": 16.1,
+            "status": "RESERVED",
+            "reserved": 3
+          },
+          {
+            "elapsedSeconds": 21.3,
+            "status": "RESERVED",
+            "reserved": 3
+          },
+          {
+            "elapsedSeconds": 26.7,
+            "status": "RESERVED",
+            "reserved": 3
+          },
+          {
+            "elapsedSeconds": 31.9,
+            "status": "RESERVED",
+            "reserved": 3
+          },
+          {
+            "elapsedSeconds": 37.3,
+            "status": "RESERVED",
+            "reserved": 3
+          },
+          {
+            "elapsedSeconds": 42.6,
+            "status": "RESERVED",
+            "reserved": 3
+          },
+          {
+            "elapsedSeconds": 47.8,
+            "status": "RESERVED",
+            "reserved": 3
+          },
+          {
+            "elapsedSeconds": 53.0,
+            "status": "RESERVED",
+            "reserved": 3
+          },
+          {
+            "elapsedSeconds": 58.2,
+            "status": "RESERVED",
+            "reserved": 3
+          },
+          {
+            "elapsedSeconds": 63.4,
+            "status": "RESERVED",
+            "reserved": 3
+          },
+          {
+            "elapsedSeconds": 68.6,
+            "status": "RESERVED",
+            "reserved": 3
+          }
+        ],
+        "methodology": "Only reserved_until was moved to past on this real QA order; no forced status/release",
+        "relatedIssues": [
+          41,
+          320
+        ]
+      }
+    },
+    {
+      "id": "EDGE153-035",
+      "name": "EX05 channel receives released stock",
+      "result": "BLOCKED",
+      "reason": "Real expiry/release did not happen, so channel recovery cannot be accepted",
+      "dependency": [
+        41,
+        320
+      ]
+    },
+    {
+      "id": "EDGE153-036",
+      "name": "EX06 late PAID with stock -> CONFIRMED",
+      "result": "BLOCKED",
+      "reason": "Real EXPIRED prerequisite unavailable or event route absent (public=401, authenticated=404); no SQL-forced EXPIRED/payment/refund",
+      "dependency": [
+        40,
+        41,
+        320
+      ]
+    },
+    {
+      "id": "EDGE153-037",
+      "name": "EX06 late PAID without stock -> CANCELLED/REFUNDED",
+      "result": "BLOCKED",
+      "reason": "Real EXPIRED prerequisite unavailable or event route absent (public=401, authenticated=404); no SQL-forced EXPIRED/payment/refund",
+      "dependency": [
+        40,
+        41,
+        320
+      ]
+    },
+    {
+      "id": "EDGE153-038",
+      "name": "Logout owner",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/auth/logout",
+        "expectedStatus": 204,
+        "actualStatus": 204
+      }
+    },
+    {
+      "id": "EDGE153-039",
+      "name": "Logout quanly.gm001",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/auth/logout",
+        "expectedStatus": 204,
+        "actualStatus": 204
+      }
+    },
+    {
+      "id": "EDGE153-040",
+      "name": "Logout thungan.gm001",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/auth/logout",
+        "expectedStatus": 204,
+        "actualStatus": 204
+      }
+    },
+    {
+      "id": "EDGE153-041",
+      "name": "Logout thukho.gm001",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/auth/logout",
+        "expectedStatus": 204,
+        "actualStatus": 204
+      }
+    }
+  ],
+  "routeObservations": [
+    {
+      "method": "GET",
+      "path": "/promotions",
+      "status": 404,
+      "code": "NOT_FOUND",
+      "purpose": "Authenticated routing diagnostic only; not a valid HMAC webhook flow"
+    },
+    {
+      "purpose": "QA webhook setup",
+      "channel": "WEB",
+      "mappingProductId": 1001,
+      "secret": "ephemeral process-only key; value never exported"
+    },
+    {
+      "method": "POST",
+      "path": "/integrations/WEB/orders/QA153-46821E8A-ONLINE/events",
+      "purpose": "Valid HMAC event route diagnostic; does not prove EX06 business transition",
+      "anonymousStatus": 401,
+      "authenticatedStatus": 404,
+      "code": "NOT_FOUND"
+    }
+  ],
+  "promotionFixturesAtCreation": [
+    {
+      "id": 38,
+      "code": "QA153-46821E8A-10",
+      "type": "PERCENT",
+      "level": "ORDER",
+      "value": 10,
+      "minOrder": 200000,
+      "maxDiscount": 30000,
+      "status": "ACTIVE",
+      "usageLimit": null,
+      "usedCount": 0,
+      "effectiveNow": true,
+      "branches": [
+        1
+      ],
+      "channels": [
+        "POS"
+      ]
+    },
+    {
+      "id": 39,
+      "code": "QA153-46821E8A-25K",
+      "type": "AMOUNT",
+      "level": "ORDER",
+      "value": 25000,
+      "minOrder": 300000,
+      "maxDiscount": null,
+      "status": "ACTIVE",
+      "usageLimit": null,
+      "usedCount": 0,
+      "effectiveNow": true,
+      "branches": [
+        1
+      ],
+      "channels": [
+        "POS"
+      ]
+    },
+    {
+      "id": 40,
+      "code": "QA153-46821E8A-LAST",
+      "type": "PERCENT",
+      "level": "ORDER",
+      "value": 10,
+      "minOrder": 0,
+      "maxDiscount": null,
+      "status": "ACTIVE",
+      "usageLimit": 1,
+      "usedCount": 0,
+      "effectiveNow": true,
+      "branches": [
+        1
+      ],
+      "channels": [
+        "POS"
+      ]
+    }
+  ],
+  "limitations": [
+    "SQL fixture setup only inside QA153 because promotion CRUD #38 is absent.",
+    "No end-to-end claim for online expiry or last-use race until prerequisites exist.",
+    "No-discount controls alone cannot prove exclusion filtering; active positive cases must also pass.",
+    "Online deadline is advanced only for a newly received signed QA order; no forced EXPIRED or inventory release.",
+    "WEB webhook key is replaced with a process-generated QA fixture key only in this isolated database."
+  ]
+}

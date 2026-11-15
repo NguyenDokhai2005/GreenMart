@@ -37,7 +37,7 @@ public class ReportServiceImpl implements ReportService {
                 throw new AppException(ErrorCode.VALIDATION_ERROR, "branchId phải lớn hơn 0");
             }
             if (allowed != null && !allowed.contains(filter.branchId())) {
-                throw new AppException(ErrorCode.BRANCH_FORBIDDEN);
+                throw AppException.branchForbidden(filter.branchId());
             }
         }
         if (filter.channelId() != null && filter.channelId() <= 0) {
@@ -151,7 +151,7 @@ public class ReportServiceImpl implements ReportService {
                 throw new AppException(ErrorCode.VALIDATION_ERROR, "branchId phải lớn hơn 0");
             }
             if (allowed != null && !allowed.contains(filter.branchId())) {
-                throw new AppException(ErrorCode.BRANCH_FORBIDDEN);
+                throw AppException.branchForbidden(filter.branchId());
             }
         }
         if (filter.channelId() != null && filter.channelId() <= 0) {

@@ -67,7 +67,7 @@ public class StockDocumentServiceImpl implements StockDocumentService {
         var allowed = SecurityUtils.getAccessibleBranchIds(jdbc);
         if (allowed != null && !allowed.contains(document.getBranchId())
                 && (document.getToBranchId() == null || !allowed.contains(document.getToBranchId()))) {
-            throw new AppException(ErrorCode.BRANCH_FORBIDDEN);
+            throw AppException.branchForbidden(document.getBranchId());
         }
         requireSupportedType(document);
         return response(document);
@@ -242,7 +242,7 @@ public class StockDocumentServiceImpl implements StockDocumentService {
 
     private void requireBranch(Long branchId) {
         var allowed = SecurityUtils.getAccessibleBranchIds(jdbc);
-        if (allowed != null && !allowed.contains(branchId)) throw new AppException(ErrorCode.BRANCH_FORBIDDEN);
+        if (allowed != null && !allowed.contains(branchId)) throw AppException.branchForbidden(branchId);
     }
 
     private void requireImportFields(Long toBranchId, String exportReason) {
