@@ -173,7 +173,7 @@ public class ProductServiceImpl implements ProductService {
         SecurityUtils.requireRole("ADMIN", "OWNER", "BRANCH_MANAGER", "CASHIER", "STOREKEEPER");
         List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
         if (branchId != null && accessibleBranches != null && !accessibleBranches.contains(branchId)) {
-            throw new AppException(ErrorCode.BRANCH_FORBIDDEN, "Bạn không có quyền thao tác trên chi nhánh này");
+            throw AppException.branchForbidden(branchId, "Bạn không có quyền thao tác trên chi nhánh này");
         }
 
         Product p = productRepository.findByBarcode(searchCode)
