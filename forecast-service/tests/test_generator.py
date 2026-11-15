@@ -885,6 +885,9 @@ class TestGeneratorStage4(unittest.TestCase):
             self.assertIn("DELETE FROM branch;", content)
             self.assertIn("INSERT INTO stock_document ", content)
             self.assertIn("INSERT INTO stock_document_item ", content)
+            self.assertIn("INSERT INTO channel_product ", content)
+            self.assertIn("'W-' || p.sku", content)
+            self.assertIn("'M-' || p.sku", content)
             self.assertIn("INSERT INTO inventory ", content)
             self.assertIn("INSERT INTO inventory_transaction ", content)
             self.assertIn("SELECT setval(pg_get_serial_sequence('stock_document', 'id')", content)
@@ -921,6 +924,48 @@ class TestGeneratorStage4(unittest.TestCase):
         self.assertEqual([t.id for t in tx1], [t.id for t in tx2])
         self.assertEqual([d.code for d in doc1], [d.code for d in doc2])
         self.assertEqual([di.quantity for di in item1], [di.quantity for di in item2])
+
+    def test_channel_product_export_structure(self):
+        """TC-AC03-01: Kiểm tra sinh câu lệnh ánh xạ channel_product cho WEB và MARKET (#327)."""
+        branches = generate_data.generate_branches()
+        categories = generate_data.generate_categories()
+        products, _ = generate_data.generate_products()
+        users = generate_data.generate_demo_users()
+        customers = generate_data.generate_customers(10)
+        promotions = generate_data.generate_promotions(products)
+        buf = io.StringIO()
+        generate_data.export_to_sql(
+            branches=branches, categories=categories, products=products,
+            users=users, customers=customers, promotions=promotions,
+            orders=[], returns=[], audit_logs=[],
+            stock_documents=[], stock_document_items=[],
+            inventories=[], inventory_transactions=[],
+            stream=buf
+        )
+        sql_content = buf.getvalue()
+        self.assertIn("INSERT INTO channel_product", sql_content)
+        self.assertIn("WHERE c.code = 'WEB'", sql_content)
+        self.assertIn("WHERE c.code = 'MARKET'", sql_content)
+        self.assertIn("'W-' || p.sku", sql_content)
+        self.assertIn("'M-' || p.sku", sql_content)
+
+    def test_sql_contains_stock_alert_repopulation(self):
+        """Khẳng định SQL sinh ra có bước dựng lại stock_alert từ rebuild_stock_alerts.sql (#336, #347)."""
+        buf = io.StringIO()
+        generate_data.export_to_sql(
+            branches=[], categories=[], products=[],
+            users=[], customers=[], promotions=[],
+            orders=[], returns=[], audit_logs=[],
+            stock_documents=[], stock_document_items=[],
+            inventories=[], inventory_transactions=[],
+            stream=buf,
+        )
+        sql_content = buf.getvalue()
+        self.assertIn("-- 20. Dựng lại cảnh báo tồn kho (stock_alert) từ rebuild_stock_alerts.sql", sql_content)
+        self.assertIn("WITH classified AS", sql_content)
+        self.assertIn("INSERT INTO stock_alert (branch_id, product_id, severity)", sql_content)
+        self.assertIn("ON CONFLICT (branch_id, product_id) WHERE closed_at IS NULL", sql_content)
+        self.assertIn("DO UPDATE SET severity = EXCLUDED.severity", sql_content)
 
     def test_golden_sha256_checksums(self):
         """Khóa mốc SHA-256 vàng in-memory (newline='\\n', utf-8) để bảo vệ refactor không đổi dữ liệu.
@@ -974,7 +1019,7 @@ class TestGeneratorStage4(unittest.TestCase):
         sql_bytes = buf_sql.getvalue().encode("utf-8")
         actual_sql_sha = hashlib.sha256(sql_bytes).hexdigest()
 
-        GOLDEN_SQL_SHA256 = "715e12e22c904926ab3a505ad7898fae0acbc31e1a6045852fb70b9bedb51c13"
+        GOLDEN_SQL_SHA256 = "beaea9a74a8d2fe9f62ed2413e6f48398ce6da49e166a97523f7e521941bbf5d"
         GOLDEN_JSON_SHA256 = "d0226a3d258fa87649db164118a5d600052de8f422e94e5beecb8a3e05d1dc91"
 
         self.assertEqual(actual_sql_sha, GOLDEN_SQL_SHA256, "Mã SHA-256 in-memory của SQL không được thay đổi")

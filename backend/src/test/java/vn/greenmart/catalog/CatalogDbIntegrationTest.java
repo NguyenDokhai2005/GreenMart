@@ -330,4 +330,34 @@ class CatalogDbIntegrationTest {
         ProductLookupResponse res = productService.lookupProduct("LOOKUP-OWNER", 2L);
         assertEquals(2L, res.branchId());
     }
+
+    @Test
+    @WithMockUser(username = "2", roles = "CASHIER")
+    void testAC13_LookupProduct_CrossBranch_CarriesDeniedBranchIdForAudit() {
+        Product p = new Product();
+        p.setSku("COM-SUON-BI-CHA-0001");
+        p.setBarcode("8930000009999");
+        p.setName("Cơm sườn bì chả");
+        p.setUnit("phần");
+        p.setCategoryId(catChild.getId());
+        p.setSalePrice(35000L);
+        p.setCostPrice(25000L);
+        productRepository.save(p);
+
+        jdbcTemplate.execute("INSERT INTO branch (id, code, name, is_active) VALUES (1, 'GM-001', 'CN 1', true), (2, 'GM-002', 'CN 2', true) ON CONFLICT (id) DO NOTHING");
+        jdbcTemplate.execute("INSERT INTO app_user (id, username, password_hash, full_name, role, is_active) VALUES (2, 'thungan.gm001', '$2a$10$abcdefghijklmnopqrstuvwxyz123456', 'Thu ngan GM001', 'CASHIER', true) ON CONFLICT (id) DO NOTHING");
+        jdbcTemplate.execute("INSERT INTO user_branch (user_id, branch_id) VALUES (2, 1) ON CONFLICT DO NOTHING");
+
+        // Tra cứu theo SKU chéo chi nhánh -> ném BRANCH_FORBIDDEN kèm deniedBranchId = 2L
+        AppException skuEx = assertThrows(AppException.class,
+                () -> productService.lookupProduct("COM-SUON-BI-CHA-0001", 2L));
+        assertEquals(ErrorCode.BRANCH_FORBIDDEN.name(), skuEx.getCode());
+        assertEquals(2L, skuEx.getDeniedBranchId());
+
+        // Tra cứu theo barcode chéo chi nhánh -> ném BRANCH_FORBIDDEN kèm deniedBranchId = 2L
+        AppException barcodeEx = assertThrows(AppException.class,
+                () -> productService.lookupProduct("8930000009999", 2L));
+        assertEquals(ErrorCode.BRANCH_FORBIDDEN.name(), barcodeEx.getCode());
+        assertEquals(2L, barcodeEx.getDeniedBranchId());
+    }
 }
