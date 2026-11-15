@@ -2,6 +2,8 @@ package vn.greenmart.sales.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +13,9 @@ import vn.greenmart.catalog.dto.ProductSaleInfo;
 import vn.greenmart.catalog.service.ProductService;
 import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
+import vn.greenmart.common.exception.ValidationErrorDetail;
+import vn.greenmart.common.pagination.PageResponse;
+import vn.greenmart.common.pagination.PageUtils;
 import vn.greenmart.common.security.SecurityUtils;
 import vn.greenmart.customer.dto.CustomerResponse;
 import vn.greenmart.customer.service.CustomerService;
@@ -36,11 +41,17 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class PosOrderServiceImpl implements PosOrderService {
+
+    private static final Set<String> ALLOWED_ORDER_SORT_FIELDS = Set.of(
+            "id", "code", "total", "status", "createdAt", "completedAt"
+    );
+    private static final Set<String> ALLOWED_CHANNELS = Set.of("POS", "WEB", "MARKET");
 
     private final QuoteService quoteService;
     private final ProductService productService;
@@ -55,6 +66,7 @@ public class PosOrderServiceImpl implements PosOrderService {
     private final PaymentRepository paymentRepository;
     private final OutboxService outboxService;
     private final JdbcTemplate jdbcTemplate;
+    private final OrderQueryService orderQueryService;
     private final OnlineOrderService onlineOrderService;
 
     @Override
@@ -260,6 +272,96 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         // Map dữ liệu sang OrderResponse dùng chung
         return mapToOrderResponse(order, items, paymentResponses);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<OrderSummaryResponse> listOrders(
+            Long branchId,
+            String channel,
+            List<String> status,
+            LocalDate from,
+            LocalDate to,
+            Long customerId,
+            String q,
+            Integer page,
+            Integer size,
+            String[] sort
+    ) {
+        // Kiểm tra đăng nhập & lấy danh sách chi nhánh được phép truy cập (BR-11, AUTH-02)
+        SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER", "CASHIER", "STOREKEEPER");
+        List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
+        if (branchId != null && accessibleBranches != null && !accessibleBranches.contains(branchId)) {
+            throw AppException.branchForbidden(branchId);
+        }
+
+        // Validate channel nếu có truyền
+        String normalizedChannel = null;
+        if (channel != null && !channel.trim().isEmpty()) {
+            normalizedChannel = channel.trim().toUpperCase();
+            if (!ALLOWED_CHANNELS.contains(normalizedChannel)) {
+                throw new AppException(
+                        ErrorCode.VALIDATION_ERROR,
+                        "Kênh bán không hợp lệ: " + channel,
+                        List.of(new ValidationErrorDetail("channel", "Chỉ chấp nhận POS, WEB hoặc MARKET"))
+                );
+            }
+        }
+
+        // Validate danh sách trạng thái status nếu có truyền
+        List<String> normalizedStatuses = new ArrayList<>();
+        if (status != null) {
+            for (String raw : status) {
+                if (raw == null || raw.trim().isEmpty()) {
+                    continue;
+                }
+                for (String token : raw.split(",")) {
+                    String s = token.trim().toUpperCase();
+                    if (s.isEmpty()) {
+                        continue;
+                    }
+                    try {
+                        OrderStatus.valueOf(s);
+                        normalizedStatuses.add(s);
+                    } catch (IllegalArgumentException ex) {
+                        throw new AppException(
+                                ErrorCode.VALIDATION_ERROR,
+                                "Trạng thái đơn hàng không hợp lệ: " + token,
+                                List.of(new ValidationErrorDetail("status", "Trạng thái không hợp lệ: " + token))
+                        );
+                    }
+                }
+            }
+        }
+
+        // Validate khoảng ngày
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new AppException(
+                    ErrorCode.VALIDATION_ERROR,
+                    "Ngày bắt đầu (from) không được lớn hơn ngày kết thúc (to)",
+                    List.of(new ValidationErrorDetail("from", "Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc"))
+            );
+        }
+
+        Pageable pageable = PageUtils.createPageable(
+                page,
+                size,
+                sort,
+                Sort.by(Sort.Direction.DESC, "createdAt"),
+                ALLOWED_ORDER_SORT_FIELDS
+        );
+
+        return orderQueryService.searchOrders(
+                branchId,
+                accessibleBranches,
+                normalizedChannel,
+                normalizedStatuses,
+                from,
+                to,
+                customerId,
+                q,
+                pageable
+        );
     }
 
     @Override
