@@ -169,6 +169,8 @@ public class PosOrderServiceImpl implements PosOrderService {
         order.setManualDiscount(recomputedQuote.manualDiscount() != null ? recomputedQuote.manualDiscount() : 0L);
         order.setManualDiscountReason(request.manualDiscount() != null ? request.manualDiscount().reason() : null);
         order.setTotal(recomputedQuote.total());
+        order.setIdempotencyKey(idempotencyKey != null && !idempotencyKey.isBlank() ? idempotencyKey.trim() : null);
+        order.setCreatedBy(currentUserId);
         order.setCreatedBy(currentUserId);
         order.setCreatedAt(now);
         order.setCompletedAt(now);

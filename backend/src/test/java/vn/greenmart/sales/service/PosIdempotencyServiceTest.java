@@ -19,6 +19,8 @@ import vn.greenmart.sales.domain.OrderStatus;
 import vn.greenmart.sales.domain.PaymentMethod;
 import vn.greenmart.sales.domain.PaymentSimulation;
 import vn.greenmart.sales.dto.*;
+import vn.greenmart.sales.repository.SalesOrderRepository;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -45,6 +47,14 @@ class PosIdempotencyServiceTest {
     @Mock
     private Supplier<OrderResponse> action;
 
+    @Mock
+    private SalesOrderRepository salesOrderRepository;
+
+    @Mock
+    private PosOrderService posOrderService;
+
+    @Mock private JdbcTemplate jdbcTemplate;
+
     private final ObjectMapper objectMapper = new ObjectMapper()
             .findAndRegisterModules()
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -62,7 +72,8 @@ class PosIdempotencyServiceTest {
         securityUtilsMock.when(SecurityUtils::getCurrentUserId).thenReturn(1L);
 
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        idempotencyService = new PosIdempotencyService(redisTemplate, objectMapper);
+        idempotencyService = new PosIdempotencyService(
+        redisTemplate, objectMapper, salesOrderRepository, posOrderService, jdbcTemplate);
 
         key = UUID.randomUUID().toString();
         defaultRequest = new PosOrderRequest(
@@ -227,5 +238,64 @@ class PosIdempotencyServiceTest {
         java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
         byte[] hash = md.digest(objectMapper.writeValueAsString(request).getBytes(java.nio.charset.StandardCharsets.UTF_8));
         return java.util.HexFormat.of().formatHex(hash);
+    }
+
+    @Test
+@DisplayName("Kịch bản A (#313): Redis lỗi không lưu được COMPLETED -> Lần gửi lại đọc từ DB và trả đơn cũ")
+void testExecute_RedisFailureOnSave_FallbackToDbReturnsExistingOrder() {
+    String expectedRedisKey = "idempotency:pos:1:" + key;
+    when(valueOperations.setIfAbsent(eq(expectedRedisKey), anyString(), any(Duration.class)))
+            .thenReturn(true);
+    when(action.get()).thenReturn(mockResponse);
+    // Lần đầu: Redis lỗi khi lưu COMPLETED
+    doThrow(new org.springframework.data.redis.RedisConnectionFailureException("Redis down"))
+            .when(valueOperations).set(eq(expectedRedisKey), anyString(), eq(Duration.ofHours(24)));
+
+    IdempotencyResult firstResult = idempotencyService.execute(key, defaultRequest, action);
+    assertThat(firstResult.isCreated()).isTrue();
+
+    // Lần hai: khóa PROCESSING trên Redis đã hết hạn nên setIfAbsent trả true, nhưng DB đã có đơn
+    vn.greenmart.sales.domain.SalesOrder existingOrder = new vn.greenmart.sales.domain.SalesOrder();
+    existingOrder.setId(500L);
+    existingOrder.setCreatedBy(1L);
+    existingOrder.setIdempotencyKey(key);
+    existingOrder.setCreatedAt(Instant.now());
+
+    when(salesOrderRepository.findByCreatedByAndIdempotencyKey(1L, key))
+            .thenReturn(java.util.Optional.of(existingOrder));
+    when(posOrderService.getOrder(500L)).thenReturn(mockResponse);
+
+    IdempotencyResult retryResult = idempotencyService.execute(key, defaultRequest, action);
+
+    assertThat(retryResult.isCreated()).isFalse();
+    assertThat(retryResult.response().id()).isEqualTo(500L);
+    verify(action, times(1)).get();
+}
+
+@Test
+@DisplayName("Kịch bản B (#313): Khóa Redis hết hạn sau 30s và 2 request đụng UNIQUE DB -> Trả đơn cũ, không tạo trùng")
+void testExecute_LockExpiredAfter30s_DbUniqueConstraintReturnsExistingOrder() {
+    String expectedRedisKey = "idempotency:pos:1:" + key;
+    when(valueOperations.setIfAbsent(eq(expectedRedisKey), anyString(), any(Duration.class)))
+            .thenReturn(true);
+
+    vn.greenmart.sales.domain.SalesOrder committedOrder = new vn.greenmart.sales.domain.SalesOrder();
+    committedOrder.setId(500L);
+    committedOrder.setCreatedBy(1L);
+    committedOrder.setIdempotencyKey(key);
+    committedOrder.setCreatedAt(Instant.now());
+
+    // Lần kiểm tra DB trước khi chạy chưa thấy (do request 1 đang chạy), nhưng khi lưu DB đụng UNIQUE constraint
+    when(salesOrderRepository.findByCreatedByAndIdempotencyKey(1L, key))
+            .thenReturn(java.util.Optional.empty())
+            .thenReturn(java.util.Optional.of(committedOrder));
+    when(action.get()).thenThrow(new org.springframework.dao.DataIntegrityViolationException("uq_sales_order_creator_idempotency"));
+    when(posOrderService.getOrder(500L)).thenReturn(mockResponse);
+
+    IdempotencyResult result = idempotencyService.execute(key, defaultRequest, action);
+
+    assertThat(result.isCreated()).isFalse();
+    assertThat(result.response().id()).isEqualTo(500L);
+
     }
 }
