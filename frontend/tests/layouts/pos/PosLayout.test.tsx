@@ -128,7 +128,7 @@ describe('Given authenticated POS staff, When opening the workspace', () => {
     const title = await screen.findByRole('heading', { name: 'Hóa đơn' });
     expect(screen.getByRole('banner')).toBe(header);
     expect(screen.getByRole('navigation')).toBe(nav);
-    expect(document.activeElement).toBe(title);
+    await waitFor(() => expect(document.activeElement).toBe(title));
     expect(screen.getByRole('link', { name: 'Bán hàng' }).getAttribute('aria-current')).toBeNull();
   });
 
