@@ -1,0 +1,41 @@
+{
+  "sourceCommit": "d43b75a546c172fbece49b3ea7ef2d9ceae52010",
+  "project": "greenmart-qa242-recheck-20261113",
+  "checks": [
+    {
+      "id": "SUPP-AUDIT",
+      "result": "FAIL",
+      "method": "GET",
+      "path": "/inventory?branchId=2",
+      "expectedStatus": 403,
+      "actualStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "10eb82a2-1b64-455d-88d4-d21212f14b22",
+      "assertions": {
+        "status": true,
+        "code": true,
+        "safeError": true,
+        "auditMetadata": false
+      },
+      "relatedIssue": 310
+    },
+    {
+      "id": "SUPP-LOOKUP",
+      "result": "FAIL",
+      "method": "GET",
+      "path": "/products/lookup?code=COM-SUON-BI-CHA-0001&branchId=2",
+      "expectedStatus": 403,
+      "actualStatus": 200,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualCode": null,
+      "traceId": null,
+      "assertions": {
+        "status": false,
+        "code": false,
+        "safeError": false
+      },
+      "relatedIssue": 309
+    }
+  ]
+}

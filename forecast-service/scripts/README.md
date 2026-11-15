@@ -268,23 +268,23 @@ Tùy theo môi trường, bạn có thể thực thi từ thư mục gốc của
 ### 4.4 Các bước thực hiện nội bộ của `seed.py`
 1. **Kiểm tra Docker**: Xác nhận Docker daemon đang chạy và container `postgres` đang ở trạng thái `running`.
 2. **Kiểm tra Flyway (V1 - V4)**: Kiểm tra bảng `flyway_schema_history` phải có đủ 4 bản ghi thành công (`success = true`).
-3. **Sinh dữ liệu mẫu**: Kích hoạt `generate_data.py` xuất `seed_data.sql` (5.69 MB) và `stockout_schedule.json`.
+3. **Sinh dữ liệu mẫu**: Kích hoạt `generate_data.py` xuất `seed_data.sql` (5.69 MB) và `stockout_schedule.json`. Script tự động sinh ánh xạ toàn bộ 1.000 SKU sản phẩm sang 2 kênh online WEB (tiền tố `W-`) và MARKET (tiền tố `M-`) tạo 2.000 dòng `channel_product` (Issue #307 / #327), phục vụ đồng bộ tồn kho và tiếp nhận đơn online.
 4. **Quản lý Checksum (`SHA256SUMS`)**: Băm SHA-256, so sánh với bản lưu trước đó (in `KHỚP 100%` hoặc `KHÁC BIỆT`), ghi đè file `forecast-service/data/SHA256SUMS`.
 5. **Cảnh báo an toàn dữ liệu**: Đếm số dòng trong `sales_order`. Nếu $> 0$, hiển thị cảnh báo sắp TRUNCATE và yêu cầu gõ `y/N` (bỏ qua nếu có `--yes`).
 6. **Nạp SQL vào PostgreSQL**: Mở file ở chế độ nhị phân (`open(..., "rb")`) truyền trực tiếp vào `psql -v ON_ERROR_STOP=1` thông qua stdin, quản lý transaction bằng `BEGIN; ... COMMIT;` trong file.
-7. **Kiểm đếm AC-01 (`verify_seed.sql`)**: Thực thi kiểm đếm tự khẳng định bằng PL/pgSQL, in toàn bộ thống kê `RAISE NOTICE`, bắt mã thoát để kết luận PASS/FAIL.
-8. **Mã vân tay cơ sở dữ liệu (Database Fingerprint)**: Lặp qua 22 bảng, tính `count(*)` và `md5(string_agg(t::text, '|' ORDER BY t::text))` và in bảng đối chiếu.
+7. **Kiểm đếm AC-01 & Đa kênh AC-03 (`verify_seed.sql`)**: Thực thi kiểm đếm tự khẳng định bằng PL/pgSQL (bao gồm kiểm đếm số dòng ánh xạ `channel_product > 0` cho từng kênh online), in toàn bộ thống kê `RAISE NOTICE`, bắt mã thoát để kết luận PASS/FAIL.
+8. **Mã vân tay cơ sở dữ liệu (Database Fingerprint)**: Lặp qua 23 bảng, tính `count(*)` và `md5(string_agg(t::text, '|' ORDER BY t::text))` và in bảng đối chiếu.
 
 ### 4.5 Ý nghĩa SHA256SUMS và Database Fingerprint
 - **File SHA256SUMS**: Bảo chứng tính xác định (deterministic) ở tầng tệp văn bản. Cùng một seed ngẫu nhiên sẽ luôn tạo ra 2 file SQL và JSON có mã băm SHA-256 giống hệt nhau:
-  - `seed_data.sql`: `715e12e22c904926ab3a505ad7898fae0acbc31e1a6045852fb70b9bedb51c13`
+  - `seed_data.sql`: `beaea9a74a8d2fe9f62ed2413e6f48398ce6da49e166a97523f7e521941bbf5d`
   - `stockout_schedule.json`: `d0226a3d258fa87649db164118a5d600052de8f422e94e5beecb8a3e05d1dc91`
 - **Database Fingerprint**: Bảo chứng tính tái lập (idempotent) ở tầng cơ sở dữ liệu. Sau khi seed 2 lần liên tiếp, mã MD5 trên toàn bộ dữ liệu của từng bảng phải trùng khớp 100%.
 
 ### 4.6 Cách đọc kết quả PASS / FAIL
 - **Thành công (PASS)**:
   - Terminal hiển thị: `[PASS] Xác minh tự động: TẤT CẢ CÁC TIÊU CHÍ CỨNG AC-01 ĐẠT 100%!`.
-  - Hiển thị đầy đủ bảng Fingerprint của 22 bảng.
+  - Hiển thị đầy đủ bảng Fingerprint của 23 bảng.
   - Mã thoát tiến trình (Exit code) là `0`.
 - **Thất bại (FAIL)**:
   - Script dừng ngay lập tức tại điểm lỗi, hiển thị `[LỖI] <Nội dung chi tiết>` kèm `[GỢI Ý KHẮC PHỤC]`.
