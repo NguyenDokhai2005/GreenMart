@@ -15,7 +15,7 @@ public record PosOrderRequest(
 
     @NotEmpty(message = "Danh sách sản phẩm không được rỗng")
     @Size(min = 1, max = 100, message = "Danh sách sản phẩm từ 1 đến 100 dòng")
-    List<@Valid OrderLineRequest> items,
+    List<@NotNull(message = "Dòng sản phẩm không được null") @Valid OrderLineRequest> items,
 
     @Valid
     ManualDiscount manualDiscount,
