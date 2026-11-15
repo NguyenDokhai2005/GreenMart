@@ -2,6 +2,6 @@
   "name": "greenmart-pos-qa149",
   "private": true,
   "version": "1.0.0",
-  "scripts": {"test": "node test-runner.cjs", "pos": "node run-newman.cjs"},
+  "scripts": {"test": "node test-runner.cjs && node ../auth242/test-runner.cjs", "pos": "node run-newman.cjs && node ../auth242/run-newman.cjs", "auth": "node ../auth242/run-newman.cjs"},
   "dependencies": {"newman": "6.2.1"}
 }

@@ -48,7 +48,7 @@ import static org.mockito.Mockito.*;
 @DisplayName("PosOrderService - Unit Tests")
 class PosOrderServiceTest {
 
-   @Mock private QuoteService quoteService;
+    @Mock private QuoteService quoteService;
     @Mock private ProductService productService;
     @Mock private CustomerService customerService;
     @Mock private InventoryService inventoryService;
@@ -60,6 +60,7 @@ class PosOrderServiceTest {
     @Mock private PaymentRepository paymentRepository;
     @Mock private OutboxService outboxService;
     @Mock private JdbcTemplate jdbcTemplate;
+    @Mock private OrderQueryService orderQueryService;
     @Mock private OnlineOrderService onlineOrderService;
 
     private PosOrderServiceImpl posOrderService;
@@ -73,6 +74,7 @@ class PosOrderServiceTest {
                 quoteService, productService, customerService, inventoryService,
                 branchService, authService, promotionService, paymentService,
                 salesOrderRepository, orderItemRepository, paymentRepository, outboxService, jdbcTemplate,
+                orderQueryService, // <-- Truyền thêm orderQueryService vào đây
                 onlineOrderService
         );
 
@@ -151,7 +153,7 @@ class PosOrderServiceTest {
         assertThat(res.payments().get(0).change()).isEqualTo(49300L);
 
         verify(paymentRepository).save(any(Payment.class));
-        verify(inventoryService).sellDirect(1L, 101L, 2, 500L);
+        verify(inventoryService).sellDirect(1L, 101L, 2, 500L, 1L);
         verify(outboxService).enqueue(eq("order"), eq("500"), eq("order.completed"), any());
         verify(outboxService, never()).enqueue(any(), any(), eq("stock.changed"), any());
     }
@@ -192,7 +194,7 @@ class PosOrderServiceTest {
 
         verify(salesOrderRepository, never()).save(any());
         verify(paymentRepository, never()).save(any());
-        verify(inventoryService, never()).sellDirect(any(), any(), anyInt(), any());
+        verify(inventoryService, never()).sellDirect(any(), any(), anyInt(), any(), any());
     }
 
     @Test
@@ -221,7 +223,7 @@ class PosOrderServiceTest {
 
         verify(salesOrderRepository, never()).save(any());
         verify(paymentRepository, never()).save(any());
-        verify(inventoryService, never()).sellDirect(any(), any(), anyInt(), any());
+        verify(inventoryService, never()).sellDirect(any(), any(), anyInt(), any(), any());
     }
 
     @Test
@@ -250,7 +252,7 @@ class PosOrderServiceTest {
 
         verify(salesOrderRepository, never()).save(any());
         verify(paymentRepository, never()).save(any());
-        verify(inventoryService, never()).sellDirect(any(), any(), anyInt(), any());
+        verify(inventoryService, never()).sellDirect(any(), any(), anyInt(), any(), any());
     }
 
     @Test
@@ -398,7 +400,7 @@ class PosOrderServiceTest {
                 .matches(e -> ((AppException) e).getCode().equals(ErrorCode.TOTAL_CHANGED.name()));
 
         verify(salesOrderRepository, never()).save(any());
-        verify(inventoryService, never()).sellDirect(any(), any(), anyInt(), any());
+        verify(inventoryService, never()).sellDirect(any(), any(), anyInt(), any(), any());
     }
 
     @Test
@@ -464,6 +466,6 @@ class PosOrderServiceTest {
                 });
 
         verify(salesOrderRepository, never()).save(any());
-        verify(inventoryService, never()).sellDirect(any(), any(), anyInt(), any());
+        verify(inventoryService, never()).sellDirect(any(), any(), anyInt(), any(), any());
     }
 }
