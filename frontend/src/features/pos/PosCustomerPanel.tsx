@@ -175,7 +175,10 @@ export default function PosCustomerPanel({ customer, onChange }: PosCustomerPane
             placeholder="Nhập số điện thoại…"
             onChange={(event) => {
               setPhone(event.target.value);
-              setPhoneError('');
+              setPhoneError(
+                validateCatalogForm('customer', { name: 'Khách', phone: event.target.value })
+                  .phone ?? '',
+              );
               setLookupPhone(null);
               setLookup({ status: 'idle' });
             }}
@@ -260,7 +263,11 @@ export default function PosCustomerPanel({ customer, onChange }: PosCustomerPane
               setCreatePhone(event.target.value);
               setDuplicate(false);
               setCreateError('');
-              setFormErrors((errors) => ({ ...errors, phone: '' }));
+              setFormErrors((errors) => ({
+                ...errors,
+                phone:
+                  validateCatalogForm('customer', { name, phone: event.target.value }).phone ?? '',
+              }));
             }}
           />
           <p>
