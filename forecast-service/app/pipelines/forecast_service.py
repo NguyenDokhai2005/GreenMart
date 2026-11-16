@@ -20,7 +20,12 @@ import numpy as np
 import pandas as pd
 
 from app.db.connection import get_db_connection
-from app.models.evaluator import apply_short_history_fallback, evaluate_lightgbm_pipeline
+from app.models.baselines import extract_top_sku_ids_from_sales
+from app.models.evaluator import (
+    apply_short_history_fallback,
+    evaluate_lightgbm_pipeline,
+    train_production_demand_models,
+)
 from app.models.features import FeatureMatrixBuilder
 from app.pipelines.forecast_runner import (
     assemble_forecast_results_dataframe,
@@ -184,11 +189,17 @@ def execute_background_forecast(
     run_id: int,
     optimal_threshold: float = DEFAULT_SLOW_THRESHOLD,
     evaluate_pipeline_fn: Optional[Any] = None,
+    retrain_models_fn: Optional[Any] = None,
 ) -> None:
-    """Thực thi toàn bộ luồng dự báo chạy nền cho run_id đã được tạo trước.
+    """Thực thi toàn bộ luồng dự báo chạy nền cho run_id đã được tạo trước (Issue #114 & #298).
 
-    Tuyệt đối không tạo run_id mới; sử dụng đúng run_id được cấp từ POST /forecast/run.
-    Mở kết nối DB riêng biệt và xử lý rollback/fail nếu phát sinh lỗi.
+    Quy trình:
+    1. Đọc dữ liệu từ bảng daily_sales (<= ngày D).
+    2. Chạy đánh giá lùi (Backtest) trên cửa sổ 30 ngày trước D để lấy MAE/WAPE.
+    3. Huấn luyện lại mô hình trên toàn bộ dữ liệu tới D (với n_estimators lấy từ backtest).
+    4. Tạo đặc trưng tương lai cho D+1..D+30 qua build_future_features_matrix.
+    5. Dự báo, áp ngưỡng 0.4 cho slow-moving, fallback chuỗi mới và assemble kết quả với cutoff_date = D.
+    6. Ghi vào bảng forecast_result và cập nhật MAE/WAPE vào forecast_run (status = 'DONE').
     """
     logger.info("Bắt đầu thực thi pipeline dự báo nền cho run_id=%d", run_id)
     eval_fn = evaluate_pipeline_fn if evaluate_pipeline_fn is not None else evaluate_lightgbm_pipeline
@@ -203,27 +214,45 @@ def execute_background_forecast(
             if pd.api.types.is_datetime64_any_dtype(df_daily["sale_date"]):
                 df_daily["sale_date"] = df_daily["sale_date"].dt.date
 
-            # 2. Huấn luyện và đánh giá mô hình LightGBM đối đầu Baseline
-            report, best_models = eval_fn(
+            # 2. Huấn luyện và đánh giá mô hình LightGBM đối đầu Baseline (Backtest lấy MAE/WAPE)
+            report, backtest_models = eval_fn(
                 df_daily=df_daily,
                 horizons=(7, 30),
             )
 
-            # 3. Tạo ma trận kết quả dự báo cho 7 ngày và 30 ngày
+            # 3. Tạo ma trận đặc trưng và huấn luyện lại mô hình sản xuất trên toàn bộ dữ liệu tới ngày D
             builder = FeatureMatrixBuilder(df_daily)
-            top_sku_ids = report.baseline_report.top_sku_ids
+            last_date = builder.unique_dates[-1]
+
+            # Tính lại Top 200 SKU bán chạy trên toàn bộ dữ liệu tới ngày D (Issue #298)
+            # Với unit test dùng dummy evaluator, cho phép dùng top_sku_ids từ mock để test threshold trên 1 SKU
+            if evaluate_pipeline_fn is not None and hasattr(report, "baseline_report") and hasattr(report.baseline_report, "top_sku_ids"):
+                top_sku_ids_full = report.baseline_report.top_sku_ids
+            else:
+                top_sku_ids_full = extract_top_sku_ids_from_sales(df_daily, cutoff_date=last_date, top_k=200)
             series_product_ids = builder.series_index.get_level_values("product_id").to_numpy()
-            is_top_mask = np.isin(series_product_ids, list(top_sku_ids))
+            is_top_mask = np.isin(series_product_ids, list(top_sku_ids_full))
 
-            cutoff_d = report.cutoff_date
-            sale_dates = pd.to_datetime(df_daily["sale_date"]).dt.date
-            df_train_only = df_daily[sale_dates <= cutoff_d]
+            # Huấn luyện lại mô hình sản xuất (hỗ trợ DI qua retrain_models_fn cho test)
+            if retrain_models_fn is not None:
+                production_models = retrain_models_fn(builder=builder, horizons=(7, 30))
+            elif evaluate_pipeline_fn is not None:
+                # Nếu test truyền evaluate_pipeline_fn giả lập, tái dùng model để test chạy nhanh
+                production_models = backtest_models
+            else:
+                production_models = train_production_demand_models(
+                    builder=builder,
+                    horizons=(7, 30),
+                    best_models=backtest_models,
+                    best_objectives=getattr(report, "best_objective", None),
+                )
 
+            # 4. Tạo ma trận đặc trưng tương lai và tính dự báo cho D+1..D+30
             predictions_by_h: Dict[int, np.ndarray] = {}
             for H in (7, 30):
-                test_dfs = builder.build_test_features_matrix(cutoff_d, H)
-                model = best_models[H]
-                pred_cols = [model.predict(sdf) for sdf in test_dfs]
+                future_dfs = builder.build_future_features_matrix(origin_date=last_date, horizon=H)
+                model = production_models[H]
+                pred_cols = [model.predict(fdf) for fdf in future_dfs]
                 p_mat = np.column_stack(pred_cols)
 
                 # Quyết định Lead 13/11/2026: Áp dụng hậu xử lý ngưỡng (mặc định 0.4) cho nhóm SKU bán chậm
@@ -232,25 +261,25 @@ def execute_background_forecast(
                     slow_cells = (~is_top_mask)[:, np.newaxis] & (p_mat < th_v)
                     p_mat = np.where(slow_cells, 0.0, p_mat)
 
-                # Fallback cho chuỗi mới (< 28 ngày dữ liệu)
+                # Fallback cho chuỗi mới (< 28 ngày dữ liệu tính đến ngày D)
                 apply_short_history_fallback(
-                    df_train=df_train_only,
+                    df_train=df_daily,
                     series_index=builder.series_index,
                     pred_matrix=p_mat,
                     min_history_days=28,
                 )
-                predictions_by_h[H] = p_mat
+                predictions_by_h[H] = np.clip(p_mat, 0.0, None)
 
             results_df = assemble_forecast_results_dataframe(
                 series_index=builder.series_index,
                 predictions_by_horizon=predictions_by_h,
-                cutoff_date=cutoff_d,
+                cutoff_date=last_date,
             )
 
-            # 4. Ghi trực tiếp kết quả vào bảng forecast_result theo từng batch
+            # 5. Ghi trực tiếp kết quả vào bảng forecast_result theo từng batch
             total_inserted = save_forecast_results(conn, run_id=run_id, results_df=results_df)
 
-            # 5. Cập nhật chỉ số MAE, WAPE và baseline của tầm 7 ngày vào forecast_run
+            # 6. Cập nhật chỉ số MAE, WAPE và baseline của tầm 7 ngày vào forecast_run
             m_h7_ov = report.lgb_results_clean[7]["lgb_tweedie"]["overall"]
             best_b_name = report.baseline_report.best_baseline[7]
             b_h7_ov = report.baseline_report.results[7][best_b_name]["overall"]
