@@ -61,6 +61,9 @@ public class CustomerServiceImpl implements CustomerService {
                 : null;
 
         Customer customer = new Customer(normalizedPhone, normalizedName, normalizedEmail);
+        if (request.active() != null) {
+            customer.setActive(request.active());
+        }
         Customer saved = customerRepository.save(customer);
         return CustomerResponse.from(saved);
     }
@@ -87,7 +90,24 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setPhone(normalizedPhone);
         customer.setName(request.name().trim());
         customer.setEmail((request.email() != null && !request.email().isBlank()) ? request.email().trim() : null);
+        if (request.active() != null) {
+            SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER");
+            customer.setActive(request.active());
+        }
 
+        Customer updated = customerRepository.save(customer);
+        return CustomerResponse.from(updated);
+    }
+
+    @Override
+    public CustomerResponse deactivateCustomer(Long customerId) {
+        SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER");
+
+        Customer customer = customerRepository.findById(customerId).orElseThrow(() ->
+            new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy khách hàng", Map.of("customerId", customerId))
+        );
+
+        customer.setActive(false);
         Customer updated = customerRepository.save(customer);
         return CustomerResponse.from(updated);
     }

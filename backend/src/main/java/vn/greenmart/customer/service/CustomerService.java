@@ -11,6 +11,8 @@ public interface CustomerService {
 
     CustomerResponse createCustomer(CustomerRequest request);
 
+    CustomerResponse deactivateCustomer(Long customerId);
+
     CustomerResponse updateCustomer(Long customerId, CustomerRequest request);
 
     CustomerResponse getCustomer(Long customerId);

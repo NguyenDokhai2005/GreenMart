@@ -74,6 +74,11 @@ public class CustomerController {
         return ResponseEntity.ok(customerService.updateCustomer(customerId, request));
     }
 
+    @PostMapping("/{customerId}/deactivate")
+    public ResponseEntity<CustomerResponse> deactivateCustomer(@PathVariable("customerId") Long customerId) {
+        return ResponseEntity.ok(customerService.deactivateCustomer(customerId));
+    }
+
     @GetMapping("/{customerId}/orders")
     public ResponseEntity<PageResponse<OrderSummaryResponse>> listCustomerOrders(
         @PathVariable("customerId") Long customerId,

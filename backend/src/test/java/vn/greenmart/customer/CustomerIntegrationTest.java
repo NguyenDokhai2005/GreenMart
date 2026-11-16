@@ -204,4 +204,15 @@ class CustomerIntegrationTest {
             .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
             .andExpect(jsonPath("$.details[0].field").value("page"));
     }
+
+    @Test
+    void testDeactivateCustomer_Returns200WithActiveFalse() throws Exception {
+        CustomerResponse res = new CustomerResponse(1L, "0901234567", "Trần Thị Mai", null, false, Instant.now());
+        when(customerService.deactivateCustomer(1L)).thenReturn(res);
+
+        mockMvc.perform(post("/api/v1/customers/1/deactivate"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(1))
+            .andExpect(jsonPath("$.active").value(false));
+    }
 }
