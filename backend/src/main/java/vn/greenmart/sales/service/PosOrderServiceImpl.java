@@ -498,9 +498,9 @@ public class PosOrderServiceImpl implements PosOrderService {
         }
         try {
             List<PromotionRef> list = jdbcTemplate.query(
-                    "SELECT id, code, name FROM promotion WHERE id = ?",
-                    (rs, rowNum) -> new PromotionRef(rs.getLong("id"), rs.getString("code"), rs.getString("name"), discount != null ? discount : 0L),
-                    promotionId
+                  "SELECT id, code FROM promotion WHERE id = ?",
+                  (rs, rowNum) -> new PromotionRef(rs.getLong("id"), rs.getString("code"), null, discount != null ? discount : 0L),
+                  promotionId
             );
             if (!list.isEmpty()) {
                 return list.get(0);
@@ -511,3 +511,4 @@ public class PosOrderServiceImpl implements PosOrderService {
         return new PromotionRef(promotionId, "KM-" + promotionId, null, discount != null ? discount : 0L);
     }
 }
+
