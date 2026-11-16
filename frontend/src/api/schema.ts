@@ -870,6 +870,9 @@ export interface paths {
      * Báo cáo doanh thu theo thời gian
      * @description Doanh thu chỉ tính đơn COMPLETED theo ngày hoàn tất; trả hàng trừ vào ngày trả (BR-18, DASH-01).
      *     Hỗ trợ gom nhóm theo ngày (day), tuần (week), tháng (month).
+     *     Khoảng báo cáo tính cả ngày đầu và ngày cuối. Với day, tối đa 366 ngày. Với week và month,
+     *     ngày cuối phải trước ngày tròn 5 năm tính từ ngày đầu. Ngày báo cáo thuộc năm 0001 đến 9999.
+     *     Khoảng không hợp lệ trả 400 VALIDATION_ERROR.
      */
     get: operations['getRevenueReport'];
     put?: never;
@@ -892,6 +895,8 @@ export interface paths {
      * @description Top sản phẩm theo số lượng ròng (bán trừ trả) trong kỳ báo cáo (DASH-02, BR-18).
      *     Khi không truyền month, from hoặc to, kỳ báo cáo là từ đầu tháng hiện tại đến hôm nay.
      *     Nếu truyền month, tháng báo cáo được ưu tiên hơn from và to.
+     *     Kỳ báo cáo tối đa 366 ngày tính cả ngày đầu và ngày cuối, thuộc năm 0001 đến 9999.
+     *     Khoảng không hợp lệ trả 400 VALIDATION_ERROR.
      */
     get: operations['getTopProductsReport'];
     put?: never;

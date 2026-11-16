@@ -11,6 +11,7 @@ import java.util.List;
 
 public interface PosOrderService {
     OrderResponse createPosOrder(PosOrderRequest request, String idempotencyKey);
+    OrderResponse createPosOrder(PosOrderRequest request, String idempotencyKey, String requestHash);
     OrderResponse getOrder(Long orderId);
     PageResponse<OrderSummaryResponse> listOrders(
             Long branchId,
