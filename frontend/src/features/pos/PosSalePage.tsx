@@ -13,6 +13,7 @@ import { mapErrorToState } from '../../lib/errors';
 import type { PosPageProps } from '../../layouts/pos/PosPlaceholderPage';
 import type { Customer } from '../catalog/catalogApi';
 import { cartKey, cartReducer, stockForLine } from './posCart';
+import PosCheckoutDialog from './PosCheckoutDialog';
 import PosCustomerPanel from './PosCustomerPanel';
 import './posSale.css';
 
@@ -40,6 +41,7 @@ export default function PosSalePage({ item }: PosPageProps) {
   const branchId = branch.state.status === 'active' ? branch.state.branch.id : 0;
   const [lines, dispatch] = useReducer(cartReducer, []);
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [checkoutQuote, setCheckoutQuote] = useState<Quote | null>(null);
   const customerId = customer?.id;
   const [query, setQuery] = useState('');
   const normalizedQuery = query.trim();
@@ -469,9 +471,9 @@ export default function PosSalePage({ item }: PosPageProps) {
               className="pos-sale__checkout"
               disabled={!canCheckout}
               aria-keyshortcuts="F4"
-              onClick={() =>
-                setNotice('Thanh toán chưa khả dụng. Giỏ hàng của bạn vẫn được giữ nguyên.')
-              }
+              onClick={() => {
+                if (quote) setCheckoutQuote(quote);
+              }}
             >
               Thanh toán · F4
             </Button>
@@ -485,6 +487,20 @@ export default function PosSalePage({ item }: PosPageProps) {
           variant="warning"
           title={notice}
           onClose={() => setNotice(undefined)}
+        />
+      )}
+      {checkoutQuote && (
+        <PosCheckoutDialog
+          branchId={branchId}
+          customerId={customerId}
+          lines={lines}
+          quote={checkoutQuote}
+          onClose={() => setCheckoutQuote(null)}
+          onCompleted={() => {
+            dispatch({ type: 'clear' });
+            setCustomer(null);
+          }}
+          onRequote={() => setQuoteRetry((value) => value + 1)}
         />
       )}
     </section>

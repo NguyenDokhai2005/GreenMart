@@ -13,6 +13,7 @@ export interface DialogProps {
   destructive?: boolean;
   busy?: boolean;
   confirmDisabled?: boolean;
+  closeDisabled?: boolean;
 }
 
 export default function Dialog({
@@ -26,6 +27,7 @@ export default function Dialog({
   destructive = false,
   busy = false,
   confirmDisabled = false,
+  closeDisabled = false,
 }: DialogProps) {
   const titleId = useId();
   const dialogRef = useRef<HTMLElement>(null);
@@ -47,7 +49,7 @@ export default function Dialog({
       if (event.key === 'Escape') {
         event.preventDefault();
 
-        if (!busy) {
+        if (!busy && !closeDisabled) {
           onClose();
         }
         return;
@@ -104,7 +106,7 @@ export default function Dialog({
         previousFocusedElement.focus();
       }
     };
-  }, [open, busy, onClose]);
+  }, [open, busy, closeDisabled, onClose]);
 
   if (!open) return null;
 
@@ -112,7 +114,7 @@ export default function Dialog({
     <div
       className="gm-dialog-backdrop"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !busy) {
+        if (event.target === event.currentTarget && !busy && !closeDisabled) {
           onClose();
         }
       }}
@@ -135,7 +137,7 @@ export default function Dialog({
             className="gm-dialog__close"
             aria-label="Đóng hộp thoại"
             onClick={onClose}
-            disabled={busy}
+            disabled={busy || closeDisabled}
           >
             ×
           </button>
@@ -144,7 +146,7 @@ export default function Dialog({
         <div className="gm-dialog__body">{children}</div>
 
         <footer className="gm-dialog__footer">
-          <Button variant="secondary" onClick={onClose} disabled={busy}>
+          <Button variant="secondary" onClick={onClose} disabled={busy || closeDisabled}>
             {cancelText}
           </Button>
 
