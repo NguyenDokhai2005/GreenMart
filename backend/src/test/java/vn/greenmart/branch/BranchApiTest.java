@@ -77,40 +77,46 @@ class BranchApiTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"CASHIER", "STOREKEEPER", "BRANCH_MANAGER"})
-    void returnsOnlyAssignedBranchesWithContractFields(String role) throws Exception {
+    void returnsAllActiveBranchesWithContractFields(String role) throws Exception {
         mvc.perform(get(PATH).with(user("700").roles(role)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].id", contains(71, 72)))
+                .andExpect(jsonPath("$[*].id", contains(71, 73)))
                 .andExpect(jsonPath("$[0].code").value("GM-071"))
                 .andExpect(jsonPath("$[0].name").value("Branch 71"))
                 .andExpect(jsonPath("$[0].address").value("71 Green Street"))
                 .andExpect(jsonPath("$[0].active").value(true))
                 .andExpect(jsonPath("$[1].address").value(nullValue()))
-                .andExpect(jsonPath("$[1].active").value(false));
+                .andExpect(jsonPath("$[1].active").value(true));
     }
 
-    @Test
-    void intersectsActiveFilterWithBranchAssignments() throws Exception {
-        mvc.perform(get(PATH).with(user("700").roles("CASHIER")).param("active", "true"))
+    @ParameterizedTest
+    @ValueSource(strings = {"CASHIER", "STOREKEEPER", "BRANCH_MANAGER"})
+    void honorsActiveTrueAndHidesInactiveBranches(String role) throws Exception {
+        mvc.perform(get(PATH).with(user("700").roles(role)).param("active", "true"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].id", contains(71)));
-        mvc.perform(get(PATH).with(user("700").roles("CASHIER")).param("active", "false"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].id", contains(72)));
-    }
-
-    @Test
-    void activeFilterAlsoAppliesToPrivilegedRoles() throws Exception {
-        mvc.perform(get(PATH).with(user("700").roles("ADMIN")).param("active", "true"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].id", containsInAnyOrder(71, 73)));
-    }
-
-    @Test
-    void returnsEmptyArrayWithoutBranchAssignments() throws Exception {
-        mvc.perform(get(PATH).with(user("701").roles("CASHIER")))
+                .andExpect(jsonPath("$[*].id", contains(71, 73)));
+        mvc.perform(get(PATH).with(user("700").roles(role)).param("active", "false"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isEmpty());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ADMIN", "OWNER"})
+    void activeFilterAlsoAppliesToPrivilegedRoles(String role) throws Exception {
+        mvc.perform(get(PATH).with(user("700").roles(role)).param("active", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].id", containsInAnyOrder(71, 73)));
+        mvc.perform(get(PATH).with(user("700").roles(role)).param("active", "false"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].id", contains(72)))
+                .andExpect(jsonPath("$[0].active").value(false));
+    }
+
+    @Test
+    void returnsActiveBranchesWithoutBranchAssignments() throws Exception {
+        mvc.perform(get(PATH).with(user("701").roles("CASHIER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].id", contains(71, 73)));
     }
 
     @Test

@@ -22,19 +22,21 @@ public class BranchServiceImpl implements BranchService {
 
     @Override
     public List<BranchResponse> list(Boolean active) {
-        var branchIds = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
-        if (branchIds != null && branchIds.isEmpty()) {
-            return List.of();
+        String role = SecurityUtils.getCurrentRole();
+        if (role == null) {
+            throw new AppException(ErrorCode.UNAUTHORIZED, "Chưa đăng nhập");
+        }
+        if (!"ADMIN".equalsIgnoreCase(role) && !"OWNER".equalsIgnoreCase(role)) {
+            if (Boolean.FALSE.equals(active)) {
+                return List.of();
+            }
+            active = true;
         }
 
         var params = new MapSqlParameterSource();
-        String sql = "SELECT id, code, name, address, is_active FROM branch WHERE TRUE";
-        if (branchIds != null) {
-            sql += " AND id IN (:branchIds)";
-            params.addValue("branchIds", branchIds);
-        }
+        String sql = "SELECT id, code, name, address, is_active FROM branch";
         if (active != null) {
-            sql += " AND is_active = :active";
+            sql += " WHERE is_active = :active";
             params.addValue("active", active);
         }
 
