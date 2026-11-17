@@ -42,7 +42,12 @@ function LocationProbe() {
 
 function renderApp(path = '/pos', auth: AuthSession | null = session()) {
   if (auth) sessionStorage.setItem('greenmart.session', JSON.stringify(auth));
-  fetchMock.mockResolvedValue(json(auth?.user));
+  fetchMock.mockImplementation(async (url) => {
+    const path = String(url);
+    if (path.includes('/categories')) return json([]);
+    if (path.includes('/products') || path.includes('/customers')) return json({ content: [] });
+    return json(auth?.user);
+  });
   return render(
     <MemoryRouter initialEntries={[path]}>
       <LocationProbe />
@@ -84,8 +89,8 @@ describe('Given authenticated POS staff, When opening the workspace', () => {
       }
       expect(within(nav).queryByText('Đơn online')).toBeNull();
       expect(within(nav).queryByText('Phiếu kho')).toBeNull();
-      expect(screen.queryByRole('button', { name: /sửa|thanh toán|duyệt/i })).toBeNull();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('button', { name: 'Thanh toán · F4' })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /sửa|duyệt/i })).toBeNull();
       expect(String(fetchMock.mock.calls[0]![0])).toBe('/api/v1/auth/me');
     },
   );
@@ -204,7 +209,10 @@ describe('Given POS shortcuts, When using keyboard navigation', () => {
     });
     prevented.preventDefault();
     fireEvent(window, prevented);
-    for (const code of ['F2', 'F4', 'Escape', 'Enter']) {
+    for (const code of ['F2', 'F4']) {
+      expect(fireEvent.keyDown(window, { code, key: code })).toBe(false);
+    }
+    for (const code of ['Escape', 'Enter']) {
       expect(fireEvent.keyDown(window, { code, key: code })).toBe(true);
     }
     expect(screen.getByTestId('location').textContent).toBe('/pos');

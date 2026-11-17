@@ -73,6 +73,12 @@ public class PosOrderServiceImpl implements PosOrderService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public OrderResponse createPosOrder(PosOrderRequest request, String idempotencyKey) {
+        return createPosOrder(request, idempotencyKey, null);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public OrderResponse createPosOrder(PosOrderRequest request, String idempotencyKey, String requestHash) {
         SecurityUtils.requireRole("BRANCH_MANAGER", "CASHIER");
 
         List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
@@ -185,6 +191,9 @@ public class PosOrderServiceImpl implements PosOrderService {
         order.setManualDiscount(recomputedQuote.manualDiscount() != null ? recomputedQuote.manualDiscount() : 0L);
         order.setManualDiscountReason(request.manualDiscount() != null ? request.manualDiscount().reason() : null);
         order.setTotal(recomputedQuote.total());
+        order.setIdempotencyKey(idempotencyKey != null && !idempotencyKey.isBlank() ? idempotencyKey.trim() : null);
+        order.setRequestHash(requestHash != null && !requestHash.isBlank() ? requestHash.trim() : null);
+        order.setCreatedBy(currentUserId);
         order.setCreatedBy(currentUserId);
         order.setCreatedAt(now);
         order.setCompletedAt(now);
