@@ -1,6 +1,8 @@
 package vn.greenmart.catalog.service;
 
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.greenmart.catalog.domain.Category;
@@ -20,8 +22,12 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class CategoryServiceImpl implements CategoryService {
 
+    private static final long CATEGORY_TREE_LOCK_KEY = 3060386L;
+
     private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
+    private final JdbcTemplate jdbcTemplate;
+    private final EntityManager entityManager;
 
     @Override
     @Transactional(readOnly = true)
@@ -52,10 +58,15 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryResponse updateCategory(Long id, CategoryRequest request) {
         SecurityUtils.requireRole("OWNER");
 
+        Long newParentId = request.parentId();
+        if (newParentId != null && !newParentId.equals(id)) {
+            // Khóa tuần tự theo transaction khi thay đổi quan hệ cha-con để ngăn race condition tạo vòng lặp
+            acquireCategoryTreeLock();
+        }
+
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy danh mục với id: " + id));
 
-        Long newParentId = request.parentId();
         if (newParentId != null) {
             if (newParentId.equals(id)) {
                 throw new AppException(ErrorCode.CATEGORY_CYCLE, "Không thể gán danh mục cha là chính nó");
@@ -90,6 +101,16 @@ public class CategoryServiceImpl implements CategoryService {
         }
 
         categoryRepository.deleteById(id);
+    }
+
+    private void acquireCategoryTreeLock() {
+        if (jdbcTemplate != null) {
+            jdbcTemplate.queryForObject("SELECT pg_advisory_xact_lock(?)", Object.class, CATEGORY_TREE_LOCK_KEY);
+        }
+        if (entityManager != null) {
+            // Xóa cache cấp 1 của Hibernate sau khi nhận lock để đảm bảo đọc snapshot mới nhất đã commit
+            entityManager.clear();
+        }
     }
 
     private void checkCycle(Long categoryId, Long targetParentId) {
