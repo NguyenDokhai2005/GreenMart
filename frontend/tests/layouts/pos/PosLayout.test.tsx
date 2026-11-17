@@ -42,7 +42,12 @@ function LocationProbe() {
 
 function renderApp(path = '/pos', auth: AuthSession | null = session()) {
   if (auth) sessionStorage.setItem('greenmart.session', JSON.stringify(auth));
-  fetchMock.mockResolvedValue(json(auth?.user));
+  fetchMock.mockImplementation(async (url) => {
+    const path = String(url);
+    if (path.includes('/categories')) return json([]);
+    if (path.includes('/products') || path.includes('/customers')) return json({ content: [] });
+    return json(auth?.user);
+  });
   return render(
     <MemoryRouter initialEntries={[path]}>
       <LocationProbe />
@@ -84,17 +89,23 @@ describe('Given authenticated POS staff, When opening the workspace', () => {
       }
       expect(within(nav).queryByText('Đơn online')).toBeNull();
       expect(within(nav).queryByText('Phiếu kho')).toBeNull();
-      expect(screen.queryByRole('button', { name: /sửa|thanh toán|duyệt/i })).toBeNull();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('button', { name: 'Thanh toán · F4' })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /sửa|duyệt/i })).toBeNull();
       expect(String(fetchMock.mock.calls[0]![0])).toBe('/api/v1/auth/me');
     },
   );
 
   it.each(POS_NAVIGATION)(
-    'Then direct URL $path renders the matching placeholder and active menu after reload',
+    'Then direct URL $path renders the matching page and active menu after reload',
     async (item) => {
+      const heading =
+        item.segment === 'customers'
+          ? 'Tra cứu khách hàng'
+          : item.segment === 'products'
+            ? 'Sản phẩm'
+            : item.title;
       const view = renderApp(`${item.path}?range=today#detail`);
-      await screen.findByRole('heading', { name: item.title });
+      await screen.findByRole('heading', { name: heading });
       expect(screen.getByRole('link', { name: item.label }).getAttribute('aria-current')).toBe(
         'page',
       );
@@ -103,7 +114,7 @@ describe('Given authenticated POS staff, When opening the workspace', () => {
       ).toHaveLength(1);
       view.unmount();
       renderApp(`${item.path}?range=today#detail`);
-      await screen.findByRole('heading', { name: item.title });
+      await screen.findByRole('heading', { name: heading });
       expect(screen.getByTestId('location').textContent).toBe(`${item.path}?range=today#detail`);
     },
   );
@@ -117,7 +128,7 @@ describe('Given authenticated POS staff, When opening the workspace', () => {
     const title = await screen.findByRole('heading', { name: 'Hóa đơn' });
     expect(screen.getByRole('banner')).toBe(header);
     expect(screen.getByRole('navigation')).toBe(nav);
-    expect(document.activeElement).toBe(title);
+    await waitFor(() => expect(document.activeElement).toBe(title));
     expect(screen.getByRole('link', { name: 'Bán hàng' }).getAttribute('aria-current')).toBeNull();
   });
 
@@ -150,7 +161,14 @@ describe('Given POS shortcuts, When using keyboard navigation', () => {
         altKey: true,
       });
       expect(accepted).toBe(false);
-      await screen.findByRole('heading', { name: item.title });
+      await screen.findByRole('heading', {
+        name:
+          item.segment === 'customers'
+            ? 'Tra cứu khách hàng'
+            : item.segment === 'products'
+              ? 'Sản phẩm'
+              : item.title,
+      });
       expect(screen.getByTestId('location').textContent).toBe(item.path);
     }
   });
@@ -158,6 +176,7 @@ describe('Given POS shortcuts, When using keyboard navigation', () => {
   it('Then inputs, editable widgets, IME, repeats, dialogs and other modifiers keep their keystrokes', async () => {
     const view = renderApp();
     await screen.findByRole('heading', { name: 'Bán hàng tại quầy' });
+    await waitFor(() => expect(fireEvent.keyDown(window, { code: 'F2', key: 'F2' })).toBe(false));
     for (const tag of ['input', 'textarea', 'select']) {
       const field = document.createElement(tag);
       view.container.append(field);
@@ -191,7 +210,10 @@ describe('Given POS shortcuts, When using keyboard navigation', () => {
     });
     prevented.preventDefault();
     fireEvent(window, prevented);
-    for (const code of ['F2', 'F4', 'Escape', 'Enter']) {
+    for (const code of ['F2', 'F4']) {
+      expect(fireEvent.keyDown(window, { code, key: code })).toBe(false);
+    }
+    for (const code of ['Escape', 'Enter']) {
       expect(fireEvent.keyDown(window, { code, key: code })).toBe(true);
     }
     expect(screen.getByTestId('location').textContent).toBe('/pos');
@@ -287,13 +309,13 @@ describe('Given the existing authentication and branch guards', () => {
       fireEvent.submit(document.querySelector('form')!);
       await screen.findByRole('heading', { name: 'Bán hàng tại quầy' });
       fireEvent.click(screen.getByRole('link', { name: 'Tra cứu khách' }));
-      await screen.findByRole('heading', { name: 'Tra cứu khách' });
+      await screen.findByRole('heading', { name: 'Tra cứu khách hàng' });
       await act(async () => {
         if (outcome === 'resolve') complete(new Response(null, { status: 204 }));
         else fail(new TypeError('Failed to fetch'));
       });
       expect(screen.getByTestId('location').textContent).toBe('/pos/customers');
-      expect(screen.getByRole('banner').textContent).toContain('Tài khoản mới');
+      expect(document.querySelector('.pos-layout__header')?.textContent).toContain('Tài khoản mới');
       expect(JSON.parse(sessionStorage.getItem('greenmart.session')!).refreshToken).toBe(
         'new-refresh',
       );
@@ -323,7 +345,7 @@ describe('Given the existing authentication and branch guards', () => {
     expect(screen.queryByRole('navigation')).toBeNull();
     fireEvent.click(document.querySelector<HTMLButtonElement>('.branch-page__row-select')!);
     fireEvent.click(document.querySelector<HTMLButtonElement>('.branch-page__actions button')!);
-    await screen.findByRole('heading', { name: 'Tra cứu khách' });
+    await screen.findByRole('heading', { name: 'Tra cứu khách hàng' });
     expect(screen.getByTestId('location').textContent).toBe(
       '/pos/customers?phone=0901234567#result',
     );

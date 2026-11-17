@@ -77,7 +77,7 @@ class StockImportTransactionTest {
 
     private long draft(long branch, List<StockDocumentRequests.Item> items) throws Exception {
         return authenticated(810, "STOREKEEPER", () -> documents.create(new StockDocumentRequests.Create(
-                StockDocumentType.IMPORT, branch, null, "Supplier", null, null, items)).id());
+                StockDocumentType.IMPORT, branch, null, "Supplier", null, null, false, items)).id());
     }
 
     private String approve(long id, CountDownLatch start) throws Exception {

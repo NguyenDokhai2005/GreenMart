@@ -265,7 +265,7 @@ class StockDocumentDraftApiTest {
     void makerManagerCannotApproveOwnDocumentAndOtherRolesCannotApprove() throws Exception {
         long id = create();
         mvc.perform(post("/api/v1/stock-documents/{id}/approve", id).with(user("810").roles("STOREKEEPER")))
-                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("SELF_APPROVAL_FORBIDDEN"));
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
         jdbc.update("UPDATE stock_document SET created_by=811 WHERE id=?", id);
         entityManager.clear();
         mvc.perform(post("/api/v1/stock-documents/{id}/approve", id).with(user("811").roles("BRANCH_MANAGER")))

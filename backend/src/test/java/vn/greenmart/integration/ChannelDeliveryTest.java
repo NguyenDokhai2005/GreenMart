@@ -12,6 +12,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -26,6 +27,7 @@ import vn.greenmart.integration.delivery.ChannelDelivery;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({ChannelDelivery.class, vn.greenmart.integration.channel.ChannelSignatures.class, OutboxService.class, ChannelDeliveryTest.Json.class})
 @Testcontainers
+@DirtiesContext
 class ChannelDeliveryTest {
     @TestConfiguration static class Json {
         @Bean ObjectMapper objectMapper() { return new ObjectMapper(); }

@@ -101,15 +101,33 @@ class ChannelWebhookTest {
                 Integer.class)).isEqualTo(1);
     }
 
+    @Test void rejectsTimestampsOutsideIntakeWindowWithoutWritingAnOrder() throws Exception {
+        Instant now = Instant.now();
+        for (Instant orderedAt : java.util.List.of(now.minus(8, ChronoUnit.DAYS), now.plus(6, ChronoUnit.MINUTES))) {
+            byte[] body = order("webhook-invalid-date", "W-RICE", "ONLINE", "09123456781", orderedAt);
+            mvc.perform(post("/api/v1/integrations/WEB/orders")
+                    .header("X-Signature", signatures.sign("WEB", body)).content(body))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM sales_order WHERE external_order_id='webhook-invalid-date'",
+                Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM customer WHERE phone='09123456781'",
+                Integer.class)).isZero();
+    }
+
     private byte[] order(String id, String sku) {
         return order(id, sku, "COD", "09123456789");
     }
 
     private byte[] order(String id, String sku, String paymentMethod, String phone) {
+        return order(id, sku, paymentMethod, phone, Instant.now());
+    }
+
+    private byte[] order(String id, String sku, String paymentMethod, String phone, Instant orderedAt) {
         return """
-                {"externalOrderId":"%s","orderedAt":"2026-11-11T00:00:00Z",
+                {"externalOrderId":"%s","orderedAt":"%s",
                  "customer":{"name":"Demo","phone":"%s"},
                  "items":[{"externalSku":"%s","quantity":3,"unitPrice":29000}],"paymentMethod":"%s"}
-                """.formatted(id, phone, sku, paymentMethod).getBytes(StandardCharsets.UTF_8);
+                """.formatted(id, orderedAt, phone, sku, paymentMethod).getBytes(StandardCharsets.UTF_8);
     }
 }

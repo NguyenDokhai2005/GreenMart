@@ -113,7 +113,7 @@ public final class PageUtils {
 
         List<Sort.Order> orders = new ArrayList<>();
         for (String param : nonBlankParams) {
-            String[] parts = param.split(",");
+            String[] parts = param.split(",", -1);
             if (parts.length > 2) {
                 throw new AppException(
                     ErrorCode.VALIDATION_ERROR,

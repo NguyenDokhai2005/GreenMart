@@ -68,7 +68,7 @@ class StockTransferApiTest {
         jdbc.update("INSERT INTO inventory(branch_id,product_id,on_hand,reserved) VALUES(81,81,85,5)");
     }
 
-    @Test void branchAccessIsCheckedBeforeUnsupportedDocumentType() throws Exception {
+    @Test void adjustmentDetailsAreScopedToTheirBranch() throws Exception {
         long id = jdbc.queryForObject("""
                 INSERT INTO stock_document(code,type,branch_id,created_by)
                 VALUES ('ADJUST-TEST','ADJUST',81,810) RETURNING id
@@ -76,8 +76,32 @@ class StockTransferApiTest {
         mvc.perform(get(DOCUMENTS + "/{id}", id).with(user("813").roles("STOREKEEPER")))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
         mvc.perform(post(DOCUMENTS + "/{id}/approve", id).with(user("813").roles("STOREKEEPER")))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
         mvc.perform(get(DOCUMENTS + "/{id}", id).with(user("810").roles("STOREKEEPER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.type").value("ADJUST"));
+    }
+
+    @Test void listsStockDocumentsForSourceAndDestinationWithFilters() throws Exception {
+        long id = draft().get("id").asLong();
+        approve(id).andExpect(status().isOk());
+
+        mvc.perform(get(DOCUMENTS).with(user("812").roles("STOREKEEPER"))
+                        .param("branchId", "82").param("type", "TRANSFER")
+                        .param("status", "DRAFT", "IN_TRANSIT").param("size", "1")
+                        .param("sort", "createdAt,desc"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(id))
+                .andExpect(jsonPath("$.content[0].branch.id").value(81))
+                .andExpect(jsonPath("$.content[0].toBranch.id").value(82))
+                .andExpect(jsonPath("$.content[0].itemCount").value(1));
+        mvc.perform(get(DOCUMENTS).with(user("813").roles("STOREKEEPER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(0));
+        mvc.perform(get(DOCUMENTS).with(user("813").roles("STOREKEEPER")).param("branchId", "82"))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
+        mvc.perform(get(DOCUMENTS).with(user("811").roles("BRANCH_MANAGER"))
+                        .param("from", "2026-11-13").param("to", "2026-11-12"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get(DOCUMENTS).with(user("811").roles("BRANCH_MANAGER")).param("sort", ","))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 

@@ -5,6 +5,8 @@ import vn.greenmart.inventory.dto.InventoryItemResponse;
 import vn.greenmart.inventory.dto.StockStatus;
 
 public interface InventoryQueryService {
+    InventoryItemResponse get(Long branchId, Long productId);
+
     PageResponse<InventoryItemResponse> list(Long branchId, Long productId, Long categoryId,
             String q, StockStatus stockStatus, Integer page, Integer size, String[] sort);
 }

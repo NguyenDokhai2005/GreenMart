@@ -219,4 +219,46 @@ class OrderControllerTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
+
+
+    @Test
+    @DisplayName("POST /api/v1/orders/quote gửi items chứa phần tử null -> trả về HTTP 400 VALIDATION_ERROR (#316)")
+    void testQuoteOrder_NullItemInList_Returns400ValidationError() throws Exception {
+        String invalidJson = """
+            {
+              "branchId": 1,
+              "items": [null]
+            }
+            """;
+
+        mockMvc.perform(post("/api/v1/orders/quote")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(invalidJson))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/orders/pos gửi items chứa phần tử null -> trả về HTTP 400 VALIDATION_ERROR (#316)")
+    void testCreatePosOrder_NullItemInList_Returns400ValidationError() throws Exception {
+        String invalidJson = """
+            {
+              "branchId": 1,
+              "items": [null],
+              "payment": {
+                "method": "CASH",
+                "cashReceived": 100000,
+                "simulate": "SUCCESS"
+              },
+              "expectedTotal": 100000
+            }
+            """;
+
+        mockMvc.perform(post("/api/v1/orders/pos")
+                .header("Idempotency-Key", UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(invalidJson))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
 }

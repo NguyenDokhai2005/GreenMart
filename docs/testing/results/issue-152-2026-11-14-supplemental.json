@@ -1,0 +1,3861 @@
+{
+  "issue": 152,
+  "date": "2026-11-14T08:25:59.077074+00:00",
+  "sourceCommit": "c25ae39477f8b2de72b2f022bbfda03c00d28073",
+  "project": "greenmart-qa152-20261114",
+  "base": "http://127.0.0.1:18160/api/v1",
+  "runtime": {
+    "imageTag": "greenmart-backend:qa152-c25ae39",
+    "imageId": "sha256:d70575003b0b546b2da08a36800d4304d5cfb8da866bf587876b5b8fea4e7a6d",
+    "sourceRevision": "c25ae39477f8b2de72b2f022bbfda03c00d28073"
+  },
+  "summary": {
+    "PASS": 155,
+    "FAIL": 18
+  },
+  "blocked": null,
+  "checks": [
+    {
+      "id": "RBAC152-001",
+      "username": "admin",
+      "name": "Login supplemental",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-002",
+      "username": "admin",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/1/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-003",
+      "username": "admin",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": {
+        "branchId": 1,
+        "available": 23
+      },
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-004",
+      "username": "admin",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=1&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "e6f0f2af-2a76-4e11-9318-92c6a4efbc33",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-005",
+      "username": "admin",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/2/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-006",
+      "username": "admin",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=2",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": {
+        "branchId": 2,
+        "available": 22
+      },
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-007",
+      "username": "admin",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=2&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "89f7cc85-60bf-4a9a-9741-5db07391f894",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-008",
+      "username": "admin",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/3/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-009",
+      "username": "admin",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=3",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": {
+        "branchId": 3,
+        "available": 22
+      },
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-010",
+      "username": "admin",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=3&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "9b80c848-4f22-4911-a5e4-dedfa3bcbe63",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-011",
+      "username": "admin",
+      "name": "Product price privacy",
+      "method": "GET",
+      "path": "/products/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "costPrice": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-012",
+      "username": "admin",
+      "name": "Unauthorized product price change",
+      "method": "PUT",
+      "path": "/products/1",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "53a019f3-4525-46cb-9076-b2d719186ad5",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-013",
+      "username": "admin",
+      "name": "Unauthorized category creation",
+      "method": "POST",
+      "path": "/categories",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "66aec890-b73f-43b9-b4a8-d5aeb70bd56a",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-014",
+      "username": "owner",
+      "name": "Login supplemental",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-015",
+      "username": "owner",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/1/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-016",
+      "username": "owner",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": {
+        "branchId": 1,
+        "available": 23
+      },
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-017",
+      "username": "owner",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=1&size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-018",
+      "username": "owner",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/2/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-019",
+      "username": "owner",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=2",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": {
+        "branchId": 2,
+        "available": 22
+      },
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-020",
+      "username": "owner",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=2&size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-021",
+      "username": "owner",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/3/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-022",
+      "username": "owner",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=3",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": {
+        "branchId": 3,
+        "available": 22
+      },
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-023",
+      "username": "owner",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=3&size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-024",
+      "username": "owner",
+      "name": "Product price privacy",
+      "method": "GET",
+      "path": "/products/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "costPrice": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-025",
+      "username": "owner",
+      "name": "Default stock document list scope",
+      "method": "GET",
+      "path": "/stock-documents?size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-026",
+      "username": "owner.pho",
+      "name": "Login supplemental",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-027",
+      "username": "owner.pho",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/1/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-028",
+      "username": "owner.pho",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": {
+        "branchId": 1,
+        "available": 23
+      },
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-029",
+      "username": "owner.pho",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=1&size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-030",
+      "username": "owner.pho",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/2/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-031",
+      "username": "owner.pho",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=2",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": {
+        "branchId": 2,
+        "available": 22
+      },
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-032",
+      "username": "owner.pho",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=2&size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-033",
+      "username": "owner.pho",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/3/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-034",
+      "username": "owner.pho",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=3",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": {
+        "branchId": 3,
+        "available": 22
+      },
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-035",
+      "username": "owner.pho",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=3&size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-036",
+      "username": "owner.pho",
+      "name": "Product price privacy",
+      "method": "GET",
+      "path": "/products/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "costPrice": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-037",
+      "username": "owner.pho",
+      "name": "Default stock document list scope",
+      "method": "GET",
+      "path": "/stock-documents?size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-038",
+      "username": "quanly.gm001",
+      "name": "Login supplemental",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-039",
+      "username": "quanly.gm001",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/1/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-040",
+      "username": "quanly.gm001",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": {
+        "branchId": 1,
+        "available": 23
+      },
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-041",
+      "username": "quanly.gm001",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=1&size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-042",
+      "username": "quanly.gm001",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/2/1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "0cc5c469-be1d-4000-8ad9-aff3cddc1271",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-043",
+      "username": "quanly.gm001",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=2",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "319009e4-c1e1-4114-9c6b-4eeaa94819eb",
+      "bodyBranchId": null,
+      "responseEvidence": {},
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 1,
+        "completeRows": 0
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": false
+      },
+      "result": "FAIL"
+    },
+    {
+      "id": "RBAC152-044",
+      "username": "quanly.gm001",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=2&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "4e68d064-ead5-4d84-8145-5cd840e56ffa",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-045",
+      "username": "quanly.gm001",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/3/1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "15d6e2fc-9fba-4cc9-9005-e28840392df8",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-046",
+      "username": "quanly.gm001",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=3",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "f0d4d68a-4e0c-432d-a639-29d801096b0d",
+      "bodyBranchId": null,
+      "responseEvidence": {},
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 1,
+        "completeRows": 0
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": false
+      },
+      "result": "FAIL"
+    },
+    {
+      "id": "RBAC152-047",
+      "username": "quanly.gm001",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=3&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "dc59b154-1b8b-406c-94af-769e0f8f4f6e",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-048",
+      "username": "quanly.gm001",
+      "name": "Product price privacy",
+      "method": "GET",
+      "path": "/products/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "costPrice": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-049",
+      "username": "quanly.gm001",
+      "name": "Unauthorized product price change",
+      "method": "PUT",
+      "path": "/products/1",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "a2f6896f-d26d-4b2a-b562-54299dcc38cf",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-050",
+      "username": "quanly.gm001",
+      "name": "Unauthorized category creation",
+      "method": "POST",
+      "path": "/categories",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "d8092644-1c28-45d4-ba41-4d9196349ba2",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-051",
+      "username": "quanly.gm001",
+      "name": "Default stock document list scope",
+      "method": "GET",
+      "path": "/stock-documents?size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-052",
+      "username": "quanly.gm002",
+      "name": "Login supplemental",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-053",
+      "username": "quanly.gm002",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/1/1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "a5577b3f-bc9b-41a9-aec2-e74f75d62533",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-054",
+      "username": "quanly.gm002",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "a0a62821-44f8-44cd-9dc0-55054762fab3",
+      "bodyBranchId": null,
+      "responseEvidence": {},
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 1,
+        "completeRows": 0
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": false
+      },
+      "result": "FAIL"
+    },
+    {
+      "id": "RBAC152-055",
+      "username": "quanly.gm002",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=1&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "01cfdfc5-b0e2-4bd5-bc0c-3e8aafdb410f",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-056",
+      "username": "quanly.gm002",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/2/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-057",
+      "username": "quanly.gm002",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=2",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": {
+        "branchId": 2,
+        "available": 22
+      },
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-058",
+      "username": "quanly.gm002",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=2&size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-059",
+      "username": "quanly.gm002",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/3/1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "322be2b1-87b4-4ff1-85b1-0ca807128376",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-060",
+      "username": "quanly.gm002",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=3",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "3fe4ee06-12f8-4d5e-9935-a49b6d041a83",
+      "bodyBranchId": null,
+      "responseEvidence": {},
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 1,
+        "completeRows": 0
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": false
+      },
+      "result": "FAIL"
+    },
+    {
+      "id": "RBAC152-061",
+      "username": "quanly.gm002",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=3&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "25c881a8-76cf-4a0c-a902-b531fd454daa",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-062",
+      "username": "quanly.gm002",
+      "name": "Product price privacy",
+      "method": "GET",
+      "path": "/products/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "costPrice": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-063",
+      "username": "quanly.gm002",
+      "name": "Unauthorized product price change",
+      "method": "PUT",
+      "path": "/products/1",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "fb0371ae-4692-4dec-a9df-b91318d4b73d",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-064",
+      "username": "quanly.gm002",
+      "name": "Unauthorized category creation",
+      "method": "POST",
+      "path": "/categories",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "f9cc6526-b99f-412e-9fcf-558684f39c18",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-065",
+      "username": "quanly.gm002",
+      "name": "Default stock document list scope",
+      "method": "GET",
+      "path": "/stock-documents?size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-066",
+      "username": "quanly.gm003",
+      "name": "Login supplemental",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-067",
+      "username": "quanly.gm003",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/1/1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "fe3935c0-509e-4c6f-9fda-49f8b4331237",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-068",
+      "username": "quanly.gm003",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "dc38cd22-193b-4ae2-80fe-c998501c73c6",
+      "bodyBranchId": null,
+      "responseEvidence": {},
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 1,
+        "completeRows": 0
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": false
+      },
+      "result": "FAIL"
+    },
+    {
+      "id": "RBAC152-069",
+      "username": "quanly.gm003",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=1&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "5d848f87-7a19-4794-83aa-d14c62836a56",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-070",
+      "username": "quanly.gm003",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/2/1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "79ec42c7-f380-45ac-ac60-632e848a65e0",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-071",
+      "username": "quanly.gm003",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=2",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "359b887c-346e-49fd-83f8-64f3bf3c0af6",
+      "bodyBranchId": null,
+      "responseEvidence": {},
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 1,
+        "completeRows": 0
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": false
+      },
+      "result": "FAIL"
+    },
+    {
+      "id": "RBAC152-072",
+      "username": "quanly.gm003",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=2&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "2f0eba9c-6f96-4af7-9378-b9b073a86dd8",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-073",
+      "username": "quanly.gm003",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/3/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-074",
+      "username": "quanly.gm003",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=3",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": {
+        "branchId": 3,
+        "available": 22
+      },
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-075",
+      "username": "quanly.gm003",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=3&size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-076",
+      "username": "quanly.gm003",
+      "name": "Product price privacy",
+      "method": "GET",
+      "path": "/products/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "costPrice": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-077",
+      "username": "quanly.gm003",
+      "name": "Unauthorized product price change",
+      "method": "PUT",
+      "path": "/products/1",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "93d40f98-5544-4ca2-8698-f2b8b0d1935c",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-078",
+      "username": "quanly.gm003",
+      "name": "Unauthorized category creation",
+      "method": "POST",
+      "path": "/categories",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "b81bf6dd-ad89-49a3-a4df-e22eb9fd6252",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-079",
+      "username": "quanly.gm003",
+      "name": "Default stock document list scope",
+      "method": "GET",
+      "path": "/stock-documents?size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-080",
+      "username": "thungan.gm001",
+      "name": "Login supplemental",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-081",
+      "username": "thungan.gm001",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/1/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-082",
+      "username": "thungan.gm001",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": {
+        "branchId": 1,
+        "available": 23
+      },
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-083",
+      "username": "thungan.gm001",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=1&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "b8219514-28f1-425b-9985-ea0c04203681",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-084",
+      "username": "thungan.gm001",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/2/1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "e9f8492e-4663-48be-89b1-77fa2f332a9f",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-085",
+      "username": "thungan.gm001",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=2",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "01228ceb-2381-4e5b-9c78-3763ef664e4b",
+      "bodyBranchId": null,
+      "responseEvidence": {},
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 1,
+        "completeRows": 0
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": false
+      },
+      "result": "FAIL"
+    },
+    {
+      "id": "RBAC152-086",
+      "username": "thungan.gm001",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=2&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "6920dd8c-1007-405b-953e-cd3d8a3af62f",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-087",
+      "username": "thungan.gm001",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/3/1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "357b2b9b-2cce-423d-baa3-934d5b8ea9b2",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-088",
+      "username": "thungan.gm001",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=3",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "865c18b7-7007-4bc6-8f17-647e5531a8ca",
+      "bodyBranchId": null,
+      "responseEvidence": {},
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 1,
+        "completeRows": 0
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": false
+      },
+      "result": "FAIL"
+    },
+    {
+      "id": "RBAC152-089",
+      "username": "thungan.gm001",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=3&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "d8ca70b6-803c-427a-a0c3-ca81ef1902f7",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-090",
+      "username": "thungan.gm001",
+      "name": "Product price privacy",
+      "method": "GET",
+      "path": "/products/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "costPrice": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-091",
+      "username": "thungan.gm001",
+      "name": "Unauthorized product price change",
+      "method": "PUT",
+      "path": "/products/1",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "e5b01776-2487-4237-8f04-57b03a41097e",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-092",
+      "username": "thungan.gm001",
+      "name": "Unauthorized category creation",
+      "method": "POST",
+      "path": "/categories",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "30f61e90-405f-4d0d-871f-778960eadbf1",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-093",
+      "username": "thungan.gm002",
+      "name": "Login supplemental",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-094",
+      "username": "thungan.gm002",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/1/1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "90d341c1-1d8d-4c22-b9d7-4afbc071aace",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-095",
+      "username": "thungan.gm002",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "869a254b-3543-4861-b23c-e891986fdd9f",
+      "bodyBranchId": null,
+      "responseEvidence": {},
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 1,
+        "completeRows": 0
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": false
+      },
+      "result": "FAIL"
+    },
+    {
+      "id": "RBAC152-096",
+      "username": "thungan.gm002",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=1&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "a9a722f3-0f74-46ee-a8c3-da9e83acc78a",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-097",
+      "username": "thungan.gm002",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/2/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-098",
+      "username": "thungan.gm002",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=2",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": {
+        "branchId": 2,
+        "available": 22
+      },
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-099",
+      "username": "thungan.gm002",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=2&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "9b307f41-d1ea-47c3-8511-5deb58dd97eb",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-100",
+      "username": "thungan.gm002",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/3/1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "e40807cb-34d5-4176-9168-ae086e94d1ea",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-101",
+      "username": "thungan.gm002",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=3",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "1550d1b7-9966-410f-83a7-8141967fc3c0",
+      "bodyBranchId": null,
+      "responseEvidence": {},
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 1,
+        "completeRows": 0
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": false
+      },
+      "result": "FAIL"
+    },
+    {
+      "id": "RBAC152-102",
+      "username": "thungan.gm002",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=3&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "14f50395-d8f4-4b89-a144-bccad3d5b0df",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-103",
+      "username": "thungan.gm002",
+      "name": "Product price privacy",
+      "method": "GET",
+      "path": "/products/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "costPrice": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-104",
+      "username": "thungan.gm002",
+      "name": "Unauthorized product price change",
+      "method": "PUT",
+      "path": "/products/1",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "e606130b-9c8e-4c91-a714-f70d59f9ab41",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-105",
+      "username": "thungan.gm002",
+      "name": "Unauthorized category creation",
+      "method": "POST",
+      "path": "/categories",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "b4a935d1-3a08-4339-a365-25cbb55ec179",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-106",
+      "username": "thungan.gm003",
+      "name": "Login supplemental",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-107",
+      "username": "thungan.gm003",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/1/1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "2c6fe796-f971-4e97-aa34-0b1e325d0f6d",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-108",
+      "username": "thungan.gm003",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "7b950fad-6cbb-483d-a9c0-83717cdbdebc",
+      "bodyBranchId": null,
+      "responseEvidence": {},
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 1,
+        "completeRows": 0
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": false
+      },
+      "result": "FAIL"
+    },
+    {
+      "id": "RBAC152-109",
+      "username": "thungan.gm003",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=1&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "82c79091-a3f6-4d60-b6b6-a1f4330cfaa3",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-110",
+      "username": "thungan.gm003",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/2/1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "78c42b9e-f71b-4740-82ee-7aa350152ba6",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-111",
+      "username": "thungan.gm003",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=2",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "8a3040b4-b9cc-46b3-9e4a-c143be47b2a6",
+      "bodyBranchId": null,
+      "responseEvidence": {},
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 1,
+        "completeRows": 0
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": false
+      },
+      "result": "FAIL"
+    },
+    {
+      "id": "RBAC152-112",
+      "username": "thungan.gm003",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=2&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "bde781f0-cc26-4dbc-956d-ec6f45e3237e",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-113",
+      "username": "thungan.gm003",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/3/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-114",
+      "username": "thungan.gm003",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=3",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": {
+        "branchId": 3,
+        "available": 22
+      },
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-115",
+      "username": "thungan.gm003",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=3&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "1a2e4b56-740e-4c6e-b785-763265551671",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-116",
+      "username": "thungan.gm003",
+      "name": "Product price privacy",
+      "method": "GET",
+      "path": "/products/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "costPrice": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-117",
+      "username": "thungan.gm003",
+      "name": "Unauthorized product price change",
+      "method": "PUT",
+      "path": "/products/1",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "156879bb-301f-4b71-89ce-b98e51d4bb61",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-118",
+      "username": "thungan.gm003",
+      "name": "Unauthorized category creation",
+      "method": "POST",
+      "path": "/categories",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "d7dd2bb0-c55c-49d3-80bf-330c301cbd71",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-119",
+      "username": "thukho.gm001",
+      "name": "Login supplemental",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-120",
+      "username": "thukho.gm001",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/1/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-121",
+      "username": "thukho.gm001",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": {
+        "branchId": 1,
+        "available": 23
+      },
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-122",
+      "username": "thukho.gm001",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=1&size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-123",
+      "username": "thukho.gm001",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/2/1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "4e73a975-7d46-4d76-bf27-54971ad2f7d4",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-124",
+      "username": "thukho.gm001",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=2",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "2f1af74d-5469-4f81-aabb-02996b684d43",
+      "bodyBranchId": null,
+      "responseEvidence": {},
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 1,
+        "completeRows": 0
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": false
+      },
+      "result": "FAIL"
+    },
+    {
+      "id": "RBAC152-125",
+      "username": "thukho.gm001",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=2&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "3890e496-a7f7-41cd-8ae9-536a28708b1d",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-126",
+      "username": "thukho.gm001",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/3/1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "3b832910-9793-4799-8e60-be24dfdc821d",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-127",
+      "username": "thukho.gm001",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=3",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "a564d93a-8ed5-4973-8636-8f71da8fd525",
+      "bodyBranchId": null,
+      "responseEvidence": {},
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 1,
+        "completeRows": 0
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": false
+      },
+      "result": "FAIL"
+    },
+    {
+      "id": "RBAC152-128",
+      "username": "thukho.gm001",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=3&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "c60aa865-c822-414d-9cee-da11fc1a1095",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-129",
+      "username": "thukho.gm001",
+      "name": "Product price privacy",
+      "method": "GET",
+      "path": "/products/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "costPrice": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-130",
+      "username": "thukho.gm001",
+      "name": "Unauthorized product price change",
+      "method": "PUT",
+      "path": "/products/1",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "7cd9eb4c-251c-49e0-bf75-22603ddaeeb9",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-131",
+      "username": "thukho.gm001",
+      "name": "Unauthorized category creation",
+      "method": "POST",
+      "path": "/categories",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "1b64bfb7-a3c7-43e2-b1fe-3190a7dc393b",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-132",
+      "username": "thukho.gm001",
+      "name": "Default stock document list scope",
+      "method": "GET",
+      "path": "/stock-documents?size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-133",
+      "username": "thukho.gm002",
+      "name": "Login supplemental",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-134",
+      "username": "thukho.gm002",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/1/1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "aad10db9-fc7f-4bd1-9f6f-f06861ba5a36",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-135",
+      "username": "thukho.gm002",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "90eff1c2-04a1-470e-86e8-4c7a9363cee4",
+      "bodyBranchId": null,
+      "responseEvidence": {},
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 1,
+        "completeRows": 0
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": false
+      },
+      "result": "FAIL"
+    },
+    {
+      "id": "RBAC152-136",
+      "username": "thukho.gm002",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=1&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "36a724fc-134c-4ff7-a3a7-bf245e991915",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-137",
+      "username": "thukho.gm002",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/2/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-138",
+      "username": "thukho.gm002",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=2",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": {
+        "branchId": 2,
+        "available": 22
+      },
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-139",
+      "username": "thukho.gm002",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=2&size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-140",
+      "username": "thukho.gm002",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/3/1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "b1a6f18a-5fdc-4716-8e19-fda726f3454e",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-141",
+      "username": "thukho.gm002",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=3",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "bc3184e4-eb93-4315-b6cd-40ba918f2438",
+      "bodyBranchId": null,
+      "responseEvidence": {},
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 1,
+        "completeRows": 0
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": false
+      },
+      "result": "FAIL"
+    },
+    {
+      "id": "RBAC152-142",
+      "username": "thukho.gm002",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=3&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "73adf190-b78e-42c5-a29a-cd89f12d1c31",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-143",
+      "username": "thukho.gm002",
+      "name": "Product price privacy",
+      "method": "GET",
+      "path": "/products/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "costPrice": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-144",
+      "username": "thukho.gm002",
+      "name": "Unauthorized product price change",
+      "method": "PUT",
+      "path": "/products/1",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "f7ec6ee6-558e-474b-b506-b0cf05929741",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-145",
+      "username": "thukho.gm002",
+      "name": "Unauthorized category creation",
+      "method": "POST",
+      "path": "/categories",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "6bc79f88-9a70-4594-a0d2-2316604ab19d",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-146",
+      "username": "thukho.gm002",
+      "name": "Default stock document list scope",
+      "method": "GET",
+      "path": "/stock-documents?size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-147",
+      "username": "thukho.gm003",
+      "name": "Login supplemental",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-148",
+      "username": "thukho.gm003",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/1/1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "03aa4d51-693d-44f1-8c56-418bc6ce3b4d",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-149",
+      "username": "thukho.gm003",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "493ef4b7-3a15-4cd8-ac3e-442adb717c38",
+      "bodyBranchId": null,
+      "responseEvidence": {},
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 1,
+        "completeRows": 0
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": false
+      },
+      "result": "FAIL"
+    },
+    {
+      "id": "RBAC152-150",
+      "username": "thukho.gm003",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=1&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "1ad43cc2-4450-461d-82c4-bb95ed120a66",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-151",
+      "username": "thukho.gm003",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/2/1",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "c3cf3a3e-6e4b-46cf-9df0-ef7b721c92c7",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-152",
+      "username": "thukho.gm003",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=2",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "cdaa1cdf-7ab8-4a99-b4ce-80076ec2e5ba",
+      "bodyBranchId": null,
+      "responseEvidence": {},
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 1,
+        "completeRows": 0
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": false
+      },
+      "result": "FAIL"
+    },
+    {
+      "id": "RBAC152-153",
+      "username": "thukho.gm003",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=2&size=100",
+      "expectedStatus": 403,
+      "expectedCode": "BRANCH_FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "BRANCH_FORBIDDEN",
+      "traceId": "887abb84-83dd-4c78-9175-34ee8199edce",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": {
+        "newRows": 1,
+        "actorRows": 1,
+        "missingBranchRows": 0,
+        "completeRows": 1
+      },
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true,
+        "auditMetadata": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-154",
+      "username": "thukho.gm003",
+      "name": "Single inventory route scope",
+      "method": "GET",
+      "path": "/inventory/3/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-155",
+      "username": "thukho.gm003",
+      "name": "Barcode lookup branch and audit",
+      "method": "GET",
+      "path": "/products/lookup?code=8930000000001&branchId=3",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": {
+        "branchId": 3,
+        "available": 22
+      },
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-156",
+      "username": "thukho.gm003",
+      "name": "Stock document list role/branch",
+      "method": "GET",
+      "path": "/stock-documents?branchId=3&size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-157",
+      "username": "thukho.gm003",
+      "name": "Product price privacy",
+      "method": "GET",
+      "path": "/products/1",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "costPrice": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-158",
+      "username": "thukho.gm003",
+      "name": "Unauthorized product price change",
+      "method": "PUT",
+      "path": "/products/1",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "f655fe8e-9af6-4420-af55-5e10ef75fc07",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-159",
+      "username": "thukho.gm003",
+      "name": "Unauthorized category creation",
+      "method": "POST",
+      "path": "/categories",
+      "expectedStatus": 403,
+      "expectedCode": "FORBIDDEN",
+      "actualStatus": 403,
+      "actualCode": "FORBIDDEN",
+      "traceId": "ec0d836e-3848-4344-8c9b-bcdcea2f7ae9",
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "code": true,
+        "envelope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-160",
+      "username": "thukho.gm003",
+      "name": "Default stock document list scope",
+      "method": "GET",
+      "path": "/stock-documents?size=100",
+      "expectedStatus": 200,
+      "expectedCode": null,
+      "actualStatus": 200,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true,
+        "scope": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-161",
+      "name": "Denied catalog writes unchanged",
+      "assertions": {
+        "unchanged": true
+      },
+      "result": "PASS",
+      "before": {
+        "products": "db0e1a7693328fffb073085aefe83b11",
+        "categories": 18
+      },
+      "after": {
+        "products": "db0e1a7693328fffb073085aefe83b11",
+        "categories": 18
+      }
+    },
+    {
+      "id": "RBAC152-162",
+      "username": "admin",
+      "name": "Supplemental logout",
+      "method": "POST",
+      "path": "/auth/logout",
+      "expectedStatus": 204,
+      "expectedCode": null,
+      "actualStatus": 204,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-163",
+      "username": "owner",
+      "name": "Supplemental logout",
+      "method": "POST",
+      "path": "/auth/logout",
+      "expectedStatus": 204,
+      "expectedCode": null,
+      "actualStatus": 204,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-164",
+      "username": "owner.pho",
+      "name": "Supplemental logout",
+      "method": "POST",
+      "path": "/auth/logout",
+      "expectedStatus": 204,
+      "expectedCode": null,
+      "actualStatus": 204,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-165",
+      "username": "quanly.gm001",
+      "name": "Supplemental logout",
+      "method": "POST",
+      "path": "/auth/logout",
+      "expectedStatus": 204,
+      "expectedCode": null,
+      "actualStatus": 204,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-166",
+      "username": "quanly.gm002",
+      "name": "Supplemental logout",
+      "method": "POST",
+      "path": "/auth/logout",
+      "expectedStatus": 204,
+      "expectedCode": null,
+      "actualStatus": 204,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-167",
+      "username": "quanly.gm003",
+      "name": "Supplemental logout",
+      "method": "POST",
+      "path": "/auth/logout",
+      "expectedStatus": 204,
+      "expectedCode": null,
+      "actualStatus": 204,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-168",
+      "username": "thungan.gm001",
+      "name": "Supplemental logout",
+      "method": "POST",
+      "path": "/auth/logout",
+      "expectedStatus": 204,
+      "expectedCode": null,
+      "actualStatus": 204,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-169",
+      "username": "thungan.gm002",
+      "name": "Supplemental logout",
+      "method": "POST",
+      "path": "/auth/logout",
+      "expectedStatus": 204,
+      "expectedCode": null,
+      "actualStatus": 204,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-170",
+      "username": "thungan.gm003",
+      "name": "Supplemental logout",
+      "method": "POST",
+      "path": "/auth/logout",
+      "expectedStatus": 204,
+      "expectedCode": null,
+      "actualStatus": 204,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-171",
+      "username": "thukho.gm001",
+      "name": "Supplemental logout",
+      "method": "POST",
+      "path": "/auth/logout",
+      "expectedStatus": 204,
+      "expectedCode": null,
+      "actualStatus": 204,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-172",
+      "username": "thukho.gm002",
+      "name": "Supplemental logout",
+      "method": "POST",
+      "path": "/auth/logout",
+      "expectedStatus": 204,
+      "expectedCode": null,
+      "actualStatus": 204,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    },
+    {
+      "id": "RBAC152-173",
+      "username": "thukho.gm003",
+      "name": "Supplemental logout",
+      "method": "POST",
+      "path": "/auth/logout",
+      "expectedStatus": 204,
+      "expectedCode": null,
+      "actualStatus": 204,
+      "actualCode": null,
+      "traceId": null,
+      "bodyBranchId": null,
+      "responseEvidence": null,
+      "auditEvidence": null,
+      "assertions": {
+        "status": true
+      },
+      "result": "PASS"
+    }
+  ]
+}

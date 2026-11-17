@@ -23,6 +23,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ReportServiceImpl implements ReportService {
 
+    private static final int MAX_REPORT_DAYS = 366;
+    private static final int MAX_REPORT_YEARS = 5;
+    private static final LocalDate FIRST_REPORT_DATE = LocalDate.of(1, 1, 1);
+    private static final LocalDate LAST_REPORT_DATE = LocalDate.of(9999, 12, 31);
+
     private final ReportQueryRepository repository;
     private final JdbcTemplate jdbc;
 
@@ -37,7 +42,7 @@ public class ReportServiceImpl implements ReportService {
                 throw new AppException(ErrorCode.VALIDATION_ERROR, "branchId phải lớn hơn 0");
             }
             if (allowed != null && !allowed.contains(filter.branchId())) {
-                throw new AppException(ErrorCode.BRANCH_FORBIDDEN);
+                throw AppException.branchForbidden(filter.branchId());
             }
         }
         if (filter.channelId() != null && filter.channelId() <= 0) {
@@ -46,17 +51,18 @@ public class ReportServiceImpl implements ReportService {
 
         LocalDate today = LocalDate.now(ReportQueryRepository.BUSINESS_ZONE);
         LocalDate to = filter.to() != null ? filter.to() : today;
-        LocalDate from = filter.from() != null ? filter.from() : to.minusDays(29);
-
-        if (from.isAfter(to)) {
-            throw new AppException(ErrorCode.VALIDATION_ERROR, "Ngày bắt đầu không được sau ngày kết thúc");
+        LocalDate from = filter.from();
+        if (from == null) {
+            from = to.isBefore(FIRST_REPORT_DATE.plusDays(29)) ? FIRST_REPORT_DATE : to.minusDays(29);
         }
+        validateDateRange(from, to);
 
-        String groupBy = filter.groupBy() != null ? filter.groupBy().trim().toLowerCase() : "day";
+        String groupBy = filter.groupBy() != null ? filter.groupBy().trim().toLowerCase(Locale.ROOT) : "day";
         List<String> allBuckets = new ArrayList<>();
 
         switch (groupBy) {
             case "day" -> {
+                validateRangeLimit(to, from.plusDays(MAX_REPORT_DAYS), MAX_REPORT_DAYS + " ngày");
                 LocalDate cur = from;
                 while (!cur.isAfter(to)) {
                     allBuckets.add(cur.toString());
@@ -64,6 +70,7 @@ public class ReportServiceImpl implements ReportService {
                 }
             }
             case "week" -> {
+                validateRangeLimit(to, from.plusYears(MAX_REPORT_YEARS), MAX_REPORT_YEARS + " năm");
                 LocalDate cur = from.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
                 while (!cur.isAfter(to)) {
                     allBuckets.add(cur.toString());
@@ -71,6 +78,7 @@ public class ReportServiceImpl implements ReportService {
                 }
             }
             case "month" -> {
+                validateRangeLimit(to, from.plusYears(MAX_REPORT_YEARS), MAX_REPORT_YEARS + " năm");
                 YearMonth cur = YearMonth.from(from);
                 YearMonth end = YearMonth.from(to);
                 while (!cur.isAfter(end)) {
@@ -151,7 +159,7 @@ public class ReportServiceImpl implements ReportService {
                 throw new AppException(ErrorCode.VALIDATION_ERROR, "branchId phải lớn hơn 0");
             }
             if (allowed != null && !allowed.contains(filter.branchId())) {
-                throw new AppException(ErrorCode.BRANCH_FORBIDDEN);
+                throw AppException.branchForbidden(filter.branchId());
             }
         }
         if (filter.channelId() != null && filter.channelId() <= 0) {
@@ -180,13 +188,32 @@ public class ReportServiceImpl implements ReportService {
             from = filter.from() != null ? filter.from() : to.withDayOfMonth(1);
         }
 
-        if (from.isAfter(to)) {
-            throw new AppException(ErrorCode.VALIDATION_ERROR, "Ngày bắt đầu không được sau ngày kết thúc");
-        }
+        validateDateRange(from, to);
+        validateRangeLimit(to, from.plusDays(MAX_REPORT_DAYS), MAX_REPORT_DAYS + " ngày");
 
         var topSelling = repository.queryTopProducts(from, to, allowed, filter.branchId(), filter.channelId(), limit, false);
         var slowSelling = repository.queryTopProducts(from, to, allowed, filter.branchId(), filter.channelId(), limit, true);
 
         return new TopProductsResponse(new TopProductsResponse.Period(from, to), topSelling, slowSelling);
+    }
+
+    private static void validateDateRange(LocalDate from, LocalDate to) {
+        validateReportDate(from);
+        validateReportDate(to);
+        if (from.isAfter(to)) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Ngày bắt đầu không được sau ngày kết thúc");
+        }
+    }
+
+    private static void validateReportDate(LocalDate date) {
+        if (date.isBefore(FIRST_REPORT_DATE) || date.isAfter(LAST_REPORT_DATE)) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Ngày báo cáo phải thuộc năm 0001 đến 9999");
+        }
+    }
+
+    private static void validateRangeLimit(LocalDate to, LocalDate endExclusive, String limit) {
+        if (!to.isBefore(endExclusive)) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Khoảng ngày báo cáo tối đa " + limit);
+        }
     }
 }

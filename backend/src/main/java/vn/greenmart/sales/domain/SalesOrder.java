@@ -58,6 +58,12 @@ public class SalesOrder {
     @Column(name = "reserved_until")
     private Instant reservedUntil;
 
+    @Column(name = "idempotency_key", length = 64)
+    private String idempotencyKey;
+
+    @Column(name = "request_hash", length = 64)
+    private String requestHash;
+
     @Column(name = "created_by")
     private Long createdBy;
 

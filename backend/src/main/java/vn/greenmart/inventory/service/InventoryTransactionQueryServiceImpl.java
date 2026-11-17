@@ -30,7 +30,7 @@ public class InventoryTransactionQueryServiceImpl implements InventoryTransactio
         SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER", "STOREKEEPER");
         var allowed = SecurityUtils.getAccessibleBranchIds(jdbc);
         if (filter.branchId() != null && allowed != null && !allowed.contains(filter.branchId())) {
-            throw new AppException(ErrorCode.BRANCH_FORBIDDEN);
+            throw AppException.branchForbidden(filter.branchId());
         }
         if (Stream.of(filter.branchId(), filter.productId(), filter.refId()).anyMatch(id -> id != null && id <= 0)) {
             throw new AppException(ErrorCode.VALIDATION_ERROR, "ID bộ lọc phải lớn hơn 0");
