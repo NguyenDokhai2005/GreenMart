@@ -503,7 +503,7 @@ public class PosOrderServiceImpl implements PosOrderService {
         try {
             List<PromotionRef> list = jdbcTemplate.query(
                     "SELECT id, code FROM promotion WHERE id = ?",
-                    (rs, rowNum) -> new PromotionRef(rs.getLong("id"), rs.getString("code"), rs.getString("code"), discount != null ? discount : 0L),
+                    (rs, rowNum) -> new PromotionRef(rs.getLong("id"), rs.getString("code"), null, discount != null ? discount : 0L),
                     promotionId
             );
             if (!list.isEmpty()) {
@@ -515,3 +515,4 @@ public class PosOrderServiceImpl implements PosOrderService {
         return new PromotionRef(promotionId, "KM-" + promotionId, null, discount != null ? discount : 0L);
     }
 }
+

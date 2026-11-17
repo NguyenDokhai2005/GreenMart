@@ -5,13 +5,17 @@ import PosSalePage from '../../../src/features/pos/PosSalePage';
 import { cartReducer, stockForLine } from '../../../src/features/pos/posCart';
 import { POS_NAVIGATION } from '../../../src/layouts/pos/posNavigation';
 
-const { searchProducts, lookupProduct, quoteOrder } = vi.hoisted(() => ({
+const { searchProducts, lookupProduct, quoteOrder, customers } = vi.hoisted(() => ({
   searchProducts: vi.fn(),
   lookupProduct: vi.fn(),
   quoteOrder: vi.fn(),
+  customers: vi.fn(),
 }));
 
 vi.mock('../../../src/api/client', () => ({ searchProducts, lookupProduct, quoteOrder }));
+vi.mock('../../../src/features/catalog/catalogApi', () => ({
+  catalogApi: { customers },
+}));
 vi.mock('../../../src/features/auth/useActiveBranch', () => ({
   useActiveBranch: () => ({
     state: { status: 'active', branch: { id: 1, code: 'GM-001', name: 'Quận 1' } },
@@ -60,6 +64,17 @@ function quote(quantity: number): Quote {
 beforeEach(() => {
   searchProducts.mockReset().mockResolvedValue({ content: [product] });
   lookupProduct.mockReset().mockResolvedValue({ product, branchId: 1, available: 1 });
+  customers.mockReset().mockResolvedValue({
+    content: [
+      {
+        id: 125,
+        name: 'Nguyễn Minh Anh',
+        phone: '0912345678',
+        email: null,
+        createdAt: '2026-11-15T00:00:00Z',
+      },
+    ],
+  });
   quoteOrder
     .mockReset()
     .mockImplementation(async (request: { items: { quantity: number }[] }) =>
@@ -228,6 +243,35 @@ describe('POS cart', () => {
     fireEvent.change(input, { target: { value: product.sku } });
     fireEvent.keyDown(input, { key: 'Enter' });
     await waitFor(() => expect(screen.getByText('Số lượng không hợp lệ')).toBeTruthy());
+    expect(screen.getByRole('spinbutton', { name: `Số lượng ${product.name}` })).toBeTruthy();
+  });
+
+  it('requotes with the attached customer and removes that ID after changing customer', async () => {
+    render(<PosSalePage item={POS_NAVIGATION[0]} />);
+    const productSearch = screen.getByLabelText('Quét mã vạch hoặc tìm theo tên / SKU');
+    fireEvent.change(productSearch, { target: { value: product.sku } });
+    fireEvent.keyDown(productSearch, { key: 'Enter' });
+    await waitFor(() => expect(quoteOrder).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByLabelText('Số điện thoại'), {
+      target: { value: '0912345678' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Tìm khách' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Gắn khách' }));
+    await waitFor(() =>
+      expect(quoteOrder).toHaveBeenCalledWith(
+        { branchId: 1, customerId: 125, items: [{ productId: 205, quantity: 1 }] },
+        expect.any(AbortSignal),
+      ),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Đổi khách' }));
+    await waitFor(() =>
+      expect(quoteOrder).toHaveBeenLastCalledWith(
+        { branchId: 1, items: [{ productId: 205, quantity: 1 }] },
+        expect.any(AbortSignal),
+      ),
+    );
     expect(screen.getByRole('spinbutton', { name: `Số lượng ${product.name}` })).toBeTruthy();
   });
 });
