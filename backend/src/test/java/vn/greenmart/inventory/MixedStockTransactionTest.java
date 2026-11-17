@@ -204,7 +204,7 @@ class MixedStockTransactionTest {
     private long draft(StockDocumentType type, int quantity) {
         boolean importing = type == StockDocumentType.IMPORT;
         return authenticated(MAKER, "STOREKEEPER", () -> documents.create(new StockDocumentRequests.Create(
-                type, BRANCH, null, importing ? "Supplier" : null, importing ? null : "DAMAGED", null,
+                type, BRANCH, null, importing ? "Supplier" : null, importing ? null : "DAMAGED", null, false,
                 List.of(new StockDocumentRequests.Item(PRODUCT, quantity, importing ? 5000L : null, null)))).id());
     }
 

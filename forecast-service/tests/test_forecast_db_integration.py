@@ -489,11 +489,15 @@ def test_api_forecast_run_e2e_postgres(postgres_container, auth_headers, monkeyp
             cur.execute("SELECT COUNT(*) FROM forecast_run WHERE id = %s;", (run_id,))
             assert cur.fetchone()[0] == 1
 
-            # Kiểm tra số dòng kết quả
-            cur.execute("SELECT COUNT(*), MIN(predicted_qty) FROM forecast_result WHERE run_id = %s;", (run_id,))
-            cnt, min_qty = cur.fetchone()
+            # Kiểm tra số dòng kết quả và ngày mục tiêu tương lai (Issue #298)
+            cur.execute("SELECT COUNT(*), MIN(predicted_qty), MIN(target_date), MAX(target_date) FROM forecast_result WHERE run_id = %s;", (run_id,))
+            cnt, min_qty, min_t_date, max_t_date = cur.fetchone()
             assert cnt == 8 * (7 + 30)
             assert float(min_qty) >= 0.0
+            expected_start = cutoff + timedelta(days=31)  # end_date + 1 (2026-11-01)
+            expected_end = cutoff + timedelta(days=60)    # end_date + 30 (2026-11-30)
+            assert min_t_date == expected_start
+            assert max_t_date == expected_end
     finally:
         conn_verify.close()
 

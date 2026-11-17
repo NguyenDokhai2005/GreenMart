@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.LinkedHashSet;
 
 @Slf4j
 @Service
@@ -72,6 +73,12 @@ public class PosOrderServiceImpl implements PosOrderService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public OrderResponse createPosOrder(PosOrderRequest request, String idempotencyKey) {
+        return createPosOrder(request, idempotencyKey, null);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public OrderResponse createPosOrder(PosOrderRequest request, String idempotencyKey, String requestHash) {
         SecurityUtils.requireRole("BRANCH_MANAGER", "CASHIER");
 
         List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
@@ -93,18 +100,21 @@ public class PosOrderServiceImpl implements PosOrderService {
         }
 
         // Kiểm tra lượt khuyến mãi: nếu hết lượt thì tính lại quote mới và trả về 422 TOTAL_CHANGED
-        boolean promoSuccess = true;
+        Set<Long> appliedPromotionIds = new LinkedHashSet<>();
         if (recomputedQuote.orderPromotion() != null && recomputedQuote.orderPromotion().id() != null) {
-            promoSuccess = promotionService.recordUsage(recomputedQuote.orderPromotion().id());
+            appliedPromotionIds.add(recomputedQuote.orderPromotion().id());
         }
-        if (promoSuccess) {
-            for (QuoteLine qLine : recomputedQuote.lines()) {
-                if (qLine.promotion() != null && qLine.promotion().id() != null) {
-                    if (!promotionService.recordUsage(qLine.promotion().id())) {
-                        promoSuccess = false;
-                        break;
-                    }
-                }
+        for (QuoteLine qLine : recomputedQuote.lines()) {
+            if (qLine.promotion() != null && qLine.promotion().id() != null) {
+                appliedPromotionIds.add(qLine.promotion().id());
+            }
+        }
+
+        boolean promoSuccess = true;
+        for (Long promoId : appliedPromotionIds) {
+            if (!promotionService.recordUsage(promoId)) {
+                promoSuccess = false;
+                break;
             }
         }
 
@@ -181,6 +191,9 @@ public class PosOrderServiceImpl implements PosOrderService {
         order.setManualDiscount(recomputedQuote.manualDiscount() != null ? recomputedQuote.manualDiscount() : 0L);
         order.setManualDiscountReason(request.manualDiscount() != null ? request.manualDiscount().reason() : null);
         order.setTotal(recomputedQuote.total());
+        order.setIdempotencyKey(idempotencyKey != null && !idempotencyKey.isBlank() ? idempotencyKey.trim() : null);
+        order.setRequestHash(requestHash != null && !requestHash.isBlank() ? requestHash.trim() : null);
+        order.setCreatedBy(currentUserId);
         order.setCreatedBy(currentUserId);
         order.setCreatedAt(now);
         order.setCompletedAt(now);
@@ -489,8 +502,8 @@ public class PosOrderServiceImpl implements PosOrderService {
         }
         try {
             List<PromotionRef> list = jdbcTemplate.query(
-                    "SELECT id, code, name FROM promotion WHERE id = ?",
-                    (rs, rowNum) -> new PromotionRef(rs.getLong("id"), rs.getString("code"), rs.getString("name"), discount != null ? discount : 0L),
+                    "SELECT id, code FROM promotion WHERE id = ?",
+                    (rs, rowNum) -> new PromotionRef(rs.getLong("id"), rs.getString("code"), null, discount != null ? discount : 0L),
                     promotionId
             );
             if (!list.isEmpty()) {
@@ -502,3 +515,4 @@ public class PosOrderServiceImpl implements PosOrderService {
         return new PromotionRef(promotionId, "KM-" + promotionId, null, discount != null ? discount : 0L);
     }
 }
+
