@@ -1,0 +1,40 @@
+/* Biểu đồ dùng token --gm-*. Chỉ 1 giá trị chưa có token: màu đường lưới nhạt. */
+.gm-chart {
+  --gm-chart-grid: #dfe5e2;
+  width: 100%;
+  font-family: var(--gm-font-family);
+}
+
+.gm-chart-tooltip {
+  display: grid;
+  gap: var(--gm-space-1);
+  min-width: 160px;
+  padding: var(--gm-space-3) var(--gm-space-4);
+  background: var(--gm-color-surface);
+  border: var(--gm-border-width) solid #dfe5e2;
+  border-radius: var(--gm-radius-lg);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+  color: var(--gm-color-text);
+}
+.gm-chart-tooltip__label {
+  font-size: var(--gm-font-size-sm);
+  color: var(--gm-color-text-secondary);
+}
+.gm-chart-tooltip__value {
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+}
+.gm-chart-tooltip__series {
+  display: flex;
+  align-items: center;
+  gap: var(--gm-space-2);
+  font-size: var(--gm-font-size-sm);
+  color: var(--gm-color-text-secondary);
+}
+.gm-chart-tooltip__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--gm-radius-full);
+  background: var(--gm-color-primary);
+}

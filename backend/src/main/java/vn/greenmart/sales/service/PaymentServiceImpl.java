@@ -79,6 +79,7 @@ public class PaymentServiceImpl implements PaymentService {
         payment.setMethod(request.method());
         payment.setAmount(totalAmount);
         payment.setStatus(PaymentStatus.PAID);
+        payment.setCashReceived(cashReceived);
         payment.setProviderRef(providerRef);
         payment.setPaidAt(now);
 

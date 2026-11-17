@@ -4,11 +4,18 @@ import type { ReactNode } from 'react';
 import type { Role } from '../../api/client';
 import { Button, Toast } from '../../components/ui';
 import PosLayout from '../../layouts/pos/PosLayout';
+import type { PosPageLoader } from '../../layouts/pos/PosRouteContent';
 import { evaluateRouteAccess } from './routeAccess';
 import { useActiveBranch } from './useActiveBranch';
 import { useAuth } from './useAuth';
 import BranchSelectionPage from './BranchSelectionPage';
 import LoginPage from './LoginPage';
+import ProductsPage from '../catalog/ProductsPage';
+import CustomersPage from '../catalog/CustomersPage';
+import { OperationsHome, OperationsLayout } from '../../layouts/operations';
+import InventoryPage from '../inventory/InventoryPage';
+import StockDocumentsPage from '../stock-documents/StockDocumentsPage';
+import StockDocumentDetailDrawer from '../stock-documents/StockDocumentDetailDrawer';
 import {
   ADMIN_ROLES,
   APP_PATHS,
@@ -16,7 +23,6 @@ import {
   OPERATIONS_ROLES,
   POS_ROLES,
   resolveAuthHomeRedirect,
-  STOCK_DOCUMENT_ROLES,
 } from './routePolicy';
 import './AppRoutes.css';
 
@@ -112,11 +118,18 @@ function WorkspaceMountPoint({ title }: { title: string }) {
       <Toast
         variant="warning"
         title="Khu làm việc chưa sẵn sàng"
-        description="Màn hình thuộc layout POS hoặc Operations chưa được tích hợp."
+        description="Màn hình chức năng này chưa được tích hợp."
       />
     </main>
   );
 }
+
+const loadPosPage: PosPageLoader = (item) => {
+  if (item.segment === '') return import('../pos/PosSalePage');
+  if (item.segment === 'products') return Promise.resolve({ default: ProductsPage });
+  if (item.segment === 'customers') return Promise.resolve({ default: CustomersPage });
+  return import('../../layouts/pos/PosPlaceholderPage');
+};
 
 function ForbiddenPage() {
   const navigate = useNavigate();
@@ -240,43 +253,45 @@ export function AppRoutes() {
         }
       />
       <Route
-        path={`${APP_PATHS.stockDocuments}/*`}
-        element={
-          <AuthBoundary allowedRoles={STOCK_DOCUMENT_ROLES}>
-            <BranchBoundary>
-              <WorkspaceMountPoint title="Phiếu kho" />
-            </BranchBoundary>
-          </AuthBoundary>
-        }
-      />
-      <Route
         path={`${APP_PATHS.pos}/*`}
         element={
           <AuthBoundary allowedRoles={POS_ROLES}>
             <BranchBoundary>
-              <PosLayout />
+              <PosLayout loadPage={loadPosPage} />
             </BranchBoundary>
           </AuthBoundary>
         }
       />
       <Route
-        path={`${APP_PATHS.operations}/*`}
+        path={APP_PATHS.operations}
         element={
           <AuthBoundary allowedRoles={OPERATIONS_ROLES}>
             <BranchBoundary>
-              <WorkspaceMountPoint title="Khu Operations" />
+              <OperationsLayout />
             </BranchBoundary>
           </AuthBoundary>
         }
-      />
+      >
+        <Route index element={<OperationsHome />} />
+        <Route path="products" element={<ProductsPage />} />
+        <Route path="customers" element={<CustomersPage />} />
+        <Route path="inventory" element={<InventoryPage />} />
+        <Route path="stock-documents" element={<StockDocumentsPage />}>
+          <Route path=":id" element={<StockDocumentDetailDrawer />} />
+        </Route>
+        <Route path="*" element={<WorkspaceMountPoint title="Chức năng đang phát triển" />} />
+      </Route>
       <Route
-        path={`${APP_PATHS.admin}/*`}
+        path={APP_PATHS.admin}
         element={
           <AuthBoundary allowedRoles={ADMIN_ROLES}>
-            <WorkspaceMountPoint title="Khu Quản trị" />
+            <OperationsLayout />
           </AuthBoundary>
         }
-      />
+      >
+        <Route index element={<h1>Dashboard</h1>} />
+        <Route path="*" element={<WorkspaceMountPoint title="Chức năng đang phát triển" />} />
+      </Route>
       <Route path={APP_PATHS.forbidden} element={<ForbiddenPage />} />
       <Route path="*" element={<Navigate to={APP_PATHS.home} replace />} />
     </Routes>

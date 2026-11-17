@@ -86,3 +86,21 @@ export const canPickAllBranches = (role: Role) => role === 'OWNER' || role === '
 
 /** Trang đầu của khu Operations: THỦ KHO không có Tổng quan nên vào Tồn kho. */
 export const operationsHomePath = (role: Role) => (role === 'STOREKEEPER' ? `${OP}/inventory` : OP);
+/**
+ * Nhãn breadcrumb cho đường dẫn hiện tại: mục con của nhóm hiện "Nhóm / Mục" (vd "Kho / Tồn kho"), mục thường hiện tên mục.
+ */
+export function breadcrumbFor(
+  pathname: string,
+  items: MenuItem[] = MENU,
+  parent?: string,
+): string | undefined {
+  for (const i of items) {
+    const hit = i.children ? breadcrumbFor(pathname, i.children, i.label) : undefined;
+    if (hit) return hit;
+    const matches =
+      !!i.to &&
+      (pathname === i.to || (i.to.split('/').length > 2 && pathname.startsWith(`${i.to}/`)));
+    if (matches) return parent ? `${parent} / ${i.label}` : i.label;
+  }
+  return undefined;
+}

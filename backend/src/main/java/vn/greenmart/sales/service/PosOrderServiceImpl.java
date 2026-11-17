@@ -1,6 +1,9 @@
 package vn.greenmart.sales.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,6 +13,9 @@ import vn.greenmart.catalog.dto.ProductSaleInfo;
 import vn.greenmart.catalog.service.ProductService;
 import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
+import vn.greenmart.common.exception.ValidationErrorDetail;
+import vn.greenmart.common.pagination.PageResponse;
+import vn.greenmart.common.pagination.PageUtils;
 import vn.greenmart.common.security.SecurityUtils;
 import vn.greenmart.customer.dto.CustomerResponse;
 import vn.greenmart.customer.service.CustomerService;
@@ -18,9 +24,12 @@ import vn.greenmart.integration.outbox.OutboxService;
 import vn.greenmart.inventory.service.InventoryService;
 import vn.greenmart.sales.domain.OrderItem;
 import vn.greenmart.sales.domain.OrderStatus;
+import vn.greenmart.sales.domain.Payment;
+import vn.greenmart.sales.domain.PaymentMethod;
 import vn.greenmart.sales.domain.SalesOrder;
 import vn.greenmart.sales.dto.*;
 import vn.greenmart.sales.repository.OrderItemRepository;
+import vn.greenmart.sales.repository.PaymentRepository;
 import vn.greenmart.sales.repository.SalesOrderRepository;
 
 import java.time.Instant;
@@ -32,10 +41,18 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.LinkedHashSet;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PosOrderServiceImpl implements PosOrderService {
+
+    private static final Set<String> ALLOWED_ORDER_SORT_FIELDS = Set.of(
+            "id", "code", "total", "status", "createdAt", "completedAt"
+    );
+    private static final Set<String> ALLOWED_CHANNELS = Set.of("POS", "WEB", "MARKET");
 
     private final QuoteService quoteService;
     private final ProductService productService;
@@ -47,17 +64,26 @@ public class PosOrderServiceImpl implements PosOrderService {
     private final PaymentService paymentService;
     private final SalesOrderRepository salesOrderRepository;
     private final OrderItemRepository orderItemRepository;
+    private final PaymentRepository paymentRepository;
     private final OutboxService outboxService;
     private final JdbcTemplate jdbcTemplate;
+    private final OrderQueryService orderQueryService;
+    private final OnlineOrderService onlineOrderService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public OrderResponse createPosOrder(PosOrderRequest request, String idempotencyKey) {
+        return createPosOrder(request, idempotencyKey, null);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public OrderResponse createPosOrder(PosOrderRequest request, String idempotencyKey, String requestHash) {
         SecurityUtils.requireRole("BRANCH_MANAGER", "CASHIER");
 
         List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
         if (accessibleBranches != null && !accessibleBranches.contains(request.branchId())) {
-            throw new AppException(ErrorCode.BRANCH_FORBIDDEN, "Bạn không có quyền thao tác trên chi nhánh này");
+            throw AppException.branchForbidden(request.branchId(), "Bạn không có quyền thao tác trên chi nhánh này");
         }
 
         // Tính lại Báo giá & Kiểm tra expectedTotal
@@ -74,18 +100,21 @@ public class PosOrderServiceImpl implements PosOrderService {
         }
 
         // Kiểm tra lượt khuyến mãi: nếu hết lượt thì tính lại quote mới và trả về 422 TOTAL_CHANGED
-        boolean promoSuccess = true;
+        Set<Long> appliedPromotionIds = new LinkedHashSet<>();
         if (recomputedQuote.orderPromotion() != null && recomputedQuote.orderPromotion().id() != null) {
-            promoSuccess = promotionService.recordUsage(recomputedQuote.orderPromotion().id());
+            appliedPromotionIds.add(recomputedQuote.orderPromotion().id());
         }
-        if (promoSuccess) {
-            for (QuoteLine qLine : recomputedQuote.lines()) {
-                if (qLine.promotion() != null && qLine.promotion().id() != null) {
-                    if (!promotionService.recordUsage(qLine.promotion().id())) {
-                        promoSuccess = false;
-                        break;
-                    }
-                }
+        for (QuoteLine qLine : recomputedQuote.lines()) {
+            if (qLine.promotion() != null && qLine.promotion().id() != null) {
+                appliedPromotionIds.add(qLine.promotion().id());
+            }
+        }
+
+        boolean promoSuccess = true;
+        for (Long promoId : appliedPromotionIds) {
+            if (!promotionService.recordUsage(promoId)) {
+                promoSuccess = false;
+                break;
             }
         }
 
@@ -140,7 +169,7 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         Long seq = jdbcTemplate.queryForObject(
                 "INSERT INTO order_sequence (branch_id, order_date, seq) VALUES (?, ?, 1) "
-                + "ON CONFLICT (branch_id, order_date) DO UPDATE SET seq = order_sequence.seq + 1 RETURNING seq",
+                        + "ON CONFLICT (branch_id, order_date) DO UPDATE SET seq = order_sequence.seq + 1 RETURNING seq",
                 Long.class, request.branchId(), localDate
         );
 
@@ -159,25 +188,28 @@ public class PosOrderServiceImpl implements PosOrderService {
         order.setStatus(OrderStatus.COMPLETED);
         order.setSubtotal(recomputedQuote.subtotal());
         order.setDiscount(recomputedQuote.discount());
+        order.setManualDiscount(recomputedQuote.manualDiscount() != null ? recomputedQuote.manualDiscount() : 0L);
+        order.setManualDiscountReason(request.manualDiscount() != null ? request.manualDiscount().reason() : null);
         order.setTotal(recomputedQuote.total());
+        order.setIdempotencyKey(idempotencyKey != null && !idempotencyKey.isBlank() ? idempotencyKey.trim() : null);
+        order.setRequestHash(requestHash != null && !requestHash.isBlank() ? requestHash.trim() : null);
+        order.setCreatedBy(currentUserId);
         order.setCreatedBy(currentUserId);
         order.setCreatedAt(now);
         order.setCompletedAt(now);
 
         order = salesOrderRepository.save(order);
 
-        // Lấy khóa tồn theo productId tăng dần, kể cả khi thứ tự trên đơn khác nhau.
+        // Trừ tồn kho trực tiếp
         var stockLines = recomputedQuote.lines().stream()
                 .sorted(Comparator.comparing(QuoteLine::productId))
                 .toList();
         for (QuoteLine line : stockLines) {
-            inventoryService.sellDirect(request.branchId(), line.productId(), line.quantity(), order.getId());
+            inventoryService.sellDirect(request.branchId(), line.productId(), line.quantity(), order.getId(), currentUserId);
         }
 
-        // Giữ thứ tự báo giá khi ghi và trả các dòng đơn hàng.
-        List<OrderItemResponse> itemResponses = new ArrayList<>();
-        int totalItemCount = 0;
-
+        // Lưu chi tiết dòng đơn hàng
+        List<OrderItem> savedItems = new ArrayList<>();
         for (QuoteLine qLine : recomputedQuote.lines()) {
             OrderItem orderItem = new OrderItem();
             orderItem.setOrderId(order.getId());
@@ -189,26 +221,13 @@ public class PosOrderServiceImpl implements PosOrderService {
             orderItem.setPromotionId(qLine.promotion() != null ? qLine.promotion().id() : null);
 
             orderItem = orderItemRepository.save(orderItem);
-
-            itemResponses.add(new OrderItemResponse(
-                    orderItem.getId(),
-                    orderItem.getProductId(),
-                    qLine.sku(),
-                    qLine.name(),
-                    qLine.unit(),
-                    orderItem.getQuantity(),
-                    orderItem.getUnitPrice(),
-                    orderItem.getDiscount(),
-                    orderItem.getLineTotal(),
-                    qLine.promotion()
-            ));
-            totalItemCount += orderItem.getQuantity();
+            savedItems.add(orderItem);
         }
 
         // Tạo bản ghi Payment qua PaymentService
         PaymentResponse paymentResponse = paymentService.processPayment(order.getId(), totalAmount, request.payment());
 
-        // Enqueue Outbox events
+        // Enqueue Outbox events (chỉ enqueue order.completed; stock.changed đã được chuyển vào InventoryService ở INV-59)
         Map<String, Object> orderPayload = Map.of(
                 "orderId", order.getId(),
                 "code", order.getCode(),
@@ -218,29 +237,242 @@ public class PosOrderServiceImpl implements PosOrderService {
         );
         outboxService.enqueue("order", order.getId().toString(), "order.completed", orderPayload);
 
-        List<Long> changedProductIds = sortedItems.stream().map(OrderLineRequest::productId).toList();
-        Map<String, Object> stockPayload = Map.of(
-                "branchId", order.getBranchId(),
-                "productIds", changedProductIds,
-                "reason", "POS_SALE"
-        );
-        outboxService.enqueue("stock", order.getBranchId().toString(), "stock.changed", stockPayload);
+        return mapToOrderResponse(order, savedItems, List.of(paymentResponse));
+    }
 
-        BranchRef branchRef = new BranchRef(request.branchId(), branchInfo.code(), branchInfo.name());
-        CustomerRef customerRef = null;
-        if (request.customerId() != null) {
-            CustomerResponse cust = customerService.getCustomer(request.customerId());
-            customerRef = new CustomerRef(cust.id(), cust.phone(), cust.name());
+    @Override
+    @Transactional(readOnly = true)
+    public OrderResponse getOrder(Long orderId) {
+        // Phân quyền vai trò: Chỉ OWNER, BRANCH_MANAGER, CASHIER, STOREKEEPER
+        SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER", "CASHIER", "STOREKEEPER");
+
+        // Tìm đơn hàng
+        SalesOrder order = salesOrderRepository.findById(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy đơn hàng"));
+
+        // Phân quyền chi nhánh (BR-11, AUTH-02)
+        List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
+        if (accessibleBranches != null && !accessibleBranches.contains(order.getBranchId())) {
+            throw AppException.branchForbidden(order.getBranchId(), "Bạn không có quyền thao tác trên chi nhánh này");
         }
 
-        String userFullName = authService.getFullName(currentUserId);
-        UserRef userRef = new UserRef(currentUserId, userFullName);
+        // Lấy danh sách dòng hàng và thanh toán trực tiếp từ DB
+        List<OrderItem> items = orderItemRepository.findByOrderId(order.getId());
+        List<Payment> payments = paymentRepository.findByOrderId(order.getId());
+
+        List<PaymentResponse> paymentResponses = new ArrayList<>();
+        for (Payment p : payments) {
+            Long cashReceived = null;
+            Long change = null;
+            if (p.getMethod() == PaymentMethod.CASH) {
+                cashReceived = p.getCashReceived();
+                if (cashReceived != null) {
+                    change = cashReceived - p.getAmount();
+                }
+            }
+
+            paymentResponses.add(new PaymentResponse(
+                    p.getId(),
+                    p.getMethod(),
+                    p.getAmount(),
+                    p.getStatus(),
+                    cashReceived,
+                    change,
+                    p.getProviderRef(),
+                    p.getPaidAt()
+            ));
+        }
+
+        // Map dữ liệu sang OrderResponse dùng chung
+        return mapToOrderResponse(order, items, paymentResponses);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<OrderSummaryResponse> listOrders(
+            Long branchId,
+            String channel,
+            List<String> status,
+            LocalDate from,
+            LocalDate to,
+            Long customerId,
+            String q,
+            Integer page,
+            Integer size,
+            String[] sort
+    ) {
+        // Kiểm tra đăng nhập & lấy danh sách chi nhánh được phép truy cập (BR-11, AUTH-02)
+        SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER", "CASHIER", "STOREKEEPER");
+        List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
+        if (branchId != null && accessibleBranches != null && !accessibleBranches.contains(branchId)) {
+            throw AppException.branchForbidden(branchId);
+        }
+
+        // Validate channel nếu có truyền
+        String normalizedChannel = null;
+        if (channel != null && !channel.trim().isEmpty()) {
+            normalizedChannel = channel.trim().toUpperCase();
+            if (!ALLOWED_CHANNELS.contains(normalizedChannel)) {
+                throw new AppException(
+                        ErrorCode.VALIDATION_ERROR,
+                        "Kênh bán không hợp lệ: " + channel,
+                        List.of(new ValidationErrorDetail("channel", "Chỉ chấp nhận POS, WEB hoặc MARKET"))
+                );
+            }
+        }
+
+        // Validate danh sách trạng thái status nếu có truyền
+        List<String> normalizedStatuses = new ArrayList<>();
+        if (status != null) {
+            for (String raw : status) {
+                if (raw == null || raw.trim().isEmpty()) {
+                    continue;
+                }
+                for (String token : raw.split(",")) {
+                    String s = token.trim().toUpperCase();
+                    if (s.isEmpty()) {
+                        continue;
+                    }
+                    try {
+                        OrderStatus.valueOf(s);
+                        normalizedStatuses.add(s);
+                    } catch (IllegalArgumentException ex) {
+                        throw new AppException(
+                                ErrorCode.VALIDATION_ERROR,
+                                "Trạng thái đơn hàng không hợp lệ: " + token,
+                                List.of(new ValidationErrorDetail("status", "Trạng thái không hợp lệ: " + token))
+                        );
+                    }
+                }
+            }
+        }
+
+        // Validate khoảng ngày
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new AppException(
+                    ErrorCode.VALIDATION_ERROR,
+                    "Ngày bắt đầu (from) không được lớn hơn ngày kết thúc (to)",
+                    List.of(new ValidationErrorDetail("from", "Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc"))
+            );
+        }
+
+        Pageable pageable = PageUtils.createPageable(
+                page,
+                size,
+                sort,
+                Sort.by(Sort.Direction.DESC, "createdAt"),
+                ALLOWED_ORDER_SORT_FIELDS
+        );
+
+        return orderQueryService.searchOrders(
+                branchId,
+                accessibleBranches,
+                normalizedChannel,
+                normalizedStatuses,
+                from,
+                to,
+                customerId,
+                q,
+                pageable
+        );
+    }
+
+    @Override
+    public OrderResponse completeOnlineOrder(Long orderId) {
+        return onlineOrderService.completeOrder(orderId);
+    }
+
+    @Override
+    public OrderResponse cancelOnlineOrder(Long orderId, CancelOrderRequest request) {
+        return onlineOrderService.cancelOrder(orderId, request);
+    }
+
+    private OrderResponse mapToOrderResponse(SalesOrder order, List<OrderItem> items, List<PaymentResponse> paymentResponses) {
+        BranchSaleInfo branchInfo = branchService.getSaleInfo(order.getBranchId());
+        BranchRef branchRef = new BranchRef(order.getBranchId(), branchInfo.code(), branchInfo.name());
+
+        CustomerRef customerRef = null;
+        if (order.getCustomerId() != null) {
+            try {
+                CustomerResponse cust = customerService.getCustomer(order.getCustomerId());
+                customerRef = new CustomerRef(cust.id(), cust.phone(), cust.name());
+            } catch (Exception e) {
+                log.warn("Không thể tra cứu thông tin khách hàng id={}: {}", order.getCustomerId(), e.getMessage());
+            }
+        }
+
+        UserRef userRef = null;
+        if (order.getCreatedBy() != null) {
+            try {
+                String fullName = authService.getFullName(order.getCreatedBy());
+                userRef = new UserRef(order.getCreatedBy(), fullName);
+            } catch (Exception e) {
+                log.warn("Không thể tra cứu nhân viên id={}: {}", order.getCreatedBy(), e.getMessage());
+                userRef = new UserRef(order.getCreatedBy(), "N/A");
+            }
+        }
+
+        long itemDiscountTotal = 0L;
+        int totalItemCount = 0;
+        List<OrderItemResponse> itemResponses = new ArrayList<>();
+
+        for (OrderItem item : items) {
+            totalItemCount += item.getQuantity();
+            if (item.getDiscount() != null) {
+                itemDiscountTotal += item.getDiscount();
+            }
+
+            String sku = "N/A";
+            String name = "N/A";
+            String unit = "N/A";
+
+            try {
+                ProductSaleInfo pInfo = productService.getSaleInfo(item.getProductId());
+                if (pInfo != null) {
+                    sku = pInfo.sku();
+                    name = pInfo.name();
+                    unit = pInfo.unit();
+                }
+            } catch (Exception e) {
+                log.warn("Không thể tra cứu sản phẩm id={}: {}", item.getProductId(), e.getMessage());
+            }
+
+            PromotionRef itemPromotion = getPromotionRef(item.getPromotionId(), item.getDiscount());
+
+            itemResponses.add(new OrderItemResponse(
+                    item.getId(),
+                    item.getProductId(),
+                    sku,
+                    name,
+                    unit,
+                    item.getQuantity(),
+                    item.getUnitPrice(),
+                    item.getDiscount(),
+                    item.getLineTotal(),
+                    itemPromotion
+            ));
+        }
+
+        long manualDiscount = order.getManualDiscount() != null ? order.getManualDiscount() : 0L;
+        String manualDiscountReason = order.getManualDiscountReason();
+
+        long orderDiscount = Math.max(0L, order.getDiscount() - itemDiscountTotal - manualDiscount);
+        PromotionRef orderPromotion = getPromotionRef(order.getPromotionId(), orderDiscount);
+
+        String channelCode = "POS";
+        try {
+            channelCode = jdbcTemplate.queryForObject(
+                    "SELECT code FROM sales_channel WHERE id = ?", String.class, order.getChannelId()
+            );
+        } catch (Exception e) {
+            log.warn("Không thể tra cứu mã kênh bán channelId={}: {}", order.getChannelId(), e.getMessage());
+        }
 
         return new OrderResponse(
                 order.getId(),
                 order.getCode(),
-                "POS",
-                null,
+                channelCode,
+                order.getExternalOrderId(),
                 branchRef,
                 customerRef,
                 order.getStatus(),
@@ -250,17 +482,37 @@ public class PosOrderServiceImpl implements PosOrderService {
                 order.getCompletedAt(),
                 userRef,
                 itemResponses,
-                recomputedQuote.orderPromotion(),
-                request.manualDiscount() != null ? request.manualDiscount().reason() : null,
-                recomputedQuote.subtotal(),
-                recomputedQuote.itemDiscount(),
-                recomputedQuote.orderDiscount(),
-                recomputedQuote.manualDiscount(),
-                recomputedQuote.discount(),
-                List.of(paymentResponse),
-                null,
+                orderPromotion,
+                manualDiscountReason,
+                order.getSubtotal(),
+                itemDiscountTotal,
+                orderDiscount,
+                manualDiscount,
+                order.getDiscount(),
+                paymentResponses,
+                order.getReservedUntil(),
                 null,
                 null
         );
     }
+
+    private PromotionRef getPromotionRef(Long promotionId, Long discount) {
+        if (promotionId == null) {
+            return null;
+        }
+        try {
+            List<PromotionRef> list = jdbcTemplate.query(
+                    "SELECT id, code FROM promotion WHERE id = ?",
+                    (rs, rowNum) -> new PromotionRef(rs.getLong("id"), rs.getString("code"), null, discount != null ? discount : 0L),
+                    promotionId
+            );
+            if (!list.isEmpty()) {
+                return list.get(0);
+            }
+        } catch (Exception e) {
+            log.warn("Lỗi tra cứu khuyến mại id={}: {}", promotionId, e.getMessage());
+        }
+        return new PromotionRef(promotionId, "KM-" + promotionId, null, discount != null ? discount : 0L);
+    }
 }
+

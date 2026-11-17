@@ -17,6 +17,7 @@ import {
   ErrorState,
   AsyncBlock,
 } from '../components/ui';
+import { RevenueAreaChart, Sparkline } from '../components/charts';
 import { ApiError, SessionExpiredError } from '../api/client';
 import { mapErrorToState, type ErrorScope } from '../lib/errors';
 import FullScreenLoading, { type FullScreenReason } from './FullScreenLoading';
@@ -60,6 +61,17 @@ const products: Product[] = [
   },
 ];
 
+const revenuePoints = [
+  { date: '2026-10-12', revenue: 12_500_000 },
+  { date: '2026-10-13', revenue: 16_200_000 },
+  { date: '2026-10-14', revenue: 14_800_000 },
+  { date: '2026-10-15', revenue: 21_300_000 },
+  { date: '2026-10-16', revenue: 18_700_000 },
+  { date: '2026-10-17', revenue: 25_100_000 },
+  { date: '2026-10-18', revenue: 22_400_000 },
+];
+
+const revenueTrend = revenuePoints.map(({ date, revenue }) => ({ date, value: revenue }));
 const columns = [
   { key: 'id', title: 'Mã sản phẩm' },
   { key: 'name', title: 'Tên sản phẩm' },
@@ -703,6 +715,33 @@ export default function ComponentShowcase() {
         </div>
       </section>
 
+      {/* 17. BIỂU ĐỒ */}
+      <section className="gm-preview__section">
+        <div className="gm-preview__heading">
+          <span>17</span>
+          <div>
+            <h2>RevenueAreaChart &amp; Sparkline</h2>
+            <p>
+              Biểu đồ doanh thu theo ngày và biểu đồ xu hướng nhỏ cho thẻ số. Cả hai nhận dữ liệu
+              theo kiểu dữ liệu dùng chung của thư mục charts.
+            </p>
+          </div>
+        </div>
+
+        <div className="gm-preview__content gm-preview__stack">
+          <RevenueAreaChart
+            data={revenuePoints}
+            height={240}
+            ariaLabel="Doanh thu mẫu từ ngày 12 đến ngày 18 tháng 10"
+          />
+          <Sparkline
+            data={revenueTrend}
+            tone="primary"
+            height={56}
+            ariaLabel="Xu hướng doanh thu mẫu"
+          />
+        </div>
+      </section>
       {/* FOOTER */}
       <footer className="gm-preview__footer">GREENMART · SHARED COMPONENTS · PREVIEW</footer>
     </main>

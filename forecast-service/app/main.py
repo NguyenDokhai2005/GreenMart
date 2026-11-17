@@ -1,4 +1,4 @@
-"""Container health and DB permissions; forecasting pipeline belongs to SV06 (#114)."""
+"""Container health, DB permissions and forecasting pipeline API (#114)."""
 import logging
 import os
 from collections.abc import Callable
@@ -6,6 +6,8 @@ from collections.abc import Callable
 import psycopg
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+
+from app.api.router import create_forecast_router, register_auth_exception_handler
 
 log = logging.getLogger(__name__)
 
@@ -48,6 +50,7 @@ def database_ready(connection_factory: Callable = connect) -> bool:
 
 def create_app(connection_factory: Callable = connect) -> FastAPI:
     application = FastAPI(title="GreenMart Forecast Service", docs_url=None, redoc_url=None)
+    register_auth_exception_handler(application)
 
     @application.get("/healthz")
     def health():
@@ -62,6 +65,9 @@ def create_app(connection_factory: Callable = connect) -> FastAPI:
     @application.get("/livez")
     def live():
         return {"status": "UP"}
+
+    forecast_router = create_forecast_router(connection_factory=connection_factory)
+    application.include_router(forecast_router)
 
     return application
 

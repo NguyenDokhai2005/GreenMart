@@ -30,6 +30,7 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -133,9 +134,47 @@ class CustomerIntegrationTest {
         CustomerResponse res = new CustomerResponse(1L, "0901234567", "Trần Thị Mai", null, Instant.now());
         PageResponse<CustomerResponse> pageRes = new PageResponse<>(List.of(res), 0, 20, 1, 1);
 
-        when(customerService.listCustomers(any(), any(), any())).thenReturn(pageRes);
+        when(customerService.listCustomers(isNull(), isNull(), any())).thenReturn(pageRes);
 
         mockMvc.perform(get("/api/v1/customers"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].phone").value("0901234567"));
+    }
+
+    @Test
+    void testListCustomers_PhoneOnly_Returns200() throws Exception {
+        CustomerResponse res = new CustomerResponse(1L, "0901234567", "Trần Thị Mai", null, Instant.now());
+        PageResponse<CustomerResponse> pageRes = new PageResponse<>(List.of(res), 0, 20, 1, 1);
+
+        when(customerService.listCustomers(isNull(), eq("0901234567"), any())).thenReturn(pageRes);
+
+        mockMvc.perform(get("/api/v1/customers").param("phone", "0901234567"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].phone").value("0901234567"));
+    }
+
+    @Test
+    void testListCustomers_QOnly_Returns200() throws Exception {
+        CustomerResponse res = new CustomerResponse(1L, "0901234567", "Trần Thị Mai", null, Instant.now());
+        PageResponse<CustomerResponse> pageRes = new PageResponse<>(List.of(res), 0, 20, 1, 1);
+
+        when(customerService.listCustomers(eq("Trần"), isNull(), any())).thenReturn(pageRes);
+
+        mockMvc.perform(get("/api/v1/customers").param("q", "Trần"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].name").value("Trần Thị Mai"));
+    }
+
+    @Test
+    void testListCustomers_PhoneAndQ_Returns200() throws Exception {
+        CustomerResponse res = new CustomerResponse(1L, "0901234567", "Trần Thị Mai", null, Instant.now());
+        PageResponse<CustomerResponse> pageRes = new PageResponse<>(List.of(res), 0, 20, 1, 1);
+
+        when(customerService.listCustomers(eq("Trần"), eq("0901234567"), any())).thenReturn(pageRes);
+
+        mockMvc.perform(get("/api/v1/customers")
+                .param("phone", "0901234567")
+                .param("q", "Trần"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content[0].phone").value("0901234567"));
     }

@@ -162,7 +162,7 @@ docker compose exec postgres psql -U greenmart -d greenmart -c \
 ## 5. Ghi audit_log khi BRANCH_FORBIDDEN (EX-11, AUTH-03)
 
 > Theo tiêu chí #146 và `user-stories.md` #146 tiêu chí 1: truy cập sai chi nhánh phải được ghi nhật ký.
-> Tên `action` giả định là `BRANCH_FORBIDDEN` — cần SV02 xác nhận (Q-27 trong `qa-questions-week1.md`).
+> Lead đã chốt Q-27: `action = BRANCH_FORBIDDEN`, `entity = branch`. `detail` gồm `branchId`, `method`, `path`, `traceId`. Audit ghi bằng transaction riêng; `path` không gồm query string.
 
 | ID | Tiêu đề | Given | When | Then | Mức độ |
 |---|---|---|---|---|---|
@@ -173,6 +173,5 @@ docker compose exec postgres psql -U greenmart -d greenmart -c \
 
 *Tổng: **23 test case** (TC-AUTH02-01..08: 8, TC-AUTH02-10..15: 6, TC-AUTH02-20..22: 3, TC-AUTH02-30..33: 4, TC-AUTH02-40..41: 2).*
 
-*Câu hỏi mở:*
-- *Q-27 trong `docs/testing/qa-questions-week1.md` — tên `action` chính xác khi ghi `audit_log` cho BRANCH_FORBIDDEN cần SV02 xác nhận trước khi chạy TC-AUTH02-40.*
+- *Q-27 đã chốt theo [phản hồi trên #310](https://github.com/NguyenDokhai2005/GreenMart/issues/310#issuecomment-6854060178). Q-31 về audit khi bị từ chối do sai vai trò được theo dõi riêng.*
 - *Q-31 trong `docs/testing/qa-questions-week1.md` — 403 `FORBIDDEN` (sai role) có ghi `audit_log` không? Kết quả của TC-AUTH02-41 phụ thuộc câu trả lời này.*

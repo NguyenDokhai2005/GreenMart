@@ -3,6 +3,7 @@ package vn.greenmart.inventory.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -41,7 +42,8 @@ import vn.greenmart.sales.service.PosIdempotencyService;
             "org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration",
         // Tắt health group dùng redis/readiness vì Redis bị excluded trong test này
         "management.endpoint.health.group.readiness.include=readinessState,db",
-        "management.endpoint.health.group.liveness.include=livenessState"
+        "management.endpoint.health.group.liveness.include=livenessState",
+        "greenmart.outbox.enabled=false"
     }
 )
 @Testcontainers
@@ -83,6 +85,11 @@ class InventoryServiceTransactionTest {
     private static final Long PRODUCT_ID = 50L;
     private static final Long PRODUCT_ID_2 = 51L;
 
+    @BeforeEach
+    void clearStockEventsFromPreviousCases() {
+        jdbc.update("DELETE FROM outbox_event WHERE event_type='stock.changed'");
+    }
+
     @ParameterizedTest
     @CsvSource({
             "reserve,RESERVE,3,0,3,10,7",
@@ -94,11 +101,15 @@ class InventoryServiceTransactionTest {
     void writesExactlyOneLedgerEntryWithPostUpdateBalances(String operation, String type,
             int qty, int deltaOnHand, int deltaReserved, int onHandAfter, int reservedAfter) {
         insertFixtures(PRODUCT_ID, 10, 4);
+        jdbc.update("""
+                INSERT INTO app_user(id, username, password_hash, full_name, role)
+                VALUES (7100, 'ledger-actor', 'fixture', 'Ledger actor', 'CASHIER')
+                """);
         switch (operation) {
-            case "reserve" -> inventoryService.reserve(BRANCH_ID, PRODUCT_ID, qty, 5001L);
-            case "release" -> inventoryService.release(BRANCH_ID, PRODUCT_ID, qty, 5001L);
-            case "commitSale" -> inventoryService.commitSale(BRANCH_ID, PRODUCT_ID, qty, 5001L);
-            case "sellDirect" -> inventoryService.sellDirect(BRANCH_ID, PRODUCT_ID, qty, 5001L);
+            case "reserve" -> inventoryService.reserve(BRANCH_ID, PRODUCT_ID, qty, 5001L, 7100L);
+            case "release" -> inventoryService.release(BRANCH_ID, PRODUCT_ID, qty, 5001L, 7100L);
+            case "commitSale" -> inventoryService.commitSale(BRANCH_ID, PRODUCT_ID, qty, 5001L, 7100L);
+            case "sellDirect" -> inventoryService.sellDirect(BRANCH_ID, PRODUCT_ID, qty, 5001L, 7100L);
             default -> throw new IllegalArgumentException(operation);
         }
         var entries = jdbc.queryForList("SELECT * FROM inventory_transaction WHERE ref_id=5001");
@@ -106,9 +117,27 @@ class InventoryServiceTransactionTest {
         assertThat(entries.getFirst()).containsEntry("type", type)
                 .containsEntry("branch_id", BRANCH_ID).containsEntry("product_id", PRODUCT_ID)
                 .containsEntry("ref_type", "ORDER").containsEntry("ref_id", 5001L)
+                .containsEntry("created_by", 7100L)
                 .containsEntry("delta_on_hand", deltaOnHand).containsEntry("delta_reserved", deltaReserved)
                 .containsEntry("on_hand_after", onHandAfter).containsEntry("reserved_after", reservedAfter);
         assertThat(entries.getFirst().get("created_at")).isNotNull();
+        assertThat(stockEvents()).containsExactly("10:50:1");
+    }
+
+    @Test
+    void committedChangesPublishEachNewVersionForTheSameStockRow() {
+        var tx = new TransactionTemplate(txManager);
+        try {
+            tx.executeWithoutResult(status -> {
+                insertFixtures(PRODUCT_ID, 5, 0);
+                inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 1, 5010L);
+            });
+            assertThat(stockEvents()).containsExactly("10:50:1");
+            tx.executeWithoutResult(status -> inventoryService.release(BRANCH_ID, PRODUCT_ID, 1, 5010L));
+            assertThat(stockEvents()).containsExactly("10:50:1", "10:50:2");
+        } finally {
+            cleanupCommittedFixture();
+        }
     }
 
     @Test
@@ -118,12 +147,14 @@ class InventoryServiceTransactionTest {
         try {
             assertThatThrownBy(() -> tx.executeWithoutResult(status -> {
                 inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 1, 5002L);
+                assertThat(stockEvents()).containsExactly("10:50:1");
                 inventoryService.sellDirect(BRANCH_ID, PRODUCT_ID, 2, null);
             })).isInstanceOf(DataIntegrityViolationException.class);
             assertThat(jdbc.queryForMap("SELECT on_hand,reserved,version FROM inventory WHERE branch_id=? AND product_id=?",
                     BRANCH_ID, PRODUCT_ID)).containsEntry("on_hand", 5)
                     .containsEntry("reserved", 0).containsEntry("version", 0L);
             assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_transaction", Integer.class)).isZero();
+            assertThat(stockEvents()).isEmpty();
         } finally {
             cleanupCommittedFixture();
         }
@@ -150,8 +181,16 @@ class InventoryServiceTransactionTest {
         }
     }
 
+    private java.util.List<String> stockEvents() {
+        return jdbc.queryForList("""
+                SELECT (payload->>'branchId') || ':' || (payload->>'productId') || ':' || (payload->>'version')
+                FROM outbox_event WHERE event_type='stock.changed' ORDER BY id
+                """, String.class);
+    }
+
     private void cleanupCommittedFixture() {
         new TransactionTemplate(txManager).executeWithoutResult(status -> {
+            jdbc.update("DELETE FROM outbox_event WHERE event_type='stock.changed'");
             jdbc.execute("TRUNCATE inventory_transaction");
             jdbc.update("DELETE FROM inventory WHERE branch_id=? AND product_id=?", BRANCH_ID, PRODUCT_ID);
             jdbc.update("DELETE FROM product WHERE id=?", PRODUCT_ID);
@@ -211,6 +250,8 @@ class InventoryServiceTransactionTest {
         setup.execute(status -> {
             insertFixtures(PRODUCT_ID, 5, 0);
             insertFixtures(PRODUCT_ID_2, 2, 0);
+            jdbc.update("UPDATE inventory SET reorder_point=4 WHERE branch_id=? AND product_id=?",
+                    BRANCH_ID, PRODUCT_ID);
             return null;
         });
 
@@ -218,6 +259,9 @@ class InventoryServiceTransactionTest {
         try {
             tx.execute(status -> {
                 inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 3, 2001L);
+                assertThat(jdbc.queryForObject("SELECT count(*) FROM stock_alert WHERE closed_at IS NULL", Integer.class))
+                        .isEqualTo(1);
+                assertThat(stockEvents()).containsExactly("10:50:1");
                 inventoryService.reserve(BRANCH_ID, PRODUCT_ID_2, 5, 2002L);
                 return null;
             });
@@ -241,6 +285,8 @@ class InventoryServiceTransactionTest {
                     .as("reserved của p2 phải giữ nguyên 0")
                     .isEqualTo(0);
             assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_transaction", Integer.class)).isZero();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM stock_alert", Integer.class)).isZero();
+            assertThat(stockEvents()).isEmpty();
             return null;
         });
 
@@ -403,6 +449,38 @@ class InventoryServiceTransactionTest {
                 jdbc.update("DELETE FROM category WHERE id=?", 98);
             });
         }
+    }
+
+    @Test
+    @Transactional
+    void stockAlertReusesOpenRowAcrossLevelsAndClosesAfterReplenishment() {
+        insertFixtures(PRODUCT_ID, 35, 0);
+        jdbc.update("UPDATE inventory SET reorder_point=34 WHERE branch_id=? AND product_id=?", BRANCH_ID, PRODUCT_ID);
+        jdbc.update("""
+                INSERT INTO app_user(id, username, password_hash, full_name, role)
+                VALUES (9610, 'alert-manager', 'hash', 'Alert Manager', 'BRANCH_MANAGER')
+                """);
+
+        inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 5, 6100L);
+        var open = jdbc.queryForMap("SELECT id, severity FROM stock_alert WHERE closed_at IS NULL");
+        assertThat(open).containsEntry("severity", "LOW");
+        inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 30, 6101L);
+        assertThat(jdbc.queryForMap("SELECT id, severity FROM stock_alert WHERE closed_at IS NULL"))
+                .containsEntry("id", open.get("id")).containsEntry("severity", "OUT");
+        inventoryService.release(BRANCH_ID, PRODUCT_ID, 30, 6101L);
+        assertThat(jdbc.queryForMap("SELECT id, severity FROM stock_alert WHERE closed_at IS NULL"))
+                .containsEntry("id", open.get("id")).containsEntry("severity", "LOW");
+
+        inventoryService.importStock(BRANCH_ID, PRODUCT_ID, 96, 4000L, 6102L, 9610L);
+        assertThat(inventoryService.getAvailable(BRANCH_ID, PRODUCT_ID)).isEqualTo(126);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM stock_alert WHERE closed_at IS NULL", Integer.class))
+                .isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM stock_alert WHERE id=? AND closed_at IS NOT NULL",
+                Integer.class, open.get("id"))).isEqualTo(1);
+
+        inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 92, 6103L);
+        assertThat(jdbc.queryForMap("SELECT id, severity FROM stock_alert WHERE closed_at IS NULL"))
+                .containsEntry("severity", "LOW").doesNotContainEntry("id", open.get("id"));
     }
 
     private void insertFixtures(long productId, int onHand, int reserved) {

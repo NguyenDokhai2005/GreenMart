@@ -1,0 +1,608 @@
+{
+  "issue": 154,
+  "date": "2026-11-14T11:00:57.596194+00:00",
+  "sourceCommit": "c25ae39477f8b2de72b2f022bbfda03c00d28073",
+  "project": "greenmart-qa154-20261114",
+  "base": "http://127.0.0.1:18164/api/v1",
+  "fixturePrefix": "QA154-96335868",
+  "runtime": {
+    "imageTag": "greenmart-backend:qa154-c25ae39",
+    "imageId": "sha256:17e1192d27a107c1ccad0e25ef97be416822d705dca5dc2f39e0cd91e02487f7",
+    "verifiedRevision": "c25ae39477f8b2de72b2f022bbfda03c00d28073"
+  },
+  "summary": {
+    "PASS": 35,
+    "FAIL": 1,
+    "BLOCKED": 2
+  },
+  "interrupted": null,
+  "checks": [
+    {
+      "id": "AUD154-001",
+      "name": "Login owner",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/auth/login",
+        "expectedStatus": 200,
+        "actualStatus": 200
+      }
+    },
+    {
+      "id": "AUD154-002",
+      "name": "Login quanly.gm001",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/auth/login",
+        "expectedStatus": 200,
+        "actualStatus": 200
+      }
+    },
+    {
+      "id": "AUD154-003",
+      "name": "Login thungan.gm001",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/auth/login",
+        "expectedStatus": 200,
+        "actualStatus": 200
+      }
+    },
+    {
+      "id": "AUD154-004",
+      "name": "Login thukho.gm001",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/auth/login",
+        "expectedStatus": 200,
+        "actualStatus": 200
+      }
+    },
+    {
+      "id": "AUD154-005",
+      "name": "Create own QA product",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/products",
+        "expectedStatus": 201,
+        "actualStatus": 201
+      }
+    },
+    {
+      "id": "AUD154-006",
+      "name": "Owner changes sale price",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "PUT",
+        "path": "/products/1002",
+        "expectedStatus": 200,
+        "actualStatus": 200
+      }
+    },
+    {
+      "id": "AUD154-007",
+      "name": "Price audit: actor, prices, object, time",
+      "result": "PASS",
+      "assertions": {
+        "exactlyOne": true,
+        "actor": true,
+        "object": true,
+        "time": true,
+        "detail": true,
+        "noCredentials": true
+      },
+      "evidence": {
+        "rows": [
+          {
+            "id": 125,
+            "userId": 2,
+            "action": "CHANGE_PRICE",
+            "entity": "product",
+            "entityId": "1002",
+            "createdAt": "2026-11-14T18:00:51.990577+07:00",
+            "detail": {
+              "oldPrice": 29000,
+              "newPrice": 31000
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "AUD154-008",
+      "name": "Unchanged sale price control",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "PUT",
+        "path": "/products/1002",
+        "expectedStatus": 200,
+        "actualStatus": 200
+      }
+    },
+    {
+      "id": "AUD154-009",
+      "name": "No price-change audit for unchanged price",
+      "result": "PASS",
+      "assertions": {
+        "noEvent": true
+      },
+      "evidence": null
+    },
+    {
+      "id": "AUD154-010",
+      "name": "Cashier cannot change price",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "PUT",
+        "path": "/products/1002",
+        "expectedStatus": 403,
+        "actualStatus": 403,
+        "code": "FORBIDDEN",
+        "traceId": "4829245a-8e95-40da-9e1e-6be7e5b40280"
+      }
+    },
+    {
+      "id": "AUD154-011",
+      "name": "Rejected price update creates no successful change audit",
+      "result": "PASS",
+      "assertions": {
+        "noEvent": true,
+        "priceUnchanged": true
+      },
+      "evidence": null
+    },
+    {
+      "id": "AUD154-012",
+      "name": "Keeper creates import draft",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/stock-documents",
+        "expectedStatus": 201,
+        "actualStatus": 201
+      }
+    },
+    {
+      "id": "AUD154-013",
+      "name": "Manager approves import",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/stock-documents/5/approve",
+        "expectedStatus": 200,
+        "actualStatus": 200
+      }
+    },
+    {
+      "id": "AUD154-014",
+      "name": "Approval audit committed with stock change",
+      "result": "PASS",
+      "assertions": {
+        "exactlyOne": true,
+        "actor": true,
+        "object": true,
+        "time": true,
+        "detail": true,
+        "noCredentials": true
+      },
+      "evidence": {
+        "rows": [
+          {
+            "id": 126,
+            "userId": 3,
+            "action": "APPROVE_STOCK_DOCUMENT",
+            "entity": "stock_document",
+            "entityId": "5",
+            "createdAt": "2026-11-14T18:00:53.661198+07:00",
+            "detail": {
+              "type": "IMPORT",
+              "status": "APPROVED"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "AUD154-015",
+      "name": "Approved import stock is real",
+      "result": "PASS",
+      "assertions": {
+        "onHandTen": true
+      },
+      "evidence": null
+    },
+    {
+      "id": "AUD154-016",
+      "name": "Repeated approval has no duplicate success audit",
+      "result": "PASS",
+      "assertions": {
+        "rejected": true,
+        "noEvent": true
+      },
+      "evidence": {
+        "actualStatus": 409
+      }
+    },
+    {
+      "id": "AUD154-017",
+      "name": "Wrong-password login",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/auth/login",
+        "expectedStatus": 401,
+        "actualStatus": 401,
+        "code": "INVALID_CREDENTIALS",
+        "traceId": "f590cfc6-f1a0-4bfa-929f-11dfa0be6604"
+      }
+    },
+    {
+      "id": "AUD154-018",
+      "name": "Failed-login audit survives HTTP 401",
+      "result": "PASS",
+      "assertions": {
+        "exactlyOne": true,
+        "actor": true,
+        "object": true,
+        "time": true,
+        "detail": true,
+        "noCredentials": true
+      },
+      "evidence": {
+        "rows": [
+          {
+            "id": 127,
+            "userId": 7,
+            "action": "LOGIN_FAILED",
+            "entity": "app_user",
+            "entityId": "7",
+            "createdAt": "2026-11-14T18:00:54.591517+07:00",
+            "detail": {
+              "remainingAttempts": 4
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "AUD154-019",
+      "name": "Recover demo login state",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/auth/login",
+        "expectedStatus": 200,
+        "actualStatus": 200
+      }
+    },
+    {
+      "id": "AUD154-020",
+      "name": "Inventory denies cross-branch",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "GET",
+        "path": "/inventory?branchId=2",
+        "expectedStatus": 403,
+        "actualStatus": 403,
+        "code": "BRANCH_FORBIDDEN",
+        "traceId": "6d2a5463-1669-4150-9c50-fb2e2dde05fb"
+      }
+    },
+    {
+      "id": "AUD154-021",
+      "name": "Inventory branch error code",
+      "result": "PASS",
+      "assertions": {
+        "code": true
+      },
+      "evidence": null
+    },
+    {
+      "id": "AUD154-022",
+      "name": "Inventory branch-denial audit metadata",
+      "result": "PASS",
+      "assertions": {
+        "exactlyOne": true,
+        "actor": true,
+        "object": true,
+        "time": true,
+        "detail": true,
+        "noCredentials": true
+      },
+      "evidence": {
+        "rows": [
+          {
+            "id": 128,
+            "userId": 7,
+            "action": "BRANCH_FORBIDDEN",
+            "entity": "branch",
+            "entityId": "2",
+            "createdAt": "2026-11-14T18:00:55.237452+07:00",
+            "detail": {
+              "branchId": 2,
+              "method": "GET",
+              "path": "/api/v1/inventory",
+              "traceId": "6d2a5463-1669-4150-9c50-fb2e2dde05fb"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "AUD154-023",
+      "name": "Inventory audit entity is branch",
+      "result": "PASS",
+      "assertions": {
+        "entity": true
+      },
+      "evidence": null
+    },
+    {
+      "id": "AUD154-024",
+      "name": "Product lookup denies cross-branch",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "GET",
+        "path": "/products/lookup?branchId=2&code=QA154-96335868",
+        "expectedStatus": 403,
+        "actualStatus": 403,
+        "code": "BRANCH_FORBIDDEN",
+        "traceId": "944204b7-c267-4ba7-8907-1682d42daca8"
+      }
+    },
+    {
+      "id": "AUD154-025",
+      "name": "Product lookup branch error code",
+      "result": "PASS",
+      "assertions": {
+        "code": true
+      },
+      "evidence": null
+    },
+    {
+      "id": "AUD154-026",
+      "name": "Product lookup branch-denial audit metadata",
+      "result": "FAIL",
+      "assertions": {
+        "exactlyOne": true,
+        "actor": true,
+        "object": false,
+        "time": true,
+        "detail": false,
+        "noCredentials": true
+      },
+      "evidence": {
+        "rows": [
+          {
+            "id": 129,
+            "userId": 7,
+            "action": "BRANCH_FORBIDDEN",
+            "entity": "branch",
+            "entityId": null,
+            "createdAt": "2026-11-14T18:00:55.667738+07:00",
+            "detail": {
+              "branchId": null,
+              "method": "GET",
+              "path": "/api/v1/products/lookup",
+              "traceId": "944204b7-c267-4ba7-8907-1682d42daca8"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "AUD154-027",
+      "name": "Product lookup audit entity is branch",
+      "result": "PASS",
+      "assertions": {
+        "entity": true
+      },
+      "evidence": null
+    },
+    {
+      "id": "AUD154-028",
+      "name": "Adjustment audit after approval",
+      "result": "BLOCKED",
+      "reason": "ADJUST creation unavailable; cannot establish approved adjustment through API",
+      "dependency": [
+        63
+      ],
+      "evidence": {
+        "actualStatus": 400,
+        "code": "VALIDATION_ERROR",
+        "classification": "Open implementation dependency #63; not a reproduced missing-audit bug"
+      }
+    },
+    {
+      "id": "AUD154-029",
+      "name": "Create real COD order for cancellation",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/integrations/WEB/orders",
+        "expectedStatus": 202,
+        "actualStatus": 202
+      }
+    },
+    {
+      "id": "AUD154-030",
+      "name": "Cancellation fixture is a real CONFIRMED order",
+      "result": "PASS",
+      "assertions": {
+        "confirmed": true,
+        "databaseConfirmed": true
+      },
+      "evidence": {
+        "orderId": 10202
+      }
+    },
+    {
+      "id": "AUD154-031",
+      "name": "Order-cancellation audit",
+      "result": "BLOCKED",
+      "reason": "Cancel endpoint unavailable on real CONFIRMED order; no fake audit inserted",
+      "dependency": [
+        42,
+        320
+      ],
+      "evidence": {
+        "orderId": 10202,
+        "actualStatus": 404,
+        "code": "NOT_FOUND"
+      }
+    },
+    {
+      "id": "AUD154-032",
+      "name": "Audit rejects UPDATE",
+      "result": "PASS",
+      "assertions": {
+        "rejected55000": true,
+        "rowUnchanged": true
+      },
+      "evidence": {
+        "auditId": 125,
+        "sqlState55000": true,
+        "rollbackProtected": true
+      }
+    },
+    {
+      "id": "AUD154-033",
+      "name": "Audit rejects DELETE",
+      "result": "PASS",
+      "assertions": {
+        "rejected55000": true,
+        "rowUnchanged": true
+      },
+      "evidence": {
+        "auditId": 125,
+        "sqlState55000": true,
+        "rollbackProtected": true
+      }
+    },
+    {
+      "id": "AUD154-034",
+      "name": "Logout session 1",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/auth/logout",
+        "expectedStatus": 204,
+        "actualStatus": 204
+      }
+    },
+    {
+      "id": "AUD154-035",
+      "name": "Logout session 2",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/auth/logout",
+        "expectedStatus": 204,
+        "actualStatus": 204
+      }
+    },
+    {
+      "id": "AUD154-036",
+      "name": "Logout session 3",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/auth/logout",
+        "expectedStatus": 204,
+        "actualStatus": 204
+      }
+    },
+    {
+      "id": "AUD154-037",
+      "name": "Logout session 4",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/auth/logout",
+        "expectedStatus": 204,
+        "actualStatus": 204
+      }
+    },
+    {
+      "id": "AUD154-038",
+      "name": "Logout session 5",
+      "result": "PASS",
+      "assertions": {
+        "http": true
+      },
+      "evidence": {
+        "method": "POST",
+        "path": "/auth/logout",
+        "expectedStatus": 204,
+        "actualStatus": 204
+      }
+    }
+  ],
+  "limitations": [
+    "SQL mapping/signing-key fixture only in isolated QA154; no inserted audit fixtures.",
+    "UPDATE/DELETE probes use rollback and do not disable triggers or test privileged TRUNCATE/DDL.",
+    "Unavailable adjustment/cancellation paths remain BLOCKED, not audit PASS.",
+    "Audit action names for supported workflows follow current implementation; branch metadata follows Lead Q-27."
+  ]
+}

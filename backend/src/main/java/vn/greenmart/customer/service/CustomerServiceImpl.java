@@ -36,6 +36,13 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
+    public long resolveChannelCustomer(String phone, String name) {
+        jdbcTemplate.update("INSERT INTO customer(phone, name) VALUES (?, ?) ON CONFLICT (phone) DO NOTHING",
+                phone, name.trim());
+        return jdbcTemplate.queryForObject("SELECT id FROM customer WHERE phone=?", Long.class, phone);
+    }
+
+    @Override
     public CustomerResponse createCustomer(CustomerRequest request) {
         SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER", "CASHIER");
 

@@ -46,11 +46,23 @@ public class SalesOrder {
     @Column(nullable = false)
     private Long discount = 0L;
 
+    @Column(name = "manual_discount", nullable = false)
+    private Long manualDiscount = 0L;
+
+    @Column(name = "manual_discount_reason", length = 255)
+    private String manualDiscountReason;
+
     @Column(nullable = false)
     private Long total = 0L;
 
     @Column(name = "reserved_until")
     private Instant reservedUntil;
+
+    @Column(name = "idempotency_key", length = 64)
+    private String idempotencyKey;
+
+    @Column(name = "request_hash", length = 64)
+    private String requestHash;
 
     @Column(name = "created_by")
     private Long createdBy;

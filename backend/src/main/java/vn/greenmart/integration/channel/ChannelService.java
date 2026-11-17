@@ -38,6 +38,11 @@ public class ChannelService implements ChannelCatalog {
         return ids.getFirst();
     }
 
+    @Override public java.util.Optional<Long> findMappedProduct(long channelId, String externalSku) {
+        return jdbc.queryForList("SELECT product_id FROM channel_product WHERE channel_id=? AND external_sku=?",
+                Long.class, channelId, externalSku).stream().findFirst();
+    }
+
     /** Existing PK and UNIQUE constraints arbitrate concurrent mapping changes. */
     @Transactional
     public void mapProduct(String channelCode, long productId, String externalSku) {

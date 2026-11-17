@@ -1,0 +1,3 @@
+# Phụ thuộc dành riêng cho môi trường development & kiểm thử tích hợp CSDL (Testcontainers)
+# Tách riêng khỏi requirements.txt để image Docker production của forecast-service tinh gọn
+testcontainers[postgres]>=4.0.0

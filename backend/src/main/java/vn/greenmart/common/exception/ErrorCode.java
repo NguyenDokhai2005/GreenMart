@@ -8,6 +8,7 @@ public enum ErrorCode {
 
     // 401
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "Phiên đăng nhập đã hết hạn hoặc không hợp lệ"),
+    INVALID_SIGNATURE(HttpStatus.UNAUTHORIZED, "Chữ ký webhook không hợp lệ"),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "Sai tên đăng nhập hoặc mật khẩu"),
     ACCOUNT_LOCKED(HttpStatus.UNAUTHORIZED, "Tài khoản tạm khóa do đăng nhập sai nhiều lần"),
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "Refresh token không hợp lệ hoặc đã hết hạn"),
@@ -28,12 +29,14 @@ public enum ErrorCode {
     DUPLICATE_SKU(HttpStatus.CONFLICT, "Mã SKU đã tồn tại"),
     DUPLICATE_BARCODE(HttpStatus.CONFLICT, "Mã vạch barcode đã tồn tại"),
     DUPLICATE_PHONE(HttpStatus.CONFLICT, "Số điện thoại đã thuộc khách hàng khác"),
+    DUPLICATE_PROMOTION_CODE(HttpStatus.CONFLICT, "Mã khuyến mại đã tồn tại"),
     INSUFFICIENT_STOCK(HttpStatus.CONFLICT, "Số lượng tồn kho không đủ"),
     IDEMPOTENCY_CONFLICT(HttpStatus.CONFLICT, "Yêu cầu đang được xử lý hoặc trùng lặp với nội dung khác"),
     CATEGORY_IN_USE(HttpStatus.CONFLICT, "Danh mục đang có sản phẩm hoặc danh mục con"),
 
     // 422
     SELF_APPROVAL_FORBIDDEN(HttpStatus.UNPROCESSABLE_ENTITY, "Người lập không được tự duyệt phiếu"),
+    COUNTED_QUANTITY_REQUIRED(HttpStatus.UNPROCESSABLE_ENTITY, "Phải nhập số đếm cho từng dòng kiểm kê trước khi duyệt"),
     RECEIVED_QUANTITY_EXCEEDED(HttpStatus.UNPROCESSABLE_ENTITY, "Số lượng nhận vượt số lượng đã chuyển"),
     PRODUCT_INACTIVE(HttpStatus.UNPROCESSABLE_ENTITY, "Sản phẩm đã ngừng kinh doanh"),
     TOTAL_CHANGED(HttpStatus.UNPROCESSABLE_ENTITY, "Tổng giá trị đơn hàng đã thay đổi"),

@@ -22,12 +22,19 @@ public class InventoryQueryServiceImpl implements InventoryQueryService {
 
     @Override
     @Transactional(readOnly = true)
+    public InventoryItemResponse get(Long branchId, Long productId) {
+        var result = list(branchId, productId, null, null, null, 0, 1, null);
+        return result.content().stream().findFirst().orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public PageResponse<InventoryItemResponse> list(Long branchId, Long productId, Long categoryId,
             String q, StockStatus stockStatus, Integer page, Integer size, String[] sort) {
         SecurityUtils.requireRole("ADMIN", "OWNER", "BRANCH_MANAGER", "CASHIER", "STOREKEEPER");
         var allowedBranches = SecurityUtils.getAccessibleBranchIds(jdbc);
         if (branchId != null && allowedBranches != null && !allowedBranches.contains(branchId)) {
-            throw new AppException(ErrorCode.BRANCH_FORBIDDEN);
+            throw AppException.branchForbidden(branchId);
         }
         var pageable = PageUtils.createPageable(page, size, sort, Sort.by("branchId", "productId"),
                 InventoryQueryRepository.SORT_COLUMNS.keySet());

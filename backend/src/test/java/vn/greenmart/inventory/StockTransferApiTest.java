@@ -28,7 +28,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,"
                 + "org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration",
-        "management.endpoint.health.group.readiness.include=readinessState,db"
+        "management.endpoint.health.group.readiness.include=readinessState,db",
+        "greenmart.outbox.enabled=false"
 })
 @AutoConfigureMockMvc
 @Testcontainers
@@ -48,6 +49,7 @@ class StockTransferApiTest {
     private static final String DOCUMENTS = "/api/v1/stock-documents";
 
     @BeforeEach void fixtures() {
+        jdbc.update("DELETE FROM outbox_event");
         jdbc.execute("TRUNCATE branch,category,app_user CASCADE");
         jdbc.update("INSERT INTO branch(id,code,name) VALUES(81,'SRC','Source'),(82,'DST','Destination'),(83,'OTH','Other')");
         jdbc.update("INSERT INTO category(id,name) VALUES(81,'Milk')");
@@ -66,7 +68,7 @@ class StockTransferApiTest {
         jdbc.update("INSERT INTO inventory(branch_id,product_id,on_hand,reserved) VALUES(81,81,85,5)");
     }
 
-    @Test void branchAccessIsCheckedBeforeUnsupportedDocumentType() throws Exception {
+    @Test void adjustmentDetailsAreScopedToTheirBranch() throws Exception {
         long id = jdbc.queryForObject("""
                 INSERT INTO stock_document(code,type,branch_id,created_by)
                 VALUES ('ADJUST-TEST','ADJUST',81,810) RETURNING id
@@ -74,8 +76,32 @@ class StockTransferApiTest {
         mvc.perform(get(DOCUMENTS + "/{id}", id).with(user("813").roles("STOREKEEPER")))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
         mvc.perform(post(DOCUMENTS + "/{id}/approve", id).with(user("813").roles("STOREKEEPER")))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
         mvc.perform(get(DOCUMENTS + "/{id}", id).with(user("810").roles("STOREKEEPER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.type").value("ADJUST"));
+    }
+
+    @Test void listsStockDocumentsForSourceAndDestinationWithFilters() throws Exception {
+        long id = draft().get("id").asLong();
+        approve(id).andExpect(status().isOk());
+
+        mvc.perform(get(DOCUMENTS).with(user("812").roles("STOREKEEPER"))
+                        .param("branchId", "82").param("type", "TRANSFER")
+                        .param("status", "DRAFT", "IN_TRANSIT").param("size", "1")
+                        .param("sort", "createdAt,desc"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(id))
+                .andExpect(jsonPath("$.content[0].branch.id").value(81))
+                .andExpect(jsonPath("$.content[0].toBranch.id").value(82))
+                .andExpect(jsonPath("$.content[0].itemCount").value(1));
+        mvc.perform(get(DOCUMENTS).with(user("813").roles("STOREKEEPER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(0));
+        mvc.perform(get(DOCUMENTS).with(user("813").roles("STOREKEEPER")).param("branchId", "82"))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
+        mvc.perform(get(DOCUMENTS).with(user("811").roles("BRANCH_MANAGER"))
+                        .param("from", "2026-11-13").param("to", "2026-11-12"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get(DOCUMENTS).with(user("811").roles("BRANCH_MANAGER")).param("sort", ","))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 
@@ -104,6 +130,10 @@ class StockTransferApiTest {
                 SELECT type || ':' || branch_id || ':' || delta_on_hand || ':' || created_by
                 FROM inventory_transaction WHERE ref_type='STOCK_DOCUMENT' AND ref_id=? ORDER BY id
                 """, String.class, id)).containsExactly("TRANSFER_OUT:81:-50:811", "TRANSFER_IN:82:48:812");
+        assertThat(jdbc.queryForList("""
+                SELECT aggregate_id || ':' || (payload->>'version')
+                FROM outbox_event WHERE event_type='stock.changed' ORDER BY id
+                """, String.class)).containsExactly("81:81:1", "82:81:1");
 
         receive(draft, 48, "812").andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("INVALID_STATUS"));
         assertThat(onHand(82)).isEqualTo(48);

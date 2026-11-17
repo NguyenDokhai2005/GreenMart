@@ -30,6 +30,8 @@ public interface InventoryService {
      */
     void reserve(Long branchId, Long productId, int qty, Long refId);
 
+    void reserve(Long branchId, Long productId, int qty, Long refId, Long actorId);
+
     /**
      * Nhả giữ chỗ khi đơn hủy hoặc hết hạn (→ CANCELLED/EXPIRED).
      * Giảm {@code reserved}; {@code on_hand} không đổi.
@@ -38,6 +40,8 @@ public interface InventoryService {
      */
     void release(Long branchId, Long productId, int qty, Long refId);
 
+    void release(Long branchId, Long productId, int qty, Long refId, Long actorId);
+
     /**
      * Hoàn tất bán online (CONFIRMED → COMPLETED).
      * Giảm đồng thời {@code on_hand} và {@code reserved} trong 1 UPDATE nguyên tử.
@@ -45,6 +49,8 @@ public interface InventoryService {
      * @throws IllegalStateException nếu on_hand &lt; qty hoặc reserved &lt; qty
      */
     void commitSale(Long branchId, Long productId, int qty, Long refId);
+
+    void commitSale(Long branchId, Long productId, int qty, Long refId, Long actorId);
 
     /**
      * Bán POS trực tiếp (UC-01, BR-02).
@@ -55,6 +61,8 @@ public interface InventoryService {
      *         nếu available &lt; qty
      */
     void sellDirect(Long branchId, Long productId, int qty, Long refId);
+
+    void sellDirect(Long branchId, Long productId, int qty, Long refId, Long actorId);
 
     /**
      * Lấy tồn khả dụng (available = on_hand - reserved) của sản phẩm tại chi nhánh.
@@ -69,6 +77,9 @@ public interface InventoryService {
     void transferOut(Long branchId, Long productId, int qty, Long documentId, Long actorId);
 
     void transferIn(Long branchId, Long productId, int qty, Long documentId, Long actorId);
+
+    /** Add the signed count difference to current on-hand stock and record the adjustment. */
+    void adjustStock(Long branchId, Long productId, int delta, Long documentId, Long actorId);
 
     /** Import approved stock and revalue global cost in the caller's transaction. */
     void importStock(Long branchId, Long productId, int qty, long unitCost, Long documentId, Long actorId);

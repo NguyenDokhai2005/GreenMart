@@ -1,8 +1,10 @@
 package vn.greenmart.common.exception;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +20,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import vn.greenmart.common.audit.BranchAccessAudit;
+import vn.greenmart.common.security.SecurityUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +31,13 @@ import vn.greenmart.common.logging.TraceContext;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    private BranchAccessAudit branchAccessAudit;
+
+    @Autowired(required = false)
+    void setBranchAccessAudit(BranchAccessAudit branchAccessAudit) {
+        this.branchAccessAudit = branchAccessAudit;
+    }
 
     // Validation lỗi DTO Body
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -171,16 +182,27 @@ public class GlobalExceptionHandler {
 
     // Lỗi nghiệp vụ chủ động ném ra
     @ExceptionHandler(AppException.class)
-    public ResponseEntity<ErrorResponse> handleAppException(AppException ex) {
+    public ResponseEntity<ErrorResponse> handleAppException(AppException ex, HttpServletRequest request) {
+        String traceId = generateTraceId();
+        if (branchAccessAudit != null && ErrorCode.BRANCH_FORBIDDEN.name().equals(ex.getCode())) {
+            try {
+                Long userId = SecurityUtils.getCurrentUserId();
+                if (userId != null) {
+                    branchAccessAudit.record(userId, ex.getDeniedBranchId(), request.getMethod(),
+                            request.getRequestURI(), traceId);
+                }
+            } catch (RuntimeException failure) {
+                log.error("Could not write branch access audit traceId={}", traceId, failure);
+            }
+        }
         ErrorResponse response = new ErrorResponse(
             ex.getCode(),
             ex.getMessage(),
             ex.getDetails(),
-            generateTraceId()
+            traceId
         );
         return ResponseEntity.status(ex.getStatus()).body(response);
     }
-
     // Lỗi hệ thống không mong muốn
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneralException(Exception ex) {

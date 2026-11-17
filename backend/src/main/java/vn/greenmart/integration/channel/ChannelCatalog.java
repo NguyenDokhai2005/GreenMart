@@ -6,5 +6,6 @@ import java.util.List;
 public interface ChannelCatalog {
     ChannelDetails findChannel(String code);
     long resolveProductId(String channelCode, String externalSku);
+    java.util.Optional<Long> findMappedProduct(long channelId, String externalSku);
     record ChannelDetails(long id, String code, Long defaultBranchId, int safetyStock, List<Long> branchIds) {}
 }

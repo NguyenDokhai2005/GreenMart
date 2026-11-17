@@ -2,6 +2,7 @@ package vn.greenmart.customer;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,6 +31,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
 @Testcontainers
@@ -86,7 +88,6 @@ class CustomerDbIntegrationTest {
         posChannelId = jdbcTemplate.queryForObject("SELECT id FROM sales_channel WHERE code = 'POS'", Long.class);
         webChannelId = jdbcTemplate.queryForObject("SELECT id FROM sales_channel WHERE code = 'WEB'", Long.class);
 
-        // Tạo user và phân quyền vào branch 1
         jdbcTemplate.execute(String.format("""
             INSERT INTO app_user (id, username, password_hash, full_name, role, is_active)
             VALUES (%d, 'cashier_test_88', '$2a$10$abcdefghijklmnopqrstuvwxyz123456', 'Thu Ngân Test', 'CASHIER', true)
@@ -195,5 +196,34 @@ class CustomerDbIntegrationTest {
 
         assertEquals(1, orders.totalElements());
         assertEquals("POS-CN1", orders.content().get(0).code());
+    }
+
+    @Test
+    @WithMockUser(username = "8888", roles = "CASHIER")
+    @DisplayName("Issue #267: Kiểm tra PostgreSQL thật với 4 kịch bản filter (không filter, phone-only, q-only, q+phone)")
+    void testSearchCustomers_PostgresReal_AllFilterCombinations() {
+        Customer c1 = customerRepository.save(new Customer("0991510151", "Khách Demo QA151", "qa151@greenmart.vn"));
+        Customer c2 = customerRepository.save(new Customer("0909888999", "Khách Hàng Khác", null));
+        insertedCustomerIds.add(c1.getId());
+        insertedCustomerIds.add(c2.getId());
+
+        // Không filter (q=null, phone=null) -> Không lỗi lower(bytea), trả danh sách khách hàng
+        PageResponse<CustomerResponse> noFilterRes = customerService.listCustomers(null, null, PageRequest.of(0, 20));
+        assertTrue(noFilterRes.totalElements() >= 2);
+
+        // Phone-only (q=null, phone="0991510151") -> Trả đúng duy nhất khách c1
+        PageResponse<CustomerResponse> phoneOnlyRes = customerService.listCustomers(null, "0991510151", PageRequest.of(0, 20));
+        assertEquals(1, phoneOnlyRes.totalElements());
+        assertEquals("0991510151", phoneOnlyRes.content().get(0).phone());
+
+        // Q-only (q="QA151", phone=null) -> Tìm theo tên
+        PageResponse<CustomerResponse> qOnlyRes = customerService.listCustomers("QA151", null, PageRequest.of(0, 20));
+        assertEquals(1, qOnlyRes.totalElements());
+        assertEquals("0991510151", qOnlyRes.content().get(0).phone());
+
+        // Q + Phone kết hợp (q="QA151", phone="0991510151") -> Tìm chính xác
+        PageResponse<CustomerResponse> bothRes = customerService.listCustomers("QA151", "0991510151", PageRequest.of(0, 20));
+        assertEquals(1, bothRes.totalElements());
+        assertEquals("0991510151", bothRes.content().get(0).phone());
     }
 }

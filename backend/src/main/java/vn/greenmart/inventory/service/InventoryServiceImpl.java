@@ -12,6 +12,8 @@ import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Map;
+import vn.greenmart.integration.outbox.OutboxService;
 import vn.greenmart.inventory.exception.InsufficientStockException;
 import vn.greenmart.inventory.repository.InventoryRepository;
 import vn.greenmart.inventory.repository.InventoryTransactionWriter;
@@ -39,6 +41,8 @@ public class InventoryServiceImpl implements InventoryService {
     private final ProductCostService productCost;
     private final JdbcTemplate jdbc;
     private final EntityManager entityManager;
+    private final StockAlertService stockAlerts;
+    private final OutboxService outbox;
 
     /**
      *      WHERE (on_hand - reserved) >= qty
@@ -46,6 +50,12 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void reserve(Long branchId, Long productId, int qty, Long refId) {
+        reserve(branchId, productId, qty, refId, null);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void reserve(Long branchId, Long productId, int qty, Long refId, Long actorId) {
         validateQty(qty);
         productCost.lockForStockChange(productId);
         int rows = inventoryRepository.reserve(branchId, productId, qty);
@@ -55,7 +65,9 @@ public class InventoryServiceImpl implements InventoryService {
             throw insufficientStock(branchId, productId, qty);
         }
         log.debug("reserve: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
-        transactionWriter.appendOrder(branchId, productId, Type.RESERVE, 0, qty, refId);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
+        transactionWriter.appendOrder(branchId, productId, Type.RESERVE, 0, qty, refId, actorId);
+        enqueueStockChanged(branchId, productId);
     }
 
     /**
@@ -66,6 +78,12 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void release(Long branchId, Long productId, int qty, Long refId) {
+        release(branchId, productId, qty, refId, null);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void release(Long branchId, Long productId, int qty, Long refId, Long actorId) {
         validateQty(qty);
         productCost.lockForStockChange(productId);
         int rows = inventoryRepository.release(branchId, productId, qty);
@@ -76,7 +94,9 @@ public class InventoryServiceImpl implements InventoryService {
                     branchId, productId, qty));
         }
         log.debug("release: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
-        transactionWriter.appendOrder(branchId, productId, Type.RELEASE, 0, -qty, refId);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
+        transactionWriter.appendOrder(branchId, productId, Type.RELEASE, 0, -qty, refId, actorId);
+        enqueueStockChanged(branchId, productId);
     }
 
     /**
@@ -87,6 +107,12 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void commitSale(Long branchId, Long productId, int qty, Long refId) {
+        commitSale(branchId, productId, qty, refId, null);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void commitSale(Long branchId, Long productId, int qty, Long refId, Long actorId) {
         validateQty(qty);
         productCost.lockForStockChange(productId);
         int rows = inventoryRepository.commitSale(branchId, productId, qty);
@@ -97,7 +123,9 @@ public class InventoryServiceImpl implements InventoryService {
                     branchId, productId, qty));
         }
         log.debug("commitSale: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
-        transactionWriter.appendOrder(branchId, productId, Type.SALE, -qty, -qty, refId);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
+        transactionWriter.appendOrder(branchId, productId, Type.SALE, -qty, -qty, refId, actorId);
+        enqueueStockChanged(branchId, productId);
     }
 
     /**
@@ -108,6 +136,12 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void sellDirect(Long branchId, Long productId, int qty, Long refId) {
+        sellDirect(branchId, productId, qty, refId, null);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void sellDirect(Long branchId, Long productId, int qty, Long refId, Long actorId) {
         validateQty(qty);
         productCost.lockForStockChange(productId);
         int rows = inventoryRepository.sellDirect(branchId, productId, qty);
@@ -115,7 +149,9 @@ public class InventoryServiceImpl implements InventoryService {
             throw insufficientStock(branchId, productId, qty);
         }
         log.debug("sellDirect: branch={} product={} qty={} refId={}", branchId, productId, qty, refId);
-        transactionWriter.appendOrder(branchId, productId, Type.SALE, -qty, 0, refId);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
+        transactionWriter.appendOrder(branchId, productId, Type.SALE, -qty, 0, refId, actorId);
+        enqueueStockChanged(branchId, productId);
     }
 
     /**
@@ -154,7 +190,9 @@ public class InventoryServiceImpl implements InventoryService {
         }
         increaseOnHand(branchId, productId, qty);
         productCost.updateCostPrice(productId, newCost);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
         transactionWriter.appendImport(branchId, productId, qty, documentId, actorId);
+        enqueueStockChanged(branchId, productId);
         entityManager.clear(); // Native writes must not leave stale Inventory/Product entities in the caller.
     }
 
@@ -177,7 +215,9 @@ public class InventoryServiceImpl implements InventoryService {
         if (inventoryRepository.sellDirect(branchId, productId, qty) != 1) {
             throw insufficientStock(branchId, productId, qty);
         }
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
         transactionWriter.appendTransfer(branchId, productId, -qty, documentId, actorId);
+        enqueueStockChanged(branchId, productId);
     }
 
     @Override
@@ -187,8 +227,29 @@ public class InventoryServiceImpl implements InventoryService {
         entityManager.flush();
         productCost.lockForStockChange(productId);
         increaseOnHand(branchId, productId, qty);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
         transactionWriter.appendTransfer(branchId, productId, qty, documentId, actorId);
+        enqueueStockChanged(branchId, productId);
         entityManager.clear();
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void adjustStock(Long branchId, Long productId, int delta, Long documentId, Long actorId) {
+        entityManager.flush();
+        productCost.lockForStockChange(productId);
+        if (delta > 0) {
+            increaseOnHand(branchId, productId, delta);
+        } else if (delta < 0 && inventoryRepository.sellDirect(branchId, productId, -delta) != 1) {
+            throw insufficientStock(branchId, productId, -delta);
+        }
+
+        transactionWriter.appendAdjustment(branchId, productId, delta, documentId, actorId);
+        if (delta != 0) {
+            stockAlerts.reconcileAfterStockUpdate(branchId, productId);
+            enqueueStockChanged(branchId, productId);
+            entityManager.clear();
+        }
     }
 
     @Override
@@ -204,9 +265,20 @@ public class InventoryServiceImpl implements InventoryService {
         catch (ArithmeticException ex) { throw new AppException(ErrorCode.VALIDATION_ERROR, "Giá trị hủy vượt giới hạn số tiền"); }
         int rows = inventoryRepository.sellDirect(branchId, productId, qty);
         if (rows != 1) throw insufficientStock(branchId, productId, qty);
+        stockAlerts.reconcileAfterStockUpdate(branchId, productId);
         transactionWriter.appendExport(branchId, productId, qty, documentId, actorId);
+        enqueueStockChanged(branchId, productId);
         entityManager.clear();
         return cost;
+    }
+
+    private void enqueueStockChanged(Long branchId, Long productId) {
+        // The stock update holds the row lock until commit, so this is its exact version.
+        Long version = jdbc.queryForObject("""
+                SELECT version FROM inventory WHERE branch_id=? AND product_id=?
+                """, Long.class, branchId, productId);
+        outbox.enqueue("stock", branchId + ":" + productId, "stock.changed",
+                Map.of("branchId", branchId, "productId", productId, "version", version));
     }
 
     // Private helpers
