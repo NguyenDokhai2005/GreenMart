@@ -2,12 +2,18 @@
 import logging
 import os
 from collections.abc import Callable
+from contextlib import asynccontextmanager
+from typing import Optional
 
 import psycopg
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from app.api.router import create_forecast_router, register_auth_exception_handler
+from app.scheduler.forecast_scheduler import (
+    check_and_run_missed_forecast,
+    create_and_start_scheduler,
+)
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +55,31 @@ def database_ready(connection_factory: Callable = connect) -> bool:
 
 
 def create_app(connection_factory: Callable = connect) -> FastAPI:
-    application = FastAPI(title="GreenMart Forecast Service", docs_url=None, redoc_url=None)
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        scheduler = None
+        try:
+            scheduler = create_and_start_scheduler(connection_factory=connection_factory)
+            # Kiểm tra chạy bù nếu lỡ lịch 02:00 khi khởi động container
+            check_and_run_missed_forecast(connection_factory=connection_factory)
+        except Exception as exc:
+            log.warning("Khởi động scheduler hoặc kiểm tra chạy bù thất bại: %s", exc)
+
+        yield
+
+        if scheduler is not None:
+            try:
+                scheduler.shutdown(wait=False)
+                log.info("APScheduler đã dừng an toàn.")
+            except Exception as shutdown_err:
+                log.warning("Lỗi khi dừng APScheduler: %s", shutdown_err)
+
+    application = FastAPI(
+        title="GreenMart Forecast Service",
+        docs_url=None,
+        redoc_url=None,
+        lifespan=lifespan,
+    )
     register_auth_exception_handler(application)
 
     @application.get("/healthz")
