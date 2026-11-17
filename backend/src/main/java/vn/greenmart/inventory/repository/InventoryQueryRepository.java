@@ -25,12 +25,13 @@ public class InventoryQueryRepository {
             Map.entry("branchId", "i.branch_id"), Map.entry("productId", "i.product_id"),
             Map.entry("sku", "p.sku"), Map.entry("productName", "p.name"),
             Map.entry("onHand", "i.on_hand"), Map.entry("reserved", "i.reserved"),
-            Map.entry("available", "(i.on_hand-i.reserved)"), Map.entry("reorderPoint", "i.reorder_point"),
+            Map.entry("available", "(i.on_hand-i.reserved)"),
+            Map.entry("reorderPoint", "i.effective_reorder_point"),
             Map.entry("stockStatus", "stock_status"), Map.entry("version", "i.version"),
             Map.entry("updatedAt", "i.updated_at"));
     private static final String STATUS = """
             CASE WHEN i.on_hand-i.reserved=0 THEN 'OUT'
-                 WHEN i.on_hand-i.reserved<=i.reorder_point THEN 'LOW'
+                 WHEN i.on_hand-i.reserved<=i.effective_reorder_point THEN 'LOW'
                  ELSE 'OK' END
             """;
 
@@ -63,7 +64,7 @@ public class InventoryQueryRepository {
             predicates.add("(" + STATUS + ")=:stockStatus");
             params.addValue("stockStatus", stockStatus.name());
         }
-        String from = " FROM inventory i JOIN product p ON p.id=i.product_id JOIN branch b ON b.id=i.branch_id"
+        String from = " FROM inventory_replenishment i JOIN product p ON p.id=i.product_id JOIN branch b ON b.id=i.branch_id"
                 + (predicates.isEmpty() ? "" : " WHERE " + String.join(" AND ", predicates));
         long total = jdbc.queryForObject("SELECT count(*)" + from, params, Long.class);
         var orders = new ArrayList<String>();
@@ -85,7 +86,7 @@ public class InventoryQueryRepository {
                         new InventoryItemResponse.BranchRef(rs.getLong("branch_id"), rs.getString("branch_code"), rs.getString("branch_name")),
                         rs.getLong("product_id"), rs.getString("sku"), rs.getString("product_name"), rs.getString("unit"),
                         rs.getInt("on_hand"), rs.getInt("reserved"), rs.getInt("on_hand") - rs.getInt("reserved"),
-                        rs.getObject("reorder_point", Integer.class), StockStatus.valueOf(rs.getString("stock_status")),
+                        rs.getObject("effective_reorder_point", Integer.class), StockStatus.valueOf(rs.getString("stock_status")),
                         rs.getLong("version"), rs.getObject("updated_at", OffsetDateTime.class)));
         return new PageImpl<>(content, pageable, total);
     }

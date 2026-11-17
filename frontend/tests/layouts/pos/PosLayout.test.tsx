@@ -128,7 +128,7 @@ describe('Given authenticated POS staff, When opening the workspace', () => {
     const title = await screen.findByRole('heading', { name: 'Hóa đơn' });
     expect(screen.getByRole('banner')).toBe(header);
     expect(screen.getByRole('navigation')).toBe(nav);
-    expect(document.activeElement).toBe(title);
+    await waitFor(() => expect(document.activeElement).toBe(title));
     expect(screen.getByRole('link', { name: 'Bán hàng' }).getAttribute('aria-current')).toBeNull();
   });
 
@@ -176,6 +176,7 @@ describe('Given POS shortcuts, When using keyboard navigation', () => {
   it('Then inputs, editable widgets, IME, repeats, dialogs and other modifiers keep their keystrokes', async () => {
     const view = renderApp();
     await screen.findByRole('heading', { name: 'Bán hàng tại quầy' });
+    await waitFor(() => expect(fireEvent.keyDown(window, { code: 'F2', key: 'F2' })).toBe(false));
     for (const tag of ['input', 'textarea', 'select']) {
       const field = document.createElement(tag);
       view.container.append(field);

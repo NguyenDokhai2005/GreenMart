@@ -1,0 +1,44 @@
+/* Thanh phân trang dùng chung (tồn kho, chuyển kho). Token --gm-*; đường kẻ nhạt lấy từ layout hoặc giá trị dự phòng. */
+.gm-pager {
+  --gm-pager-line: var(--ops-line, #dfe5e2);
+}
+.gm-pager {
+  display: flex;
+  align-items: center;
+  gap: var(--gm-space-2);
+}
+.gm-pager button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 var(--gm-space-2);
+  border: var(--gm-border-width) solid var(--gm-pager-line);
+  border-radius: var(--gm-radius-md);
+  background: var(--gm-color-surface);
+  color: var(--gm-color-text);
+  font: inherit;
+  cursor: pointer;
+}
+.gm-pager button:hover:not(:disabled) {
+  background: var(--gm-table-row-hover);
+}
+.gm-pager button[aria-current='page'] {
+  border-color: var(--gm-color-primary);
+  background: var(--gm-color-primary);
+  color: var(--gm-color-text-inverse);
+  font-weight: 600;
+}
+.gm-pager button:disabled {
+  color: var(--gm-color-text-disabled);
+  cursor: default;
+}
+.gm-pager button:focus-visible {
+  outline: none;
+  box-shadow: var(--gm-focus-ring);
+}
+.gm-pager__gap {
+  min-width: 36px;
+  text-align: center;
+  color: var(--gm-color-text-secondary);
+}
