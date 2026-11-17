@@ -113,7 +113,9 @@ export interface paths {
     };
     /**
      * Danh sách chi nhánh
-     * @description ADMIN, OWNER thấy mọi chi nhánh; vai trò khác chỉ thấy chi nhánh được gán.
+     * @description ADMIN và OWNER thấy mọi chi nhánh, có thể lọc theo active.
+     *     Các vai trò đã đăng nhập khác thấy tất cả chi nhánh đang hoạt động.
+     *     Với các vai trò này, active=false trả mảng rỗng.
      */
     get: operations['listBranches'];
     put?: never;

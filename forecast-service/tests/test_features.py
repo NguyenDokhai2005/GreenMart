@@ -151,3 +151,55 @@ class TestFeatureMatrixBuilder:
         # Ta kiểm tra gián tiếp qua số lượng dòng
         assert len(X_train) > 0
         assert len(X_train) == len(y_train)
+
+    def test_build_future_features_matrix_equivalence_with_test_matrix(self):
+        """Test tương đương (Item 4): Với ngày gốc O trong quá khứ, build_future_features_matrix
+        phải khớp 100% từng giá trị và kiểu dữ liệu với build_test_features_matrix.
+        """
+        df_dummy = _make_dummy_daily_sales(n_days=45)
+        builder = FeatureMatrixBuilder(df_dummy)
+
+        # Chọn ngày gốc O trong quá khứ sao cho O + 7 <= ngày cuối cùng
+        past_origin = builder.unique_dates[-10]
+        H = 7
+
+        test_dfs = builder.build_test_features_matrix(cutoff_date=past_origin, horizon=H)
+        future_dfs = builder.build_future_features_matrix(origin_date=past_origin, horizon=H)
+
+        assert len(test_dfs) == H
+        assert len(future_dfs) == H
+
+        for step_idx in range(H):
+            pd.testing.assert_frame_equal(
+                test_dfs[step_idx],
+                future_dfs[step_idx],
+                check_dtype=True,
+                check_exact=True,
+            )
+
+    def test_build_future_features_matrix_at_last_date_D(self):
+        """Kiểm tra build_future_features_matrix tại ngày cuối cùng D:
+        - build_test_features_matrix ném ValueError vì D+1 không có trong dữ liệu.
+        - build_future_features_matrix thành công, trả về đủ H DataFrame cho các ngày tương lai.
+        """
+        df_dummy = _make_dummy_daily_sales(n_days=45)
+        builder = FeatureMatrixBuilder(df_dummy)
+        last_d = builder.unique_dates[-1]
+        H = 7
+
+        # 1. build_test_features_matrix tại D phải báo lỗi như hiện trạng Issue #298
+        with pytest.raises(ValueError, match="không có trong dữ liệu"):
+            builder.build_test_features_matrix(cutoff_date=last_d, horizon=H)
+
+        # 2. build_future_features_matrix tại D phải chạy mượt mà
+        future_dfs = builder.build_future_features_matrix(origin_date=last_d, horizon=H)
+        assert len(future_dfs) == H
+
+        for step_idx, fdf in enumerate(future_dfs, start=1):
+            assert len(fdf) == builder.n_series
+            assert (fdf["horizon_step"] == step_idx).all()
+            assert not fdf.isna().any().any()
+            # Mặc định ngày tương lai không khuyến mại
+            assert (fdf["target_promo_flag"] == 0).all()
+            assert (fdf["target_promo_discount_pct"] == 0.0).all()
+
