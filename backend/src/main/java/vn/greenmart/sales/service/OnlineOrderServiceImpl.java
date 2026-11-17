@@ -43,6 +43,8 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -78,7 +80,7 @@ public class OnlineOrderServiceImpl implements OnlineOrderService {
             throw new AppException(ErrorCode.BRANCH_FORBIDDEN, "Bạn không có quyền thao tác trên chi nhánh này");
         }
 
-        // Chặn đơn kênh POS 
+        // Chặn đơn kênh POS
         String channelCode = jdbcTemplate.queryForObject(
                 "SELECT code FROM sales_channel WHERE id = ?", String.class, order.getChannelId()
         );
@@ -355,9 +357,17 @@ public class OnlineOrderServiceImpl implements OnlineOrderService {
         }
 
         // Hoàn lượt khuyến mại (BR-04)
-        promotionService.releaseUsage(order.getPromotionId());
+        Set<Long> releasePromoIds = new LinkedHashSet<>();
+        if (order.getPromotionId() != null) {
+            releasePromoIds.add(order.getPromotionId());
+        }
         for (OrderItem item : items) {
-            promotionService.releaseUsage(item.getPromotionId());
+            if (item.getPromotionId() != null) {
+                releasePromoIds.add(item.getPromotionId());
+            }
+        }
+        for (Long promoId : releasePromoIds) {
+            promotionService.releaseUsage(promoId);
         }
 
         // Ghi audit_log (AUTH-03)
@@ -424,9 +434,17 @@ public class OnlineOrderServiceImpl implements OnlineOrderService {
             salesOrderRepository.save(order);
 
             // Hoàn lượt khuyến mại (BR-04)
-            promotionService.releaseUsage(order.getPromotionId());
+            Set<Long> releasePromoIds = new LinkedHashSet<>();
+            if (order.getPromotionId() != null) {
+                releasePromoIds.add(order.getPromotionId());
+            }
             for (OrderItem item : items) {
-                promotionService.releaseUsage(item.getPromotionId());
+                if (item.getPromotionId() != null) {
+                    releasePromoIds.add(item.getPromotionId());
+                }
+            }
+            for (Long promoId : releasePromoIds) {
+                promotionService.releaseUsage(promoId);
             }
 
             enqueueOrderLifecycleEvent(order.getId(), OrderStatus.EXPIRED.name(), Instant.now(), null);
