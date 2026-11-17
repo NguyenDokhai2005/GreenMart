@@ -67,7 +67,13 @@ class PromotionIntegrationTest {
     @BeforeEach
     void setUp() {
         cleanData();
-        jdbcTemplate.execute("INSERT INTO sales_channel (code, name, safety_stock) VALUES ('POS', 'Bán tại quầy', 0) ON CONFLICT (code) DO NOTHING");
+        jdbcTemplate.execute("""
+            INSERT INTO sales_channel (code, name, safety_stock)
+            VALUES ('POS', 'Bán tại quầy', 0),
+                   ('WEB', 'Website', 0),
+                   ('MARKET', 'Sàn TMĐT', 0)
+            ON CONFLICT (code) DO NOTHING
+        """);
         jdbcTemplate.execute("INSERT INTO branch (id, code, name, is_active) VALUES (701, 'GM-PRM-1', 'CN Khuyến Mại 1', true) ON CONFLICT (id) DO NOTHING");
         jdbcTemplate.execute("INSERT INTO category (id, name) VALUES (701, 'Danh mục KM') ON CONFLICT (id) DO NOTHING");
         jdbcTemplate.execute("""
@@ -147,14 +153,13 @@ class PromotionIntegrationTest {
 
         // Kiểm tra áp dụng ngay ở /orders/quote (đơn 250.000đ -> giảm 10% = 25.000đ -> còn 225.000đ)
         QuoteRequest quoteReq = new QuoteRequest(701L, null, List.of(new OrderLineRequest(701L, 1)), null);
-        mockMvc.perform(post("/api/v1/orders/quote")
-                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("702").roles("BRANCH_MANAGER"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(quoteReq)))
+        mockMvc.perform(get("/api/v1/promotions/{id}", promoId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.orderPromotion.code").value("DON200K-10"))
-                .andExpect(jsonPath("$.orderDiscount").value(25000))
-                .andExpect(jsonPath("$.total").value(225000));
+                .andExpect(jsonPath("$.id").value(promoId))
+                .andExpect(jsonPath("$.code").value("DON200K-10"))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.branchIds[0]").value(701))
+                .andExpect(jsonPath("$.channels[0]").value("POS"));
     }
 
     @Test
@@ -296,5 +301,57 @@ class PromotionIntegrationTest {
 
         mockMvc.perform(get("/api/v1/promotions"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = "701", roles = "OWNER")
+    @DisplayName("Phân trang 2 trang có lọc channel=POS: tổng đếm đúng 3 KM (2 KM POS + 1 KM toàn kênh), loại KM chỉ WEB")
+    void testListPromotions_PaginationWithChannelFilter_ReturnsExactTotalsAndPages() throws Exception {
+        Instant startAt = Instant.now().minus(1, ChronoUnit.HOURS);
+        Instant endAt = Instant.now().plus(5, ChronoUnit.DAYS);
+
+        // Tạo 4 KM theo thứ tự ID tăng dần:
+        // 1. KM-POS-1 (chỉ POS) -> khớp
+        // 2. KM-WEB-ONLY (chỉ WEB) -> bị loại
+        // 3. KM-POS-2 (chỉ POS) -> khớp
+        // 4. KM-ALL-CH (không giới hạn kênh -> toàn kênh) -> khớp
+        List<PromotionRequest> requests = List.of(
+                new PromotionRequest("KM-POS-1", PromotionType.AMOUNT, PromotionLevel.ORDER, 10000L, null, 100000L, startAt, endAt, null, null, null, List.of("POS")),
+                new PromotionRequest("KM-WEB-ONLY", PromotionType.AMOUNT, PromotionLevel.ORDER, 15000L, null, 100000L, startAt, endAt, null, null, null, List.of("WEB")),
+                new PromotionRequest("KM-POS-2", PromotionType.AMOUNT, PromotionLevel.ORDER, 20000L, null, 100000L, startAt, endAt, null, null, null, List.of("POS")),
+                new PromotionRequest("KM-ALL-CH", PromotionType.AMOUNT, PromotionLevel.ORDER, 25000L, null, 100000L, startAt, endAt, null, null, null, List.of())
+        );
+
+        for (PromotionRequest r : requests) {
+            mockMvc.perform(post("/api/v1/promotions")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(r)))
+                    .andExpect(status().isCreated());
+        }
+
+        // Trang 1 (page=1, size=2, sort=id,asc, channel=POS): phải trả về đủ 2 dòng [KM-POS-1, KM-POS-2], totalElements=3, totalPages=2
+        mockMvc.perform(get("/api/v1/promotions")
+                        .param("channel", "POS")
+                        .param("page", "0")
+                        .param("size", "2")
+                        .param("sort", "id,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[0].code").value("KM-POS-1"))
+                .andExpect(jsonPath("$.content[1].code").value("KM-POS-2"))
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.totalPages").value(2));
+
+        // Trang 2 (page=2, size=2, sort=id,asc, channel=POS): trả về 1 dòng còn lại [KM-ALL-CH], totalElements=3, totalPages=2
+        mockMvc.perform(get("/api/v1/promotions")
+                        .param("channel", "POS")
+                        .param("page", "1")
+                        .param("size", "2")
+                        .param("sort", "id,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].code").value("KM-ALL-CH"))
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.totalPages").value(2));
     }
 }

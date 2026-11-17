@@ -66,21 +66,46 @@ public class PromotionCrudServiceImpl implements PromotionCrudService {
         String trimmedQ = (q != null && !q.isBlank()) ? q.trim() : null;
 
         String[] sortParams = (request != null) ? request.getParameterValues("sort") : null;
-        Pageable pageable = PageUtils.createPageable(
+        Pageable rawPageable = PageUtils.createPageable(
                 page, size, sortParams, Sort.by(Sort.Direction.DESC, "id"), ALLOWED_SORT_FIELDS
         );
-
-        Page<Promotion> promotionPage = promotionRepository.searchPromotions(
-                normalizedStatuses, normalizedLevel, trimmedQ, activeAt, pageable
+        Sort nativeSort = Sort.by(rawPageable.getSort().stream()
+                .map(order -> new Sort.Order(order.getDirection(), toSnakeCaseColumn(order.getProperty())))
+                .toList());
+        Pageable pageable = org.springframework.data.domain.PageRequest.of(
+                rawPageable.getPageNumber(), rawPageable.getPageSize(), nativeSort
         );
 
-        List<PromotionResponse> filteredDtos = promotionPage.getContent().stream()
+        boolean hasStatuses = normalizedStatuses != null && !normalizedStatuses.isEmpty();
+        List<String> statusNames = hasStatuses
+                ? normalizedStatuses.stream().map(Enum::name).toList()
+                : List.of("");
+
+        Page<Promotion> promotionPage = promotionRepository.searchPromotions(
+                hasStatuses,
+                statusNames,
+                normalizedLevel != null ? normalizedLevel.name() : null,
+                trimmedQ,
+                activeAt,
+                branchId,
+                normalizedChannel,
+                pageable
+        );
+
+        List<PromotionResponse> dtos = promotionPage.getContent().stream()
                 .map(this::toResponse)
-                .filter(dto -> branchId == null || dto.branchIds().isEmpty() || dto.branchIds().contains(branchId))
-                .filter(dto -> normalizedChannel == null || dto.channels().isEmpty() || dto.channels().contains(normalizedChannel))
                 .toList();
 
-        return PageResponse.of(filteredDtos, promotionPage);
+        return PageResponse.of(dtos, promotionPage);
+    }
+
+    private String toSnakeCaseColumn(String property) {
+        return switch (property) {
+            case "startAt" -> "start_at";
+            case "endAt" -> "end_at";
+            case "usedCount" -> "used_count";
+            default -> property;
+        };
     }
 
     @Override
