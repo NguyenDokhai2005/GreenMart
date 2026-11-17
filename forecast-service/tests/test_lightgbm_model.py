@@ -22,6 +22,7 @@ from app.models.evaluator import (
     FullEvaluationReport,
     evaluate_lightgbm_pipeline,
     format_full_comparison_report,
+    train_production_demand_models,
 )
 from app.models.features import FeatureMatrixBuilder
 from app.models.lightgbm_model import (
@@ -138,3 +139,36 @@ class TestEvaluationPipeline:
         assert "BẢNG 1: ĐÃ LOẠI BỎ NGÀY STOCKOUT" in md
         assert "BẢNG BỔ SUNG" in md
         assert "Kết Luận Đối Đầu Trung Thực Với Baseline" in md
+
+    def test_train_production_demand_models_full_retraining(self):
+        """Kiểm tra train_production_demand_models huấn luyện lại trên toàn bộ dữ liệu tới ngày D."""
+        df_dummy = _make_dummy_daily_sales(n_days=65, n_branches=2, n_products=3)
+        builder = FeatureMatrixBuilder(df_dummy)
+        last_d = builder.unique_dates[-1]
+
+        # Giả lập mock best_models với best_iteration_ = 25
+        class DummyBacktestModel:
+            objective = "tweedie"
+            best_iteration_ = 25
+
+        mock_best = {7: DummyBacktestModel(), 30: DummyBacktestModel()}
+        prod_models = train_production_demand_models(
+            builder=builder,
+            horizons=(7, 30),
+            best_models=mock_best,
+            best_objectives={7: "tweedie", 30: "tweedie"},
+            sample_step_days=7,
+        )
+
+        assert 7 in prod_models
+        assert 30 in prod_models
+        # Kiểm tra n_estimators được set từ best_iteration_ của backtest (25)
+        assert prod_models[7].params["n_estimators"] == 25
+        assert prod_models[30].params["n_estimators"] == 25
+
+        # Kiểm tra model có thể dự báo trên ma trận tương lai build_future_features_matrix
+        future_dfs = builder.build_future_features_matrix(origin_date=last_d, horizon=7)
+        preds = prod_models[7].predict(future_dfs[0])
+        assert len(preds) == builder.n_series
+        assert (preds >= 0.0).all()
+

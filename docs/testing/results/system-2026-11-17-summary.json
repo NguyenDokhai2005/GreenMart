@@ -7,7 +7,186 @@
   "outbox": {"source_commit":"27acddd4d1452b83ed160e3609347020ee8e9fbb","project":"greenmart-qa156-system-20261117","snapshot":{"pending":18325,"oldestPendingSeconds":478.074762,"pendingByType":{"order.completed":9160,"order.expired":2,"stock.changed":9163},"recoveryTrace":[{"id":28693,"event_type":"stock.changed","status":"PENDING","attempts":0,"age_seconds":140.019277},{"id":28694,"event_type":"order.completed","status":"PENDING","attempts":0,"age_seconds":140.019329}]}},
   "latest_forecast": {"source_commit":"b867c671e6ab4e0df5d99b5ebe22f216bf176b3f","state":{"runId":1,"status":"DONE","mae":0.2574,"wape":1.6252,"baselineMae":0.2575,"baselineWape":1.6261,"startedAt":"2026-11-17T12:37:50.164352+07:00","finishedAt":"2026-11-17T12:39:07.351002+07:00"},"persisted":{"dailyRows":1095000,"series":3000,"lastData":"2026-10-31","rows":111000,"minTarget":"2026-11-01","maxTarget":"2026-11-30","futureRows":111000,"negative":0,"h7":21000,"h30":90000},"elapsed_seconds":85.1},
   "latest_forecast_units": {"name":"Latest changed Forecast unit tests (no socket)","owners":["SV06"],"status":"PASS","exit":0,"test_totals":[],"pytest_totals":["27 passed in 3.16s"],"pytest_failures":[],"vitest_totals":[],"node_totals":[],"typescript_errors":[],"forced_kill_warning":false,"docker_engine_error":false,"missing_libgomp":false,"dependency_resolution_error":false,"connection_error":false,"elapsed_seconds":5.1},
-  "ui": {"summary":{"passed":29},"acceptance":"BLOCKED","scope":"12 demo accounts x1440/360px plus cart/catalog/customer; business placeholders remain blocked","cases":[{"title":"UI login admin 1440px and role boundary","status":"passed"},{"title":"UI login owner 1440px and role boundary","status":"passed"},{"title":"UI login owner.pho 1440px and role boundary","status":"passed"},{"title":"UI login quanly.gm001 1440px and role boundary","status":"passed"},{"title":"UI login quanly.gm002 1440px and role boundary","status":"passed"},{"title":"UI login quanly.gm003 1440px and role boundary","status":"passed"},{"title":"UI login thungan.gm001 1440px and role boundary","status":"passed"},{"title":"UI login thungan.gm002 1440px and role boundary","status":"passed"},{"title":"UI login thungan.gm003 1440px and role boundary","status":"passed"},{"title":"UI login thukho.gm001 1440px and role boundary","status":"passed"},{"title":"UI login thukho.gm002 1440px and role boundary","status":"passed"},{"title":"UI login thukho.gm003 1440px and role boundary","status":"passed"},{"title":"UI POS scan/cart/quote 1440px; checkout dependency","status":"passed"},{"title":"UI login admin 360px and role boundary","status":"passed"},{"title":"UI login owner 360px and role boundary","status":"passed"},{"title":"UI login owner.pho 360px and role boundary","status":"passed"},{"title":"UI login quanly.gm001 360px and role boundary","status":"passed"},{"title":"UI login quanly.gm002 360px and role boundary","status":"passed"},{"title":"UI login quanly.gm003 360px and role boundary","status":"passed"},{"title":"UI login thungan.gm001 360px and role boundary","status":"passed"},{"title":"UI login thungan.gm002 360px and role boundary","status":"passed"},{"title":"UI login thungan.gm003 360px and role boundary","status":"passed"},{"title":"UI login thukho.gm001 360px and role boundary","status":"passed"},{"title":"UI login thukho.gm002 360px and role boundary","status":"passed"},{"title":"UI login thukho.gm003 360px and role boundary","status":"passed"},{"title":"UI POS scan/cart/quote 360px; checkout dependency","status":"passed"},{"title":"UI online and Operations feature availability","status":"passed"},{"title":"UI catalog and exact customer search 1440px with real API","status":"passed"},{"title":"UI catalog and exact customer search 360px with real API","status":"passed"}]},
+  "ui": {
+    "summary": {
+      "passed": 29
+    },
+    "acceptance": "BLOCKED",
+    "scope": "Historical UI-only rerun: 29 passed assertions, including one placeholder availability observation; business acceptance remained BLOCKED. This is not a rerun of the revised spec.",
+    "cases": [
+      {
+        "title": "UI login admin 1440px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login owner 1440px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login owner.pho 1440px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login quanly.gm001 1440px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login quanly.gm002 1440px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login quanly.gm003 1440px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login thungan.gm001 1440px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login thungan.gm002 1440px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login thungan.gm003 1440px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login thukho.gm001 1440px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login thukho.gm002 1440px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login thukho.gm003 1440px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI POS scan/cart/quote 1440px; checkout dependency",
+        "status": "passed"
+      },
+      {
+        "title": "UI login admin 360px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login owner 360px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login owner.pho 360px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login quanly.gm001 360px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login quanly.gm002 360px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login quanly.gm003 360px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login thungan.gm001 360px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login thungan.gm002 360px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login thungan.gm003 360px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login thukho.gm001 360px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login thukho.gm002 360px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI login thukho.gm003 360px and role boundary",
+        "status": "passed"
+      },
+      {
+        "title": "UI POS scan/cart/quote 360px; checkout dependency",
+        "status": "passed"
+      },
+      {
+        "title": "UI online and Operations feature availability",
+        "status": "passed"
+      },
+      {
+        "title": "UI catalog and exact customer search 1440px with real API",
+        "status": "passed"
+      },
+      {
+        "title": "UI catalog and exact customer search 360px with real API",
+        "status": "passed"
+      }
+    ],
+    "sourceCommit": "27acddd4d1452b83ed160e3609347020ee8e9fbb"
+  },
   "latest_cases": [{"name":"API login owner","status":"PASS","assertions":{"http":true},"evidence":{"method":"POST","path":"/auth/login","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"API login thukho.gm001","status":"PASS","assertions":{"http":true},"evidence":{"method":"POST","path":"/auth/login","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"API login quanly.gm001","status":"PASS","assertions":{"http":true},"evidence":{"method":"POST","path":"/auth/login","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"API login thungan.gm001","status":"PASS","assertions":{"http":true},"evidence":{"method":"POST","path":"/auth/login","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"API login admin","status":"PASS","assertions":{"http":true},"evidence":{"method":"POST","path":"/auth/login","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"Branches unauthenticated401","status":"PASS","assertions":{"http":true},"evidence":{"method":"GET","path":"/branches","expected":401,"actual":401,"code":"UNAUTHORIZED","traceId":"c4ecba27-43aa-4bdb-aec0-4a9381dcc1ff"},"reason":null},{"name":"Branches default ADMIN","status":"PASS","assertions":{"http":true},"evidence":{"method":"GET","path":"/branches","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"Branch visibility ADMIN","status":"PASS","assertions":{"count":true,"activeScope":true},"evidence":{"count":4,"codes":["GM-001","GM-002","GM-003","QA-LATEST-IDLE"]},"reason":null},{"name":"Branches active=false ADMIN","status":"PASS","assertions":{"http":true},"evidence":{"method":"GET","path":"/branches?active=false","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"Inactive branch filter ADMIN","status":"PASS","assertions":{"count":true},"evidence":{"count":1},"reason":null},{"name":"Branches default OWNER","status":"PASS","assertions":{"http":true},"evidence":{"method":"GET","path":"/branches","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"Branch visibility OWNER","status":"PASS","assertions":{"count":true,"activeScope":true},"evidence":{"count":4,"codes":["GM-001","GM-002","GM-003","QA-LATEST-IDLE"]},"reason":null},{"name":"Branches active=false OWNER","status":"PASS","assertions":{"http":true},"evidence":{"method":"GET","path":"/branches?active=false","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"Inactive branch filter OWNER","status":"PASS","assertions":{"count":true},"evidence":{"count":1},"reason":null},{"name":"Branches default BRANCH_MANAGER","status":"PASS","assertions":{"http":true},"evidence":{"method":"GET","path":"/branches","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"Branch visibility BRANCH_MANAGER","status":"PASS","assertions":{"count":true,"activeScope":true},"evidence":{"count":3,"codes":["GM-001","GM-002","GM-003"]},"reason":null},{"name":"Branches active=false BRANCH_MANAGER","status":"PASS","assertions":{"http":true},"evidence":{"method":"GET","path":"/branches?active=false","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"Inactive branch filter BRANCH_MANAGER","status":"PASS","assertions":{"count":true},"evidence":{"count":0},"reason":null},{"name":"Branches default CASHIER","status":"PASS","assertions":{"http":true},"evidence":{"method":"GET","path":"/branches","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"Branch visibility CASHIER","status":"PASS","assertions":{"count":true,"activeScope":true},"evidence":{"count":3,"codes":["GM-001","GM-002","GM-003"]},"reason":null},{"name":"Branches active=false CASHIER","status":"PASS","assertions":{"http":true},"evidence":{"method":"GET","path":"/branches?active=false","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"Inactive branch filter CASHIER","status":"PASS","assertions":{"count":true},"evidence":{"count":0},"reason":null},{"name":"Branches default STOREKEEPER","status":"PASS","assertions":{"http":true},"evidence":{"method":"GET","path":"/branches","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"Branch visibility STOREKEEPER","status":"PASS","assertions":{"count":true,"activeScope":true},"evidence":{"count":3,"codes":["GM-001","GM-002","GM-003"]},"reason":null},{"name":"Branches active=false STOREKEEPER","status":"PASS","assertions":{"http":true},"evidence":{"method":"GET","path":"/branches?active=false","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"Inactive branch filter STOREKEEPER","status":"PASS","assertions":{"count":true},"evidence":{"count":0},"reason":null},{"name":"Create isolated product","status":"PASS","assertions":{"http":true},"evidence":{"method":"POST","path":"/products","expected":201,"actual":201,"code":null,"traceId":null},"reason":null},{"name":"Create import fixture","status":"PASS","assertions":{"http":true},"evidence":{"method":"POST","path":"/stock-documents","expected":201,"actual":201,"code":null,"traceId":null},"reason":null},{"name":"Approve import fixture","status":"PASS","assertions":{"http":true},"evidence":{"method":"POST","path":"/stock-documents/4/approve","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"ADJUST captures stock snapshot","status":"PASS","assertions":{"http":true},"evidence":{"method":"POST","path":"/stock-documents","expected":201,"actual":201,"code":null,"traceId":null},"reason":null},{"name":"ADJUST snapshot20 and no immediate stock change","status":"PASS","assertions":{"snapshot":true,"stock":true},"evidence":null,"reason":null},{"name":"ADJUST missing count blocks approval","status":"PASS","assertions":{"http":true},"evidence":{"method":"POST","path":"/stock-documents/5/approve","expected":422,"actual":422,"code":"COUNTED_QUANTITY_REQUIRED","traceId":"6fc1cb0d-aa50-488b-8949-e7736ca2d25d"},"reason":null},{"name":"Missing count business code","status":"PASS","assertions":{"code":true},"evidence":null,"reason":null},{"name":"Record actual count17","status":"PASS","assertions":{"http":true},"evidence":{"method":"PUT","path":"/stock-documents/5","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"Approve negative adjustment","status":"PASS","assertions":{"http":true},"evidence":{"method":"POST","path":"/stock-documents/5/approve","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"ADJUST exact delta and persisted ledger","status":"PASS","assertions":{"onHand17":true,"oneRow":true,"deltaMinus3":true},"evidence":{"onHand":17,"rows":1,"delta":-3},"reason":null},{"name":"Duplicate ADJUST approval409","status":"PASS","assertions":{"http":true},"evidence":{"method":"POST","path":"/stock-documents/5/approve","expected":409,"actual":409,"code":"INVALID_STATUS","traceId":"6639c539-510f-4a6e-9cad-00edccf135c1"},"reason":null},{"name":"Second ADJUST snapshot17","status":"PASS","assertions":{"http":true},"evidence":{"method":"POST","path":"/stock-documents","expected":201,"actual":201,"code":null,"traceId":null},"reason":null},{"name":"Second count19","status":"PASS","assertions":{"http":true},"evidence":{"method":"PUT","path":"/stock-documents/6","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"Quote isolated sale","status":"PASS","assertions":{"http":true},"evidence":{"method":"POST","path":"/orders/quote","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"Commit isolated sale","status":"PASS","assertions":{"http":true},"evidence":{"method":"POST","path":"/orders/pos","expected":201,"actual":201,"code":null,"traceId":null},"reason":null},{"name":"Approve delta while retaining intervening sale","status":"PASS","assertions":{"http":true},"evidence":{"method":"POST","path":"/stock-documents/6/approve","expected":200,"actual":200,"code":null,"traceId":null},"reason":null},{"name":"Snapshot delta preserves sale:17-1+2=18","status":"PASS","assertions":{"onHand18":true},"evidence":{"onHand":18,"reserved":0,"available":18},"reason":null},{"name":"ADJUST allProducts snapshot","status":"PASS","assertions":{"http":true},"evidence":{"method":"POST","path":"/stock-documents","expected":201,"actual":201,"code":null,"traceId":null},"reason":null},{"name":"All-products snapshot includes fresh fixture","status":"PASS","assertions":{"containsFixture":true},"evidence":{"lineCount":1001},"reason":null},{"name":"Latest Forecast missing token401","status":"PASS","assertions":{"http":true},"evidence":{"method":"GET","path":"/forecast/runs/999999999","expected":401,"actual":401,"code":"UNAUTHORIZED","traceId":null},"reason":null},{"name":"Latest Forecast actual training starts","status":"PASS","assertions":{"http":true},"evidence":{"method":"POST","path":"/forecast/run","expected":202,"actual":202,"code":null,"traceId":null},"reason":null},{"name":"Fix298 actual future output3000series","status":"PASS","assertions":{"done":true,"series3000":true,"allFuture":true,"days":true,"h7":true,"h30":true,"noNegative":true},"evidence":{"dailyRows":1095000,"series":3000,"lastData":"2026-10-31","rows":111000,"minTarget":"2026-11-01","maxTarget":"2026-11-30","futureRows":111000,"negative":0,"h7":21000,"h30":90000},"reason":null},{"name":"Backend forecast read contract not implemented #119","status":"BLOCKED_DEPENDENCY","assertions":{},"evidence":null,"reason":"Direct Forecast service has data; Backend GET/forecasts still404 after new contract#15, separate from fix298"}],
-  "limitations": ["No acceptance claim for incomplete business UI or Backend Forecast gateway","Full suite was not rerun on focused or later develop commits","Raw failed QA oracles retained locally; corrected assertions documented in report","No endpoint/status breakdown for rare load request failures"]
+  "limitations": ["No acceptance claim for incomplete business UI or Backend Forecast gateway","Full suite was not rerun on focused or later develop commits","Raw failed QA oracles retained locally; corrected assertions documented in report","No endpoint/status breakdown for rare load request failures"],
+  "apiLifecycle": {
+    "sourceCommit": "27acddd4d1452b83ed160e3609347020ee8e9fbb",
+    "sourceRun": "Initial Playwright API/UI run; retained separately from later UI-only rerun",
+    "summary": {
+      "passed": 2
+    },
+    "cases": [
+      {
+        "title": "API POS: quote → pay → COMPLETED → detail, stock and idempotency",
+        "status": "passed",
+        "durationMs": 622
+      },
+      {
+        "title": "API online: signed WEB → RESERVED → PAID → CONFIRMED → COMPLETED",
+        "status": "passed",
+        "durationMs": 1485
+      }
+    ]
+  },
+  "reviewNotes": {
+    "pr": 385,
+    "historicalEvidencePreserved": true,
+    "placeholderObservationIsNotBusinessAcceptance": true,
+    "revisedSpec": "Cart tests assert implemented scan/cart/quote only. Five blocked fixme cases require actual UI flows after dependent features integrate."
+  },
+  "reviewVerification": {
+    "runtimeSourceCommit": "b236417db3062a34808c9d631c668305d840cceb",
+    "date": "2026-11-17T10:10:37.110Z",
+    "testSpecSha256": "9775a1361081da8e7a5b3a35e424cd6be1ac0def0bb97ef46e461fdb35010da2",
+    "testSpecVersion": "PR385 working tree review revision; develop integration prepared without commit",
+    "summary": {
+      "passed": 30,
+      "skipped": 5
+    },
+    "assertionFailures": 0,
+    "acceptance": "BLOCKED",
+    "processExitMeaning": "Exit1 because five pending business flows are BLOCKED, not because a placeholder assertion failed",
+    "pending": [
+      "UI pending business flow: POS payment and invoice",
+      "UI pending business flow: online order lifecycle",
+      "UI pending business flow: stock document create and approve",
+      "UI pending business flow: transfer create, approve and receive",
+      "UI pending business flow: Forecast and replenishment"
+    ],
+    "previousAttempt": {
+      "date": "2026-11-17T10:08:18.490Z",
+      "summary": {
+        "passed": 29,
+        "timedOut": 1,
+        "skipped": 5
+      },
+      "observation": "CASHIER GM003 desktop timed out at logout control after successful login/role assertions. Original attempt retained. QA now waits for either account-control layout before choosing logout selector."
+    }
+  }
 }

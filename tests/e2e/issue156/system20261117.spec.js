@@ -170,7 +170,11 @@ async function loginUi(page, username, home) {
 async function logoutUi(page) {
   stage='UI logout control';
   const direct=page.getByRole('button',{name:'Đăng xuất',exact:true});
-  if (!(await direct.isVisible())) await page.getByRole('button',{name:/^Tài khoản /}).click();
+  const account=page.getByRole('button',{name:/^Tài khoản /});
+  // Navigation can finish before React renders either layout's account control.
+  await expect.poll(async()=>await direct.isVisible() || await account.isVisible()).toBe(true);
+  if (!(await direct.isVisible())) await account.click();
+  stage='UI logout request';
   const response=page.waitForResponse(r=>r.url().endsWith('/auth/logout') && r.request().method()==='POST');
   if (await direct.isVisible()) await direct.click();
   else await page.getByRole('menuitem',{name:'Đăng xuất',exact:true}).click();
@@ -210,7 +214,7 @@ for(const width of [1440,360]) {
       await logoutUi(page);
     });
   }
-  test(`UI POS scan/cart/quote ${width}px; checkout dependency`,async({page},info)=>{
+  test(`UI POS scan/cart/quote ${width}px`,async({page},info)=>{
     await page.setViewportSize({width,height:900});
     const p=await fixture();
     await loginUi(page,'thungan.gm001','/pos');
@@ -225,26 +229,25 @@ for(const width of [1440,360]) {
     await expect(quantity).toHaveValue('2');
     const checkout=page.getByRole('button',{name:'Thanh toán · F4',exact:true});
     await expect(checkout).toBeEnabled();
-    const before=inventory(p.id);
-    await checkout.click();
-    await expect(page.getByText('Thanh toán chưa khả dụng. Giỏ hàng của bạn vẫn được giữ nguyên.',{exact:true})).toBeVisible();
-    expect(inventory(p.id)).toEqual(before);
-    evidence(info,{productId:p.id,width,scanCartQuote:'PASS',checkout:'NOT_IMPLEMENTED',dependency:75});
-    info.annotations.push({type:'blocked',description:'POS cart/quote is implemented (#73); payment/invoice UI awaits #75/#77. Checkout is not complete E2E.'});
+    expect(inventory(p.id)).toEqual({onHand:20,reserved:0});
+    evidence(info,{productId:p.id,width,scanCartQuote:'PASS',checkout:'NOT_TESTED',dependencies:[75,77]});
     await logoutUi(page);
   });
 }
-test('UI online and Operations feature availability',async({page},info)=>{
-  await loginUi(page,'quanly.gm001','/operations');
-  for(const route of ['/operations/orders','/operations/stock-documents','/operations/transfers','/operations/forecasts']) {
-    await page.goto(route);
-    const pending=page.getByRole('heading',{name:route==='/operations/stock-documents'?'Phiếu kho':'Chức năng đang phát triển',exact:true});
-    await expect(pending).toBeVisible();
-    evidence(info,{route,observed:'Development placeholder'});
-  }
-  info.annotations.push({type:'blocked',description:'Online order/document/transfer/forecast UI are placeholders at baseline; dependencies SV04 #80/#81 and SV05 #92/#96/#100.'});
-  await logoutUi(page);
-});
+// Pending business flows are not assertions that a development placeholder exists.
+// Replace each fixme with its real UI flow after the dependency is integrated and
+// verified; merging the screen alone must not make an unavailable-state test fail.
+for (const [flow, dependencies] of [
+  ['POS payment and invoice', '#75/#77'],
+  ['online order lifecycle', '#80/#81'],
+  ['stock document create and approve', '#92'],
+  ['transfer create, approve and receive', '#96'],
+  ['Forecast and replenishment', '#100'],
+]) {
+  test.fixme(`UI pending business flow: ${flow}`, {
+    annotation: { type: 'blocked', description: `Real UI flow awaits QA implementation after ${dependencies}; not accepted as completed E2E.` },
+  }, async () => {});
+}
 
 for(const width of [1440,360]) {
   test(`UI catalog and exact customer search ${width}px with real API`,async({page},info)=>{
