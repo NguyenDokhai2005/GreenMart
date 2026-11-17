@@ -124,6 +124,7 @@ function WorkspaceMountPoint({ title }: { title: string }) {
 }
 
 const loadPosPage: PosPageLoader = (item) => {
+  if (item.segment === '') return import('../pos/PosSalePage');
   if (item.segment === 'products') return Promise.resolve({ default: ProductsPage });
   if (item.segment === 'customers') return Promise.resolve({ default: CustomersPage });
   return import('../../layouts/pos/PosPlaceholderPage');
