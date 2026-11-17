@@ -17,6 +17,7 @@ import {
 import {
   canApproveStockDocument,
   canCancelStockDocument,
+  canCreateStockDocument,
   isBlockedSelfApproval,
 } from './stockDocumentPermissions';
 import StockDocumentPageError from './StockDocumentPageError';
@@ -153,7 +154,7 @@ export default function StockDocumentDetailDrawer() {
   const { id } = useParams();
   const documentId = Number(id);
   const validId = Number.isSafeInteger(documentId) && documentId > 0;
-  const { user, onChanged } = useOutletContext<StockDocumentOutletContext>();
+  const { user, onChanged, onEdit } = useOutletContext<StockDocumentOutletContext>();
   const navigate = useNavigate();
   const location = useLocation();
   const titleId = useId();
@@ -263,6 +264,10 @@ export default function StockDocumentDetailDrawer() {
   const pageError = error ? mapErrorToState(error, 'page') : undefined;
   const canApprove = stockDocument ? canApproveStockDocument(user, stockDocument) : false;
   const canCancel = stockDocument ? canCancelStockDocument(user, stockDocument) : false;
+  const canEdit =
+    stockDocument?.status === 'DRAFT' &&
+    (stockDocument.type === 'IMPORT' || stockDocument.type === 'EXPORT') &&
+    canCreateStockDocument(user, stockDocument.branch.id);
   const selfApproval = stockDocument ? isBlockedSelfApproval(user, stockDocument) : false;
 
   return (
@@ -311,12 +316,17 @@ export default function StockDocumentDetailDrawer() {
               >
                 {stockDocument ? <PageContent document={stockDocument} /> : null}
               </AsyncBlock>
-              {stockDocument && (canApprove || canCancel || selfApproval) && (
+              {stockDocument && (canApprove || canCancel || canEdit || selfApproval) && (
                 <footer className="sd-detail-actions">
                   {selfApproval && (
                     <p className="sd-self-approval">
                       Bạn là người lập phiếu nên không thể tự duyệt theo BR-13.
                     </p>
+                  )}
+                  {canEdit && (
+                    <Button variant="secondary" onClick={() => onEdit(stockDocument)}>
+                      Sửa phiếu
+                    </Button>
                   )}
                   {canCancel && (
                     <Button variant="secondary" onClick={() => setConfirmCancel(true)}>

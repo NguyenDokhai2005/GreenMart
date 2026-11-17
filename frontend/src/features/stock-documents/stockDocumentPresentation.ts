@@ -18,8 +18,8 @@ export const STOCK_DOCUMENT_STATUS_LABELS: Record<StockDocumentStatus, string> =
 export const EXPORT_REASON_OPTIONS: readonly { value: ExportReason; label: string }[] = [
   { value: 'EXPIRED', label: 'Hết hạn' },
   { value: 'DAMAGED', label: 'Hư hỏng' },
-  { value: 'LOST', label: 'Thất lạc' },
-  { value: 'OTHER', label: 'Lý do khác' },
+  { value: 'LOST', label: 'Mất' },
+  { value: 'OTHER', label: 'Khác' },
 ];
 
 export function parseStockDocumentStatus(value: string | null): StockDocumentStatus | undefined {

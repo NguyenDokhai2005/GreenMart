@@ -25,6 +25,7 @@ const PAGE_SIZE = 20;
 export interface StockDocumentOutletContext {
   user: CurrentUser;
   onChanged: () => void;
+  onEdit: (document: StockDocument) => void;
 }
 
 function parsePage(value: string | null): number {
@@ -58,6 +59,7 @@ export default function StockDocumentsPage() {
   const [searchDraft, setSearchDraft] = useState({ locationKey: location.key, value: q });
   const searchText = searchDraft.locationKey === location.key ? searchDraft.value : q;
   const [formType, setFormType] = useState<'IMPORT' | 'EXPORT' | null>(null);
+  const [editingDocument, setEditingDocument] = useState<StockDocument | null>(null);
   const [success, setSuccess] = useState('');
   const queryKey = `${branchId ?? 'all'}|${type}|${status ?? ''}|${q}|${from ?? ''}|${to ?? ''}|${page}`;
   const { data, error, isLoading, reload } = useRemote(
@@ -80,6 +82,11 @@ export default function StockDocumentsPage() {
   );
   const hasFilters = !!(status || q || from || to);
   const canCreate = user ? canCreateStockDocument(user, branchId) : false;
+  const formTypeToRender = editingDocument
+    ? editingDocument.type === 'IMPORT' || editingDocument.type === 'EXPORT'
+      ? editingDocument.type
+      : null
+    : formType;
 
   const update = useCallback(
     (
@@ -236,15 +243,28 @@ export default function StockDocumentsPage() {
         )}
       </section>
 
-      <Outlet context={{ user, onChanged: reload } satisfies StockDocumentOutletContext} />
+      <Outlet
+        context={
+          {
+            user,
+            onChanged: reload,
+            onEdit: setEditingDocument,
+          } satisfies StockDocumentOutletContext
+        }
+      />
 
-      {formType && (
+      {formTypeToRender && (
         <StockDocumentFormDialog
-          type={formType}
-          branchId={branchId}
-          onClose={() => setFormType(null)}
+          type={formTypeToRender}
+          branchId={editingDocument?.branch.id ?? branchId}
+          document={editingDocument ?? undefined}
+          onClose={() => {
+            setFormType(null);
+            setEditingDocument(null);
+          }}
           onSaved={(document: StockDocument) => {
             setFormType(null);
+            setEditingDocument(null);
             setSuccess(`Đã lưu phiếu nháp ${document.code}.`);
             reload();
           }}

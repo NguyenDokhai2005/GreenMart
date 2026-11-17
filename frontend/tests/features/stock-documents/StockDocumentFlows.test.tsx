@@ -10,6 +10,7 @@ import type { StockDocument } from '../../../src/features/stock-documents/stockD
 
 const mocks = vi.hoisted(() => ({
   createStockDocument: vi.fn(),
+  updateStockDocument: vi.fn(),
   getStockDocument: vi.fn(),
   approveStockDocument: vi.fn(),
   cancelStockDocument: vi.fn(),
@@ -21,6 +22,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../../src/features/stock-documents/stockDocumentApi', () => ({
   createStockDocument: mocks.createStockDocument,
+  updateStockDocument: mocks.updateStockDocument,
   listStockDocuments: mocks.listStockDocuments,
   getStockDocument: mocks.getStockDocument,
   approveStockDocument: mocks.approveStockDocument,
@@ -80,7 +82,7 @@ const manager = (id: number): CurrentUser => ({
 });
 
 function DetailOutlet({ user }: { user: CurrentUser }) {
-  return <Outlet context={{ user, onChanged: vi.fn() }} />;
+  return <Outlet context={{ user, onChanged: vi.fn(), onEdit: vi.fn() }} />;
 }
 
 function renderDetail(user: CurrentUser) {
@@ -99,7 +101,9 @@ function renderList(initialEntry = '/operations/stock-documents') {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
-        <Route path="/operations/stock-documents" element={<StockDocumentsPage />} />
+        <Route path="/operations/stock-documents" element={<StockDocumentsPage />}>
+          <Route path=":id" element={<StockDocumentDetailDrawer />} />
+        </Route>
       </Routes>
     </MemoryRouter>,
   );
@@ -108,6 +112,7 @@ function renderList(initialEntry = '/operations/stock-documents') {
 beforeEach(() => {
   for (const mock of [
     mocks.createStockDocument,
+    mocks.updateStockDocument,
     mocks.getStockDocument,
     mocks.approveStockDocument,
     mocks.cancelStockDocument,
@@ -230,7 +235,16 @@ describe('Phiếu kho', () => {
 
     expect(await screen.findByText(draftDocument.code)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Duyệt phiếu' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Sửa phiếu' })).toBeTruthy();
     expect(screen.getByText(/Bạn là người lập phiếu nên không thể tự duyệt/)).toBeTruthy();
+  });
+
+  it('mở biểu mẫu sửa từ chi tiết phiếu nháp', async () => {
+    renderList('/operations/stock-documents/8');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Sửa phiếu' }));
+    expect(await screen.findByRole('dialog', { name: 'Sửa phiếu nhập kho' })).toBeTruthy();
+    expect((screen.getByLabelText(/Nhà cung cấp/) as HTMLInputElement).value).toBe('Công ty Sữa');
   });
 
   it('cho QL chi nhánh khác người lập thấy thao tác duyệt', async () => {
@@ -291,6 +305,71 @@ describe('Phiếu kho', () => {
       ),
     );
     expect(onSaved).toHaveBeenCalledWith(draftDocument);
+  });
+
+  it('sửa phiếu nháp bằng PUT với dữ liệu ban đầu', async () => {
+    const updated = { ...draftDocument, supplier: 'Nhà cung cấp mới' };
+    const onSaved = vi.fn();
+    mocks.updateStockDocument.mockResolvedValue(updated);
+    render(
+      <StockDocumentFormDialog
+        type="IMPORT"
+        branchId={1}
+        document={draftDocument}
+        onClose={vi.fn()}
+        onSaved={onSaved}
+      />,
+    );
+
+    expect(await screen.findByRole('dialog', { name: 'Sửa phiếu nhập kho' })).toBeTruthy();
+    expect((screen.getByLabelText(/Nhà cung cấp/) as HTMLInputElement).value).toBe('Công ty Sữa');
+    expect((screen.getByLabelText('Số lượng Sữa tươi 1L') as HTMLInputElement).value).toBe('2');
+    fireEvent.change(screen.getByLabelText(/Nhà cung cấp/), {
+      target: { value: 'Nhà cung cấp mới' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
+
+    await waitFor(() =>
+      expect(mocks.updateStockDocument).toHaveBeenCalledWith(
+        8,
+        {
+          supplier: 'Nhà cung cấp mới',
+          note: undefined,
+          items: [{ productId: 23, quantity: 2, unitCost: 1000 }],
+        },
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(mocks.createStockDocument).not.toHaveBeenCalled();
+    expect(onSaved).toHaveBeenCalledWith(updated);
+  });
+
+  it('giữ dữ liệu khi sửa phiếu nháp gặp 409 INVALID_STATUS', async () => {
+    mocks.updateStockDocument.mockRejectedValue(
+      Object.assign(new Error('Phiếu đã được duyệt, không thể chỉnh sửa.'), {
+        status: 409,
+        code: 'INVALID_STATUS',
+      }),
+    );
+    render(
+      <StockDocumentFormDialog
+        type="IMPORT"
+        branchId={1}
+        document={draftDocument}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Nhà cung cấp/), {
+      target: { value: 'Nhà cung cấp đã sửa' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
+
+    expect(await screen.findByText('Phiếu đã được duyệt, không thể chỉnh sửa.')).toBeTruthy();
+    expect((screen.getByLabelText(/Nhà cung cấp/) as HTMLInputElement).value).toBe(
+      'Nhà cung cấp đã sửa',
+    );
   });
 
   it('giữ dữ liệu khi API trả lỗi 409', async () => {
@@ -373,6 +452,13 @@ describe('Phiếu kho', () => {
     render(
       <StockDocumentFormDialog type="EXPORT" branchId={1} onClose={vi.fn()} onSaved={vi.fn()} />,
     );
+
+    const reasonOptions = Array.from(
+      (screen.getByLabelText(/Lý do xuất hủy/) as HTMLSelectElement).options,
+      (option) => option.textContent,
+    );
+    expect(reasonOptions).toContain('Mất');
+    expect(reasonOptions).toContain('Khác');
 
     fireEvent.click(await screen.findByRole('button', { name: /Sữa tươi 1L/ }));
     fireEvent.change(screen.getByLabelText(/Lý do xuất hủy/), {

@@ -8,7 +8,7 @@ import { listInventory } from '../inventory/inventoryApi';
 import { useDebouncedCallback } from '../inventory/useDebouncedCallback';
 import { useRemote } from './useRemote';
 import { EXPORT_REASON_OPTIONS, formatStockDocumentMoney } from './stockDocumentPresentation';
-import { createStockDocument } from './stockDocumentApi';
+import { createStockDocument, updateStockDocument } from './stockDocumentApi';
 import type { ExportReason, StockDocument, StockDocumentType } from './stockDocumentApi';
 import './StockDocuments.css';
 
@@ -27,6 +27,7 @@ type ProductOption = Pick<DraftLine, 'productId' | 'productName' | 'sku' | 'unit
 interface StockDocumentFormDialogProps {
   type: DraftType;
   branchId?: number;
+  document?: StockDocument;
   onClose: () => void;
   onSaved: (document: StockDocument) => void;
 }
@@ -137,13 +138,23 @@ function validInteger(value: string, minimum: number): boolean {
 export default function StockDocumentFormDialog({
   type,
   branchId,
+  document,
   onClose,
   onSaved,
 }: StockDocumentFormDialogProps) {
-  const [supplier, setSupplier] = useState('');
-  const [exportReason, setExportReason] = useState<ExportReason | ''>('');
-  const [note, setNote] = useState('');
-  const [lines, setLines] = useState<DraftLine[]>([]);
+  const [supplier, setSupplier] = useState(document?.supplier ?? '');
+  const [exportReason, setExportReason] = useState<ExportReason | ''>(document?.exportReason ?? '');
+  const [note, setNote] = useState(document?.note ?? '');
+  const [lines, setLines] = useState<DraftLine[]>(
+    document?.items.map((item) => ({
+      productId: item.productId,
+      productName: item.productName,
+      sku: item.sku,
+      unit: item.unit,
+      quantity: String(item.quantity),
+      unitCost: item.unitCost == null ? '' : String(item.unitCost),
+    })) ?? [],
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
   const [success, setSuccess] = useState('');
@@ -160,7 +171,13 @@ export default function StockDocumentFormDialog({
     [],
   );
 
-  const title = type === 'IMPORT' ? 'Tạo phiếu nhập kho' : 'Tạo phiếu xuất hủy';
+  const title = document
+    ? type === 'IMPORT'
+      ? 'Sửa phiếu nhập kho'
+      : 'Sửa phiếu xuất hủy'
+    : type === 'IMPORT'
+      ? 'Tạo phiếu nhập kho'
+      : 'Tạo phiếu xuất hủy';
   const selectedIds = new Set(lines.map((line) => line.productId));
   const total = lines.reduce(
     (sum, line) => sum + Number(line.quantity || 0) * Number(line.unitCost || 0),
@@ -215,9 +232,12 @@ export default function StockDocumentFormDialog({
     lines.forEach((line, index) => {
       if (!validInteger(line.quantity, 1)) {
         next[`items[${index}].quantity`] = 'Số lượng phải là số nguyên lớn hơn 0.';
-      } else if (type === 'EXPORT' && Number(line.quantity) > (line.available ?? 0)) {
-        next[`items[${index}].quantity`] =
-          `Không vượt quá ${line.available ?? 0} sản phẩm khả dụng.`;
+      } else if (
+        type === 'EXPORT' &&
+        line.available !== undefined &&
+        Number(line.quantity) > line.available
+      ) {
+        next[`items[${index}].quantity`] = `Không vượt quá ${line.available} sản phẩm khả dụng.`;
       }
       if (type === 'IMPORT' && !validInteger(line.unitCost, 0)) {
         next[`items[${index}].unitCost`] = 'Giá nhập phải là số nguyên không âm.';
@@ -274,11 +294,36 @@ export default function StockDocumentFormDialog({
     }, 15_000);
 
     try {
-      const document = await createStockDocument(body, controller.signal);
+      let savedDocument: StockDocument;
+      if (document) {
+        const updateBody: components['schemas']['StockDocumentUpdateRequest'] = {
+          note: note.trim() || undefined,
+          items: items.map(({ productId, quantity, unitCost }) => ({
+            productId,
+            quantity,
+            ...(type === 'IMPORT' ? { unitCost } : {}),
+          })),
+        };
+        if (type === 'IMPORT') {
+          updateBody.supplier = supplier.trim();
+        } else {
+          if (!exportReason) {
+            setErrors((current) => ({
+              ...current,
+              exportReason: 'Vui lòng chọn lý do xuất hủy.',
+            }));
+            return;
+          }
+          updateBody.exportReason = exportReason;
+        }
+        savedDocument = await updateStockDocument(document.id, updateBody, controller.signal);
+      } else {
+        savedDocument = await createStockDocument(body, controller.signal);
+      }
       if (controller.signal.aborted) return;
-      setSuccess(`Đã lưu phiếu nháp ${document.code}.`);
+      setSuccess(`Đã lưu phiếu nháp ${savedDocument.code}.`);
       setDirty(false);
-      onSaved(document);
+      onSaved(savedDocument);
     } catch (error) {
       if (controller.signal.aborted) return;
       const mapped = mapErrorToState(error, 'block');
@@ -314,7 +359,7 @@ export default function StockDocumentFormDialog({
         title={title}
         onClose={close}
         onConfirm={() => void submit()}
-        confirmText="Lưu phiếu nháp"
+        confirmText={document ? 'Lưu thay đổi' : 'Lưu phiếu nháp'}
         cancelText="Đóng"
         busy={busy}
         confirmDisabled={uncertain || branchId === undefined}

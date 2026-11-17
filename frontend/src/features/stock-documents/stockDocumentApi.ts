@@ -28,6 +28,18 @@ export function createStockDocument(
   return request('/stock-documents', 'post', { body, signal });
 }
 
+export function updateStockDocument(
+  documentId: number,
+  body: components['schemas']['StockDocumentUpdateRequest'],
+  signal?: AbortSignal,
+) {
+  return request('/stock-documents/{documentId}', 'put', {
+    path: { documentId },
+    body,
+    signal,
+  });
+}
+
 export function approveStockDocument(documentId: number) {
   return request('/stock-documents/{documentId}/approve', 'post', {
     path: { documentId },
