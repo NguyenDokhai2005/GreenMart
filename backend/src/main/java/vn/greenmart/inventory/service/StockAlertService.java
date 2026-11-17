@@ -20,9 +20,9 @@ public class StockAlertService {
     @Transactional(propagation = Propagation.MANDATORY)
     public void reconcileAfterStockUpdate(Long branchId, Long productId) {
         StockStatus status = jdbc.queryForObject("""
-                SELECT on_hand - reserved AS available, reorder_point
-                FROM inventory WHERE branch_id=? AND product_id=?
-                """, (rs, row) -> classify(rs.getInt("available"), rs.getObject("reorder_point", Integer.class)),
+                SELECT on_hand - reserved AS available, effective_reorder_point
+                FROM inventory_replenishment WHERE branch_id=? AND product_id=?
+                """, (rs, row) -> classify(rs.getInt("available"), rs.getObject("effective_reorder_point", Integer.class)),
                 branchId, productId);
 
         if (status == StockStatus.OK) {
