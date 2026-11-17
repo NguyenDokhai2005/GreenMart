@@ -31,6 +31,7 @@ import vn.greenmart.sales.domain.PaymentMethod;
 import vn.greenmart.sales.domain.PaymentSimulation;
 import vn.greenmart.sales.dto.*;
 import vn.greenmart.sales.service.PosIdempotencyService;
+import vn.greenmart.sales.service.QuoteService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
@@ -75,6 +76,9 @@ class PosOrderIntegrationTest {
 
     @MockitoSpyBean
     private InventoryService inventoryService;
+
+    @MockitoSpyBean
+    private QuoteService quoteService;
 
     private static final long CASHIER_ID = 8888L;
     private static final long BRANCH_ID = 1L;
@@ -151,6 +155,7 @@ class PosOrderIntegrationTest {
         jdbcTemplate.execute("DELETE FROM order_item");
         jdbcTemplate.execute("DELETE FROM sales_order");
         jdbcTemplate.execute("DELETE FROM order_sequence");
+        jdbcTemplate.execute("DELETE FROM promotion WHERE id = 9501");
         jdbcTemplate.execute("DELETE FROM inventory");
         jdbcTemplate.execute("DELETE FROM product");
         jdbcTemplate.execute("DELETE FROM category");
@@ -256,17 +261,19 @@ class PosOrderIntegrationTest {
         assertThat(((Number) invB.get("on_hand")).intValue()).isEqualTo(4);
         assertThat(((Number) invB.get("reserved")).intValue()).isEqualTo(0);
 
-        // Bảng inventory_transaction: 2 dòng SALE, delta âm (INV-06, BR-06)
+        // Bảng inventory_transaction: 2 dòng SALE, delta âm (INV-06, BR-06), ghi đủ người bán created_by (#332)
         var txs = jdbcTemplate.queryForList(
                 "SELECT * FROM inventory_transaction WHERE ref_id = ? AND ref_type = 'ORDER' ORDER BY product_id ASC", orderId);
         assertThat(txs).hasSize(2);
         assertThat(txs.get(0).get("type")).isEqualTo("SALE");
         assertThat(((Number) txs.get(0).get("delta_on_hand")).intValue()).isEqualTo(-2);
         assertThat(((Number) txs.get(0).get("on_hand_after")).intValue()).isEqualTo(8);
+        assertThat(((Number) txs.get(0).get("created_by")).longValue()).isEqualTo(CASHIER_ID);
 
         assertThat(txs.get(1).get("type")).isEqualTo("SALE");
         assertThat(((Number) txs.get(1).get("delta_on_hand")).intValue()).isEqualTo(-1);
         assertThat(((Number) txs.get(1).get("on_hand_after")).intValue()).isEqualTo(4);
+        assertThat(((Number) txs.get(1).get("created_by")).longValue()).isEqualTo(CASHIER_ID);
 
         // Một sự kiện hoàn tất đơn và một sự kiện cho mỗi dòng tồn đã cập nhật (#59).
         var outboxEvents = jdbcTemplate.queryForList(
@@ -302,7 +309,7 @@ class PosOrderIntegrationTest {
         // Dùng AopTestUtils để stubbing trên target object gốc, tránh trigger kiểm tra @Transactional(MANDATORY) của Spring Proxy ngoài transaction
         InventoryService targetInventoryService = AopTestUtils.getTargetObject(inventoryService);
         doThrow(new InsufficientStockException(BRANCH_ID, PRODUCT_B_ID, "SP-B-TEST", 2, 1))
-                .when(targetInventoryService).sellDirect(eq(BRANCH_ID), eq(PRODUCT_B_ID), anyInt(), anyLong());
+                .when(targetInventoryService).sellDirect(eq(BRANCH_ID), eq(PRODUCT_B_ID), anyInt(), anyLong(), any());
 
         PosOrderRequest posRequest = new PosOrderRequest(
                 BRANCH_ID,
@@ -393,5 +400,65 @@ class PosOrderIntegrationTest {
 
         Integer orderCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM sales_order", Integer.class);
         assertThat(orderCount).isEqualTo(0);
+    }
+
+    @Test
+    @WithMockUser(username = "8888", roles = "CASHIER")
+    @DisplayName("Issue #315: 1 khuyến mãi áp dụng cho 3 dòng hàng trong cùng đơn -> used_count trong DB chỉ tăng 1")
+    void testPosOrder_SharedPromotionAcross3Lines_IncrementsUsedCountOnce() throws Exception {
+        long productCId = 103L;
+        jdbcTemplate.execute(String.format("""
+            INSERT INTO product (id, sku, barcode, name, unit, category_id, sale_price, cost_price, is_active)
+            VALUES (%d, 'SP-C-TEST', '8930000000103', 'Sản phẩm C', 'chai', 1, 40000, 28000, true)
+            ON CONFLICT (id) DO NOTHING
+        """, productCId));
+        jdbcTemplate.execute(String.format("""
+            INSERT INTO inventory (branch_id, product_id, on_hand, reserved, reorder_point, version, updated_at)
+            VALUES (%d, %d, 10, 0, 2, 1, NOW()),
+                   (%d, %d, 5, 0, 2, 1, NOW()),
+                   (%d, %d, 10, 0, 2, 1, NOW())
+        """, BRANCH_ID, PRODUCT_A_ID, BRANCH_ID, PRODUCT_B_ID, BRANCH_ID, productCId));
+        jdbcTemplate.execute("""
+            INSERT INTO promotion (id, code, type, level, value, start_at, end_at, usage_limit, used_count, status)
+            VALUES (9501, 'KM-TEST-315', 'AMOUNT', 'ITEM', 5000, NOW() - INTERVAL '1 day', NOW() + INTERVAL '1 day', 100, 0, 'ACTIVE')
+            ON CONFLICT (id) DO UPDATE SET used_count = 0, usage_limit = 100, status = 'ACTIVE'
+        """);
+
+        PromotionRef sharedPromo = new PromotionRef(9501L, "KM-TEST-315", "Giảm 5k từng dòng", 5000L);
+        Quote mockQuote = new Quote(
+                BRANCH_ID, null,
+                List.of(
+                        new QuoteLine(PRODUCT_A_ID, "SP-A-TEST", "Sản phẩm A", "gói", 1, 20000L, 5000L, 15000L, sharedPromo, 10, true),
+                        new QuoteLine(PRODUCT_B_ID, "SP-B-TEST", "Sản phẩm B", "hộp", 1, 30000L, 5000L, 25000L, sharedPromo, 5, true),
+                        new QuoteLine(productCId, "SP-C-TEST", "Sản phẩm C", "chai", 1, 40000L, 5000L, 35000L, sharedPromo, 10, true)
+                ),
+                null, 90000L, 15000L, 0L, 0L, 15000L, 75000L, true
+        );
+        org.mockito.Mockito.doReturn(mockQuote).when(quoteService).calculateQuote(any());
+
+        PosOrderRequest posRequest = new PosOrderRequest(
+                BRANCH_ID,
+                null,
+                List.of(
+                        new OrderLineRequest(PRODUCT_A_ID, 1),
+                        new OrderLineRequest(PRODUCT_B_ID, 1),
+                        new OrderLineRequest(productCId, 1)
+                ),
+                null,
+                new PaymentRequest(PaymentMethod.CASH, 100000L, PaymentSimulation.SUCCESS),
+                75000L
+        );
+
+        mockMvc.perform(post("/api/v1/orders/pos")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(posRequest)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
+
+        Integer usedCount = jdbcTemplate.queryForObject(
+                "SELECT used_count FROM promotion WHERE id = 9501", Integer.class
+        );
+        assertThat(usedCount).isEqualTo(1);
     }
 }

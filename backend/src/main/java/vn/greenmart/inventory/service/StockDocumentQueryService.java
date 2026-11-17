@@ -47,7 +47,7 @@ public class StockDocumentQueryService {
             throw new AppException(ErrorCode.VALIDATION_ERROR, "branchId phải lớn hơn 0");
         }
         if (branchId != null && branches != null && !branches.contains(branchId)) {
-            throw new AppException(ErrorCode.BRANCH_FORBIDDEN);
+            throw AppException.branchForbidden(branchId);
         }
         var dates = DateFilterUtils.toOffsetDateTimeRange(from, to);
         var pageable = PageUtils.createPageable(page, size, sort, Sort.by(Sort.Direction.DESC, "createdAt"),

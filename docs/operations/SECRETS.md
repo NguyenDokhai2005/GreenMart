@@ -4,6 +4,7 @@ Sao chép `.env.example` thành `.env` tại thư mục gốc. Giữ tên biến
 Thay các giá trị `change-me` bằng mật khẩu riêng cho môi trường của mình.
 Không dùng chung mật khẩu DB, Redis, RabbitMQ và khóa JWT/webhook.
 Khóa JWT cần đủ độ dài cho thuật toán JWT mà SV08 lựa chọn.
+Token nội bộ `FORECAST_INTERNAL_TOKEN` dùng để bảo vệ API dự báo nhu cầu (#311).
 
 `.env` chỉ dùng cục bộ và bị Git bỏ qua. `.env.example` được commit và chỉ
 chứa giá trị mẫu, không được điền secrets thật vào file mẫu.
@@ -35,6 +36,7 @@ Khi đã chốt máy staging, tạo GitHub Environment `staging` và cấu hình
 | `RABBITMQ_DEFAULT_PASS` | Xác thực RabbitMQ |
 | `JWT_SECRET` | Ký JWT |
 | `CHANNEL_WEB_SECRET`, `CHANNEL_MARKET_SECRET` | HMAC từng kênh |
+| `FORECAST_INTERNAL_TOKEN` | Token Bearer xác thực nội bộ giữa backend và forecast-service (#311) |
 
 Tên không bí mật như DB/user/host service có thể đặt trong Environment variables.
 Không tự tạo hoặc thay secrets trên GitHub khi chưa có môi trường staging cụ thể.

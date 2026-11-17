@@ -22,4 +22,15 @@ public class PromotionService {
                 promotionId);
         return rows > 0;
     }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void releaseUsage(Long promotionId) {
+        if (promotionId == null) {
+            return;
+        }
+        jdbcTemplate.update(
+                "UPDATE promotion SET used_count = GREATEST(used_count - 1, 0) WHERE id = ?",
+                promotionId
+        );
+    }
 }

@@ -34,7 +34,7 @@ public class QuoteServiceImpl implements QuoteService {
         // Kiểm tra chi nhánh được gán theo BR-11
         List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
         if (accessibleBranches != null && !accessibleBranches.contains(request.branchId())) {
-            throw new AppException(ErrorCode.BRANCH_FORBIDDEN, "Bạn không có quyền thao tác trên chi nhánh này");
+            throw AppException.branchForbidden(request.branchId(), "Bạn không có quyền thao tác trên chi nhánh này");
         }
 
         // 2. Kiểm tra quyền áp dụng giảm giá thủ công ngay từ đầu (BR-19 fail-fast)
