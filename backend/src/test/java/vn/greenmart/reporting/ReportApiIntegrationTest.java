@@ -206,6 +206,58 @@ class ReportApiIntegrationTest {
                 .andExpect(jsonPath("$.slowSelling[1].netQuantity").value(5));
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "10000, 10000, 0, 0, 2000, 2000, 9000, 9000",
+            "20000, 10000, 5000, 5000, 3999, 999, 12001, 4000",
+            "10000, 10000, 0, 0, 1, 0, 10000, 9999",
+            "10000, 10000, 10000, 10000, 0, 0, 0, 0",
+            "10000, 10000, 0, 10000, 10000, 10000, 0, 0"
+    })
+    void allocatesPaidOrderTotalAcrossProducts(
+            int firstPrice, int secondPrice, int firstLineDiscount, int secondLineDiscount,
+            int orderDiscount, int manualDiscount, int firstRevenue, int secondRevenue
+    ) throws Exception {
+        int subtotal = firstPrice + secondPrice;
+        int discount = firstLineDiscount + secondLineDiscount + orderDiscount;
+        int total = subtotal - discount;
+        jdbc.update("""
+                INSERT INTO sales_order(id, code, channel_id, branch_id, status, subtotal, discount, total,
+                                        manual_discount, manual_discount_reason, created_at, completed_at)
+                VALUES (130, 'ORD-130', 1, 1, 'COMPLETED', ?, ?, ?, ?,
+                        CASE WHEN ? > 0 THEN 'QA manual discount' ELSE NULL END,
+                        '2026-11-17T08:00:00+07:00', '2026-11-17T09:00:00+07:00')
+                """, subtotal, discount, total, manualDiscount, manualDiscount);
+        jdbc.update("""
+                INSERT INTO order_item(id, order_id, product_id, quantity, unit_price, discount, line_total)
+                VALUES (1301, 130, 1, 1, ?, ?, ?),
+                       (1302, 130, 2, 1, ?, ?, ?)
+                """, firstPrice, firstLineDiscount, firstPrice - firstLineDiscount,
+                secondPrice, secondLineDiscount, secondPrice - secondLineDiscount);
+
+        var topProducts = mvc.perform(get("/api/v1/reports/top-products").with(user("11").roles("BRANCH_MANAGER"))
+                        .param("from", "2026-11-17").param("to", "2026-11-17")
+                        .param("branchId", "1").param("channelId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.topSelling[?(@.productId == 1)].revenue", contains(firstRevenue)))
+                .andExpect(jsonPath("$.topSelling[?(@.productId == 2)].revenue", contains(secondRevenue)))
+                .andExpect(jsonPath("$.slowSelling[?(@.productId == 1)].revenue", contains(firstRevenue)))
+                .andExpect(jsonPath("$.slowSelling[?(@.productId == 2)].revenue", contains(secondRevenue)))
+                .andReturn();
+        var revenue = mvc.perform(get("/api/v1/reports/revenue").with(user("11").roles("BRANCH_MANAGER"))
+                        .param("from", "2026-11-17").param("to", "2026-11-17")
+                        .param("branchId", "1").param("channelId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.totalNetRevenue").value(total))
+                .andReturn();
+
+        JsonNode productRows = mapper.readTree(topProducts.getResponse().getContentAsByteArray()).path("topSelling");
+        long productRevenue = StreamSupport.stream(productRows.spliterator(), false)
+                .mapToLong(row -> row.path("revenue").asLong()).sum();
+        assertEquals(mapper.readTree(revenue.getResponse().getContentAsByteArray())
+                .path("summary").path("totalNetRevenue").asLong(), productRevenue);
+    }
+
     @Test
     void shouldAllocateActualRefundAndReconcileReportsForSamePeriod() throws Exception {
         jdbc.update("""
