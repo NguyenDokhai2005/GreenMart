@@ -14,6 +14,8 @@ import ProductsPage from '../catalog/ProductsPage';
 import CustomersPage from '../catalog/CustomersPage';
 import { OperationsHome, OperationsLayout } from '../../layouts/operations';
 import InventoryPage from '../inventory/InventoryPage';
+import StockDocumentsPage from '../stock-documents/StockDocumentsPage';
+import StockDocumentDetailDrawer from '../stock-documents/StockDocumentDetailDrawer';
 import {
   ADMIN_ROLES,
   APP_PATHS,
@@ -21,7 +23,6 @@ import {
   OPERATIONS_ROLES,
   POS_ROLES,
   resolveAuthHomeRedirect,
-  STOCK_DOCUMENT_ROLES,
 } from './routePolicy';
 import './AppRoutes.css';
 
@@ -252,16 +253,6 @@ export function AppRoutes() {
         }
       />
       <Route
-        path={`${APP_PATHS.stockDocuments}/*`}
-        element={
-          <AuthBoundary allowedRoles={STOCK_DOCUMENT_ROLES}>
-            <BranchBoundary>
-              <WorkspaceMountPoint title="Phiếu kho" />
-            </BranchBoundary>
-          </AuthBoundary>
-        }
-      />
-      <Route
         path={`${APP_PATHS.pos}/*`}
         element={
           <AuthBoundary allowedRoles={POS_ROLES}>
@@ -285,6 +276,9 @@ export function AppRoutes() {
         <Route path="products" element={<ProductsPage />} />
         <Route path="customers" element={<CustomersPage />} />
         <Route path="inventory" element={<InventoryPage />} />
+        <Route path="stock-documents" element={<StockDocumentsPage />}>
+          <Route path=":id" element={<StockDocumentDetailDrawer />} />
+        </Route>
         <Route path="*" element={<WorkspaceMountPoint title="Chức năng đang phát triển" />} />
       </Route>
       <Route
