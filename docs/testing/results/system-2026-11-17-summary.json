@@ -188,5 +188,27 @@
       },
       "observation": "CASHIER GM003 desktop timed out at logout control after successful login/role assertions. Original attempt retained. QA now waits for either account-control layout before choosing logout selector."
     }
+  },
+  "publishVerification": {
+    "runtimeSourceCommit": "d6bb6d2111e59b3730260f174dafc9a3ccde4b70",
+    "date": "2026-11-17T14:49:18.634Z",
+    "testSpecSha256": "9775a1361081da8e7a5b3a35e424cd6be1ac0def0bb97ef46e461fdb35010da2",
+    "scope": "Fresh isolated QA on latest develop application source after integration; only PR385 spec rerun, not full system suite",
+    "summary": {
+      "passed": 30,
+      "skipped": 5
+    },
+    "assertionFailures": 0,
+    "acceptance": "BLOCKED",
+    "pending": [
+      "UI pending business flow: POS payment and invoice",
+      "UI pending business flow: online order lifecycle",
+      "UI pending business flow: stock document create and approve",
+      "UI pending business flow: transfer create, approve and receive",
+      "UI pending business flow: Forecast and replenishment"
+    ],
+    "backendBuild": "PASS",
+    "frontendBuild": "PASS",
+    "guardTestsPassed": 4
   }
 }

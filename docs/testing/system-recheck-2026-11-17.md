@@ -51,7 +51,7 @@ Có 48 ca/assertion PASS, 1 BLOCKED_DEPENDENCY và 27 unit test Forecast PASS. K
 - JSON giữ nguyên 29 case UI lịch sử của lượt chạy lại, đồng thời ghi riêng 2 case API lifecycle PASS của lượt đầu cùng SHA. Không cộng hai attempt thành một lần chạy mới hoặc sửa kết quả cũ thành kết quả của spec sau review.
 - Helper logout đợi control tài khoản của layout được render trước khi chọn nút trực tiếp hoặc menu. Giữ riêng lượt đầu có timeout tại bước này, không quy thành lỗi logout backend khi chưa có request.
 - Chạy lại toàn bộ spec sau sửa trên ứng dụng `b236417`: **30 PASS, 5 SKIP, không có assertion FAIL hoặc timeout**. Playwright status `passed`; acceptance vẫn `BLOCKED`. Safe reporter chủ động trả exit 1 do các luồng fixme chưa được nghiệm thu, không phải vì màn hình mới làm hỏng assertion placeholder. Bốn test guard đạt. Lượt trước đó có 29 PASS, 1 timeout ở logout control và 5 SKIP, được giữ riêng trong JSON.
-- Đã chuẩn bị tích hợp develop `b236417` bằng merge không commit, không có xung đột. Các thay đổi ứng dụng từ develop được giữ nguyên; bản sửa QA và merge commit chưa được commit/push.
+- Đã tích hợp develop `d6bb6d2111e59b3730260f174dafc9a3ccde4b70`, không có xung đột. Giữ nguyên mã ứng dụng từ develop, chỉ sửa phần QA của PR. Xác minh trên QA mới: build backend/frontend đạt; toàn bộ spec có **30 PASS, 5 SKIP, không có assertion FAIL hoặc timeout**; 4 guard đạt. Acceptance vẫn BLOCKED vì các luồng fixme chưa được nghiệm thu. JSON ghi riêng `publishVerification`; đây không phải chạy lại full suite 10 nhóm trên develop mới.
 
 ## Chạy lại và đọc bằng chứng
 
@@ -61,4 +61,4 @@ Có 48 ca/assertion PASS, 1 BLOCKED_DEPENDENCY và 27 unit test Forecast PASS. K
 - [Bằng chứng đã lọc](results/system-2026-11-17-summary.json) gồm component, load, outbox, model/case tập trung và danh sách UI/API lịch sử. Không có token, password, raw logs hoặc DB dump. Không cộng các suite lặp thành coverage toàn dự án.
 
 Chưa kiểm chứng đầy đủ: DLQ/redrive/sync-log, race lượt khuyến mại cuối, mọi return/report filter, thứ tự khóa nhiều dòng, toàn API dưới tải, mọi browser/accessibility và deploy/staging. Một pytest vẫn SKIP. Cần quyết định Lead về CORS, IP, Q31 và cách trình bày metric. Không đổi expected để test pass.
-Đây là test và báo cáo bổ sung; không tự đóng #156/#157 hoặc các nhiệm vụ còn thiếu bằng chứng. CI, review và merge của bản sửa theo dõi riêng; chưa coi Done khi mới chuẩn bị thay đổi local.
+Đây là test và báo cáo bổ sung; không tự đóng #156/#157 hoặc các nhiệm vụ còn thiếu bằng chứng. CI, review và merge của bản sửa theo dõi riêng; không coi Done chỉ vì đã push.
