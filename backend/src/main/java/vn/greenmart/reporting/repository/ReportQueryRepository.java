@@ -189,15 +189,39 @@ public class ReportQueryRepository {
         String orderDirection = isAscending ? "ASC" : "DESC";
 
         String sql = String.format("""
-                WITH sales AS (
-                    SELECT 
-                        oi.product_id,
-                        SUM(oi.quantity) AS sold_qty,
-                        SUM(oi.line_total) AS gross_rev
+                WITH sales_lines AS (
+                    SELECT o.id AS order_id, o.total AS order_total, oi.id AS order_item_id,
+                        oi.product_id, oi.quantity,
+                        CASE WHEN SUM(oi.line_total) OVER (PARTITION BY o.id) = 0
+                             THEN oi.quantity ELSE oi.line_total END AS weight
                     FROM sales_order o
                     JOIN order_item oi ON oi.order_id = o.id
                     WHERE %s
-                    GROUP BY oi.product_id
+                ),
+                sales_shares AS (
+                    SELECT *, SUM(weight) OVER (PARTITION BY order_id) AS total_weight
+                    FROM sales_lines
+                ),
+                rounded_sales AS (
+                    SELECT *,
+                        div(order_total::numeric * weight, total_weight) AS base_amount,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY order_id
+                            ORDER BY mod(order_total::numeric * weight, total_weight) DESC, order_item_id
+                        ) AS remainder_rank
+                    FROM sales_shares
+                ),
+                allocated_sales AS (
+                    -- Split the paid total by post-line-discount value, keeping every đồng.
+                    SELECT product_id, quantity,
+                        base_amount + CASE WHEN remainder_rank <= order_total
+                            - SUM(base_amount) OVER (PARTITION BY order_id) THEN 1 ELSE 0 END AS amount
+                    FROM rounded_sales
+                ),
+                sales AS (
+                    SELECT product_id, SUM(quantity) AS sold_qty, SUM(amount) AS sale_amount
+                    FROM allocated_sales
+                    GROUP BY product_id
                 ),
                 return_lines AS (
                     SELECT rd.id AS return_id,
@@ -254,7 +278,7 @@ public class ReportQueryRepository {
                     COALESCE(s.sold_qty, 0) AS sold_quantity,
                     COALESCE(r.ret_qty, 0) AS returned_quantity,
                     (COALESCE(s.sold_qty, 0) - COALESCE(r.ret_qty, 0)) AS net_quantity,
-                    (COALESCE(s.gross_rev, 0) - COALESCE(r.ret_amount, 0)) AS net_revenue
+                    (COALESCE(s.sale_amount, 0) - COALESCE(r.ret_amount, 0)) AS net_revenue
                 FROM product p
                 LEFT JOIN category c ON p.category_id = c.id
                 LEFT JOIN sales s ON s.product_id = p.id

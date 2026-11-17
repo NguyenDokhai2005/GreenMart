@@ -722,6 +722,59 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /inventory/{branchId}/{productId}/replenishment:
+    parameters:
+      - $ref: '#/components/parameters/BranchIdPath'
+      - name: productId
+        in: path
+        required: true
+        schema: { type: integer, format: int64, minimum: 1 }
+    get:
+      tags: [Inventory]
+      summary: Điểm đặt hàng lại và gợi ý nhập cho một sản phẩm
+      description: |
+        AI-05, BA 8.2–8.3. ROP ưu tiên kế hoạch dự báo của ngày hiện tại theo giờ Việt Nam, nếu thiếu thì dùng ROP nhập tay.
+        Gợi ý dùng tồn khả dụng và lượng chuyển kho đang về ở thời điểm đọc, làm tròn lên theo quy cách.
+        Khi chưa có kế hoạch từ dự báo, tồn an toàn, nhu cầu dự báo và gợi ý nhập trả null.
+      operationId: getInventoryReplenishment
+      x-roles: [OWNER, BRANCH_MANAGER, STOREKEEPER]
+      responses:
+        '200':
+          description: Điểm đặt hàng lại và gợi ý nhập
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Replenishment' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Inventory]
+      summary: Đặt ROP nhập tay và quy cách nhập hàng
+      description: ROP nhập tay là ngưỡng dự phòng. Bỏ trống hoặc truyền null để xóa ngưỡng nhập tay.
+      operationId: configureInventoryReplenishment
+      x-roles: [BRANCH_MANAGER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [packSize]
+              properties:
+                manualReorderPoint: { type: integer, format: int32, minimum: 0, nullable: true }
+                packSize: { type: integer, format: int32, minimum: 1 }
+      responses:
+        '200':
+          description: Cấu hình và gợi ý hiện hành
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Replenishment' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /inventory/transactions:
     get:
       tags: [Inventory]
@@ -2370,6 +2423,20 @@ components:
         horizons:
           type: array
           items: { $ref: '#/components/schemas/ForecastHorizon' }
+    Replenishment:
+      type: object
+      required: [branchId, productId, available, incoming, reorderPoint, manualReorderPoint, safetyStock, forecastDemand, packSize, suggestedQuantity]
+      properties:
+        branchId: { type: integer, format: int64 }
+        productId: { type: integer, format: int64 }
+        available: { type: integer, format: int32, minimum: 0 }
+        incoming: { type: integer, format: int64, minimum: 0 }
+        reorderPoint: { type: integer, format: int32, minimum: 0, nullable: true }
+        manualReorderPoint: { type: integer, format: int32, minimum: 0, nullable: true }
+        safetyStock: { type: integer, format: int32, minimum: 0, nullable: true }
+        forecastDemand: { type: number, minimum: 0, nullable: true }
+        packSize: { type: integer, format: int32, minimum: 1 }
+        suggestedQuantity: { type: integer, format: int64, minimum: 0, nullable: true }
     InventoryItem:
       type: object
       required: [branch, productId, sku, productName, unit, onHand, reserved, available, stockStatus, version, updatedAt]
@@ -2382,7 +2449,7 @@ components:
         onHand: { type: integer, minimum: 0, description: Tồn thực }
         reserved: { type: integer, minimum: 0, description: Đang giữ chỗ cho đơn online }
         available: { type: integer, minimum: 0, description: onHand − reserved (BR-01) }
-        reorderPoint: { type: integer, nullable: true, description: ROP; null khi chưa có dự báo }
+        reorderPoint: { type: integer, nullable: true, description: ROP dự báo hoặc ROP nhập tay khi thiếu dự báo }
         stockStatus: { $ref: '#/components/schemas/StockStatus' }
         version: { type: integer, format: int64, description: Tăng mỗi lần tồn đổi; dùng làm số phiên bản đẩy ra kênh (BR-15) }
         updatedAt: { type: string, format: date-time }
