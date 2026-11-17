@@ -300,4 +300,19 @@ class CustomerDbIntegrationTest {
             jdbcTemplate.update("DELETE FROM customer WHERE id = ?", customer.getId());
         }
     }
+
+    @Test
+    @WithMockUser(username = "8888", roles = "CASHIER")
+    @DisplayName("Issue #306: CASHIER tạo khách với active=false -> hệ thống bỏ qua, khách mới luôn active=true và tra cứu được")
+    void testCreateCustomer_WithActiveFalse_IgnoredAndAlwaysCreatedActive() {
+        CustomerRequest req = new CustomerRequest("0905554433", "Khách Tạo Bởi Thu Ngân", "cashier.cus@greenmart.vn", false);
+        CustomerResponse created = customerService.createCustomer(req);
+        insertedCustomerIds.add(created.id());
+
+        assertTrue(created.active());
+
+        PageResponse<CustomerResponse> searchResult = customerService.listCustomers(null, "0905554433", PageRequest.of(0, 20));
+        assertEquals(1, searchResult.totalElements());
+        assertEquals(created.id(), searchResult.content().get(0).id());
+    }
 }

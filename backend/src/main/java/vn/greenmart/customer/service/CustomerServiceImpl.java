@@ -61,9 +61,6 @@ public class CustomerServiceImpl implements CustomerService {
                 : null;
 
         Customer customer = new Customer(normalizedPhone, normalizedName, normalizedEmail);
-        if (request.active() != null) {
-            customer.setActive(request.active());
-        }
         Customer saved = customerRepository.save(customer);
         return CustomerResponse.from(saved);
     }
