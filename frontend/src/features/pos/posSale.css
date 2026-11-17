@@ -101,6 +101,58 @@
   line-height: 1.5;
 }
 
+.pos-customer {
+  display: grid;
+  gap: var(--gm-space-3);
+  margin-top: var(--gm-space-4);
+  padding: var(--gm-space-4);
+  border-radius: var(--gm-radius-md);
+  background: var(--gm-color-page);
+}
+
+.pos-customer h3 {
+  margin: 0;
+}
+
+.pos-customer p {
+  margin: 0;
+  color: var(--gm-color-text-secondary);
+  font-size: var(--gm-font-size-xs);
+  line-height: 1.5;
+}
+
+.pos-customer .pos-customer__identity {
+  color: var(--gm-color-text);
+  font-size: var(--gm-font-size-label);
+}
+
+.pos-customer > .gm-button {
+  width: 100%;
+}
+
+.pos-customer__actions {
+  display: flex;
+  gap: var(--gm-space-2);
+}
+
+.pos-customer__actions .gm-button {
+  flex: 1;
+}
+
+.pos-customer .gm-empty-state,
+.pos-customer .gm-error-state {
+  padding: var(--gm-space-2) 0;
+}
+
+.pos-customer .gm-dialog {
+  width: min(100%, 560px);
+}
+
+.pos-customer__dialog-content {
+  display: grid;
+  gap: var(--gm-space-3);
+}
+
 .pos-sale__cart {
   display: flex;
   flex-direction: column;

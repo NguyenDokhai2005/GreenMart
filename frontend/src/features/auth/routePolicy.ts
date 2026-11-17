@@ -8,6 +8,7 @@ export const APP_PATHS = {
   pos: '/pos',
   operations: '/operations',
   stockDocuments: '/operations/stock-documents',
+  ledger: '/operations/ledger',
   admin: '/admin',
   forbidden: '/403',
 } as const;
