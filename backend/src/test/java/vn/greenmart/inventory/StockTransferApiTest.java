@@ -68,7 +68,7 @@ class StockTransferApiTest {
         jdbc.update("INSERT INTO inventory(branch_id,product_id,on_hand,reserved) VALUES(81,81,85,5)");
     }
 
-    @Test void branchAccessIsCheckedBeforeUnsupportedDocumentType() throws Exception {
+    @Test void adjustmentDetailsAreScopedToTheirBranch() throws Exception {
         long id = jdbc.queryForObject("""
                 INSERT INTO stock_document(code,type,branch_id,created_by)
                 VALUES ('ADJUST-TEST','ADJUST',81,810) RETURNING id
@@ -78,7 +78,7 @@ class StockTransferApiTest {
         mvc.perform(post(DOCUMENTS + "/{id}/approve", id).with(user("813").roles("STOREKEEPER")))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
         mvc.perform(get(DOCUMENTS + "/{id}", id).with(user("810").roles("STOREKEEPER")))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.type").value("ADJUST"));
     }
 
     @Test void listsStockDocumentsForSourceAndDestinationWithFilters() throws Exception {

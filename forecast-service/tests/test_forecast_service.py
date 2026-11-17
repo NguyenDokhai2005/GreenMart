@@ -1,6 +1,6 @@
 """Unit tests for forecast_service business logic (#114)."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from unittest.mock import MagicMock, patch
 import numpy as np
 import pandas as pd
@@ -439,5 +439,91 @@ def test_execute_background_forecast_explicit_threshold_override(monkeypatch):
     assert len(captured_results) == 1
     res_df = captured_results[0]
     assert (res_df["predicted_qty"] == 0.15).all(), "Kỳ vọng giữ nguyên giá trị 0.15 khi optimal_threshold=0.0"
+
+
+def test_execute_background_forecast_generates_future_target_dates_D1_to_D30(monkeypatch):
+    """Test AC-01 & AC-02 của Issue #298:
+    Dữ liệu tới ngày D -> kết quả forecast_result có đúng target_date từ D+1 đến D+30,
+    đủ cả 2 tầm horizon 7 và 30, không có giá trị âm.
+    """
+    mock_conn = MagicMock()
+    monkeypatch.setattr("app.pipelines.forecast_service.get_db_connection", lambda: mock_conn)
+    mock_conn.__enter__.return_value = mock_conn
+
+    # Tạo dummy sales kết thúc tại ngày D = 2026-10-31
+    product_id = 10
+    df_dummy = _build_dummy_sales(product_id=product_id)
+    last_date = df_dummy["sale_date"].max()
+    assert last_date == date(2026, 10, 31)
+
+    monkeypatch.setattr("app.pipelines.forecast_service.fetch_daily_sales_from_db", lambda conn: df_dummy)
+
+    mock_metrics = MagicMock(mae=0.22, wape=0.14)
+    mock_report = MagicMock()
+    mock_report.cutoff_date = date(2026, 10, 1)  # Cutoff backtest trong quá khứ
+    mock_report.optimal_slow_thresholds = {7: 0.4, 30: 0.4}
+    mock_report.baseline_report.top_sku_ids = {10}
+    mock_report.baseline_report.best_baseline = {7: "rolling_mean_28"}
+    mock_report.baseline_report.results = {7: {"rolling_mean_28": {"overall": mock_metrics}}}
+    mock_report.lgb_results_clean = {7: {"lgb_tweedie": {"overall": mock_metrics}}}
+    mock_report.best_objective = {7: "tweedie", 30: "tweedie"}
+
+    class DummyProdModel:
+        def __init__(self, val=2.5):
+            self.val = val
+        def predict(self, df):
+            return np.full(len(df), self.val)
+
+    dummy_evaluator = lambda df_daily, horizons: (mock_report, {7: DummyProdModel(1.0), 30: DummyProdModel(1.0)})
+
+    captured_results = []
+    completed_runs = []
+    monkeypatch.setattr(
+        "app.pipelines.forecast_service.save_forecast_results",
+        lambda conn, run_id, results_df: captured_results.append(results_df.copy()) or len(results_df),
+    )
+    monkeypatch.setattr(
+        "app.pipelines.forecast_service.complete_forecast_run",
+        lambda conn, run_id, mae, wape, baseline_mae, baseline_wape: completed_runs.append((run_id, mae, wape)),
+    )
+
+    # Chạy background forecast
+    execute_background_forecast(
+        run_id=298,
+        evaluate_pipeline_fn=dummy_evaluator,
+        retrain_models_fn=lambda builder, horizons: {7: DummyProdModel(3.0), 30: DummyProdModel(3.0)},
+    )
+
+    assert len(captured_results) == 1
+    res_df = captured_results[0]
+
+    # 1. Kiểm tra khoảng target_date từ D+1 (2026-11-01) đến D+30 (2026-11-30)
+    min_target = res_df["target_date"].min()
+    max_target = res_df["target_date"].max()
+    assert min_target == date(2026, 11, 1), f"target_date bắt đầu từ {min_target}, kỳ vọng 2026-11-01"
+    assert max_target == date(2026, 11, 30), f"target_date kết thúc tại {max_target}, kỳ vọng 2026-11-30"
+
+    # 2. Kiểm tra các dòng horizon = 7: 7 ngày (D+1..D+7)
+    df_h7 = res_df[res_df["horizon"] == 7]
+    assert len(df_h7) == 7 * 1  # 1 series x 7 ngày
+    assert df_h7["target_date"].min() == date(2026, 11, 1)
+    assert df_h7["target_date"].max() == date(2026, 11, 7)
+
+    # 3. Kiểm tra các dòng horizon = 30: 30 ngày (D+1..D+30)
+    df_h30 = res_df[res_df["horizon"] == 30]
+    assert len(df_h30) == 30 * 1  # 1 series x 30 ngày
+    assert df_h30["target_date"].min() == date(2026, 11, 1)
+    assert df_h30["target_date"].max() == date(2026, 11, 30)
+
+    # 4. Tổng số dòng = 37 dòng
+    assert len(res_df) == 37
+
+    # 5. Không có giá trị âm
+    assert (res_df["predicted_qty"] >= 0.0).all()
+
+    # 6. forecast_run vẫn lưu MAE/WAPE của đánh giá lùi
+    assert len(completed_runs) == 1
+    assert completed_runs[0] == (298, 0.22, 0.14)
+
 
 

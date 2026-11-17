@@ -10,13 +10,13 @@ public final class StockDocumentRequests {
     private StockDocumentRequests() {}
 
     public record Item(@NotNull @Positive Long productId,
-            @NotNull @Min(1) @Max(99999) Integer quantity,
-            @PositiveOrZero Long unitCost, Integer countedQuantity) {}
+            @Min(1) @Max(99999) Integer quantity,
+            @PositiveOrZero Long unitCost, @PositiveOrZero Integer countedQuantity) {}
 
     public record Create(@NotNull StockDocumentType type, @NotNull @Positive Long branchId,
             Long toBranchId, @Size(max = 120) String supplier,
-            String exportReason, @Size(max = 255) String note,
-            @NotNull @Size(min = 1, max = 500) List<@NotNull @Valid Item> items) {}
+            String exportReason, @Size(max = 255) String note, boolean allProducts,
+            @Size(min = 1, max = 500) List<@NotNull @Valid Item> items) {}
 
     public record Update(Long toBranchId, @Size(max = 120) String supplier,
             String exportReason, @Size(max = 255) String note,
