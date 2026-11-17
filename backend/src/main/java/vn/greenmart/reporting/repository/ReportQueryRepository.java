@@ -199,17 +199,52 @@ public class ReportQueryRepository {
                     WHERE %s
                     GROUP BY oi.product_id
                 ),
-                returns AS (
-                    SELECT 
+                return_lines AS (
+                    SELECT rd.id AS return_id,
+                        rd.refund_amount,
+                        ri.id AS return_item_id,
                         oi.product_id,
-                        SUM(ri.quantity) AS ret_qty,
-                        SUM(ri.quantity * oi.unit_price) AS ret_amount
+                        ri.quantity,
+                        oi.line_total::numeric * ri.quantity / oi.quantity AS returned_value
                     FROM return_document rd
                     JOIN sales_order o ON rd.order_id = o.id
                     JOIN return_item ri ON ri.return_id = rd.id
                     JOIN order_item oi ON ri.order_item_id = oi.id
                     WHERE %s
-                    GROUP BY oi.product_id
+                ),
+                weighted_returns AS (
+                    -- The order-level discount is proportional to line value, so it cancels
+                    -- out of the weights. Use the actual document refund to keep that discount.
+                    SELECT *,
+                        CASE WHEN SUM(returned_value) OVER (PARTITION BY return_id) = 0
+                             THEN quantity ELSE returned_value END AS weight
+                    FROM return_lines
+                ),
+                refund_shares AS (
+                    SELECT *,
+                        SUM(weight) OVER (PARTITION BY return_id) AS total_weight
+                    FROM weighted_returns
+                ),
+                rounded_refunds AS (
+                    SELECT *,
+                        div(refund_amount * weight, total_weight) AS base_amount,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY return_id
+                            ORDER BY mod(refund_amount * weight, total_weight) DESC, return_item_id
+                        ) AS remainder_rank
+                    FROM refund_shares
+                ),
+                allocated_refunds AS (
+                    -- Distribute the remaining đồng to the largest fractional shares.
+                    SELECT product_id, quantity,
+                        base_amount + CASE WHEN remainder_rank <= refund_amount
+                            - SUM(base_amount) OVER (PARTITION BY return_id) THEN 1 ELSE 0 END AS amount
+                    FROM rounded_refunds
+                ),
+                returns AS (
+                    SELECT product_id, SUM(quantity) AS ret_qty, SUM(amount) AS ret_amount
+                    FROM allocated_refunds
+                    GROUP BY product_id
                 )
                 SELECT 
                     p.id AS product_id,

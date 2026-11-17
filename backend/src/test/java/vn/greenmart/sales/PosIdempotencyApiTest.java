@@ -75,9 +75,10 @@ class PosIdempotencyApiTest {
 
     @BeforeEach
     void seedData() {
+        jdbcTemplate.execute("TRUNCATE TABLE inventory_transaction CASCADE;");
         jdbcTemplate.execute("DELETE FROM order_item;");
+        jdbcTemplate.execute("DELETE FROM payment;");
         jdbcTemplate.execute("DELETE FROM sales_order;");
-        jdbcTemplate.execute("DELETE FROM inventory_transaction;");
         jdbcTemplate.execute("DELETE FROM outbox_event;");
 
         jdbcTemplate.execute("""
@@ -160,5 +161,49 @@ class PosIdempotencyApiTest {
 
         Integer finalOrderCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM sales_order", Integer.class);
         assertThat(finalOrderCount).isEqualTo(1);
+    }
+
+    @Test
+ @DisplayName("Issue #313: Khóa Redis bị mất/hết hạn sau khi đơn đã commit -> Gửi lại cùng Key trả 200 đơn cũ, không tạo trùng và không trừ kho lần 2")
+ void testRetryAfterRedisKeyLostOrExpired_ReturnsExistingOrderFromDb() throws Exception {
+     String idempotencyKey = UUID.randomUUID().toString();
+
+     PosOrderRequest request = new PosOrderRequest(
+             1L, null,
+             List.of(new OrderLineRequest(101L, 3)),
+             null,
+             new PaymentRequest(PaymentMethod.CASH, 300000L, PaymentSimulation.SUCCESS),
+             300000L
+     );
+     String requestBody = objectMapper.writeValueAsString(request);
+
+     // 1. Tạo đơn lần đầu -> 201 Created, tồn kho từ 50 giảm còn 47
+     mockMvc.perform(post("/api/v1/orders/pos")
+                     .with(user("1").roles("CASHIER"))
+                     .header("Idempotency-Key", idempotencyKey)
+                     .contentType(MediaType.APPLICATION_JSON)
+                     .content(requestBody))
+             .andExpect(status().isCreated())
+             .andExpect(jsonPath("$.status").value("COMPLETED"));
+
+     // 2. Mô phỏng Redis lỗi không lưu được COMPLETED hoặc khóa PROCESSING hết hạn sau 30s (xóa sạch key trong Redis)
+     redis.execInContainer("redis-cli", "FLUSHALL");
+
+     // 3. Client gửi lại cùng Idempotency-Key -> DB chốt chặn trả về 200 OK với đúng đơn cũ, tồn kho giữ nguyên 47
+     mockMvc.perform(post("/api/v1/orders/pos")
+                     .with(user("1").roles("CASHIER"))
+                     .header("Idempotency-Key", idempotencyKey)
+                     .contentType(MediaType.APPLICATION_JSON)
+                     .content(requestBody))
+             .andExpect(status().isOk())
+             .andExpect(jsonPath("$.status").value("COMPLETED"));
+
+     Integer orderCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM sales_order", Integer.class);
+     assertThat(orderCount).isEqualTo(1);
+
+     Integer onHand = jdbcTemplate.queryForObject(
+             "SELECT on_hand FROM inventory WHERE branch_id = 1 AND product_id = 101", Integer.class
+     );
+     assertThat(onHand).isEqualTo(47);
     }
 }
