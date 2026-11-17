@@ -29,6 +29,13 @@ export default function Dialog({
 }: DialogProps) {
   const titleId = useId();
   const dialogRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(onClose);
+  const busyRef = useRef(busy);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    busyRef.current = busy;
+  }, [busy, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -47,8 +54,8 @@ export default function Dialog({
       if (event.key === 'Escape') {
         event.preventDefault();
 
-        if (!busy) {
-          onClose();
+        if (!busyRef.current) {
+          onCloseRef.current();
         }
         return;
       }
@@ -104,7 +111,7 @@ export default function Dialog({
         previousFocusedElement.focus();
       }
     };
-  }, [open, busy, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
