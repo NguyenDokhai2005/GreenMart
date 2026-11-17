@@ -468,4 +468,56 @@ class PosOrderServiceTest {
         verify(salesOrderRepository, never()).save(any());
         verify(inventoryService, never()).sellDirect(any(), any(), anyInt(), any(), any());
     }
+
+    @Test
+    @DisplayName("Issue #315: Một mã khuyến mãi áp dụng cho 3 dòng hàng trong cùng đơn -> recordUsage chỉ gọi 1 lần")
+    void testCreatePosOrder_SamePromotionAcross3Lines_RecordsUsageOnlyOnce() {
+        authenticate("CASHIER");
+
+        when(productService.getSaleInfo(101L)).thenReturn(new ProductSaleInfo(101L, "SP-101", "SP 1", "cái", 50000L, true));
+        when(productService.getSaleInfo(102L)).thenReturn(new ProductSaleInfo(102L, "SP-102", "SP 2", "cái", 50000L, true));
+        when(productService.getSaleInfo(103L)).thenReturn(new ProductSaleInfo(103L, "SP-103", "SP 3", "cái", 50000L, true));
+        when(inventoryService.getAvailable(eq(1L), anyLong())).thenReturn(10);
+
+        PromotionRef sharedPromo = new PromotionRef(99L, "KM-3-DONG", "Giảm 10k mỗi dòng", 10000L);
+        Quote mockQuote = new Quote(
+                1L, null,
+                List.of(
+                        new QuoteLine(101L, "SP-101", "SP 1", "cái", 1, 50000L, 10000L, 40000L, sharedPromo, 10, true),
+                        new QuoteLine(102L, "SP-102", "SP 2", "cái", 1, 50000L, 10000L, 40000L, sharedPromo, 10, true),
+                        new QuoteLine(103L, "SP-103", "SP 3", "cái", 1, 50000L, 10000L, 40000L, sharedPromo, 10, true)
+                ),
+                null, 150000L, 30000L, 0L, 0L, 30000L, 120000L, true
+        );
+        when(quoteService.calculateQuote(any())).thenReturn(mockQuote);
+
+        when(salesOrderRepository.save(any(SalesOrder.class))).thenAnswer(inv -> {
+            SalesOrder so = inv.getArgument(0);
+            so.setId(505L);
+            return so;
+        });
+        when(orderItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(inv -> {
+            Payment p = inv.getArgument(0);
+            p.setId(605L);
+            return p;
+        });
+
+        PosOrderRequest request = new PosOrderRequest(
+                1L, null,
+                List.of(
+                        new OrderLineRequest(101L, 1),
+                        new OrderLineRequest(102L, 1),
+                        new OrderLineRequest(103L, 1)
+                ),
+                null,
+                new PaymentRequest(PaymentMethod.CASH, 150000L, PaymentSimulation.SUCCESS),
+                120000L
+        );
+
+        OrderResponse res = posOrderService.createPosOrder(request, UUID.randomUUID().toString());
+
+        assertThat(res.id()).isEqualTo(505L);
+        verify(promotionService, times(1)).recordUsage(99L);
+    }
 }
