@@ -5,6 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -350,5 +353,66 @@ class ReportApiIntegrationTest {
                         .param("limit", "150"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "day, 2023-03-01, 2024-02-29, 2024-03-01, 366",
+            "week, 2020-02-29, 2025-02-27, 2025-02-28, 262",
+            "month, 2021-01-01, 2025-12-31, 2026-01-01, 60"
+    })
+    void revenueAcceptsInclusiveLimitAndRejectsOneDayOver(
+            String groupBy, String from, String lastAllowedDate, String firstRejectedDate, int points
+    ) throws Exception {
+        mvc.perform(get("/api/v1/reports/revenue").with(user("10").roles("OWNER"))
+                        .param("groupBy", groupBy).param("from", from).param("to", lastAllowedDate))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.points", hasSize(points)));
+
+        mvc.perform(get("/api/v1/reports/revenue").with(user("10").roles("OWNER"))
+                        .param("groupBy", groupBy).param("from", from).param("to", firstRejectedDate))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"revenue", "top-products"})
+    void rejectsQaDateRangeBeforeBuildingReport(String report) throws Exception {
+        mvc.perform(get("/api/v1/reports/" + report).with(user("11").roles("BRANCH_MANAGER"))
+                        .param("from", "0001-01-01").param("to", "2026-10-31"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void dailyRevenueRejectsDatesOutsideSupportedYears() throws Exception {
+        mvc.perform(get("/api/v1/reports/revenue").with(user("10").roles("OWNER"))
+                        .param("to", "+999999999-12-31"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void topProductsAcceptsInclusiveLimitAndRejectsOneDayOver() throws Exception {
+        mvc.perform(get("/api/v1/reports/top-products").with(user("10").roles("OWNER"))
+                        .param("from", "2023-03-01").param("to", "2024-02-29"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.period.from").value("2023-03-01"))
+                .andExpect(jsonPath("$.period.to").value("2024-02-29"));
+
+        mvc.perform(get("/api/v1/reports/top-products").with(user("10").roles("OWNER"))
+                        .param("from", "2023-03-01").param("to", "2024-03-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void topProductsValidatesEffectiveMonthInsteadOfIgnoredDateRange() throws Exception {
+        mvc.perform(get("/api/v1/reports/top-products").with(user("10").roles("OWNER"))
+                        .param("month", "2024-02")
+                        .param("from", "0001-01-01").param("to", "2026-10-31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.period.from").value("2024-02-01"))
+                .andExpect(jsonPath("$.period.to").value("2024-02-29"));
     }
 }
