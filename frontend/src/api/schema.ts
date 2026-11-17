@@ -617,6 +617,7 @@ export interface paths {
      *     - `EXPORT` (UC-06): bắt buộc `reason`; số lượng ≤ tồn khả dụng lúc tạo (kiểm tra lại khi duyệt).
      *     - `TRANSFER` (UC-07): bắt buộc `toBranchId` ≠ `branchId`; số lượng ≤ khả dụng CN nguồn.
      *     - `ADJUST` (UC-08): không gửi `quantity`; hệ thống chụp tồn thực hiện tại vào `quantity` (snapshot), Thủ kho nhập `countedQuantity` sau qua PUT.
+     *       Gửi `allProducts: true` và bỏ `items` để chụp mọi dòng tồn của chi nhánh. Có thể nhập số đếm qua nhiều PUT, tối đa 500 dòng mỗi lần.
      */
     post: operations['createStockDocument'];
     delete?: never;
@@ -1623,9 +1624,22 @@ export interface components {
       supplier?: string;
       exportReason?: components['schemas']['ExportReason'];
       note?: string;
-      /** @description Mỗi `productId` một dòng. ADJUST có thể truyền danh sách sản phẩm cần kiểm kê */
-      items: components['schemas']['StockDocumentItemRequest'][];
-    };
+      /** @description Chỉ ADJUST. Bật để chụp toàn bộ các dòng tồn của chi nhánh. */
+      allProducts?: boolean;
+    } & (
+      | {
+          /** @enum {boolean} */
+          allProducts?: false;
+          /** @description Mỗi `productId` một dòng. ADJUST có thể truyền danh sách sản phẩm cần kiểm kê. */
+          items: components['schemas']['StockDocumentItemRequest'][];
+        }
+      | {
+          /** @enum {string} */
+          type?: 'ADJUST';
+          /** @enum {boolean} */
+          allProducts: true;
+        }
+    );
     StockDocumentUpdateRequest: {
       /** Format: int64 */
       toBranchId?: number;

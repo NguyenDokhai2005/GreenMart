@@ -1052,6 +1052,7 @@ paths:
         - `EXPORT` (UC-06): bắt buộc `reason`; số lượng ≤ tồn khả dụng lúc tạo (kiểm tra lại khi duyệt).
         - `TRANSFER` (UC-07): bắt buộc `toBranchId` ≠ `branchId`; số lượng ≤ khả dụng CN nguồn.
         - `ADJUST` (UC-08): không gửi `quantity`; hệ thống chụp tồn thực hiện tại vào `quantity` (snapshot), Thủ kho nhập `countedQuantity` sau qua PUT.
+          Gửi `allProducts: true` và bỏ `items` để chụp mọi dòng tồn của chi nhánh. Có thể nhập số đếm qua nhiều PUT, tối đa 500 dòng mỗi lần.
       operationId: createStockDocument
       x-roles: [STOREKEEPER, BRANCH_MANAGER]
       requestBody:
@@ -2391,7 +2392,7 @@ components:
         countedQuantity: { type: integer, minimum: 0, description: 'Chỉ ADJUST, nhập qua PUT' }
     StockDocumentRequest:
       type: object
-      required: [type, branchId, items]
+      required: [type, branchId]
       properties:
         type: { $ref: '#/components/schemas/StockDocumentType' }
         branchId: { type: integer, format: int64, description: Chi nhánh lập phiếu (CN nguồn với TRANSFER) }
@@ -2399,12 +2400,23 @@ components:
         supplier: { type: string, maxLength: 120, description: Bắt buộc với IMPORT }
         exportReason: { $ref: '#/components/schemas/ExportReason' }
         note: { type: string, maxLength: 255 }
-        items:
-          type: array
-          minItems: 1
-          maxItems: 500
-          description: Mỗi `productId` một dòng. ADJUST có thể truyền danh sách sản phẩm cần kiểm kê
-          items: { $ref: '#/components/schemas/StockDocumentItemRequest' }
+        allProducts: { type: boolean, description: Chỉ ADJUST. Bật để chụp toàn bộ các dòng tồn của chi nhánh. }
+      oneOf:
+        - required: [items]
+          properties:
+            allProducts: { type: boolean, enum: [false] }
+            items:
+              type: array
+              minItems: 1
+              maxItems: 500
+              description: Mỗi `productId` một dòng. ADJUST có thể truyền danh sách sản phẩm cần kiểm kê.
+              items: { $ref: '#/components/schemas/StockDocumentItemRequest' }
+        - required: [allProducts]
+          properties:
+            type: { type: string, enum: [ADJUST] }
+            allProducts: { type: boolean, enum: [true] }
+          not:
+            required: [items]
     StockDocumentUpdateRequest:
       type: object
       required: [items]
