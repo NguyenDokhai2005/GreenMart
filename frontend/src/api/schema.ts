@@ -4,4280 +4,4300 @@
  */
 
 export interface paths {
-    "/auth/login": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Đăng nhập
-         * @description Sai 5 lần liên tiếp thì khóa tài khoản 15 phút; mỗi lần sai được ghi nhật ký (AUTH-03).
-         */
-        post: operations["login"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+  '/auth/login': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/auth/refresh": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Làm mới access token
-         * @description Trả cặp token mới; refresh token cũ bị thu hồi (xoay vòng).
-         */
-        post: operations["refreshToken"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Đăng nhập
+     * @description Sai 5 lần liên tiếp thì khóa tài khoản 15 phút; mỗi lần sai được ghi nhật ký (AUTH-03).
+     */
+    post: operations['login'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/refresh': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/auth/logout": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Đăng xuất
-         * @description Thu hồi refresh token. Access token hết hạn tự nhiên sau tối đa 15 phút.
-         */
-        post: operations["logout"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Làm mới access token
+     * @description Trả cặp token mới; refresh token cũ bị thu hồi (xoay vòng).
+     */
+    post: operations['refreshToken'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/logout': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/auth/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Thông tin người dùng hiện tại
-         * @description Frontend dùng để dựng menu theo vai trò và danh sách chi nhánh được chọn.
-         */
-        get: operations["getCurrentUser"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Đăng xuất
+     * @description Thu hồi refresh token. Access token hết hạn tự nhiên sau tối đa 15 phút.
+     */
+    post: operations['logout'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/me': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/auth/change-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Đổi mật khẩu
-         * @description Mật khẩu mới tối thiểu 8 ký tự, có chữ và số. Đổi xong thu hồi mọi refresh token của người dùng.
-         */
-        post: operations["changePassword"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Thông tin người dùng hiện tại
+     * @description Frontend dùng để dựng menu theo vai trò và danh sách chi nhánh được chọn.
+     */
+    get: operations['getCurrentUser'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/auth/change-password': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/branches": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Danh sách chi nhánh
-         * @description ADMIN và OWNER thấy mọi chi nhánh, có thể lọc theo active.
-         *     Các vai trò đã đăng nhập khác thấy tất cả chi nhánh đang hoạt động.
-         *     Với các vai trò này, active=false trả mảng rỗng.
-         */
-        get: operations["listBranches"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Đổi mật khẩu
+     * @description Mật khẩu mới tối thiểu 8 ký tự, có chữ và số. Đổi xong thu hồi mọi refresh token của người dùng.
+     */
+    post: operations['changePassword'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/branches': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/categories": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Danh sách danh mục
-         * @description Trả danh sách phẳng có `parentId`; frontend tự dựng cây.
-         */
-        get: operations["listCategories"];
-        put?: never;
-        /** Tạo danh mục */
-        post: operations["createCategory"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Danh sách chi nhánh
+     * @description ADMIN và OWNER thấy mọi chi nhánh, có thể lọc theo active.
+     *     Các vai trò đã đăng nhập khác thấy tất cả chi nhánh đang hoạt động.
+     *     Với các vai trò này, active=false trả mảng rỗng.
+     */
+    get: operations['listBranches'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/categories': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/categories/{categoryId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                categoryId: components["parameters"]["CategoryId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        /** Sửa danh mục */
-        put: operations["updateCategory"];
-        post?: never;
-        /**
-         * Xóa danh mục
-         * @description Chỉ xóa được danh mục không còn sản phẩm và không có danh mục con.
-         */
-        delete: operations["deleteCategory"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Danh sách danh mục
+     * @description Trả danh sách phẳng có `parentId`; frontend tự dựng cây.
+     */
+    get: operations['listCategories'];
+    put?: never;
+    /** Tạo danh mục */
+    post: operations['createCategory'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/categories/{categoryId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        categoryId: components['parameters']['CategoryId'];
+      };
+      cookie?: never;
     };
-    "/products": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Tìm sản phẩm */
-        get: operations["listProducts"];
-        put?: never;
-        /** Tạo sản phẩm */
-        post: operations["createProduct"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    /** Sửa danh mục */
+    put: operations['updateCategory'];
+    post?: never;
+    /**
+     * Xóa danh mục
+     * @description Chỉ xóa được danh mục không còn sản phẩm và không có danh mục con.
+     */
+    delete: operations['deleteCategory'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/products': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/products/lookup": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Tra sản phẩm cho POS
-         * @description Dùng khi quét mã vạch hoặc gõ SKU. Khớp chính xác barcode trước, sau đó SKU.
-         *     Trả kèm tồn khả dụng tại chi nhánh để hiện ngay trên dòng hàng (UC-01 bước 1).
-         *     Sản phẩm ngừng bán vẫn trả về với `active=false`; frontend báo lỗi 1a.
-         */
-        get: operations["lookupProduct"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Tìm sản phẩm */
+    get: operations['listProducts'];
+    put?: never;
+    /** Tạo sản phẩm */
+    post: operations['createProduct'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/products/lookup': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/products/{productId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                productId: components["parameters"]["ProductId"];
-            };
-            cookie?: never;
-        };
-        /** Chi tiết sản phẩm */
-        get: operations["getProduct"];
-        /**
-         * Sửa sản phẩm
-         * @description Đổi `salePrice` được ghi nhật ký (giá cũ, giá mới, người đổi) theo PRD-02.
-         *     Đơn đã bán giữ giá cũ (BR-12). Ngừng bán bằng `active=false`; không xóa cứng.
-         */
-        put: operations["updateProduct"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Tra sản phẩm cho POS
+     * @description Dùng khi quét mã vạch hoặc gõ SKU. Khớp chính xác barcode trước, sau đó SKU.
+     *     Trả kèm tồn khả dụng tại chi nhánh để hiện ngay trên dòng hàng (UC-01 bước 1).
+     *     Sản phẩm ngừng bán vẫn trả về với `active=false`; frontend báo lỗi 1a.
+     */
+    get: operations['lookupProduct'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/products/{productId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        productId: components['parameters']['ProductId'];
+      };
+      cookie?: never;
     };
-    "/customers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Tìm khách hàng
-         * @description Chỉ trả về khách hàng đang hoạt động (`active = true`); khách đã ngừng hoạt động bị ẩn khỏi danh sách tra cứu.
-         */
-        get: operations["listCustomers"];
-        put?: never;
-        /**
-         * Tạo khách hàng
-         * @description Thu ngân tạo nhanh tại POS khi số điện thoại chưa có (UC-01 bước 2). Khách mới tạo luôn có `active = true` (bỏ qua `active` nếu gửi).
-         *     Lưu ý: khách đã ngừng hoạt động vẫn giữ SĐT trong hệ thống nên tạo mới trùng SĐT sẽ trả `409 DUPLICATE_PHONE` (kèm `details.customerId`);
-         *     quản lý chi nhánh hoặc chủ chuỗi có thể mở lại khách cũ bằng `PUT /customers/{customerId}` với `active: true`.
-         */
-        post: operations["createCustomer"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Chi tiết sản phẩm */
+    get: operations['getProduct'];
+    /**
+     * Sửa sản phẩm
+     * @description Đổi `salePrice` được ghi nhật ký (giá cũ, giá mới, người đổi) theo PRD-02.
+     *     Đơn đã bán giữ giá cũ (BR-12). Ngừng bán bằng `active=false`; không xóa cứng.
+     */
+    put: operations['updateProduct'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/customers': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/customers/{customerId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                customerId: components["parameters"]["CustomerId"];
-            };
-            cookie?: never;
-        };
-        /** Chi tiết khách hàng */
-        get: operations["getCustomer"];
-        /**
-         * Sửa khách hàng
-         * @description Cập nhật thông tin khách hàng. Riêng trường `active` chỉ `OWNER` và `BRANCH_MANAGER` được phép thay đổi
-         *     (ví dụ truyền `active: true` để kích hoạt lại khách hàng đã ngừng hoạt động).
-         */
-        put: operations["updateCustomer"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Tìm khách hàng
+     * @description Chỉ trả về khách hàng đang hoạt động (`active = true`); khách đã ngừng hoạt động bị ẩn khỏi danh sách tra cứu.
+     */
+    get: operations['listCustomers'];
+    put?: never;
+    /**
+     * Tạo khách hàng
+     * @description Thu ngân tạo nhanh tại POS khi số điện thoại chưa có (UC-01 bước 2). Khách mới tạo luôn có `active = true` (bỏ qua `active` nếu gửi).
+     *     Lưu ý: khách đã ngừng hoạt động vẫn giữ SĐT trong hệ thống nên tạo mới trùng SĐT sẽ trả `409 DUPLICATE_PHONE` (kèm `details.customerId`);
+     *     quản lý chi nhánh hoặc chủ chuỗi có thể mở lại khách cũ bằng `PUT /customers/{customerId}` với `active: true`.
+     */
+    post: operations['createCustomer'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/customers/{customerId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        customerId: components['parameters']['CustomerId'];
+      };
+      cookie?: never;
     };
-    "/customers/{customerId}/deactivate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Ngừng hoạt động khách hàng
-         * @description Đặt `active = false` (xóa mềm, CUS-01). Khách đã ngừng hoạt động bị ẩn khỏi `GET /customers` nhưng vẫn giữ SĐT,
-         *     lịch sử đơn hàng và vẫn nhận đơn mới từ kênh online theo SĐT. Có thể mở lại bằng `PUT /customers/{customerId}` với `active: true`.
-         */
-        post: operations["deactivateCustomer"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Chi tiết khách hàng */
+    get: operations['getCustomer'];
+    /**
+     * Sửa khách hàng
+     * @description Cập nhật thông tin khách hàng. Riêng trường `active` chỉ `OWNER` và `BRANCH_MANAGER` được phép thay đổi
+     *     (ví dụ truyền `active: true` để kích hoạt lại khách hàng đã ngừng hoạt động).
+     */
+    put: operations['updateCustomer'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/customers/{customerId}/deactivate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/customers/{customerId}/orders": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Lịch sử mua hàng của khách
-         * @description Đơn trên mọi kênh (CUS-02). Vai trò gắn chi nhánh chỉ thấy đơn của chi nhánh mình.
-         */
-        get: operations["listCustomerOrders"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Ngừng hoạt động khách hàng
+     * @description Đặt `active = false` (xóa mềm, CUS-01). Khách đã ngừng hoạt động bị ẩn khỏi `GET /customers` nhưng vẫn giữ SĐT,
+     *     lịch sử đơn hàng và vẫn nhận đơn mới từ kênh online theo SĐT. Có thể mở lại bằng `PUT /customers/{customerId}` với `active: true`.
+     */
+    post: operations['deactivateCustomer'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/customers/{customerId}/orders': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/orders/quote": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Tính tiền giỏ hàng
-         * @description Tính tạm tính, khuyến mại có lợi nhất (BR-07) và tổng. Không ghi gì vào CSDL, không giữ tồn.
-         *     POS gọi sau mỗi thay đổi giỏ hàng (UC-01 bước 3).
-         */
-        post: operations["quoteOrder"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Lịch sử mua hàng của khách
+     * @description Đơn trên mọi kênh (CUS-02). Vai trò gắn chi nhánh chỉ thấy đơn của chi nhánh mình.
+     */
+    get: operations['listCustomerOrders'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/orders/quote': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/orders/pos": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Hoàn tất đơn bán tại quầy
-         * @description Trong **một transaction**: tính lại giá và KM, kiểm tra thanh toán giả lập, trừ tồn từng dòng
-         *     theo thứ tự `productId` tăng dần (BR-01, BR-02), tạo đơn COMPLETED, ghi thanh toán, ghi sổ kho SALE,
-         *     tăng lượt dùng KM, ghi outbox `order.completed` và `stock.changed`.
-         *
-         *     - Bắt buộc header `Idempotency-Key` (UUID). Gửi lại cùng key và cùng nội dung trong 24 giờ trả **200** kèm đơn cũ.
-         *     - Tổng tính lại khác `expectedTotal` → 422 `TOTAL_CHANGED`, không tạo đơn (UC-01 5b).
-         *     - Thiếu tồn lúc hoàn tất → 409 `INSUFFICIENT_STOCK`, không tạo đơn, giỏ hàng giữ nguyên (5a).
-         *     - Thanh toán thẻ/QR thất bại hoặc quá 60 giây → 422, không tạo đơn (4a).
-         */
-        post: operations["createPosOrder"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Tính tiền giỏ hàng
+     * @description Tính tạm tính, khuyến mại có lợi nhất (BR-07) và tổng. Không ghi gì vào CSDL, không giữ tồn.
+     *     POS gọi sau mỗi thay đổi giỏ hàng (UC-01 bước 3).
+     */
+    post: operations['quoteOrder'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/orders/pos': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/orders": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Tra cứu đơn hàng
-         * @description Lọc theo kênh, chi nhánh, trạng thái, khoảng ngày, khách hàng (ORD-06). Mặc định mới nhất trước.
-         */
-        get: operations["listOrders"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Hoàn tất đơn bán tại quầy
+     * @description Trong **một transaction**: tính lại giá và KM, kiểm tra thanh toán giả lập, trừ tồn từng dòng
+     *     theo thứ tự `productId` tăng dần (BR-01, BR-02), tạo đơn COMPLETED, ghi thanh toán, ghi sổ kho SALE,
+     *     tăng lượt dùng KM, ghi outbox `order.completed` và `stock.changed`.
+     *
+     *     - Bắt buộc header `Idempotency-Key` (UUID). Gửi lại cùng key và cùng nội dung trong 24 giờ trả **200** kèm đơn cũ.
+     *     - Tổng tính lại khác `expectedTotal` → 422 `TOTAL_CHANGED`, không tạo đơn (UC-01 5b).
+     *     - Thiếu tồn lúc hoàn tất → 409 `INSUFFICIENT_STOCK`, không tạo đơn, giỏ hàng giữ nguyên (5a).
+     *     - Thanh toán thẻ/QR thất bại hoặc quá 60 giây → 422, không tạo đơn (4a).
+     */
+    post: operations['createPosOrder'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/orders': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/orders/{orderId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Chi tiết đơn và hóa đơn
-         * @description Đủ thông tin để in hóa đơn sau khi bán (ORD-07).
-         */
-        get: operations["getOrder"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Tra cứu đơn hàng
+     * @description Lọc theo kênh, chi nhánh, trạng thái, khoảng ngày, khách hàng (ORD-06). Mặc định mới nhất trước.
+     */
+    get: operations['listOrders'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/orders/{orderId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/inventory": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Xem tồn kho
-         * @description Tồn thực, giữ chỗ, khả dụng theo sản phẩm × chi nhánh (INV-01). Không truyền `branchId` thì trả mọi chi nhánh được phép xem.
-         */
-        get: operations["listInventory"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Chi tiết đơn và hóa đơn
+     * @description Đủ thông tin để in hóa đơn sau khi bán (ORD-07).
+     */
+    get: operations['getOrder'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/inventory': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/inventory/{branchId}/{productId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Tồn của một sản phẩm tại một chi nhánh */
-        get: operations["getInventoryItem"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Xem tồn kho
+     * @description Tồn thực, giữ chỗ, khả dụng theo sản phẩm × chi nhánh (INV-01). Không truyền `branchId` thì trả mọi chi nhánh được phép xem.
+     */
+    get: operations['listInventory'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/inventory/{branchId}/{productId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/inventory/transactions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Sổ giao dịch kho
-         * @description Chỉ đọc; mỗi dòng truy về chứng từ gốc qua `refType` và `refId` (INV-06, BR-06). Mặc định mới nhất trước.
-         */
-        get: operations["listInventoryTransactions"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Tồn của một sản phẩm tại một chi nhánh */
+    get: operations['getInventoryItem'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/inventory/transactions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/orders/{orderId}/complete": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Hoàn tất đơn online đã bàn giao
-         * @description CONFIRMED → COMPLETED (UC-02 bước 7). Trong một transaction: `commitSale` từng dòng theo `productId` tăng dần
-         *     (tồn thực và giữ chỗ cùng giảm), ghi sổ SALE, tăng lượt dùng KM, ghi outbox `order.completed`, `stock.changed`.
-         *     Sau commit báo trạng thái về kênh (SYNC-04).
-         */
-        post: operations["completeOnlineOrder"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Sổ giao dịch kho
+     * @description Chỉ đọc; mỗi dòng truy về chứng từ gốc qua `refType` và `refId` (INV-06, BR-06). Mặc định mới nhất trước.
+     */
+    get: operations['listInventoryTransactions'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/orders/{orderId}/complete': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/orders/{orderId}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Hủy đơn online chưa giao
-         * @description RESERVED hoặc CONFIRMED → CANCELLED (UC-03, ORD-04): nhả toàn bộ giữ chỗ (RELEASE), hoàn tiền giả lập nếu đã thanh toán
-         *     (payment → REFUNDED), hoàn lượt dùng KM, ghi `audit_log` (AUTH-03), ghi outbox `order.cancelled`, `stock.changed`, báo về kênh.
-         *     Đơn POS và đơn đã COMPLETED không hủy được (dùng trả hàng, v3).
-         */
-        post: operations["cancelOnlineOrder"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Hoàn tất đơn online đã bàn giao
+     * @description CONFIRMED → COMPLETED (UC-02 bước 7). Trong một transaction: `commitSale` từng dòng theo `productId` tăng dần
+     *     (tồn thực và giữ chỗ cùng giảm), ghi sổ SALE, tăng lượt dùng KM, ghi outbox `order.completed`, `stock.changed`.
+     *     Sau commit báo trạng thái về kênh (SYNC-04).
+     */
+    post: operations['completeOnlineOrder'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/orders/{orderId}/cancel': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/integrations/{channelCode}/products/{productId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Thêm hoặc cập nhật ánh xạ SKU kênh (ADMIN) */
-        put: operations["mapChannelProduct"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Hủy đơn online chưa giao
+     * @description RESERVED hoặc CONFIRMED → CANCELLED (UC-03, ORD-04): nhả toàn bộ giữ chỗ (RELEASE), hoàn tiền giả lập nếu đã thanh toán
+     *     (payment → REFUNDED), hoàn lượt dùng KM, ghi `audit_log` (AUTH-03), ghi outbox `order.cancelled`, `stock.changed`, báo về kênh.
+     *     Đơn POS và đơn đã COMPLETED không hủy được (dùng trả hàng, v3).
+     */
+    post: operations['cancelOnlineOrder'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/integrations/{channelCode}/products/{productId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/integrations/{channelCode}/orders": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Kênh gửi đơn mới
-         * @description Mock connector gọi khi có đơn mới (SRS 8.3, SYNC-02, UC-02). Không dùng JWT; xác thực bằng chữ ký HMAC-SHA256
-         *     của **nguyên body** với `sales_channel.webhook_secret`, gửi ở header `X-Signature` dạng hex.
-         *
-         *     Xử lý: kiểm tra chữ ký → chống trùng theo (kênh, `externalOrderId`) (BR-05) → đổi SKU kênh sang sản phẩm (`channel_product`)
-         *     → tạo hoặc gắn khách theo số điện thoại → chọn chi nhánh theo BR-14 → giữ chỗ mọi dòng trong một transaction
-         *     → đơn RESERVED, `reservedUntil` = lúc nhận + 15 phút (BR-03). Đơn `COD` chuyển CONFIRMED ngay.
-         *
-         *     - Thiếu tồn ở mọi chi nhánh phục vụ kênh → đơn vẫn được lưu ở REJECTED, trả **409** `INSUFFICIENT_STOCK`.
-         *     - SKU kênh chưa ánh xạ → đơn lưu ở REJECTED, trả **422** `UNMAPPED_SKU`.
-         *     - Đơn giá ghi theo giá kênh (khách đã trả giá đó, BA E4); `shippingFee` chỉ để đối chiếu, không lưu (giao vận ngoài phạm vi).
-         */
-        post: operations["receiveChannelOrder"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    /** Thêm hoặc cập nhật ánh xạ SKU kênh (ADMIN) */
+    put: operations['mapChannelProduct'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/integrations/{channelCode}/orders': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/integrations/{channelCode}/orders/{externalOrderId}/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Kênh báo thanh toán hoặc hủy đơn
-         * @description Ký HMAC giống webhook đơn mới.
-         *     - `PAID`: RESERVED → CONFIRMED, ghi payment PAID. Nếu đơn đã EXPIRED (BA E2): thử giữ chỗ lại; đủ → CONFIRMED,
-         *       không đủ → CANCELLED và hoàn tiền giả lập.
-         *     - `CANCELLED`: RESERVED/CONFIRMED → CANCELLED, nhả giữ chỗ, hoàn tiền nếu đã trả (lý do `CHANNEL_CANCELLED`).
-         *     Gửi lại cùng sự kiện cho đơn đã ở trạng thái đích → 200, không làm gì thêm.
-         */
-        post: operations["receiveChannelOrderEvent"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Kênh gửi đơn mới
+     * @description Mock connector gọi khi có đơn mới (SRS 8.3, SYNC-02, UC-02). Không dùng JWT; xác thực bằng chữ ký HMAC-SHA256
+     *     của **nguyên body** với `sales_channel.webhook_secret`, gửi ở header `X-Signature` dạng hex.
+     *
+     *     Xử lý: kiểm tra chữ ký → chống trùng theo (kênh, `externalOrderId`) (BR-05) → đổi SKU kênh sang sản phẩm (`channel_product`)
+     *     → tạo hoặc gắn khách theo số điện thoại → chọn chi nhánh theo BR-14 → giữ chỗ mọi dòng trong một transaction
+     *     → đơn RESERVED, `reservedUntil` = lúc nhận + 15 phút (BR-03). Đơn `COD` chuyển CONFIRMED ngay.
+     *
+     *     - Thiếu tồn ở mọi chi nhánh phục vụ kênh → đơn vẫn được lưu ở REJECTED, trả **409** `INSUFFICIENT_STOCK`.
+     *     - SKU kênh chưa ánh xạ → đơn lưu ở REJECTED, trả **422** `UNMAPPED_SKU`.
+     *     - Đơn giá ghi theo giá kênh (khách đã trả giá đó, BA E4); `shippingFee` chỉ để đối chiếu, không lưu (giao vận ngoài phạm vi).
+     */
+    post: operations['receiveChannelOrder'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/integrations/{channelCode}/orders/{externalOrderId}/events': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/mock/{channelCode}/stock": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Backend đẩy tồn khả dụng ra kênh
-         * @description **Do mock connector (SV07) cài đặt; backend là bên gọi.** Gọi sau mỗi lần tồn đổi (SYNC-03, BR-15):
-         *     số đẩy = tổng khả dụng các chi nhánh phục vụ kênh − `safety_stock`, không âm. Kênh bỏ qua dòng có `version` cũ hơn bản đã nhận.
-         *     Lỗi hoặc không phản hồi → thử lại 5 lần (1, 2, 4, 8, 16 giây), ghi `sync_log`.
-         */
-        put: operations["pushChannelStock"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Kênh báo thanh toán hoặc hủy đơn
+     * @description Ký HMAC giống webhook đơn mới.
+     *     - `PAID`: RESERVED → CONFIRMED, ghi payment PAID. Nếu đơn đã EXPIRED (BA E2): thử giữ chỗ lại; đủ → CONFIRMED,
+     *       không đủ → CANCELLED và hoàn tiền giả lập.
+     *     - `CANCELLED`: RESERVED/CONFIRMED → CANCELLED, nhả giữ chỗ, hoàn tiền nếu đã trả (lý do `CHANNEL_CANCELLED`).
+     *     Gửi lại cùng sự kiện cho đơn đã ở trạng thái đích → 200, không làm gì thêm.
+     */
+    post: operations['receiveChannelOrderEvent'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/mock/{channelCode}/stock': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/mock/{channelCode}/orders/{externalOrderId}/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Backend báo trạng thái đơn về kênh
-         * @description **Do mock connector cài đặt; backend là bên gọi** mỗi khi trạng thái đơn đổi (SYNC-04). Thử lại như đẩy tồn.
-         */
-        put: operations["pushChannelOrderStatus"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    /**
+     * Backend đẩy tồn khả dụng ra kênh
+     * @description **Do mock connector (SV07) cài đặt; backend là bên gọi.** Gọi sau mỗi lần tồn đổi (SYNC-03, BR-15):
+     *     số đẩy = tổng khả dụng các chi nhánh phục vụ kênh − `safety_stock`, không âm. Kênh bỏ qua dòng có `version` cũ hơn bản đã nhận.
+     *     Lỗi hoặc không phản hồi → thử lại 5 lần (1, 2, 4, 8, 16 giây), ghi `sync_log`.
+     */
+    put: operations['pushChannelStock'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/mock/{channelCode}/orders/{externalOrderId}/status': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/stock-documents": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Danh sách phiếu kho
-         * @description Phiếu nhập, xuất hủy, chuyển kho, kiểm kê. Với chuyển kho, `branchId` khớp cả chi nhánh nguồn lẫn đích
-         *     (CN đích cần thấy phiếu IN_TRANSIT để nhận). Mặc định mới nhất trước.
-         */
-        get: operations["listStockDocuments"];
-        put?: never;
-        /**
-         * Lập phiếu kho (Nháp)
-         * @description Tạo phiếu DRAFT; tồn chưa đổi (BR-13). Theo loại:
-         *     - `IMPORT` (UC-05): bắt buộc `supplier`, mỗi dòng có `unitCost`.
-         *     - `EXPORT` (UC-06): bắt buộc `reason`; số lượng ≤ tồn khả dụng lúc tạo (kiểm tra lại khi duyệt).
-         *     - `TRANSFER` (UC-07): bắt buộc `toBranchId` ≠ `branchId`; số lượng ≤ khả dụng CN nguồn.
-         *     - `ADJUST` (UC-08): không gửi `quantity`; hệ thống chụp tồn thực hiện tại vào `quantity` (snapshot), Thủ kho nhập `countedQuantity` sau qua PUT.
-         *       Gửi `allProducts: true` và bỏ `items` để chụp mọi dòng tồn của chi nhánh. Có thể nhập số đếm qua nhiều PUT, tối đa 500 dòng mỗi lần.
-         */
-        post: operations["createStockDocument"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    /**
+     * Backend báo trạng thái đơn về kênh
+     * @description **Do mock connector cài đặt; backend là bên gọi** mỗi khi trạng thái đơn đổi (SYNC-04). Thử lại như đẩy tồn.
+     */
+    put: operations['pushChannelOrderStatus'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/stock-documents': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/stock-documents/{documentId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Chi tiết phiếu kho */
-        get: operations["getStockDocument"];
-        /**
-         * Sửa phiếu nháp
-         * @description Chỉ phiếu DRAFT. Không đổi được `type`, `branchId`. Với ADJUST, dùng để nhập `countedQuantity`.
-         */
-        put: operations["updateStockDocument"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Danh sách phiếu kho
+     * @description Phiếu nhập, xuất hủy, chuyển kho, kiểm kê. Với chuyển kho, `branchId` khớp cả chi nhánh nguồn lẫn đích
+     *     (CN đích cần thấy phiếu IN_TRANSIT để nhận). Mặc định mới nhất trước.
+     */
+    get: operations['listStockDocuments'];
+    put?: never;
+    /**
+     * Lập phiếu kho (Nháp)
+     * @description Tạo phiếu DRAFT; tồn chưa đổi (BR-13). Theo loại:
+     *     - `IMPORT` (UC-05): bắt buộc `supplier`, mỗi dòng có `unitCost`.
+     *     - `EXPORT` (UC-06): bắt buộc `reason`; số lượng ≤ tồn khả dụng lúc tạo (kiểm tra lại khi duyệt).
+     *     - `TRANSFER` (UC-07): bắt buộc `toBranchId` ≠ `branchId`; số lượng ≤ khả dụng CN nguồn.
+     *     - `ADJUST` (UC-08): không gửi `quantity`; hệ thống chụp tồn thực hiện tại vào `quantity` (snapshot), Thủ kho nhập `countedQuantity` sau qua PUT.
+     *       Gửi `allProducts: true` và bỏ `items` để chụp mọi dòng tồn của chi nhánh. Có thể nhập số đếm qua nhiều PUT, tối đa 500 dòng mỗi lần.
+     */
+    post: operations['createStockDocument'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/stock-documents/{documentId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/stock-documents/{documentId}/approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Duyệt phiếu
-         * @description Người duyệt khác người lập (BR-13, 422 `SELF_APPROVAL_FORBIDDEN`). Trong một transaction, ghi `approvedBy`, `approvedAt` rồi:
-         *     - `IMPORT`: DRAFT → APPROVED, on_hand tăng (IMPORT), cập nhật giá vốn bình quân.
-         *     - `EXPORT`: DRAFT → APPROVED, on_hand giảm (EXPORT); không vượt khả dụng → 409 `INSUFFICIENT_STOCK`.
-         *     - `TRANSFER`: DRAFT → **IN_TRANSIT** (duyệt kèm xác nhận xuất, BA 6.3), on_hand CN nguồn giảm (TRANSFER_OUT).
-         *     - `ADJUST`: DRAFT → APPROVED, ghi ADJUST bằng chênh lệch `countedQuantity − quantity` (BR-17); mọi dòng phải có `countedQuantity`.
-         *
-         *     Ghi `audit_log` (AUTH-03), outbox `stock.changed`.
-         */
-        post: operations["approveStockDocument"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Chi tiết phiếu kho */
+    get: operations['getStockDocument'];
+    /**
+     * Sửa phiếu nháp
+     * @description Chỉ phiếu DRAFT. Không đổi được `type`, `branchId`. Với ADJUST, dùng để nhập `countedQuantity`.
+     */
+    put: operations['updateStockDocument'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/stock-documents/{documentId}/approve': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/stock-documents/{documentId}/receive": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Nhận hàng chuyển kho
-         * @description Chỉ TRANSFER đang IN_TRANSIT; người nhận thuộc **chi nhánh đích**. IN_TRANSIT → RECEIVED, ghi `receivedBy`, `receivedAt`;
-         *     on_hand CN đích tăng theo `receivedQuantity` (TRANSFER_IN, BR-16). `receivedQuantity` ≤ `quantity` (không nhận thừa);
-         *     thiếu thì `hasDiscrepancy = true`, phần thiếu vào báo cáo hao hụt.
-         */
-        post: operations["receiveStockTransfer"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Duyệt phiếu
+     * @description Người duyệt khác người lập (BR-13, 422 `SELF_APPROVAL_FORBIDDEN`). Trong một transaction, ghi `approvedBy`, `approvedAt` rồi:
+     *     - `IMPORT`: DRAFT → APPROVED, on_hand tăng (IMPORT), cập nhật giá vốn bình quân.
+     *     - `EXPORT`: DRAFT → APPROVED, on_hand giảm (EXPORT); không vượt khả dụng → 409 `INSUFFICIENT_STOCK`.
+     *     - `TRANSFER`: DRAFT → **IN_TRANSIT** (duyệt kèm xác nhận xuất, BA 6.3), on_hand CN nguồn giảm (TRANSFER_OUT).
+     *     - `ADJUST`: DRAFT → APPROVED, ghi ADJUST bằng chênh lệch `countedQuantity − quantity` (BR-17); mọi dòng phải có `countedQuantity`.
+     *
+     *     Ghi `audit_log` (AUTH-03), outbox `stock.changed`.
+     */
+    post: operations['approveStockDocument'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/stock-documents/{documentId}/receive': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/stock-documents/{documentId}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Hủy phiếu nháp
-         * @description Chỉ phiếu DRAFT; tồn không đổi. Phiếu đã duyệt muốn sửa thì lập phiếu điều chỉnh (BR-06).
-         */
-        post: operations["cancelStockDocument"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Nhận hàng chuyển kho
+     * @description Chỉ TRANSFER đang IN_TRANSIT; người nhận thuộc **chi nhánh đích**. IN_TRANSIT → RECEIVED, ghi `receivedBy`, `receivedAt`;
+     *     on_hand CN đích tăng theo `receivedQuantity` (TRANSFER_IN, BR-16). `receivedQuantity` ≤ `quantity` (không nhận thừa);
+     *     thiếu thì `hasDiscrepancy = true`, phần thiếu vào báo cáo hao hụt.
+     */
+    post: operations['receiveStockTransfer'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/stock-documents/{documentId}/cancel': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/promotions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Danh sách chương trình khuyến mại */
-        get: operations["listPromotions"];
-        put?: never;
-        /**
-         * Tạo chương trình (Nháp)
-         * @description Tạo ở DRAFT (PRM-01). `productIds` bắt buộc với `level = ITEM`. `branchIds`, `channels` rỗng = áp mọi chi nhánh/kênh.
-         */
-        post: operations["createPromotion"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Hủy phiếu nháp
+     * @description Chỉ phiếu DRAFT; tồn không đổi. Phiếu đã duyệt muốn sửa thì lập phiếu điều chỉnh (BR-06).
+     */
+    post: operations['cancelStockDocument'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/promotions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/promotions/{promotionId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Chi tiết chương trình */
-        get: operations["getPromotion"];
-        /**
-         * Sửa chương trình
-         * @description Chỉ khi DRAFT hoặc PAUSED. Không giảm `usageLimit` xuống dưới `usedCount`.
-         */
-        put: operations["updatePromotion"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Danh sách chương trình khuyến mại */
+    get: operations['listPromotions'];
+    put?: never;
+    /**
+     * Tạo chương trình (Nháp)
+     * @description Tạo ở DRAFT (PRM-01). `productIds` bắt buộc với `level = ITEM`. `branchIds`, `channels` rỗng = áp mọi chi nhánh/kênh.
+     */
+    post: operations['createPromotion'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/promotions/{promotionId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/promotions/{promotionId}/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Đổi trạng thái chương trình
-         * @description DRAFT → ACTIVE; ACTIVE ⇄ PAUSED; ACTIVE/PAUSED → ENDED (không quay lại). Chỉ ACTIVE trong thời gian hiệu lực mới được áp (BR-07).
-         *     Đơn đang mở báo giá với KM vừa tạm dừng sẽ nhận 422 `TOTAL_CHANGED` khi hoàn tất.
-         */
-        post: operations["changePromotionStatus"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Chi tiết chương trình */
+    get: operations['getPromotion'];
+    /**
+     * Sửa chương trình
+     * @description Chỉ khi DRAFT hoặc PAUSED. Không giảm `usageLimit` xuống dưới `usedCount`.
+     */
+    put: operations['updatePromotion'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/promotions/{promotionId}/status': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/users": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Danh sách tài khoản */
-        get: operations["listUsers"];
-        put?: never;
-        /**
-         * Tạo tài khoản
-         * @description AUTH-04. Mật khẩu ban đầu tối thiểu 8 ký tự, có chữ và số; lưu BCrypt (NFR-05). CASHIER, STOREKEEPER, BRANCH_MANAGER
-         *     phải có ít nhất 1 chi nhánh; ADMIN, OWNER bỏ qua `branchIds` (dùng mọi chi nhánh). Ghi `audit_log`.
-         */
-        post: operations["createUser"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Đổi trạng thái chương trình
+     * @description DRAFT → ACTIVE; ACTIVE ⇄ PAUSED; ACTIVE/PAUSED → ENDED (không quay lại). Chỉ ACTIVE trong thời gian hiệu lực mới được áp (BR-07).
+     *     Đơn đang mở báo giá với KM vừa tạm dừng sẽ nhận 422 `TOTAL_CHANGED` khi hoàn tất.
+     */
+    post: operations['changePromotionStatus'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/users': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/users/{userId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Chi tiết tài khoản */
-        get: operations["getUser"];
-        /**
-         * Sửa tài khoản, vai trò, chi nhánh, khóa/mở
-         * @description `active = false` khóa tài khoản: thu hồi mọi refresh token, đăng nhập trả `INVALID_CREDENTIALS`.
-         *     Admin không tự khóa hoặc tự đổi vai trò của chính mình (422 `SELF_ACTION_FORBIDDEN`). Ghi `audit_log`.
-         */
-        put: operations["updateUser"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Danh sách tài khoản */
+    get: operations['listUsers'];
+    put?: never;
+    /**
+     * Tạo tài khoản
+     * @description AUTH-04. Mật khẩu ban đầu tối thiểu 8 ký tự, có chữ và số; lưu BCrypt (NFR-05). CASHIER, STOREKEEPER, BRANCH_MANAGER
+     *     phải có ít nhất 1 chi nhánh; ADMIN, OWNER bỏ qua `branchIds` (dùng mọi chi nhánh). Ghi `audit_log`.
+     */
+    post: operations['createUser'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/users/{userId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/users/{userId}/unlock": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Mở khóa đăng nhập
-         * @description Xóa khóa 15 phút do sai mật khẩu (`failed_login_count = 0`, `locked_until = null`). Ghi `audit_log`.
-         */
-        post: operations["unlockUser"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Chi tiết tài khoản */
+    get: operations['getUser'];
+    /**
+     * Sửa tài khoản, vai trò, chi nhánh, khóa/mở
+     * @description `active = false` khóa tài khoản: thu hồi mọi refresh token, đăng nhập trả `INVALID_CREDENTIALS`.
+     *     Admin không tự khóa hoặc tự đổi vai trò của chính mình (422 `SELF_ACTION_FORBIDDEN`). Ghi `audit_log`.
+     */
+    put: operations['updateUser'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/users/{userId}/unlock': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/users/{userId}/reset-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Đặt lại mật khẩu
-         * @description Admin đặt mật khẩu mới; thu hồi mọi refresh token của tài khoản. Ghi `audit_log`.
-         */
-        post: operations["resetUserPassword"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Mở khóa đăng nhập
+     * @description Xóa khóa 15 phút do sai mật khẩu (`failed_login_count = 0`, `locked_until = null`). Ghi `audit_log`.
+     */
+    post: operations['unlockUser'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/users/{userId}/reset-password': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/reports/revenue": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Báo cáo doanh thu theo thời gian
-         * @description Doanh thu chỉ tính đơn COMPLETED theo ngày hoàn tất; trả hàng trừ vào ngày trả (BR-18, DASH-01).
-         *     Hỗ trợ gom nhóm theo ngày (day), tuần (week), tháng (month).
-         *     Khoảng báo cáo tính cả ngày đầu và ngày cuối. Với day, tối đa 366 ngày. Với week và month,
-         *     ngày cuối phải trước ngày tròn 5 năm tính từ ngày đầu. Ngày báo cáo thuộc năm 0001 đến 9999.
-         *     Khoảng không hợp lệ trả 400 VALIDATION_ERROR.
-         */
-        get: operations["getRevenueReport"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Đặt lại mật khẩu
+     * @description Admin đặt mật khẩu mới; thu hồi mọi refresh token của tài khoản. Ghi `audit_log`.
+     */
+    post: operations['resetUserPassword'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/reports/revenue': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/reports/top-products": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Top sản phẩm bán chạy và bán chậm
-         * @description Top sản phẩm theo số lượng ròng (bán trừ trả) trong kỳ báo cáo (DASH-02, BR-18).
-         *     Khi không truyền month, from hoặc to, kỳ báo cáo là từ đầu tháng hiện tại đến hôm nay.
-         *     Nếu truyền month, tháng báo cáo được ưu tiên hơn from và to.
-         *     Kỳ báo cáo tối đa 366 ngày tính cả ngày đầu và ngày cuối, thuộc năm 0001 đến 9999.
-         *     Khoảng không hợp lệ trả 400 VALIDATION_ERROR.
-         */
-        get: operations["getTopProductsReport"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Báo cáo doanh thu theo thời gian
+     * @description Doanh thu chỉ tính đơn COMPLETED theo ngày hoàn tất; trả hàng trừ vào ngày trả (BR-18, DASH-01).
+     *     Hỗ trợ gom nhóm theo ngày (day), tuần (week), tháng (month).
+     *     Khoảng báo cáo tính cả ngày đầu và ngày cuối. Với day, tối đa 366 ngày. Với week và month,
+     *     ngày cuối phải trước ngày tròn 5 năm tính từ ngày đầu. Ngày báo cáo thuộc năm 0001 đến 9999.
+     *     Khoảng không hợp lệ trả 400 VALIDATION_ERROR.
+     */
+    get: operations['getRevenueReport'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/reports/top-products': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/alerts/low-stock": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Danh sách cảnh báo tồn thấp và hết hàng
-         * @description Chỉ trả cảnh báo đang mở. Hết hàng (OUT) đứng trước tồn thấp (LOW).
-         *     Trong cùng một mức, cảnh báo mở gần nhất đứng trước.
-         *     Chủ chuỗi xem được mọi chi nhánh, quản lý chỉ xem được chi nhánh được phân quyền.
-         */
-        get: operations["listLowStockAlerts"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Top sản phẩm bán chạy và bán chậm
+     * @description Top sản phẩm theo số lượng ròng (bán trừ trả) trong kỳ báo cáo (DASH-02, BR-18).
+     *     Khi không truyền month, from hoặc to, kỳ báo cáo là từ đầu tháng hiện tại đến hôm nay.
+     *     Nếu truyền month, tháng báo cáo được ưu tiên hơn from và to.
+     *     Kỳ báo cáo tối đa 366 ngày tính cả ngày đầu và ngày cuối, thuộc năm 0001 đến 9999.
+     *     Khoảng không hợp lệ trả 400 VALIDATION_ERROR.
+     */
+    get: operations['getTopProductsReport'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/alerts/low-stock': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/forecasts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Dự báo theo ngày của một sản phẩm tại một chi nhánh
-         * @description Trả dự báo từng ngày cho tầm 7 và 30 ngày của một sản phẩm × chi nhánh (US-10, AI-03), lấy từ `forecast_result`.
-         *     Mặc định dùng lượt chạy `DONE` mới nhất; truyền `runId` để xem một lượt cũ.
-         *     `cutoffDate` là ngày dữ liệu cuối cùng (D) của lượt chạy, các điểm dự báo là D+1..D+7 và D+1..D+30.
-         *     `actualQty` là bán ròng thực tế trong `daily_sales` (BA mục 9), `null` với ngày chưa có dữ liệu; dùng để vẽ biểu đồ dự báo so với thực tế.
-         *     Chưa có lượt `DONE` nào, hoặc lượt được chọn không có dòng cho sản phẩm × chi nhánh này: 404 `NOT_FOUND`.
-         *     Quản lý chi nhánh và thủ kho chỉ xem chi nhánh được gán (403 `BRANCH_FORBIDDEN`).
-         */
-        get: operations["getForecast"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Danh sách cảnh báo tồn thấp và hết hàng
+     * @description Chỉ trả cảnh báo đang mở. Hết hàng (OUT) đứng trước tồn thấp (LOW).
+     *     Trong cùng một mức, cảnh báo mở gần nhất đứng trước.
+     *     Chủ chuỗi xem được mọi chi nhánh, quản lý chỉ xem được chi nhánh được phân quyền.
+     */
+    get: operations['listLowStockAlerts'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/forecasts': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/forecasts/runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Danh sách lượt chạy dự báo và sai số
-         * @description Lượt chạy mới nhất đứng trước. `mae`, `wape` là sai số tầm 7 ngày của mô hình trên 30 ngày kiểm tra;
-         *     `baselineMae`, `baselineWape` là của baseline tốt nhất (AI-04, BA mục 9). Lượt RUNNING và FAILED có các chỉ số này là `null`.
-         */
-        get: operations["listForecastRuns"];
-        put?: never;
-        /**
-         * Chạy lại dự báo theo yêu cầu
-         * @description "Chạy lại dự báo" (AI-03, ma trận phân quyền BA). Backend gọi `POST /forecast/run` của forecast-service bằng token nội bộ
-         *     và trả ngay lượt mới ở trạng thái RUNNING; theo dõi bằng `GET /forecasts/runs/{runId}`. Lịch 02:00 hằng đêm (#118) dùng cùng luồng.
-         *     Ghi `audit_log` với action `FORECAST_RUN`.
-         */
-        post: operations["startForecastRun"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Dự báo theo ngày của một sản phẩm tại một chi nhánh
+     * @description Trả dự báo từng ngày cho tầm 7 và 30 ngày của một sản phẩm × chi nhánh (US-10, AI-03), lấy từ `forecast_result`.
+     *     Mặc định dùng lượt chạy `DONE` mới nhất; truyền `runId` để xem một lượt cũ.
+     *     `cutoffDate` là ngày dữ liệu cuối cùng (D) của lượt chạy, các điểm dự báo là D+1..D+7 và D+1..D+30.
+     *     `actualQty` là bán ròng thực tế trong `daily_sales` (BA mục 9), `null` với ngày chưa có dữ liệu; dùng để vẽ biểu đồ dự báo so với thực tế.
+     *     Chưa có lượt `DONE` nào, hoặc lượt được chọn không có dòng cho sản phẩm × chi nhánh này: 404 `NOT_FOUND`.
+     *     Quản lý chi nhánh và thủ kho chỉ xem chi nhánh được gán (403 `BRANCH_FORBIDDEN`).
+     */
+    get: operations['getForecast'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/forecasts/runs': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/forecasts/runs/{runId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Trạng thái và sai số của một lượt chạy */
-        get: operations["getForecastRun"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Danh sách lượt chạy dự báo và sai số
+     * @description Lượt chạy mới nhất đứng trước. `mae`, `wape` là sai số tầm 7 ngày của mô hình trên 30 ngày kiểm tra;
+     *     `baselineMae`, `baselineWape` là của baseline tốt nhất (AI-04, BA mục 9). Lượt RUNNING và FAILED có các chỉ số này là `null`.
+     */
+    get: operations['listForecastRuns'];
+    put?: never;
+    /**
+     * Chạy lại dự báo theo yêu cầu
+     * @description "Chạy lại dự báo" (AI-03, ma trận phân quyền BA). Backend gọi `POST /forecast/run` của forecast-service bằng token nội bộ
+     *     và trả ngay lượt mới ở trạng thái RUNNING; theo dõi bằng `GET /forecasts/runs/{runId}`. Lịch 02:00 hằng đêm (#118) dùng cùng luồng.
+     *     Ghi `audit_log` với action `FORECAST_RUN`.
+     */
+    post: operations['startForecastRun'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/forecasts/runs/{runId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
+    /** Trạng thái và sai số của một lượt chạy */
+    get: operations['getForecastRun'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: {
-        ErrorResponse: {
-            /**
-             * @description Mã lỗi máy đọc, xem bảng trong mô tả API
-             * @example INSUFFICIENT_STOCK
-             */
-            code: string;
-            /** @description Thông báo tiếng Việt hiển thị được cho người dùng */
-            message: string;
-            /** @description Thông tin thêm, cấu trúc tùy mã lỗi (object, danh sách lỗi trường hoặc null) */
-            details?: unknown;
-            /** @description Correlation ID, trùng với log backend (NFR-08) */
-            traceId: string;
-        };
-        PageMeta: {
-            /** @example 0 */
-            page: number;
-            /** @example 20 */
-            size: number;
-            /**
-             * Format: int64
-             * @example 1000
-             */
-            totalElements: number;
-            /** @example 50 */
-            totalPages: number;
-        };
+  schemas: {
+    ErrorResponse: {
+      /**
+       * @description Mã lỗi máy đọc, xem bảng trong mô tả API
+       * @example INSUFFICIENT_STOCK
+       */
+      code: string;
+      /** @description Thông báo tiếng Việt hiển thị được cho người dùng */
+      message: string;
+      /** @description Thông tin thêm, cấu trúc tùy mã lỗi (object, danh sách lỗi trường hoặc null) */
+      details?: unknown;
+      /** @description Correlation ID, trùng với log backend (NFR-08) */
+      traceId: string;
+    };
+    PageMeta: {
+      /** @example 0 */
+      page: number;
+      /** @example 20 */
+      size: number;
+      /**
+       * Format: int64
+       * @example 1000
+       */
+      totalElements: number;
+      /** @example 50 */
+      totalPages: number;
+    };
+    /**
+     * Format: int64
+     * @description Số tiền VND, số nguyên
+     * @example 200700
+     */
+    Money: number;
+    /** @example 0901234567 */
+    Phone: string;
+    /** @enum {string} */
+    Role: 'ADMIN' | 'OWNER' | 'BRANCH_MANAGER' | 'CASHIER' | 'STOREKEEPER';
+    /** @enum {string} */
+    ChannelCode: 'POS' | 'WEB' | 'MARKET';
+    /** @enum {string} */
+    OrderStatus:
+      | 'NEW'
+      | 'RESERVED'
+      | 'CONFIRMED'
+      | 'COMPLETED'
+      | 'CANCELLED'
+      | 'EXPIRED'
+      | 'REJECTED'
+      | 'RETURNED';
+    /** @enum {string} */
+    PaymentMethod: 'CASH' | 'CARD' | 'QR';
+    /** @enum {string} */
+    PaymentStatus: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+    /**
+     * @description OUT khi khả dụng = 0; LOW khi 0 < khả dụng ≤ ROP; OK còn lại (BR-09)
+     * @enum {string}
+     */
+    StockStatus: 'OK' | 'LOW' | 'OUT';
+    /** @enum {string} */
+    InventoryTransactionType:
+      | 'IMPORT'
+      | 'EXPORT'
+      | 'SALE'
+      | 'RESERVE'
+      | 'RELEASE'
+      | 'RETURN'
+      | 'TRANSFER_OUT'
+      | 'TRANSFER_IN'
+      | 'ADJUST';
+    /**
+     * @description Loại chứng từ gốc của giao dịch kho
+     * @enum {string}
+     */
+    RefType: 'ORDER' | 'STOCK_DOCUMENT' | 'RETURN_DOCUMENT';
+    LoginRequest: {
+      username: string;
+      /** Format: password */
+      password: string;
+    };
+    RefreshRequest: {
+      refreshToken: string;
+    };
+    ChangePasswordRequest: {
+      /** Format: password */
+      currentPassword: string;
+      /** Format: password */
+      newPassword: string;
+    };
+    TokenResponse: {
+      accessToken: string;
+      refreshToken: string;
+      /** @enum {string} */
+      tokenType: 'Bearer';
+      /**
+       * @description Số giây access token còn hiệu lực
+       * @example 900
+       */
+      expiresIn: number;
+      user: components['schemas']['CurrentUser'];
+    };
+    CurrentUser: {
+      /**
+       * Format: int64
+       * @example 7
+       */
+      id: number;
+      /** @example thungan.gm001 */
+      username: string;
+      /** @example Nguyễn Thu Ngân */
+      fullName: string;
+      role: components['schemas']['Role'];
+      /** @description Chi nhánh được gán; ADMIN, OWNER nhận mọi chi nhánh đang hoạt động */
+      branches: components['schemas']['BranchRef'][];
+    };
+    BranchRef: {
+      /**
+       * Format: int64
+       * @example 1
+       */
+      id: number;
+      /** @example GM-001 */
+      code: string;
+      /** @example GreenMart Quận 1 */
+      name: string;
+    };
+    Branch: components['schemas']['BranchRef'] & {
+      address?: string | null;
+      active: boolean;
+    };
+    Category: {
+      /**
+       * Format: int64
+       * @example 3
+       */
+      id: number;
+      /** @example Sữa và chế phẩm */
+      name: string;
+      /**
+       * Format: int64
+       * @example 1
+       */
+      parentId?: number | null;
+    };
+    CategoryRequest: {
+      name: string;
+      /** Format: int64 */
+      parentId?: number | null;
+    };
+    Product: {
+      /**
+       * Format: int64
+       * @example 205
+       */
+      id: number;
+      /** @example SUA-TH-1L */
+      sku: string;
+      /** @example 8935217400013 */
+      barcode?: string | null;
+      /** @example Sữa tươi TH True Milk 1L */
+      name: string;
+      /** @example hộp */
+      unit: string;
+      /**
+       * Format: int64
+       * @example 3
+       */
+      categoryId: number;
+      /** @example Sữa và chế phẩm */
+      categoryName: string;
+      salePrice: components['schemas']['Money'];
+      /**
+       * Format: int64
+       * @description Chỉ trả cho ADMIN, OWNER, BRANCH_MANAGER
+       */
+      costPrice?: number | null;
+      active: boolean;
+    };
+    ProductRequest: {
+      sku: string;
+      barcode?: string | null;
+      name: string;
+      unit: string;
+      /** Format: int64 */
+      categoryId: number;
+      salePrice: components['schemas']['Money'];
+      costPrice: components['schemas']['Money'];
+      /** @default true */
+      active: boolean;
+    };
+    ProductLookup: {
+      product: components['schemas']['Product'];
+      /** Format: int64 */
+      branchId: number;
+      /**
+       * @description Tồn khả dụng tại chi nhánh
+       * @example 12
+       */
+      available: number;
+    };
+    ProductPage: components['schemas']['PageMeta'] & {
+      content: components['schemas']['Product'][];
+    };
+    Customer: {
+      /**
+       * Format: int64
+       * @example 125
+       */
+      id: number;
+      phone: components['schemas']['Phone'];
+      /** @example Trần Thị Mai */
+      name: string;
+      /** Format: email */
+      email?: string | null;
+      /** @description Trạng thái hoạt động của khách hàng (false = đã ngừng hoạt động) */
+      active: boolean;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    CustomerRequest: {
+      phone: components['schemas']['Phone'];
+      name: string;
+      /** Format: email */
+      email?: string | null;
+      /**
+       * @description Trạng thái hoạt động. Bỏ qua khi tạo mới `POST /customers` (khách mới luôn `active = true`).
+       *     Khi cập nhật `PUT /customers/{customerId}`, chỉ `OWNER` và `BRANCH_MANAGER` được đổi trường này (ví dụ gửi `active: true` để mở lại khách đã ngừng hoạt động).
+       */
+      active?: boolean | null;
+    };
+    CustomerPage: components['schemas']['PageMeta'] & {
+      content: components['schemas']['Customer'][];
+    };
+    OrderLineRequest: {
+      /** Format: int64 */
+      productId: number;
+      quantity: number;
+    };
+    /** @description Giảm giá ngoài chương trình, chỉ BRANCH_MANAGER, bắt buộc lý do (BR-19). Trừ sau KM cấp đơn. */
+    ManualDiscount: {
+      amount: components['schemas']['Money'];
+      reason: string;
+    };
+    QuoteRequest: {
+      /** Format: int64 */
+      branchId: number;
+      /** Format: int64 */
+      customerId?: number | null;
+      /** @description Mỗi `productId` xuất hiện một lần; quét lại cùng mã thì client tăng `quantity` */
+      items: components['schemas']['OrderLineRequest'][];
+      manualDiscount?: components['schemas']['ManualDiscount'];
+    };
+    PromotionRef: {
+      /** Format: int64 */
+      id: number;
+      /** @example DON200K-10 */
+      code: string;
+      /** @example Giảm 10% đơn từ 200.000 đ */
+      name?: string | null;
+      discount: components['schemas']['Money'];
+    };
+    QuoteLine: {
+      /** Format: int64 */
+      productId: number;
+      sku: string;
+      name: string;
+      unit: string;
+      quantity: number;
+      unitPrice: components['schemas']['Money'];
+      discount: components['schemas']['Money'];
+      lineTotal: components['schemas']['Money'];
+      promotion?: components['schemas']['PromotionRef'] | null;
+      /** @description Tồn khả dụng tại thời điểm báo giá */
+      available: number;
+      /** @description false khi quantity > available (UC-01 1b) */
+      sufficient: boolean;
+    };
+    /**
+     * @description `subtotal` = tổng giá gốc; `itemDiscount` = tổng giảm cấp dòng; `orderDiscount` = KM cấp đơn tính trên tổng sau giảm dòng;
+     *     `discount` = itemDiscount + orderDiscount + manualDiscount; `total` = subtotal − discount. Mọi số tiền giảm làm tròn xuống đến đồng (BR-07).
+     * @example {
+     *       "branchId": 1,
+     *       "customerId": 125,
+     *       "lines": [
+     *         {
+     *           "productId": 101,
+     *           "sku": "GAO-ST25-5KG",
+     *           "name": "Gạo ST25 túi 5kg",
+     *           "unit": "túi",
+     *           "quantity": 1,
+     *           "unitPrice": 180000,
+     *           "discount": 15000,
+     *           "lineTotal": 165000,
+     *           "promotion": {
+     *             "id": 11,
+     *             "code": "GAO-15K",
+     *             "discount": 15000
+     *           },
+     *           "available": 40,
+     *           "sufficient": true
+     *         },
+     *         {
+     *           "productId": 205,
+     *           "sku": "SUA-TH-1L",
+     *           "name": "Sữa tươi TH True Milk 1L",
+     *           "unit": "hộp",
+     *           "quantity": 2,
+     *           "unitPrice": 29000,
+     *           "discount": 0,
+     *           "lineTotal": 58000,
+     *           "promotion": null,
+     *           "available": 12,
+     *           "sufficient": true
+     *         }
+     *       ],
+     *       "orderPromotion": {
+     *         "id": 12,
+     *         "code": "DON200K-10",
+     *         "name": "Giảm 10% đơn từ 200.000 đ",
+     *         "discount": 22300
+     *       },
+     *       "subtotal": 238000,
+     *       "itemDiscount": 15000,
+     *       "orderDiscount": 22300,
+     *       "manualDiscount": 0,
+     *       "discount": 37300,
+     *       "total": 200700,
+     *       "canComplete": true
+     *     }
+     */
+    Quote: {
+      /** Format: int64 */
+      branchId: number;
+      /** Format: int64 */
+      customerId?: number | null;
+      lines: components['schemas']['QuoteLine'][];
+      orderPromotion?: components['schemas']['PromotionRef'] | null;
+      subtotal: components['schemas']['Money'];
+      itemDiscount: components['schemas']['Money'];
+      orderDiscount: components['schemas']['Money'];
+      manualDiscount: components['schemas']['Money'];
+      discount: components['schemas']['Money'];
+      total: components['schemas']['Money'];
+      /** @description false khi có dòng thiếu tồn hoặc sản phẩm ngừng bán */
+      canComplete: boolean;
+    };
+    PaymentRequest: {
+      method: components['schemas']['PaymentMethod'];
+      /**
+       * Format: int64
+       * @description Bắt buộc khi method = CASH, phải ≥ tổng
+       */
+      cashReceived?: number;
+      /**
+       * @description Chỉ dùng cho CARD, QR để giả lập kết quả cổng thanh toán (PAY-01); bị bỏ qua với CASH
+       * @default SUCCESS
+       * @enum {string}
+       */
+      simulate?: 'SUCCESS' | 'FAILED' | 'TIMEOUT';
+    };
+    PosOrderRequest: {
+      /** Format: int64 */
+      branchId: number;
+      /** Format: int64 */
+      customerId?: number | null;
+      items: components['schemas']['OrderLineRequest'][];
+      manualDiscount?: components['schemas']['ManualDiscount'];
+      payment: components['schemas']['PaymentRequest'];
+      /** @description Tổng client đang hiển thị (từ /orders/quote gần nhất) */
+      expectedTotal: components['schemas']['Money'];
+    };
+    OrderItem: {
+      /** Format: int64 */
+      id: number;
+      /** Format: int64 */
+      productId: number;
+      sku: string;
+      name: string;
+      unit: string;
+      quantity: number;
+      /** @description Giá chụp lúc bán (BR-12) */
+      unitPrice: components['schemas']['Money'];
+      discount: components['schemas']['Money'];
+      lineTotal: components['schemas']['Money'];
+      promotion?: components['schemas']['PromotionRef'] | null;
+    };
+    Payment: {
+      /** Format: int64 */
+      id: number;
+      method: components['schemas']['PaymentMethod'];
+      amount: components['schemas']['Money'];
+      status: components['schemas']['PaymentStatus'];
+      /** Format: int64 */
+      cashReceived?: number | null;
+      /**
+       * Format: int64
+       * @description Tiền thối, chỉ có với CASH
+       */
+      change?: number | null;
+      /** @description Mã giao dịch giả lập với CARD, QR */
+      providerRef?: string | null;
+      /** Format: date-time */
+      paidAt?: string | null;
+    };
+    UserRef: {
+      /** Format: int64 */
+      id: number;
+      fullName: string;
+    };
+    CustomerRef: {
+      /** Format: int64 */
+      id: number;
+      phone: string;
+      name: string;
+    };
+    OrderSummary: {
+      /**
+       * Format: int64
+       * @example 10231
+       */
+      id: number;
+      /** @example POS-GM001-20261105-0042 */
+      code: string;
+      channel: components['schemas']['ChannelCode'];
+      /** @description Mã đơn của kênh, chỉ có với WEB/MARKET */
+      externalOrderId?: string | null;
+      branch: components['schemas']['BranchRef'];
+      customer?: components['schemas']['CustomerRef'] | null;
+      status: components['schemas']['OrderStatus'];
+      /** @description Tổng số lượng hàng trong đơn */
+      itemCount?: number;
+      total: components['schemas']['Money'];
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      completedAt?: string | null;
+    };
+    Order: components['schemas']['OrderSummary'] & {
+      /** @description Thu ngân tạo đơn; null với đơn từ kênh */
+      createdBy?: components['schemas']['UserRef'] | null;
+      items: components['schemas']['OrderItem'][];
+      orderPromotion?: components['schemas']['PromotionRef'] | null;
+      manualDiscountReason?: string | null;
+      subtotal: components['schemas']['Money'];
+      itemDiscount: components['schemas']['Money'];
+      orderDiscount: components['schemas']['Money'];
+      manualDiscount: components['schemas']['Money'];
+      discount: components['schemas']['Money'];
+      payments: components['schemas']['Payment'][];
+      /**
+       * Format: date-time
+       * @description Chỉ có với đơn online RESERVED
+       */
+      reservedUntil?: string | null;
+      /** @description CANCELLED: CUSTOMER_REQUEST, OUT_OF_STOCK_ACTUAL, WRONG_INFO, CHANNEL_CANCELLED, OTHER; REJECTED: OUT_OF_STOCK, UNMAPPED_SKU. Lấy từ audit_log của lần đổi trạng thái (v2) */
+      statusReason?: string | null;
+      /** @description Ghi chú kèm khi hủy với lý do OTHER (v2) */
+      statusNote?: string | null;
+    };
+    OrderSummaryPage: components['schemas']['PageMeta'] & {
+      content: components['schemas']['OrderSummary'][];
+    };
+    StockAlert: {
+      /** Format: int64 */
+      id: number;
+      /** Format: int64 */
+      branchId: number;
+      /** Format: int64 */
+      productId: number;
+      sku: string;
+      productName: string;
+      /** @enum {string} */
+      severity: 'LOW' | 'OUT';
+      /** Format: int32 */
+      available: number;
+      /** Format: int32 */
+      reorderPoint: number | null;
+      /** Format: date-time */
+      openedAt: string;
+    };
+    /** @enum {string} */
+    ForecastRunStatus: 'RUNNING' | 'DONE' | 'FAILED';
+    ForecastRun: {
+      /**
+       * Format: int64
+       * @example 12
+       */
+      id: number;
+      status: components['schemas']['ForecastRunStatus'];
+      /** Format: date-time */
+      startedAt: string;
+      /** Format: date-time */
+      finishedAt: string | null;
+      /** @example LightGBM-Tweedie-H7-H30 */
+      modelVersion: string;
+      /**
+       * Format: double
+       * @description MAE tầm 7 ngày của mô hình
+       */
+      mae: number | null;
+      /**
+       * Format: double
+       * @description WAPE tầm 7 ngày, tỉ lệ 0–1
+       */
+      wape: number | null;
+      /** Format: double */
+      baselineMae: number | null;
+      /** Format: double */
+      baselineWape: number | null;
+    };
+    ForecastRunPage: components['schemas']['PageMeta'] & {
+      content: components['schemas']['ForecastRun'][];
+    };
+    ForecastPoint: {
+      /**
+       * Format: date
+       * @example 2026-11-18
+       */
+      date: string;
+      /**
+       * Format: double
+       * @example 12.4
+       */
+      predictedQty: number;
+      /**
+       * Format: int32
+       * @description Bán ròng thực tế; null nếu chưa có dữ liệu ngày đó
+       */
+      actualQty: number | null;
+    };
+    ForecastHorizon: {
+      /** @enum {integer} */
+      horizon: 7 | 30;
+      /**
+       * Format: double
+       * @description Tổng dự báo của tầm, dùng cho ROP và gợi ý nhập (BA 8.2, 8.3)
+       */
+      totalPredictedQty: number;
+      /** @description Một điểm mỗi ngày, tăng dần theo ngày */
+      points: components['schemas']['ForecastPoint'][];
+    };
+    ForecastResponse: {
+      /** Format: int64 */
+      runId: number;
+      /**
+       * Format: date
+       * @description Ngày dữ liệu cuối cùng (D) của lượt chạy
+       */
+      cutoffDate: string;
+      /**
+       * Format: date-time
+       * @description `finishedAt` của lượt chạy
+       */
+      generatedAt: string;
+      modelVersion: string;
+      branch: components['schemas']['BranchRef'];
+      /** Format: int64 */
+      productId: number;
+      sku: string;
+      productName: string;
+      unit: string;
+      horizons: components['schemas']['ForecastHorizon'][];
+    };
+    /**
+     * @example {
+     *       "branch": {
+     *         "id": 1,
+     *         "code": "GM-001",
+     *         "name": "GreenMart Quận 1"
+     *       },
+     *       "productId": 205,
+     *       "sku": "SUA-TH-1L",
+     *       "productName": "Sữa tươi TH True Milk 1L",
+     *       "unit": "hộp",
+     *       "onHand": 35,
+     *       "reserved": 5,
+     *       "available": 30,
+     *       "reorderPoint": 34,
+     *       "stockStatus": "LOW",
+     *       "version": 1842,
+     *       "updatedAt": "2026-11-05T09:31:12+07:00"
+     *     }
+     */
+    InventoryItem: {
+      branch: components['schemas']['BranchRef'];
+      /** Format: int64 */
+      productId: number;
+      sku: string;
+      productName: string;
+      unit: string;
+      /** @description Tồn thực */
+      onHand: number;
+      /** @description Đang giữ chỗ cho đơn online */
+      reserved: number;
+      /** @description onHand − reserved (BR-01) */
+      available: number;
+      /** @description ROP; null khi chưa có dự báo */
+      reorderPoint?: number | null;
+      stockStatus: components['schemas']['StockStatus'];
+      /**
+       * Format: int64
+       * @description Tăng mỗi lần tồn đổi; dùng làm số phiên bản đẩy ra kênh (BR-15)
+       */
+      version: number;
+      /** Format: date-time */
+      updatedAt: string;
+    };
+    InventoryPage: components['schemas']['PageMeta'] & {
+      content: components['schemas']['InventoryItem'][];
+    };
+    /**
+     * @description Mỗi dòng ghi riêng thay đổi tồn thực (`deltaOnHand`) và tồn giữ chỗ (`deltaReserved`), kèm số dư sau giao dịch.
+     *     Ví dụ: SALE (POS) `deltaOnHand=-2, deltaReserved=0`; RESERVE `0, +3`; RELEASE `0, -3`;
+     *     hoàn tất đơn online `-3, -3`; IMPORT `+24, 0`. Khả dụng sau giao dịch = `onHandAfter - reservedAfter`.
+     * @example {
+     *       "id": 88231,
+     *       "branchId": 1,
+     *       "productId": 205,
+     *       "sku": "SUA-TH-1L",
+     *       "type": "SALE",
+     *       "deltaOnHand": -2,
+     *       "onHandAfter": 33,
+     *       "deltaReserved": 0,
+     *       "reservedAfter": 5,
+     *       "refType": "ORDER",
+     *       "refId": 10231,
+     *       "refCode": "POS-GM001-20261105-0042",
+     *       "createdBy": {
+     *         "id": 7,
+     *         "fullName": "Nguyễn Thu Ngân"
+     *       },
+     *       "createdAt": "2026-11-05T09:31:12+07:00"
+     *     }
+     */
+    InventoryTransaction: {
+      /** Format: int64 */
+      id: number;
+      /** Format: int64 */
+      branchId: number;
+      /** Format: int64 */
+      productId: number;
+      sku: string;
+      type: components['schemas']['InventoryTransactionType'];
+      /** @description Thay đổi tồn thực; âm khi giảm, 0 với RESERVE/RELEASE */
+      deltaOnHand: number;
+      /** @description Tồn thực sau giao dịch */
+      onHandAfter: number;
+      /** @description Thay đổi tồn giữ chỗ; 0 với IMPORT/EXPORT/ADJUST và SALE tại quầy */
+      deltaReserved: number;
+      /** @description Tồn giữ chỗ sau giao dịch */
+      reservedAfter: number;
+      refType: components['schemas']['RefType'];
+      /** Format: int64 */
+      refId: number;
+      /** @description Mã chứng từ gốc để hiển thị, ví dụ mã đơn */
+      refCode?: string | null;
+      createdBy?: components['schemas']['UserRef'] | null;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    InventoryTransactionPage: components['schemas']['PageMeta'] & {
+      content: components['schemas']['InventoryTransaction'][];
+    };
+    CancelOrderRequest: {
+      /**
+       * @description Lý do hủy (BA 5.1). Khi kênh báo hủy, hệ thống tự ghi `CHANNEL_CANCELLED`
+       * @enum {string}
+       */
+      reason: 'CUSTOMER_REQUEST' | 'OUT_OF_STOCK_ACTUAL' | 'WRONG_INFO' | 'OTHER';
+      /** @description Bắt buộc khi reason = OTHER */
+      note?: string;
+    };
+    /** @enum {string} */
+    RejectReason: 'OUT_OF_STOCK' | 'UNMAPPED_SKU';
+    /**
+     * @description ONLINE – khách trả qua kênh, chờ sự kiện PAID; COD – thu khi giao, CONFIRMED ngay sau giữ chỗ
+     * @enum {string}
+     */
+    ChannelPaymentMethod: 'ONLINE' | 'COD';
+    ChannelOrderRequest: {
+      externalOrderId: string;
+      /** Format: date-time */
+      orderedAt: string;
+      customer: {
+        name: string;
+        phone: components['schemas']['Phone'];
+      };
+      items: {
+        externalSku: string;
+        quantity: number;
+        unitPrice: components['schemas']['Money'];
+      }[];
+      /** @description Chỉ để đối chiếu, không lưu */
+      shippingFee?: components['schemas']['Money'];
+      paymentMethod: components['schemas']['ChannelPaymentMethod'];
+    };
+    ChannelOrderAck: {
+      /**
+       * Format: int64
+       * @example 10987
+       */
+      orderId: number;
+      /** @example WEB-GM001-20261105-0007 */
+      code: string;
+      /** @example WEB-778812 */
+      externalOrderId: string;
+      status: components['schemas']['OrderStatus'];
+      /** @description Chi nhánh được phân bổ (BR-14); null khi REJECTED */
+      branch?: components['schemas']['BranchRef'] | null;
+      /** Format: date-time */
+      reservedUntil?: string | null;
+      rejectReason?: (string & components['schemas']['RejectReason']) | null;
+    };
+    ChannelOrderEvent: {
+      /** @enum {string} */
+      type: 'PAID' | 'CANCELLED';
+      /** Format: date-time */
+      occurredAt: string;
+      /** @description Mã giao dịch thanh toán của kênh (PAID) */
+      providerRef?: string;
+      /** @description Lý do kênh hủy (CANCELLED) */
+      reason?: string;
+    };
+    ChannelStockUpdate: {
+      items: {
+        externalSku: string;
+        /** @description Σ khả dụng các CN phục vụ kênh − safety_stock, không âm (BR-15) */
+        available: number;
         /**
          * Format: int64
-         * @description Số tiền VND, số nguyên
-         * @example 200700
+         * @description Kênh bỏ qua bản có version cũ hơn
          */
-        Money: number;
-        /** @example 0901234567 */
-        Phone: string;
-        /** @enum {string} */
-        Role: "ADMIN" | "OWNER" | "BRANCH_MANAGER" | "CASHIER" | "STOREKEEPER";
-        /** @enum {string} */
-        ChannelCode: "POS" | "WEB" | "MARKET";
-        /** @enum {string} */
-        OrderStatus: "NEW" | "RESERVED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "EXPIRED" | "REJECTED" | "RETURNED";
-        /** @enum {string} */
-        PaymentMethod: "CASH" | "CARD" | "QR";
-        /** @enum {string} */
-        PaymentStatus: "PENDING" | "PAID" | "FAILED" | "REFUNDED";
+        version: number;
+      }[];
+    };
+    ChannelOrderStatusUpdate: {
+      status: components['schemas']['OrderStatus'];
+      /** @description Lý do như Order.statusReason */
+      reason?: string | null;
+      /** Format: date-time */
+      occurredAt: string;
+    };
+    /** @enum {string} */
+    StockDocumentType: 'IMPORT' | 'EXPORT' | 'TRANSFER' | 'ADJUST';
+    /**
+     * @description IMPORT, EXPORT, ADJUST đi DRAFT → APPROVED; TRANSFER đi DRAFT → IN_TRANSIT → RECEIVED; DRAFT → CANCELLED
+     * @enum {string}
+     */
+    StockDocumentStatus: 'DRAFT' | 'APPROVED' | 'IN_TRANSIT' | 'RECEIVED' | 'CANCELLED';
+    /**
+     * @description Lý do xuất hủy bắt buộc (BA 6.2); OTHER cần `note`
+     * @enum {string}
+     */
+    ExportReason: 'EXPIRED' | 'DAMAGED' | 'LOST' | 'OTHER';
+    StockDocumentItemRequest: {
+      /** Format: int64 */
+      productId: number;
+      /** @description Bắt buộc trừ ADJUST */
+      quantity?: number;
+      /** @description Bắt buộc với IMPORT */
+      unitCost?: components['schemas']['Money'];
+      /** @description Chỉ ADJUST, nhập qua PUT */
+      countedQuantity?: number;
+    };
+    StockDocumentRequest: {
+      type: components['schemas']['StockDocumentType'];
+      /**
+       * Format: int64
+       * @description Chi nhánh lập phiếu (CN nguồn với TRANSFER)
+       */
+      branchId: number;
+      /**
+       * Format: int64
+       * @description Bắt buộc và khác branchId với TRANSFER; bỏ trống với loại khác
+       */
+      toBranchId?: number;
+      /** @description Bắt buộc với IMPORT */
+      supplier?: string;
+      exportReason?: components['schemas']['ExportReason'];
+      note?: string;
+      /** @description Chỉ ADJUST. Bật để chụp toàn bộ các dòng tồn của chi nhánh. */
+      allProducts?: boolean;
+    } & (
+      | {
+          /** @enum {boolean} */
+          allProducts?: false;
+          /** @description Mỗi `productId` một dòng. ADJUST có thể truyền danh sách sản phẩm cần kiểm kê. */
+          items: components['schemas']['StockDocumentItemRequest'][];
+        }
+      | {
+          /** @enum {string} */
+          type?: 'ADJUST';
+          /** @enum {boolean} */
+          allProducts: true;
+        }
+    );
+    StockDocumentUpdateRequest: {
+      /** Format: int64 */
+      toBranchId?: number;
+      supplier?: string;
+      exportReason?: components['schemas']['ExportReason'];
+      note?: string;
+      items: components['schemas']['StockDocumentItemRequest'][];
+    };
+    ReceiveTransferRequest: {
+      /** @description Đủ mọi dòng của phiếu */
+      items: {
+        /** Format: int64 */
+        itemId: number;
+        /** @description ≤ quantity (không nhận thừa) */
+        receivedQuantity: number;
+      }[];
+    };
+    StockDocumentItem: {
+      /** Format: int64 */
+      id: number;
+      /** Format: int64 */
+      productId: number;
+      sku: string;
+      productName: string;
+      unit: string;
+      /** @description Số trên phiếu; với ADJUST là tồn thực đã chụp lúc tạo */
+      quantity: number;
+      /** Format: int64 */
+      unitCost?: number | null;
+      receivedQuantity?: number | null;
+      countedQuantity?: number | null;
+      /** @description TRANSFER: receivedQuantity − quantity; ADJUST: countedQuantity − quantity */
+      difference?: number | null;
+    };
+    StockDocumentSummary: {
+      /**
+       * Format: int64
+       * @example 812
+       */
+      id: number;
+      /** @example CK-GM001-20261105-003 */
+      code: string;
+      type: components['schemas']['StockDocumentType'];
+      branch: components['schemas']['BranchRef'];
+      toBranch?: components['schemas']['BranchRef'] | null;
+      status: components['schemas']['StockDocumentStatus'];
+      itemCount: number;
+      /** @description TRANSFER đã nhận có dòng nhận thiếu */
+      hasDiscrepancy?: boolean;
+      createdBy: components['schemas']['UserRef'];
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      approvedAt?: string | null;
+      /** Format: date-time */
+      receivedAt?: string | null;
+    };
+    StockDocument: components['schemas']['StockDocumentSummary'] & {
+      supplier?: string | null;
+      exportReason?: (string & components['schemas']['ExportReason']) | null;
+      note?: string | null;
+      approvedBy?: components['schemas']['UserRef'] | null;
+      receivedBy?: components['schemas']['UserRef'] | null;
+      /**
+       * Format: int64
+       * @description IMPORT: Σ quantity × unitCost; EXPORT: giá trị hủy theo giá vốn (chỉ OWNER, BRANCH_MANAGER)
+       */
+      totalCost?: number | null;
+      items: components['schemas']['StockDocumentItem'][];
+    };
+    StockDocumentSummaryPage: components['schemas']['PageMeta'] & {
+      content: components['schemas']['StockDocumentSummary'][];
+    };
+    /** @enum {string} */
+    PromotionLevel: 'ORDER' | 'ITEM';
+    /** @enum {string} */
+    PromotionType: 'PERCENT' | 'AMOUNT';
+    /**
+     * @description DRAFT → ACTIVE ⇄ PAUSED → ENDED
+     * @enum {string}
+     */
+    PromotionStatus: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'ENDED';
+    PromotionRequest: {
+      code: string;
+      type: components['schemas']['PromotionType'];
+      level: components['schemas']['PromotionLevel'];
+      /**
+       * Format: int64
+       * @description PERCENT: 1–100 (%); AMOUNT: số tiền VND
+       */
+      value: number;
+      /**
+       * Format: int64
+       * @description Mức giảm tối đa, chỉ với PERCENT
+       */
+      maxDiscount?: number | null;
+      /**
+       * Format: int64
+       * @description Tổng sau giảm dòng tối thiểu, chỉ với ORDER
+       */
+      minOrder?: number | null;
+      /** Format: date-time */
+      startAt: string;
+      /**
+       * Format: date-time
+       * @description Phải sau startAt
+       */
+      endAt: string;
+      /** @description Tổng lượt dùng tối đa (BR-08); null = không giới hạn */
+      usageLimit?: number | null;
+      /** @description Bắt buộc, ít nhất 1 với ITEM; bỏ trống với ORDER */
+      productIds?: number[];
+      /** @description Rỗng = mọi chi nhánh */
+      branchIds?: number[];
+      /** @description Rỗng = mọi kênh */
+      channels?: components['schemas']['ChannelCode'][];
+    };
+    Promotion: {
+      /** Format: int64 */
+      id: number;
+      code: string;
+      type: components['schemas']['PromotionType'];
+      level: components['schemas']['PromotionLevel'];
+      /** Format: int64 */
+      value: number;
+      /** Format: int64 */
+      maxDiscount?: number | null;
+      /** Format: int64 */
+      minOrder?: number | null;
+      /** Format: date-time */
+      startAt: string;
+      /** Format: date-time */
+      endAt: string;
+      usageLimit?: number | null;
+      usedCount: number;
+      status: components['schemas']['PromotionStatus'];
+      productIds: number[];
+      branchIds: number[];
+      channels: components['schemas']['ChannelCode'][];
+    };
+    PromotionPage: components['schemas']['PageMeta'] & {
+      content: components['schemas']['Promotion'][];
+    };
+    User: {
+      /** Format: int64 */
+      id: number;
+      username: string;
+      fullName: string;
+      role: components['schemas']['Role'];
+      /** @description false = Admin đã khóa tài khoản */
+      active: boolean;
+      branches: components['schemas']['BranchRef'][];
+      /** @description Đang bị khóa 15 phút do sai mật khẩu */
+      locked: boolean;
+      /** Format: date-time */
+      lockedUntil?: string | null;
+    };
+    UserCreateRequest: {
+      username: string;
+      fullName: string;
+      role: components['schemas']['Role'];
+      /** @description Bắt buộc ít nhất 1 với CASHIER, STOREKEEPER, BRANCH_MANAGER */
+      branchIds?: number[];
+      /**
+       * Format: password
+       * @description Có chữ và số
+       */
+      password: string;
+    };
+    UserUpdateRequest: {
+      fullName: string;
+      role: components['schemas']['Role'];
+      branchIds?: number[];
+      active: boolean;
+    };
+    UserPage: components['schemas']['PageMeta'] & {
+      content: components['schemas']['User'][];
+    };
+    RevenueSummary: {
+      /**
+       * Format: int64
+       * @description Tổng doanh thu bán (VND)
+       */
+      totalGrossRevenue: number;
+      /**
+       * Format: int64
+       * @description Tổng tiền hoàn trả (VND)
+       */
+      totalReturnAmount: number;
+      /**
+       * Format: int64
+       * @description Doanh thu thuần (VND)
+       */
+      totalNetRevenue: number;
+      /**
+       * Format: int64
+       * @description Tổng số đơn hoàn tất
+       */
+      totalOrders: number;
+      /**
+       * Format: int64
+       * @description Tổng số phiếu trả duyệt
+       */
+      totalReturns: number;
+    };
+    RevenuePoint: {
+      /** @description Mốc thời gian (YYYY-MM-DD hoặc YYYY-MM) */
+      date: string;
+      /**
+       * Format: int64
+       * @description Doanh thu ròng sau trừ trả hàng
+       */
+      revenue: number;
+      /**
+       * Format: int64
+       * @description Doanh thu bán
+       */
+      grossRevenue: number;
+      /**
+       * Format: int64
+       * @description Tiền trả hàng
+       */
+      returnAmount: number;
+      /** Format: int64 */
+      orderCount: number;
+      /** Format: int64 */
+      returnCount: number;
+    };
+    RevenueReportResponse: {
+      summary: components['schemas']['RevenueSummary'];
+      points: components['schemas']['RevenuePoint'][];
+    };
+    ProductSalesItem: {
+      /** Format: int64 */
+      productId: number;
+      sku: string;
+      name: string;
+      categoryName?: string | null;
+      /**
+       * Format: int64
+       * @description Số lượng đã bán
+       */
+      soldQuantity: number;
+      /**
+       * Format: int64
+       * @description Số lượng đã trả
+       */
+      returnedQuantity: number;
+      /**
+       * Format: int64
+       * @description Số lượng ròng (bán - trả)
+       */
+      netQuantity: number;
+      /**
+       * Format: int64
+       * @description Doanh thu từ sản phẩm (VND)
+       */
+      revenue: number;
+    };
+    TopProductsResponse: {
+      period: {
+        /** Format: date */
+        from: string;
+        /** Format: date */
+        to: string;
+      };
+      topSelling: components['schemas']['ProductSalesItem'][];
+      slowSelling: components['schemas']['ProductSalesItem'][];
+    };
+  };
+  responses: {
+    /** @description VALIDATION_ERROR */
+    BadRequest: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
         /**
-         * @description OUT khi khả dụng = 0; LOW khi 0 < khả dụng ≤ ROP; OK còn lại (BR-09)
-         * @enum {string}
-         */
-        StockStatus: "OK" | "LOW" | "OUT";
-        /** @enum {string} */
-        InventoryTransactionType: "IMPORT" | "EXPORT" | "SALE" | "RESERVE" | "RELEASE" | "RETURN" | "TRANSFER_OUT" | "TRANSFER_IN" | "ADJUST";
-        /**
-         * @description Loại chứng từ gốc của giao dịch kho
-         * @enum {string}
-         */
-        RefType: "ORDER" | "STOCK_DOCUMENT" | "RETURN_DOCUMENT";
-        LoginRequest: {
-            username: string;
-            /** Format: password */
-            password: string;
-        };
-        RefreshRequest: {
-            refreshToken: string;
-        };
-        ChangePasswordRequest: {
-            /** Format: password */
-            currentPassword: string;
-            /** Format: password */
-            newPassword: string;
-        };
-        TokenResponse: {
-            accessToken: string;
-            refreshToken: string;
-            /** @enum {string} */
-            tokenType: "Bearer";
-            /**
-             * @description Số giây access token còn hiệu lực
-             * @example 900
-             */
-            expiresIn: number;
-            user: components["schemas"]["CurrentUser"];
-        };
-        CurrentUser: {
-            /**
-             * Format: int64
-             * @example 7
-             */
-            id: number;
-            /** @example thungan.gm001 */
-            username: string;
-            /** @example Nguyễn Thu Ngân */
-            fullName: string;
-            role: components["schemas"]["Role"];
-            /** @description Chi nhánh được gán; ADMIN, OWNER nhận mọi chi nhánh đang hoạt động */
-            branches: components["schemas"]["BranchRef"][];
-        };
-        BranchRef: {
-            /**
-             * Format: int64
-             * @example 1
-             */
-            id: number;
-            /** @example GM-001 */
-            code: string;
-            /** @example GreenMart Quận 1 */
-            name: string;
-        };
-        Branch: components["schemas"]["BranchRef"] & {
-            address?: string | null;
-            active: boolean;
-        };
-        Category: {
-            /**
-             * Format: int64
-             * @example 3
-             */
-            id: number;
-            /** @example Sữa và chế phẩm */
-            name: string;
-            /**
-             * Format: int64
-             * @example 1
-             */
-            parentId?: number | null;
-        };
-        CategoryRequest: {
-            name: string;
-            /** Format: int64 */
-            parentId?: number | null;
-        };
-        Product: {
-            /**
-             * Format: int64
-             * @example 205
-             */
-            id: number;
-            /** @example SUA-TH-1L */
-            sku: string;
-            /** @example 8935217400013 */
-            barcode?: string | null;
-            /** @example Sữa tươi TH True Milk 1L */
-            name: string;
-            /** @example hộp */
-            unit: string;
-            /**
-             * Format: int64
-             * @example 3
-             */
-            categoryId: number;
-            /** @example Sữa và chế phẩm */
-            categoryName: string;
-            salePrice: components["schemas"]["Money"];
-            /**
-             * Format: int64
-             * @description Chỉ trả cho ADMIN, OWNER, BRANCH_MANAGER
-             */
-            costPrice?: number | null;
-            active: boolean;
-        };
-        ProductRequest: {
-            sku: string;
-            barcode?: string | null;
-            name: string;
-            unit: string;
-            /** Format: int64 */
-            categoryId: number;
-            salePrice: components["schemas"]["Money"];
-            costPrice: components["schemas"]["Money"];
-            /** @default true */
-            active: boolean;
-        };
-        ProductLookup: {
-            product: components["schemas"]["Product"];
-            /** Format: int64 */
-            branchId: number;
-            /**
-             * @description Tồn khả dụng tại chi nhánh
-             * @example 12
-             */
-            available: number;
-        };
-        ProductPage: components["schemas"]["PageMeta"] & {
-            content: components["schemas"]["Product"][];
-        };
-        Customer: {
-            /**
-             * Format: int64
-             * @example 125
-             */
-            id: number;
-            phone: components["schemas"]["Phone"];
-            /** @example Trần Thị Mai */
-            name: string;
-            /** Format: email */
-            email?: string | null;
-            /** @description Trạng thái hoạt động của khách hàng (false = đã ngừng hoạt động) */
-            active: boolean;
-            /** Format: date-time */
-            createdAt: string;
-        };
-        CustomerRequest: {
-            phone: components["schemas"]["Phone"];
-            name: string;
-            /** Format: email */
-            email?: string | null;
-            /**
-             * @description Trạng thái hoạt động. Bỏ qua khi tạo mới `POST /customers` (khách mới luôn `active = true`).
-             *     Khi cập nhật `PUT /customers/{customerId}`, chỉ `OWNER` và `BRANCH_MANAGER` được đổi trường này (ví dụ gửi `active: true` để mở lại khách đã ngừng hoạt động).
-             */
-            active?: boolean | null;
-        };
-        CustomerPage: components["schemas"]["PageMeta"] & {
-            content: components["schemas"]["Customer"][];
-        };
-        OrderLineRequest: {
-            /** Format: int64 */
-            productId: number;
-            quantity: number;
-        };
-        /** @description Giảm giá ngoài chương trình, chỉ BRANCH_MANAGER, bắt buộc lý do (BR-19). Trừ sau KM cấp đơn. */
-        ManualDiscount: {
-            amount: components["schemas"]["Money"];
-            reason: string;
-        };
-        QuoteRequest: {
-            /** Format: int64 */
-            branchId: number;
-            /** Format: int64 */
-            customerId?: number | null;
-            /** @description Mỗi `productId` xuất hiện một lần; quét lại cùng mã thì client tăng `quantity` */
-            items: components["schemas"]["OrderLineRequest"][];
-            manualDiscount?: components["schemas"]["ManualDiscount"];
-        };
-        PromotionRef: {
-            /** Format: int64 */
-            id: number;
-            /** @example DON200K-10 */
-            code: string;
-            /** @example Giảm 10% đơn từ 200.000 đ */
-            name?: string | null;
-            discount: components["schemas"]["Money"];
-        };
-        QuoteLine: {
-            /** Format: int64 */
-            productId: number;
-            sku: string;
-            name: string;
-            unit: string;
-            quantity: number;
-            unitPrice: components["schemas"]["Money"];
-            discount: components["schemas"]["Money"];
-            lineTotal: components["schemas"]["Money"];
-            promotion?: components["schemas"]["PromotionRef"] | null;
-            /** @description Tồn khả dụng tại thời điểm báo giá */
-            available: number;
-            /** @description false khi quantity > available (UC-01 1b) */
-            sufficient: boolean;
-        };
-        /**
-         * @description `subtotal` = tổng giá gốc; `itemDiscount` = tổng giảm cấp dòng; `orderDiscount` = KM cấp đơn tính trên tổng sau giảm dòng;
-         *     `discount` = itemDiscount + orderDiscount + manualDiscount; `total` = subtotal − discount. Mọi số tiền giảm làm tròn xuống đến đồng (BR-07).
          * @example {
-         *       "branchId": 1,
-         *       "customerId": 125,
-         *       "lines": [
+         *       "code": "VALIDATION_ERROR",
+         *       "message": "Dữ liệu không hợp lệ",
+         *       "details": [
          *         {
-         *           "productId": 101,
-         *           "sku": "GAO-ST25-5KG",
-         *           "name": "Gạo ST25 túi 5kg",
-         *           "unit": "túi",
-         *           "quantity": 1,
-         *           "unitPrice": 180000,
-         *           "discount": 15000,
-         *           "lineTotal": 165000,
-         *           "promotion": {
-         *             "id": 11,
-         *             "code": "GAO-15K",
-         *             "discount": 15000
-         *           },
-         *           "available": 40,
-         *           "sufficient": true
-         *         },
-         *         {
-         *           "productId": 205,
-         *           "sku": "SUA-TH-1L",
-         *           "name": "Sữa tươi TH True Milk 1L",
-         *           "unit": "hộp",
-         *           "quantity": 2,
-         *           "unitPrice": 29000,
-         *           "discount": 0,
-         *           "lineTotal": 58000,
-         *           "promotion": null,
-         *           "available": 12,
-         *           "sufficient": true
+         *           "field": "items[0].quantity",
+         *           "message": "phải lớn hơn 0"
          *         }
          *       ],
-         *       "orderPromotion": {
-         *         "id": 12,
-         *         "code": "DON200K-10",
-         *         "name": "Giảm 10% đơn từ 200.000 đ",
-         *         "discount": 22300
-         *       },
-         *       "subtotal": 238000,
-         *       "itemDiscount": 15000,
-         *       "orderDiscount": 22300,
-         *       "manualDiscount": 0,
-         *       "discount": 37300,
-         *       "total": 200700,
-         *       "canComplete": true
+         *       "traceId": "4c1f9b20"
          *     }
          */
-        Quote: {
-            /** Format: int64 */
-            branchId: number;
-            /** Format: int64 */
-            customerId?: number | null;
-            lines: components["schemas"]["QuoteLine"][];
-            orderPromotion?: components["schemas"]["PromotionRef"] | null;
-            subtotal: components["schemas"]["Money"];
-            itemDiscount: components["schemas"]["Money"];
-            orderDiscount: components["schemas"]["Money"];
-            manualDiscount: components["schemas"]["Money"];
-            discount: components["schemas"]["Money"];
-            total: components["schemas"]["Money"];
-            /** @description false khi có dòng thiếu tồn hoặc sản phẩm ngừng bán */
-            canComplete: boolean;
-        };
-        PaymentRequest: {
-            method: components["schemas"]["PaymentMethod"];
-            /**
-             * Format: int64
-             * @description Bắt buộc khi method = CASH, phải ≥ tổng
-             */
-            cashReceived?: number;
-            /**
-             * @description Chỉ dùng cho CARD, QR để giả lập kết quả cổng thanh toán (PAY-01); bị bỏ qua với CASH
-             * @default SUCCESS
-             * @enum {string}
-             */
-            simulate?: "SUCCESS" | "FAILED" | "TIMEOUT";
-        };
-        PosOrderRequest: {
-            /** Format: int64 */
-            branchId: number;
-            /** Format: int64 */
-            customerId?: number | null;
-            items: components["schemas"]["OrderLineRequest"][];
-            manualDiscount?: components["schemas"]["ManualDiscount"];
-            payment: components["schemas"]["PaymentRequest"];
-            /** @description Tổng client đang hiển thị (từ /orders/quote gần nhất) */
-            expectedTotal: components["schemas"]["Money"];
-        };
-        OrderItem: {
-            /** Format: int64 */
-            id: number;
-            /** Format: int64 */
-            productId: number;
-            sku: string;
-            name: string;
-            unit: string;
-            quantity: number;
-            /** @description Giá chụp lúc bán (BR-12) */
-            unitPrice: components["schemas"]["Money"];
-            discount: components["schemas"]["Money"];
-            lineTotal: components["schemas"]["Money"];
-            promotion?: components["schemas"]["PromotionRef"] | null;
-        };
-        Payment: {
-            /** Format: int64 */
-            id: number;
-            method: components["schemas"]["PaymentMethod"];
-            amount: components["schemas"]["Money"];
-            status: components["schemas"]["PaymentStatus"];
-            /** Format: int64 */
-            cashReceived?: number | null;
-            /**
-             * Format: int64
-             * @description Tiền thối, chỉ có với CASH
-             */
-            change?: number | null;
-            /** @description Mã giao dịch giả lập với CARD, QR */
-            providerRef?: string | null;
-            /** Format: date-time */
-            paidAt?: string | null;
-        };
-        UserRef: {
-            /** Format: int64 */
-            id: number;
-            fullName: string;
-        };
-        CustomerRef: {
-            /** Format: int64 */
-            id: number;
-            phone: string;
-            name: string;
-        };
-        OrderSummary: {
-            /**
-             * Format: int64
-             * @example 10231
-             */
-            id: number;
-            /** @example POS-GM001-20261105-0042 */
-            code: string;
-            channel: components["schemas"]["ChannelCode"];
-            /** @description Mã đơn của kênh, chỉ có với WEB/MARKET */
-            externalOrderId?: string | null;
-            branch: components["schemas"]["BranchRef"];
-            customer?: components["schemas"]["CustomerRef"] | null;
-            status: components["schemas"]["OrderStatus"];
-            /** @description Tổng số lượng hàng trong đơn */
-            itemCount?: number;
-            total: components["schemas"]["Money"];
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            completedAt?: string | null;
-        };
-        Order: components["schemas"]["OrderSummary"] & {
-            /** @description Thu ngân tạo đơn; null với đơn từ kênh */
-            createdBy?: components["schemas"]["UserRef"] | null;
-            items: components["schemas"]["OrderItem"][];
-            orderPromotion?: components["schemas"]["PromotionRef"] | null;
-            manualDiscountReason?: string | null;
-            subtotal: components["schemas"]["Money"];
-            itemDiscount: components["schemas"]["Money"];
-            orderDiscount: components["schemas"]["Money"];
-            manualDiscount: components["schemas"]["Money"];
-            discount: components["schemas"]["Money"];
-            payments: components["schemas"]["Payment"][];
-            /**
-             * Format: date-time
-             * @description Chỉ có với đơn online RESERVED
-             */
-            reservedUntil?: string | null;
-            /** @description CANCELLED: CUSTOMER_REQUEST, OUT_OF_STOCK_ACTUAL, WRONG_INFO, CHANNEL_CANCELLED, OTHER; REJECTED: OUT_OF_STOCK, UNMAPPED_SKU. Lấy từ audit_log của lần đổi trạng thái (v2) */
-            statusReason?: string | null;
-            /** @description Ghi chú kèm khi hủy với lý do OTHER (v2) */
-            statusNote?: string | null;
-        };
-        OrderSummaryPage: components["schemas"]["PageMeta"] & {
-            content: components["schemas"]["OrderSummary"][];
-        };
-        StockAlert: {
-            /** Format: int64 */
-            id: number;
-            /** Format: int64 */
-            branchId: number;
-            /** Format: int64 */
-            productId: number;
-            sku: string;
-            productName: string;
-            /** @enum {string} */
-            severity: "LOW" | "OUT";
-            /** Format: int32 */
-            available: number;
-            /** Format: int32 */
-            reorderPoint: number | null;
-            /** Format: date-time */
-            openedAt: string;
-        };
-        /** @enum {string} */
-        ForecastRunStatus: "RUNNING" | "DONE" | "FAILED";
-        ForecastRun: {
-            /**
-             * Format: int64
-             * @example 12
-             */
-            id: number;
-            status: components["schemas"]["ForecastRunStatus"];
-            /** Format: date-time */
-            startedAt: string;
-            /** Format: date-time */
-            finishedAt: string | null;
-            /** @example LightGBM-Tweedie-H7-H30 */
-            modelVersion: string;
-            /**
-             * Format: double
-             * @description MAE tầm 7 ngày của mô hình
-             */
-            mae: number | null;
-            /**
-             * Format: double
-             * @description WAPE tầm 7 ngày, tỉ lệ 0–1
-             */
-            wape: number | null;
-            /** Format: double */
-            baselineMae: number | null;
-            /** Format: double */
-            baselineWape: number | null;
-        };
-        ForecastRunPage: components["schemas"]["PageMeta"] & {
-            content: components["schemas"]["ForecastRun"][];
-        };
-        ForecastPoint: {
-            /**
-             * Format: date
-             * @example 2026-11-18
-             */
-            date: string;
-            /**
-             * Format: double
-             * @example 12.4
-             */
-            predictedQty: number;
-            /**
-             * Format: int32
-             * @description Bán ròng thực tế; null nếu chưa có dữ liệu ngày đó
-             */
-            actualQty: number | null;
-        };
-        ForecastHorizon: {
-            /** @enum {integer} */
-            horizon: 7 | 30;
-            /**
-             * Format: double
-             * @description Tổng dự báo của tầm, dùng cho ROP và gợi ý nhập (BA 8.2, 8.3)
-             */
-            totalPredictedQty: number;
-            /** @description Một điểm mỗi ngày, tăng dần theo ngày */
-            points: components["schemas"]["ForecastPoint"][];
-        };
-        ForecastResponse: {
-            /** Format: int64 */
-            runId: number;
-            /**
-             * Format: date
-             * @description Ngày dữ liệu cuối cùng (D) của lượt chạy
-             */
-            cutoffDate: string;
-            /**
-             * Format: date-time
-             * @description `finishedAt` của lượt chạy
-             */
-            generatedAt: string;
-            modelVersion: string;
-            branch: components["schemas"]["BranchRef"];
-            /** Format: int64 */
-            productId: number;
-            sku: string;
-            productName: string;
-            unit: string;
-            horizons: components["schemas"]["ForecastHorizon"][];
-        };
+        'application/json': components['schemas']['ErrorResponse'];
+      };
+    };
+    /** @description Chưa đăng nhập hoặc token không hợp lệ */
+    Unauthorized: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
         /**
          * @example {
-         *       "branch": {
-         *         "id": 1,
-         *         "code": "GM-001",
-         *         "name": "GreenMart Quận 1"
-         *       },
-         *       "productId": 205,
-         *       "sku": "SUA-TH-1L",
-         *       "productName": "Sữa tươi TH True Milk 1L",
-         *       "unit": "hộp",
-         *       "onHand": 35,
-         *       "reserved": 5,
-         *       "available": 30,
-         *       "reorderPoint": 34,
-         *       "stockStatus": "LOW",
-         *       "version": 1842,
-         *       "updatedAt": "2026-11-05T09:31:12+07:00"
+         *       "code": "UNAUTHORIZED",
+         *       "message": "Phiên đăng nhập đã hết hạn",
+         *       "details": null,
+         *       "traceId": "4c1f9b21"
          *     }
          */
-        InventoryItem: {
-            branch: components["schemas"]["BranchRef"];
-            /** Format: int64 */
-            productId: number;
-            sku: string;
-            productName: string;
-            unit: string;
-            /** @description Tồn thực */
-            onHand: number;
-            /** @description Đang giữ chỗ cho đơn online */
-            reserved: number;
-            /** @description onHand − reserved (BR-01) */
-            available: number;
-            /** @description ROP; null khi chưa có dự báo */
-            reorderPoint?: number | null;
-            stockStatus: components["schemas"]["StockStatus"];
-            /**
-             * Format: int64
-             * @description Tăng mỗi lần tồn đổi; dùng làm số phiên bản đẩy ra kênh (BR-15)
-             */
-            version: number;
-            /** Format: date-time */
-            updatedAt: string;
-        };
-        InventoryPage: components["schemas"]["PageMeta"] & {
-            content: components["schemas"]["InventoryItem"][];
-        };
+        'application/json': components['schemas']['ErrorResponse'];
+      };
+    };
+    /** @description FORBIDDEN hoặc BRANCH_FORBIDDEN */
+    Forbidden: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
         /**
-         * @description Mỗi dòng ghi riêng thay đổi tồn thực (`deltaOnHand`) và tồn giữ chỗ (`deltaReserved`), kèm số dư sau giao dịch.
-         *     Ví dụ: SALE (POS) `deltaOnHand=-2, deltaReserved=0`; RESERVE `0, +3`; RELEASE `0, -3`;
-         *     hoàn tất đơn online `-3, -3`; IMPORT `+24, 0`. Khả dụng sau giao dịch = `onHandAfter - reservedAfter`.
          * @example {
-         *       "id": 88231,
-         *       "branchId": 1,
-         *       "productId": 205,
-         *       "sku": "SUA-TH-1L",
-         *       "type": "SALE",
-         *       "deltaOnHand": -2,
-         *       "onHandAfter": 33,
-         *       "deltaReserved": 0,
-         *       "reservedAfter": 5,
-         *       "refType": "ORDER",
-         *       "refId": 10231,
-         *       "refCode": "POS-GM001-20261105-0042",
-         *       "createdBy": {
-         *         "id": 7,
-         *         "fullName": "Nguyễn Thu Ngân"
+         *       "code": "BRANCH_FORBIDDEN",
+         *       "message": "Bạn không được thao tác trên chi nhánh này",
+         *       "details": {
+         *         "branchId": 2
          *       },
-         *       "createdAt": "2026-11-05T09:31:12+07:00"
+         *       "traceId": "4c1f9b22"
          *     }
          */
-        InventoryTransaction: {
-            /** Format: int64 */
-            id: number;
-            /** Format: int64 */
-            branchId: number;
-            /** Format: int64 */
-            productId: number;
-            sku: string;
-            type: components["schemas"]["InventoryTransactionType"];
-            /** @description Thay đổi tồn thực; âm khi giảm, 0 với RESERVE/RELEASE */
-            deltaOnHand: number;
-            /** @description Tồn thực sau giao dịch */
-            onHandAfter: number;
-            /** @description Thay đổi tồn giữ chỗ; 0 với IMPORT/EXPORT/ADJUST và SALE tại quầy */
-            deltaReserved: number;
-            /** @description Tồn giữ chỗ sau giao dịch */
-            reservedAfter: number;
-            refType: components["schemas"]["RefType"];
-            /** Format: int64 */
-            refId: number;
-            /** @description Mã chứng từ gốc để hiển thị, ví dụ mã đơn */
-            refCode?: string | null;
-            createdBy?: components["schemas"]["UserRef"] | null;
-            /** Format: date-time */
-            createdAt: string;
-        };
-        InventoryTransactionPage: components["schemas"]["PageMeta"] & {
-            content: components["schemas"]["InventoryTransaction"][];
-        };
-        CancelOrderRequest: {
-            /**
-             * @description Lý do hủy (BA 5.1). Khi kênh báo hủy, hệ thống tự ghi `CHANNEL_CANCELLED`
-             * @enum {string}
-             */
-            reason: "CUSTOMER_REQUEST" | "OUT_OF_STOCK_ACTUAL" | "WRONG_INFO" | "OTHER";
-            /** @description Bắt buộc khi reason = OTHER */
-            note?: string;
-        };
-        /** @enum {string} */
-        RejectReason: "OUT_OF_STOCK" | "UNMAPPED_SKU";
-        /**
-         * @description ONLINE – khách trả qua kênh, chờ sự kiện PAID; COD – thu khi giao, CONFIRMED ngay sau giữ chỗ
-         * @enum {string}
-         */
-        ChannelPaymentMethod: "ONLINE" | "COD";
-        ChannelOrderRequest: {
-            externalOrderId: string;
-            /** Format: date-time */
-            orderedAt: string;
-            customer: {
-                name: string;
-                phone: components["schemas"]["Phone"];
-            };
-            items: {
-                externalSku: string;
-                quantity: number;
-                unitPrice: components["schemas"]["Money"];
-            }[];
-            /** @description Chỉ để đối chiếu, không lưu */
-            shippingFee?: components["schemas"]["Money"];
-            paymentMethod: components["schemas"]["ChannelPaymentMethod"];
-        };
-        ChannelOrderAck: {
-            /**
-             * Format: int64
-             * @example 10987
-             */
-            orderId: number;
-            /** @example WEB-GM001-20261105-0007 */
-            code: string;
-            /** @example WEB-778812 */
-            externalOrderId: string;
-            status: components["schemas"]["OrderStatus"];
-            /** @description Chi nhánh được phân bổ (BR-14); null khi REJECTED */
-            branch?: components["schemas"]["BranchRef"] | null;
-            /** Format: date-time */
-            reservedUntil?: string | null;
-            rejectReason?: (string & components["schemas"]["RejectReason"]) | null;
-        };
-        ChannelOrderEvent: {
-            /** @enum {string} */
-            type: "PAID" | "CANCELLED";
-            /** Format: date-time */
-            occurredAt: string;
-            /** @description Mã giao dịch thanh toán của kênh (PAID) */
-            providerRef?: string;
-            /** @description Lý do kênh hủy (CANCELLED) */
-            reason?: string;
-        };
-        ChannelStockUpdate: {
-            items: {
-                externalSku: string;
-                /** @description Σ khả dụng các CN phục vụ kênh − safety_stock, không âm (BR-15) */
-                available: number;
-                /**
-                 * Format: int64
-                 * @description Kênh bỏ qua bản có version cũ hơn
-                 */
-                version: number;
-            }[];
-        };
-        ChannelOrderStatusUpdate: {
-            status: components["schemas"]["OrderStatus"];
-            /** @description Lý do như Order.statusReason */
-            reason?: string | null;
-            /** Format: date-time */
-            occurredAt: string;
-        };
-        /** @enum {string} */
-        StockDocumentType: "IMPORT" | "EXPORT" | "TRANSFER" | "ADJUST";
-        /**
-         * @description IMPORT, EXPORT, ADJUST đi DRAFT → APPROVED; TRANSFER đi DRAFT → IN_TRANSIT → RECEIVED; DRAFT → CANCELLED
-         * @enum {string}
-         */
-        StockDocumentStatus: "DRAFT" | "APPROVED" | "IN_TRANSIT" | "RECEIVED" | "CANCELLED";
-        /**
-         * @description Lý do xuất hủy bắt buộc (BA 6.2); OTHER cần `note`
-         * @enum {string}
-         */
-        ExportReason: "EXPIRED" | "DAMAGED" | "LOST" | "OTHER";
-        StockDocumentItemRequest: {
-            /** Format: int64 */
-            productId: number;
-            /** @description Bắt buộc trừ ADJUST */
-            quantity?: number;
-            /** @description Bắt buộc với IMPORT */
-            unitCost?: components["schemas"]["Money"];
-            /** @description Chỉ ADJUST, nhập qua PUT */
-            countedQuantity?: number;
-        };
-        StockDocumentRequest: {
-            type: components["schemas"]["StockDocumentType"];
-            /**
-             * Format: int64
-             * @description Chi nhánh lập phiếu (CN nguồn với TRANSFER)
-             */
-            branchId: number;
-            /**
-             * Format: int64
-             * @description Bắt buộc và khác branchId với TRANSFER; bỏ trống với loại khác
-             */
-            toBranchId?: number;
-            /** @description Bắt buộc với IMPORT */
-            supplier?: string;
-            exportReason?: components["schemas"]["ExportReason"];
-            note?: string;
-            /** @description Chỉ ADJUST. Bật để chụp toàn bộ các dòng tồn của chi nhánh. */
-            allProducts?: boolean;
-        } & ({
-            /** @enum {boolean} */
-            allProducts?: false;
-            /** @description Mỗi `productId` một dòng. ADJUST có thể truyền danh sách sản phẩm cần kiểm kê. */
-            items: components["schemas"]["StockDocumentItemRequest"][];
-        } | {
-            /** @enum {string} */
-            type?: "ADJUST";
-            /** @enum {boolean} */
-            allProducts: true;
-        });
-        StockDocumentUpdateRequest: {
-            /** Format: int64 */
-            toBranchId?: number;
-            supplier?: string;
-            exportReason?: components["schemas"]["ExportReason"];
-            note?: string;
-            items: components["schemas"]["StockDocumentItemRequest"][];
-        };
-        ReceiveTransferRequest: {
-            /** @description Đủ mọi dòng của phiếu */
-            items: {
-                /** Format: int64 */
-                itemId: number;
-                /** @description ≤ quantity (không nhận thừa) */
-                receivedQuantity: number;
-            }[];
-        };
-        StockDocumentItem: {
-            /** Format: int64 */
-            id: number;
-            /** Format: int64 */
-            productId: number;
-            sku: string;
-            productName: string;
-            unit: string;
-            /** @description Số trên phiếu; với ADJUST là tồn thực đã chụp lúc tạo */
-            quantity: number;
-            /** Format: int64 */
-            unitCost?: number | null;
-            receivedQuantity?: number | null;
-            countedQuantity?: number | null;
-            /** @description TRANSFER: receivedQuantity − quantity; ADJUST: countedQuantity − quantity */
-            difference?: number | null;
-        };
-        StockDocumentSummary: {
-            /**
-             * Format: int64
-             * @example 812
-             */
-            id: number;
-            /** @example CK-GM001-20261105-003 */
-            code: string;
-            type: components["schemas"]["StockDocumentType"];
-            branch: components["schemas"]["BranchRef"];
-            toBranch?: components["schemas"]["BranchRef"] | null;
-            status: components["schemas"]["StockDocumentStatus"];
-            itemCount: number;
-            /** @description TRANSFER đã nhận có dòng nhận thiếu */
-            hasDiscrepancy?: boolean;
-            createdBy: components["schemas"]["UserRef"];
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            approvedAt?: string | null;
-            /** Format: date-time */
-            receivedAt?: string | null;
-        };
-        StockDocument: components["schemas"]["StockDocumentSummary"] & {
-            supplier?: string | null;
-            exportReason?: (string & components["schemas"]["ExportReason"]) | null;
-            note?: string | null;
-            approvedBy?: components["schemas"]["UserRef"] | null;
-            receivedBy?: components["schemas"]["UserRef"] | null;
-            /**
-             * Format: int64
-             * @description IMPORT: Σ quantity × unitCost; EXPORT: giá trị hủy theo giá vốn (chỉ OWNER, BRANCH_MANAGER)
-             */
-            totalCost?: number | null;
-            items: components["schemas"]["StockDocumentItem"][];
-        };
-        StockDocumentSummaryPage: components["schemas"]["PageMeta"] & {
-            content: components["schemas"]["StockDocumentSummary"][];
-        };
-        /** @enum {string} */
-        PromotionLevel: "ORDER" | "ITEM";
-        /** @enum {string} */
-        PromotionType: "PERCENT" | "AMOUNT";
-        /**
-         * @description DRAFT → ACTIVE ⇄ PAUSED → ENDED
-         * @enum {string}
-         */
-        PromotionStatus: "DRAFT" | "ACTIVE" | "PAUSED" | "ENDED";
-        PromotionRequest: {
-            code: string;
-            type: components["schemas"]["PromotionType"];
-            level: components["schemas"]["PromotionLevel"];
-            /**
-             * Format: int64
-             * @description PERCENT: 1–100 (%); AMOUNT: số tiền VND
-             */
-            value: number;
-            /**
-             * Format: int64
-             * @description Mức giảm tối đa, chỉ với PERCENT
-             */
-            maxDiscount?: number | null;
-            /**
-             * Format: int64
-             * @description Tổng sau giảm dòng tối thiểu, chỉ với ORDER
-             */
-            minOrder?: number | null;
-            /** Format: date-time */
-            startAt: string;
-            /**
-             * Format: date-time
-             * @description Phải sau startAt
-             */
-            endAt: string;
-            /** @description Tổng lượt dùng tối đa (BR-08); null = không giới hạn */
-            usageLimit?: number | null;
-            /** @description Bắt buộc, ít nhất 1 với ITEM; bỏ trống với ORDER */
-            productIds?: number[];
-            /** @description Rỗng = mọi chi nhánh */
-            branchIds?: number[];
-            /** @description Rỗng = mọi kênh */
-            channels?: components["schemas"]["ChannelCode"][];
-        };
-        Promotion: {
-            /** Format: int64 */
-            id: number;
-            code: string;
-            type: components["schemas"]["PromotionType"];
-            level: components["schemas"]["PromotionLevel"];
-            /** Format: int64 */
-            value: number;
-            /** Format: int64 */
-            maxDiscount?: number | null;
-            /** Format: int64 */
-            minOrder?: number | null;
-            /** Format: date-time */
-            startAt: string;
-            /** Format: date-time */
-            endAt: string;
-            usageLimit?: number | null;
-            usedCount: number;
-            status: components["schemas"]["PromotionStatus"];
-            productIds: number[];
-            branchIds: number[];
-            channels: components["schemas"]["ChannelCode"][];
-        };
-        PromotionPage: components["schemas"]["PageMeta"] & {
-            content: components["schemas"]["Promotion"][];
-        };
-        User: {
-            /** Format: int64 */
-            id: number;
-            username: string;
-            fullName: string;
-            role: components["schemas"]["Role"];
-            /** @description false = Admin đã khóa tài khoản */
-            active: boolean;
-            branches: components["schemas"]["BranchRef"][];
-            /** @description Đang bị khóa 15 phút do sai mật khẩu */
-            locked: boolean;
-            /** Format: date-time */
-            lockedUntil?: string | null;
-        };
-        UserCreateRequest: {
-            username: string;
-            fullName: string;
-            role: components["schemas"]["Role"];
-            /** @description Bắt buộc ít nhất 1 với CASHIER, STOREKEEPER, BRANCH_MANAGER */
-            branchIds?: number[];
-            /**
-             * Format: password
-             * @description Có chữ và số
-             */
-            password: string;
-        };
-        UserUpdateRequest: {
-            fullName: string;
-            role: components["schemas"]["Role"];
-            branchIds?: number[];
-            active: boolean;
-        };
-        UserPage: components["schemas"]["PageMeta"] & {
-            content: components["schemas"]["User"][];
-        };
-        RevenueSummary: {
-            /**
-             * Format: int64
-             * @description Tổng doanh thu bán (VND)
-             */
-            totalGrossRevenue: number;
-            /**
-             * Format: int64
-             * @description Tổng tiền hoàn trả (VND)
-             */
-            totalReturnAmount: number;
-            /**
-             * Format: int64
-             * @description Doanh thu thuần (VND)
-             */
-            totalNetRevenue: number;
-            /**
-             * Format: int64
-             * @description Tổng số đơn hoàn tất
-             */
-            totalOrders: number;
-            /**
-             * Format: int64
-             * @description Tổng số phiếu trả duyệt
-             */
-            totalReturns: number;
-        };
-        RevenuePoint: {
-            /** @description Mốc thời gian (YYYY-MM-DD hoặc YYYY-MM) */
-            date: string;
-            /**
-             * Format: int64
-             * @description Doanh thu ròng sau trừ trả hàng
-             */
-            revenue: number;
-            /**
-             * Format: int64
-             * @description Doanh thu bán
-             */
-            grossRevenue: number;
-            /**
-             * Format: int64
-             * @description Tiền trả hàng
-             */
-            returnAmount: number;
-            /** Format: int64 */
-            orderCount: number;
-            /** Format: int64 */
-            returnCount: number;
-        };
-        RevenueReportResponse: {
-            summary: components["schemas"]["RevenueSummary"];
-            points: components["schemas"]["RevenuePoint"][];
-        };
-        ProductSalesItem: {
-            /** Format: int64 */
-            productId: number;
-            sku: string;
-            name: string;
-            categoryName?: string | null;
-            /**
-             * Format: int64
-             * @description Số lượng đã bán
-             */
-            soldQuantity: number;
-            /**
-             * Format: int64
-             * @description Số lượng đã trả
-             */
-            returnedQuantity: number;
-            /**
-             * Format: int64
-             * @description Số lượng ròng (bán - trả)
-             */
-            netQuantity: number;
-            /**
-             * Format: int64
-             * @description Doanh thu từ sản phẩm (VND)
-             */
-            revenue: number;
-        };
-        TopProductsResponse: {
-            period: {
-                /** Format: date */
-                from: string;
-                /** Format: date */
-                to: string;
-            };
-            topSelling: components["schemas"]["ProductSalesItem"][];
-            slowSelling: components["schemas"]["ProductSalesItem"][];
-        };
+        'application/json': components['schemas']['ErrorResponse'];
+      };
     };
-    responses: {
-        /** @description VALIDATION_ERROR */
-        BadRequest: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "code": "VALIDATION_ERROR",
-                 *       "message": "Dữ liệu không hợp lệ",
-                 *       "details": [
-                 *         {
-                 *           "field": "items[0].quantity",
-                 *           "message": "phải lớn hơn 0"
-                 *         }
-                 *       ],
-                 *       "traceId": "4c1f9b20"
-                 *     }
-                 */
-                "application/json": components["schemas"]["ErrorResponse"];
-            };
-        };
-        /** @description Chưa đăng nhập hoặc token không hợp lệ */
-        Unauthorized: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "code": "UNAUTHORIZED",
-                 *       "message": "Phiên đăng nhập đã hết hạn",
-                 *       "details": null,
-                 *       "traceId": "4c1f9b21"
-                 *     }
-                 */
-                "application/json": components["schemas"]["ErrorResponse"];
-            };
-        };
-        /** @description FORBIDDEN hoặc BRANCH_FORBIDDEN */
-        Forbidden: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "code": "BRANCH_FORBIDDEN",
-                 *       "message": "Bạn không được thao tác trên chi nhánh này",
-                 *       "details": {
-                 *         "branchId": 2
-                 *       },
-                 *       "traceId": "4c1f9b22"
-                 *     }
-                 */
-                "application/json": components["schemas"]["ErrorResponse"];
-            };
-        };
-        /** @description NOT_FOUND */
-        NotFound: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "code": "NOT_FOUND",
-                 *       "message": "Không tìm thấy sản phẩm",
-                 *       "details": {
-                 *         "productId": 999
-                 *       },
-                 *       "traceId": "4c1f9b23"
-                 *     }
-                 */
-                "application/json": components["schemas"]["ErrorResponse"];
-            };
-        };
-        /** @description Trùng dữ liệu hoặc xung đột trạng thái */
-        Conflict: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "code": "DUPLICATE_PHONE",
-                 *       "message": "Số điện thoại đã thuộc khách hàng khác",
-                 *       "details": {
-                 *         "phone": "0901234567",
-                 *         "customerId": 125
-                 *       },
-                 *       "traceId": "4c1f9b24"
-                 *     }
-                 */
-                "application/json": components["schemas"]["ErrorResponse"];
-            };
-        };
-        /** @description Vi phạm quy tắc nghiệp vụ */
-        BusinessRule: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ErrorResponse"];
-            };
-        };
-        /** @description INVALID_STATUS – thao tác không hợp lệ với trạng thái hiện tại */
-        InvalidStatus: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "code": "INVALID_STATUS",
-                 *       "message": "Chỉ hủy được đơn đang giữ hàng hoặc đã xác nhận",
-                 *       "details": {
-                 *         "currentStatus": "COMPLETED",
-                 *         "allowed": [
-                 *           "RESERVED",
-                 *           "CONFIRMED"
-                 *         ]
-                 *       },
-                 *       "traceId": "4c1f9b25"
-                 *     }
-                 */
-                "application/json": components["schemas"]["ErrorResponse"];
-            };
-        };
-        /** @description INVALID_SIGNATURE – thiếu hoặc sai chữ ký HMAC; không ghi gì vào CSDL */
-        InvalidSignature: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /**
-                 * @example {
-                 *       "code": "INVALID_SIGNATURE",
-                 *       "message": "Chữ ký không hợp lệ",
-                 *       "details": null,
-                 *       "traceId": "4c1f9b26"
-                 *     }
-                 */
-                "application/json": components["schemas"]["ErrorResponse"];
-            };
-        };
+    /** @description NOT_FOUND */
+    NotFound: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        /**
+         * @example {
+         *       "code": "NOT_FOUND",
+         *       "message": "Không tìm thấy sản phẩm",
+         *       "details": {
+         *         "productId": 999
+         *       },
+         *       "traceId": "4c1f9b23"
+         *     }
+         */
+        'application/json': components['schemas']['ErrorResponse'];
+      };
     };
-    parameters: {
-        /** @description Số trang, bắt đầu từ 0 */
-        Page: number;
-        Size: number;
-        /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
-        Sort: string;
-        BranchIdQuery: number;
-        BranchIdQueryRequired: number;
-        BranchIdPath: number;
-        CategoryId: number;
-        ProductId: number;
-        CustomerId: number;
-        OrderId: number;
-        /** @description UUID do client sinh mỗi lần bấm Hoàn tất mới; bấm lại sau lỗi mạng thì dùng lại key cũ. Lưu 24 giờ. */
-        IdempotencyKey: string;
-        /** @description Chỉ kênh online */
-        ChannelCodePath: "WEB" | "MARKET";
-        /** @description HMAC-SHA256 của nguyên body (byte gốc, UTF-8) với `webhook_secret` của kênh, dạng hex chữ thường */
-        Signature: string;
-        DocumentId: number;
-        PromotionId: number;
-        UserId: number;
+    /** @description Trùng dữ liệu hoặc xung đột trạng thái */
+    Conflict: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        /**
+         * @example {
+         *       "code": "DUPLICATE_PHONE",
+         *       "message": "Số điện thoại đã thuộc khách hàng khác",
+         *       "details": {
+         *         "phone": "0901234567",
+         *         "customerId": 125
+         *       },
+         *       "traceId": "4c1f9b24"
+         *     }
+         */
+        'application/json': components['schemas']['ErrorResponse'];
+      };
     };
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
+    /** @description Vi phạm quy tắc nghiệp vụ */
+    BusinessRule: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        'application/json': components['schemas']['ErrorResponse'];
+      };
+    };
+    /** @description INVALID_STATUS – thao tác không hợp lệ với trạng thái hiện tại */
+    InvalidStatus: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        /**
+         * @example {
+         *       "code": "INVALID_STATUS",
+         *       "message": "Chỉ hủy được đơn đang giữ hàng hoặc đã xác nhận",
+         *       "details": {
+         *         "currentStatus": "COMPLETED",
+         *         "allowed": [
+         *           "RESERVED",
+         *           "CONFIRMED"
+         *         ]
+         *       },
+         *       "traceId": "4c1f9b25"
+         *     }
+         */
+        'application/json': components['schemas']['ErrorResponse'];
+      };
+    };
+    /** @description INVALID_SIGNATURE – thiếu hoặc sai chữ ký HMAC; không ghi gì vào CSDL */
+    InvalidSignature: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        /**
+         * @example {
+         *       "code": "INVALID_SIGNATURE",
+         *       "message": "Chữ ký không hợp lệ",
+         *       "details": null,
+         *       "traceId": "4c1f9b26"
+         *     }
+         */
+        'application/json': components['schemas']['ErrorResponse'];
+      };
+    };
+  };
+  parameters: {
+    /** @description Số trang, bắt đầu từ 0 */
+    Page: number;
+    Size: number;
+    /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
+    Sort: string;
+    BranchIdQuery: number;
+    BranchIdQueryRequired: number;
+    BranchIdPath: number;
+    CategoryId: number;
+    ProductId: number;
+    CustomerId: number;
+    OrderId: number;
+    /** @description UUID do client sinh mỗi lần bấm Hoàn tất mới; bấm lại sau lỗi mạng thì dùng lại key cũ. Lưu 24 giờ. */
+    IdempotencyKey: string;
+    /** @description Chỉ kênh online */
+    ChannelCodePath: 'WEB' | 'MARKET';
+    /** @description HMAC-SHA256 của nguyên body (byte gốc, UTF-8) với `webhook_secret` của kênh, dạng hex chữ thường */
+    Signature: string;
+    DocumentId: number;
+    PromotionId: number;
+    UserId: number;
+  };
+  requestBodies: never;
+  headers: never;
+  pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    login: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "username": "thungan.gm001",
-                 *       "password": "Demo@123"
-                 *     }
-                 */
-                "application/json": components["schemas"]["LoginRequest"];
-            };
-        };
-        responses: {
-            /** @description Đăng nhập thành công */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TokenResponse"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            /** @description INVALID_CREDENTIALS hoặc ACCOUNT_LOCKED */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
+  login: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    refreshToken: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RefreshRequest"];
-            };
-        };
-        responses: {
-            /** @description Token mới */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TokenResponse"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "username": "thungan.gm001",
+         *       "password": "Demo@123"
+         *     }
+         */
+        'application/json': components['schemas']['LoginRequest'];
+      };
     };
-    logout: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Đăng nhập thành công */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RefreshRequest"];
-            };
+        content: {
+          'application/json': components['schemas']['TokenResponse'];
         };
-        responses: {
-            /** @description Đã đăng xuất */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
+      };
+      400: components['responses']['BadRequest'];
+      /** @description INVALID_CREDENTIALS hoặc ACCOUNT_LOCKED */
+      401: {
+        headers: {
+          [name: string]: unknown;
         };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
     };
-    getCurrentUser: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Người dùng hiện tại */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CurrentUser"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
+  };
+  refreshToken: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    changePassword: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ChangePasswordRequest"];
-            };
-        };
-        responses: {
-            /** @description Đã đổi mật khẩu */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            422: components["responses"]["BusinessRule"];
-        };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RefreshRequest'];
+      };
     };
-    listBranches: {
-        parameters: {
-            query?: {
-                active?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Token mới */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Danh sách chi nhánh */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Branch"][];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
+        content: {
+          'application/json': components['schemas']['TokenResponse'];
         };
+      };
+      401: components['responses']['Unauthorized'];
     };
-    listCategories: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Danh sách danh mục */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Category"][];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
+  };
+  logout: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    createCategory: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CategoryRequest"];
-            };
-        };
-        responses: {
-            /** @description Đã tạo */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Category"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RefreshRequest'];
+      };
     };
-    updateCategory: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                categoryId: components["parameters"]["CategoryId"];
-            };
-            cookie?: never;
+    responses: {
+      /** @description Đã đăng xuất */
+      204: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CategoryRequest"];
-            };
-        };
-        responses: {
-            /** @description Đã sửa */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Category"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["BusinessRule"];
-        };
+        content?: never;
+      };
+      401: components['responses']['Unauthorized'];
     };
-    deleteCategory: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                categoryId: components["parameters"]["CategoryId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Đã xóa */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
+  };
+  getCurrentUser: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    listProducts: {
-        parameters: {
-            query?: {
-                /** @description Tìm theo tên, SKU hoặc barcode (không phân biệt hoa thường) */
-                q?: string;
-                /** @description Gồm cả danh mục con */
-                categoryId?: number;
-                active?: boolean;
-                /** @description Số trang, bắt đầu từ 0 */
-                page?: components["parameters"]["Page"];
-                size?: components["parameters"]["Size"];
-                /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
-                sort?: components["parameters"]["Sort"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Người dùng hiện tại */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Trang sản phẩm */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProductPage"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
+        content: {
+          'application/json': components['schemas']['CurrentUser'];
         };
+      };
+      401: components['responses']['Unauthorized'];
     };
-    createProduct: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProductRequest"];
-            };
-        };
-        responses: {
-            /** @description Đã tạo */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Product"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            409: components["responses"]["Conflict"];
-        };
+  };
+  changePassword: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    lookupProduct: {
-        parameters: {
-            query: {
-                /** @description Barcode hoặc SKU */
-                code: string;
-                branchId: components["parameters"]["BranchIdQueryRequired"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Sản phẩm và tồn khả dụng */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProductLookup"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ChangePasswordRequest'];
+      };
     };
-    getProduct: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                productId: components["parameters"]["ProductId"];
-            };
-            cookie?: never;
+    responses: {
+      /** @description Đã đổi mật khẩu */
+      204: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Sản phẩm */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Product"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-        };
+        content?: never;
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      422: components['responses']['BusinessRule'];
     };
-    updateProduct: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                productId: components["parameters"]["ProductId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProductRequest"];
-            };
-        };
-        responses: {
-            /** @description Đã sửa */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Product"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
+  };
+  listBranches: {
+    parameters: {
+      query?: {
+        active?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    listCustomers: {
-        parameters: {
-            query?: {
-                /** @description Tìm theo tên hoặc một phần số điện thoại */
-                q?: string;
-                /** @description Khớp chính xác số điện thoại (dùng ở POS) */
-                phone?: components["schemas"]["Phone"];
-                /** @description Số trang, bắt đầu từ 0 */
-                page?: components["parameters"]["Page"];
-                size?: components["parameters"]["Size"];
-                /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
-                sort?: components["parameters"]["Sort"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Danh sách chi nhánh */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Trang khách hàng */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CustomerPage"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
+        content: {
+          'application/json': components['schemas']['Branch'][];
         };
+      };
+      401: components['responses']['Unauthorized'];
     };
-    createCustomer: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CustomerRequest"];
-            };
-        };
-        responses: {
-            /** @description Đã tạo */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Customer"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            409: components["responses"]["Conflict"];
-        };
+  };
+  listCategories: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    getCustomer: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                customerId: components["parameters"]["CustomerId"];
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Danh sách danh mục */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Khách hàng */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Customer"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
+        content: {
+          'application/json': components['schemas']['Category'][];
         };
+      };
+      401: components['responses']['Unauthorized'];
     };
-    updateCustomer: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                customerId: components["parameters"]["CustomerId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CustomerRequest"];
-            };
-        };
-        responses: {
-            /** @description Đã sửa */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Customer"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
+  };
+  createCategory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    deactivateCustomer: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                customerId: components["parameters"]["CustomerId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Khách hàng sau khi ngừng hoạt động */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Customer"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CategoryRequest'];
+      };
     };
-    listCustomerOrders: {
-        parameters: {
-            query?: {
-                /** @description Số trang, bắt đầu từ 0 */
-                page?: components["parameters"]["Page"];
-                size?: components["parameters"]["Size"];
-            };
-            header?: never;
-            path: {
-                customerId: components["parameters"]["CustomerId"];
-            };
-            cookie?: never;
+    responses: {
+      /** @description Đã tạo */
+      201: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Trang đơn hàng, mới nhất trước */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrderSummaryPage"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
+        content: {
+          'application/json': components['schemas']['Category'];
         };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
     };
-    quoteOrder: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "branchId": 1,
-                 *       "customerId": 125,
-                 *       "items": [
-                 *         {
-                 *           "productId": 101,
-                 *           "quantity": 1
-                 *         },
-                 *         {
-                 *           "productId": 205,
-                 *           "quantity": 2
-                 *         }
-                 *       ]
-                 *     }
-                 */
-                "application/json": components["schemas"]["QuoteRequest"];
-            };
-        };
-        responses: {
-            /** @description Báo giá */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Quote"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["BusinessRule"];
-        };
+  };
+  updateCategory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        categoryId: components['parameters']['CategoryId'];
+      };
+      cookie?: never;
     };
-    createPosOrder: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description UUID do client sinh mỗi lần bấm Hoàn tất mới; bấm lại sau lỗi mạng thì dùng lại key cũ. Lưu 24 giờ. */
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "branchId": 1,
-                 *       "customerId": 125,
-                 *       "items": [
-                 *         {
-                 *           "productId": 101,
-                 *           "quantity": 1
-                 *         },
-                 *         {
-                 *           "productId": 205,
-                 *           "quantity": 2
-                 *         }
-                 *       ],
-                 *       "payment": {
-                 *         "method": "CASH",
-                 *         "cashReceived": 250000
-                 *       },
-                 *       "expectedTotal": 200700
-                 *     }
-                 */
-                "application/json": components["schemas"]["PosOrderRequest"];
-            };
-        };
-        responses: {
-            /** @description Request lặp lại với cùng Idempotency-Key, trả đơn đã tạo trước đó */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Order"];
-                };
-            };
-            /** @description Đơn đã tạo */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Order"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            /** @description INSUFFICIENT_STOCK hoặc IDEMPOTENCY_CONFLICT */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description TOTAL_CHANGED, CASH_INSUFFICIENT, PAYMENT_FAILED, PAYMENT_TIMEOUT, PRODUCT_INACTIVE, MANUAL_DISCOUNT_FORBIDDEN */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CategoryRequest'];
+      };
     };
-    listOrders: {
-        parameters: {
-            query?: {
-                branchId?: components["parameters"]["BranchIdQuery"];
-                channel?: components["schemas"]["ChannelCode"];
-                /** @description Có thể lặp để lọc nhiều trạng thái (`status=RESERVED&status=CONFIRMED`) */
-                status?: components["schemas"]["OrderStatus"][];
-                /** @description Ngày tạo từ (theo giờ Việt Nam, gồm cả ngày này) */
-                from?: string;
-                /** @description Ngày tạo đến (gồm cả ngày này) */
-                to?: string;
-                customerId?: number;
-                /** @description Tìm theo mã đơn, mã đơn kênh hoặc số điện thoại khách */
-                q?: string;
-                /** @description Số trang, bắt đầu từ 0 */
-                page?: components["parameters"]["Page"];
-                size?: components["parameters"]["Size"];
-                /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
-                sort?: components["parameters"]["Sort"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Đã sửa */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Trang đơn hàng */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrderSummaryPage"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
+        content: {
+          'application/json': components['schemas']['Category'];
         };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      422: components['responses']['BusinessRule'];
     };
-    getOrder: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                orderId: components["parameters"]["OrderId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Đơn hàng */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Order"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
+  };
+  deleteCategory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        categoryId: components['parameters']['CategoryId'];
+      };
+      cookie?: never;
     };
-    listInventory: {
-        parameters: {
-            query?: {
-                branchId?: components["parameters"]["BranchIdQuery"];
-                productId?: number;
-                categoryId?: number;
-                /** @description Tìm theo tên, SKU hoặc barcode */
-                q?: string;
-                stockStatus?: components["schemas"]["StockStatus"];
-                /** @description Số trang, bắt đầu từ 0 */
-                page?: components["parameters"]["Page"];
-                size?: components["parameters"]["Size"];
-                /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
-                sort?: components["parameters"]["Sort"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Đã xóa */
+      204: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Trang tồn kho */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InventoryPage"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-        };
+        content?: never;
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['Conflict'];
     };
-    getInventoryItem: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                branchId: components["parameters"]["BranchIdPath"];
-                productId: components["parameters"]["ProductId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Tồn kho */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InventoryItem"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
+  };
+  listProducts: {
+    parameters: {
+      query?: {
+        /** @description Tìm theo tên, SKU hoặc barcode (không phân biệt hoa thường) */
+        q?: string;
+        /** @description Gồm cả danh mục con */
+        categoryId?: number;
+        active?: boolean;
+        /** @description Số trang, bắt đầu từ 0 */
+        page?: components['parameters']['Page'];
+        size?: components['parameters']['Size'];
+        /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
+        sort?: components['parameters']['Sort'];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    listInventoryTransactions: {
-        parameters: {
-            query?: {
-                branchId?: components["parameters"]["BranchIdQuery"];
-                productId?: number;
-                type?: components["schemas"]["InventoryTransactionType"];
-                refType?: components["schemas"]["RefType"];
-                refId?: number;
-                from?: string;
-                to?: string;
-                /** @description Số trang, bắt đầu từ 0 */
-                page?: components["parameters"]["Page"];
-                size?: components["parameters"]["Size"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Trang sản phẩm */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Trang giao dịch kho */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InventoryTransactionPage"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
+        content: {
+          'application/json': components['schemas']['ProductPage'];
         };
+      };
+      401: components['responses']['Unauthorized'];
     };
-    completeOnlineOrder: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                orderId: components["parameters"]["OrderId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Đơn sau khi hoàn tất */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Order"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["InvalidStatus"];
-        };
+  };
+  createProduct: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    cancelOnlineOrder: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                orderId: components["parameters"]["OrderId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "reason": "CUSTOMER_REQUEST",
-                 *       "note": "Khách gọi điện đổi ý"
-                 *     }
-                 */
-                "application/json": components["schemas"]["CancelOrderRequest"];
-            };
-        };
-        responses: {
-            /** @description Đơn sau khi hủy */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Order"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["InvalidStatus"];
-        };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ProductRequest'];
+      };
     };
-    mapChannelProduct: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Chỉ kênh online */
-                channelCode: components["parameters"]["ChannelCodePath"];
-                productId: number;
-            };
-            cookie?: never;
+    responses: {
+      /** @description Đã tạo */
+      201: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": {
-                    externalSku: string;
-                };
-            };
+        content: {
+          'application/json': components['schemas']['Product'];
         };
-        responses: {
-            /** @description Đã lưu ánh xạ */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      409: components['responses']['Conflict'];
     };
-    receiveChannelOrder: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description HMAC-SHA256 của nguyên body (byte gốc, UTF-8) với `webhook_secret` của kênh, dạng hex chữ thường */
-                "X-Signature": components["parameters"]["Signature"];
-            };
-            path: {
-                /** @description Chỉ kênh online */
-                channelCode: components["parameters"]["ChannelCodePath"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "externalOrderId": "WEB-778812",
-                 *       "orderedAt": "2026-11-05T10:15:00+07:00",
-                 *       "customer": {
-                 *         "name": "Lê Văn Hùng",
-                 *         "phone": "0912345678"
-                 *       },
-                 *       "items": [
-                 *         {
-                 *           "externalSku": "W-SUA-TH-1L",
-                 *           "quantity": 3,
-                 *           "unitPrice": 29000
-                 *         }
-                 *       ],
-                 *       "shippingFee": 15000,
-                 *       "paymentMethod": "ONLINE"
-                 *     }
-                 */
-                "application/json": components["schemas"]["ChannelOrderRequest"];
-            };
-        };
-        responses: {
-            /** @description Đơn trùng (cùng kênh và `externalOrderId`), trả đơn đã có, không giữ chỗ thêm (BA E1) */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChannelOrderAck"];
-                };
-            };
-            /** @description Đã nhận và giữ chỗ */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChannelOrderAck"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["InvalidSignature"];
-            404: components["responses"]["NotFound"];
-            /** @description INSUFFICIENT_STOCK – không chi nhánh nào đủ tồn; đơn đã lưu ở REJECTED */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "code": "INSUFFICIENT_STOCK",
-                     *       "message": "Không chi nhánh nào đủ hàng cho đơn",
-                     *       "details": {
-                     *         "orderId": 10988,
-                     *         "status": "REJECTED",
-                     *         "lines": [
-                     *           {
-                     *             "productId": 205,
-                     *             "sku": "SUA-TH-1L",
-                     *             "requested": 3,
-                     *             "available": 1
-                     *           }
-                     *         ]
-                     *       },
-                     *       "traceId": "c11e0a01"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description UNMAPPED_SKU – có SKU kênh chưa ánh xạ; đơn đã lưu ở REJECTED */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "code": "UNMAPPED_SKU",
-                     *       "message": "Có mã hàng của kênh chưa được ánh xạ",
-                     *       "details": {
-                     *         "orderId": 10989,
-                     *         "status": "REJECTED",
-                     *         "externalSkus": [
-                     *           "W-NUOC-MAM-500"
-                     *         ]
-                     *       },
-                     *       "traceId": "c11e0a02"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
+  };
+  lookupProduct: {
+    parameters: {
+      query: {
+        /** @description Barcode hoặc SKU */
+        code: string;
+        branchId: components['parameters']['BranchIdQueryRequired'];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    receiveChannelOrderEvent: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description HMAC-SHA256 của nguyên body (byte gốc, UTF-8) với `webhook_secret` của kênh, dạng hex chữ thường */
-                "X-Signature": components["parameters"]["Signature"];
-            };
-            path: {
-                /** @description Chỉ kênh online */
-                channelCode: components["parameters"]["ChannelCodePath"];
-                externalOrderId: string;
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Sản phẩm và tồn khả dụng */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "type": "PAID",
-                 *       "occurredAt": "2026-11-05T10:21:40+07:00",
-                 *       "providerRef": "VNP-552910"
-                 *     }
-                 */
-                "application/json": components["schemas"]["ChannelOrderEvent"];
-            };
+        content: {
+          'application/json': components['schemas']['ProductLookup'];
         };
-        responses: {
-            /** @description Trạng thái đơn sau sự kiện */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChannelOrderAck"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["InvalidSignature"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["InvalidStatus"];
-        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
     };
-    pushChannelStock: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description HMAC-SHA256 của nguyên body (byte gốc, UTF-8) với `webhook_secret` của kênh, dạng hex chữ thường */
-                "X-Signature": components["parameters"]["Signature"];
-            };
-            path: {
-                /** @description Chỉ kênh online */
-                channelCode: components["parameters"]["ChannelCodePath"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "items": [
-                 *         {
-                 *           "externalSku": "W-SUA-TH-1L",
-                 *           "available": 41,
-                 *           "version": 1843
-                 *         }
-                 *       ]
-                 *     }
-                 */
-                "application/json": components["schemas"]["ChannelStockUpdate"];
-            };
-        };
-        responses: {
-            /** @description Kênh đã nhận */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Dữ liệu không hợp lệ; backend ghi sync_log FAILED, không thử lại */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Sai chữ ký; backend ghi sync_log FAILED, không thử lại */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
+  };
+  getProduct: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        productId: components['parameters']['ProductId'];
+      };
+      cookie?: never;
     };
-    pushChannelOrderStatus: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description HMAC-SHA256 của nguyên body (byte gốc, UTF-8) với `webhook_secret` của kênh, dạng hex chữ thường */
-                "X-Signature": components["parameters"]["Signature"];
-            };
-            path: {
-                /** @description Chỉ kênh online */
-                channelCode: components["parameters"]["ChannelCodePath"];
-                externalOrderId: string;
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Sản phẩm */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "status": "REJECTED",
-                 *       "reason": "OUT_OF_STOCK",
-                 *       "occurredAt": "2026-11-05T10:15:01+07:00"
-                 *     }
-                 */
-                "application/json": components["schemas"]["ChannelOrderStatusUpdate"];
-            };
+        content: {
+          'application/json': components['schemas']['Product'];
         };
-        responses: {
-            /** @description Kênh đã nhận */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Dữ liệu không hợp lệ; backend ghi sync_log FAILED, không thử lại */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Sai chữ ký; backend ghi sync_log FAILED, không thử lại */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
+      };
+      401: components['responses']['Unauthorized'];
+      404: components['responses']['NotFound'];
     };
-    listStockDocuments: {
-        parameters: {
-            query?: {
-                branchId?: components["parameters"]["BranchIdQuery"];
-                type?: components["schemas"]["StockDocumentType"];
-                /** @description Có thể lặp (`status=DRAFT&status=IN_TRANSIT`) */
-                status?: components["schemas"]["StockDocumentStatus"][];
-                /** @description Ngày tạo từ (giờ Việt Nam, gồm cả ngày này) */
-                from?: string;
-                to?: string;
-                /** @description Tìm theo mã phiếu hoặc nhà cung cấp */
-                q?: string;
-                /** @description Số trang, bắt đầu từ 0 */
-                page?: components["parameters"]["Page"];
-                size?: components["parameters"]["Size"];
-                /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
-                sort?: components["parameters"]["Sort"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Trang phiếu kho */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StockDocumentSummaryPage"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-        };
+  };
+  updateProduct: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        productId: components['parameters']['ProductId'];
+      };
+      cookie?: never;
     };
-    createStockDocument: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StockDocumentRequest"];
-            };
-        };
-        responses: {
-            /** @description Phiếu nháp */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StockDocument"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ProductRequest'];
+      };
     };
-    getStockDocument: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                documentId: components["parameters"]["DocumentId"];
-            };
-            cookie?: never;
+    responses: {
+      /** @description Đã sửa */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Phiếu kho */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StockDocument"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
+        content: {
+          'application/json': components['schemas']['Product'];
         };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['Conflict'];
     };
-    updateStockDocument: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                documentId: components["parameters"]["DocumentId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StockDocumentUpdateRequest"];
-            };
-        };
-        responses: {
-            /** @description Phiếu sau khi sửa */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StockDocument"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["InvalidStatus"];
-        };
+  };
+  listCustomers: {
+    parameters: {
+      query?: {
+        /** @description Tìm theo tên hoặc một phần số điện thoại */
+        q?: string;
+        /** @description Khớp chính xác số điện thoại (dùng ở POS) */
+        phone?: components['schemas']['Phone'];
+        /** @description Số trang, bắt đầu từ 0 */
+        page?: components['parameters']['Page'];
+        size?: components['parameters']['Size'];
+        /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
+        sort?: components['parameters']['Sort'];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    approveStockDocument: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                documentId: components["parameters"]["DocumentId"];
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Trang khách hàng */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Phiếu sau khi duyệt */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StockDocument"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            /** @description INVALID_STATUS hoặc INSUFFICIENT_STOCK */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            422: components["responses"]["BusinessRule"];
+        content: {
+          'application/json': components['schemas']['CustomerPage'];
         };
+      };
+      401: components['responses']['Unauthorized'];
     };
-    receiveStockTransfer: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                documentId: components["parameters"]["DocumentId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "items": [
-                 *         {
-                 *           "itemId": 5521,
-                 *           "receivedQuantity": 48
-                 *         }
-                 *       ]
-                 *     }
-                 */
-                "application/json": components["schemas"]["ReceiveTransferRequest"];
-            };
-        };
-        responses: {
-            /** @description Phiếu sau khi nhận */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StockDocument"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["InvalidStatus"];
-        };
+  };
+  createCustomer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    cancelStockDocument: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                documentId: components["parameters"]["DocumentId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    reason: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Phiếu đã hủy */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StockDocument"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["InvalidStatus"];
-        };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CustomerRequest'];
+      };
     };
-    listPromotions: {
-        parameters: {
-            query?: {
-                status?: components["schemas"]["PromotionStatus"][];
-                level?: components["schemas"]["PromotionLevel"];
-                /** @description Chỉ lấy chương trình hiệu lực tại thời điểm này */
-                activeAt?: string;
-                branchId?: components["parameters"]["BranchIdQuery"];
-                channel?: components["schemas"]["ChannelCode"];
-                /** @description Tìm theo mã */
-                q?: string;
-                /** @description Số trang, bắt đầu từ 0 */
-                page?: components["parameters"]["Page"];
-                size?: components["parameters"]["Size"];
-                /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
-                sort?: components["parameters"]["Sort"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Đã tạo */
+      201: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Trang khuyến mại */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PromotionPage"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
+        content: {
+          'application/json': components['schemas']['Customer'];
         };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      409: components['responses']['Conflict'];
     };
-    createPromotion: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "code": "DON200K-10",
-                 *       "type": "PERCENT",
-                 *       "level": "ORDER",
-                 *       "value": 10,
-                 *       "maxDiscount": 30000,
-                 *       "minOrder": 200000,
-                 *       "startAt": "2026-11-18T00:00:00+07:00",
-                 *       "endAt": "2026-11-24T23:59:59+07:00",
-                 *       "usageLimit": 500,
-                 *       "branchIds": [],
-                 *       "channels": [
-                 *         "POS",
-                 *         "WEB"
-                 *       ]
-                 *     }
-                 */
-                "application/json": components["schemas"]["PromotionRequest"];
-            };
-        };
-        responses: {
-            /** @description Chương trình đã tạo */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Promotion"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            409: components["responses"]["Conflict"];
-        };
+  };
+  getCustomer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        customerId: components['parameters']['CustomerId'];
+      };
+      cookie?: never;
     };
-    getPromotion: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                promotionId: components["parameters"]["PromotionId"];
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Khách hàng */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Chương trình */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Promotion"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
+        content: {
+          'application/json': components['schemas']['Customer'];
         };
+      };
+      401: components['responses']['Unauthorized'];
+      404: components['responses']['NotFound'];
     };
-    updatePromotion: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                promotionId: components["parameters"]["PromotionId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PromotionRequest"];
-            };
-        };
-        responses: {
-            /** @description Chương trình sau khi sửa */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Promotion"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["InvalidStatus"];
-        };
+  };
+  updateCustomer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        customerId: components['parameters']['CustomerId'];
+      };
+      cookie?: never;
     };
-    changePromotionStatus: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                promotionId: components["parameters"]["PromotionId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @enum {string} */
-                    status: "ACTIVE" | "PAUSED" | "ENDED";
-                };
-            };
-        };
-        responses: {
-            /** @description Chương trình sau khi đổi trạng thái */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Promotion"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["InvalidStatus"];
-        };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CustomerRequest'];
+      };
     };
-    listUsers: {
-        parameters: {
-            query?: {
-                role?: components["schemas"]["Role"];
-                branchId?: components["parameters"]["BranchIdQuery"];
-                active?: boolean;
-                /** @description Tìm theo tên đăng nhập hoặc họ tên */
-                q?: string;
-                /** @description Số trang, bắt đầu từ 0 */
-                page?: components["parameters"]["Page"];
-                size?: components["parameters"]["Size"];
-                /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
-                sort?: components["parameters"]["Sort"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Đã sửa */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Trang tài khoản */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserPage"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
+        content: {
+          'application/json': components['schemas']['Customer'];
         };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['Conflict'];
     };
-    createUser: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                /**
-                 * @example {
-                 *       "username": "thungan.gm004",
-                 *       "fullName": "Phạm Thu Ngân",
-                 *       "role": "CASHIER",
-                 *       "branchIds": [
-                 *         1
-                 *       ],
-                 *       "password": "Demo@123"
-                 *     }
-                 */
-                "application/json": components["schemas"]["UserCreateRequest"];
-            };
-        };
-        responses: {
-            /** @description Tài khoản đã tạo */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["User"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            409: components["responses"]["Conflict"];
-        };
+  };
+  deactivateCustomer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        customerId: components['parameters']['CustomerId'];
+      };
+      cookie?: never;
     };
-    getUser: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                userId: components["parameters"]["UserId"];
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Khách hàng sau khi ngừng hoạt động */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Tài khoản */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["User"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
+        content: {
+          'application/json': components['schemas']['Customer'];
         };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
     };
-    updateUser: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                userId: components["parameters"]["UserId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UserUpdateRequest"];
-            };
-        };
-        responses: {
-            /** @description Tài khoản sau khi sửa */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["User"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["BusinessRule"];
-        };
+  };
+  listCustomerOrders: {
+    parameters: {
+      query?: {
+        /** @description Số trang, bắt đầu từ 0 */
+        page?: components['parameters']['Page'];
+        size?: components['parameters']['Size'];
+      };
+      header?: never;
+      path: {
+        customerId: components['parameters']['CustomerId'];
+      };
+      cookie?: never;
     };
-    unlockUser: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                userId: components["parameters"]["UserId"];
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Trang đơn hàng, mới nhất trước */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Đã mở khóa */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
+        content: {
+          'application/json': components['schemas']['OrderSummaryPage'];
         };
+      };
+      401: components['responses']['Unauthorized'];
+      404: components['responses']['NotFound'];
     };
-    resetUserPassword: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                userId: components["parameters"]["UserId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: password */
-                    newPassword: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Đã đặt lại */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
+  };
+  quoteOrder: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    getRevenueReport: {
-        parameters: {
-            query?: {
-                /** @description Ngày bắt đầu (YYYY-MM-DD), mặc định 30 ngày trước */
-                from?: string;
-                /** @description Ngày kết thúc (YYYY-MM-DD), mặc định hôm nay */
-                to?: string;
-                /** @description Chu kỳ gom nhóm (day, week, month) */
-                groupBy?: "day" | "week" | "month";
-                branchId?: components["parameters"]["BranchIdQuery"];
-                /** @description Lọc theo kênh bán hàng */
-                channelId?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Báo cáo doanh thu và danh sách các điểm dữ liệu */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RevenueReportResponse"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-        };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "branchId": 1,
+         *       "customerId": 125,
+         *       "items": [
+         *         {
+         *           "productId": 101,
+         *           "quantity": 1
+         *         },
+         *         {
+         *           "productId": 205,
+         *           "quantity": 2
+         *         }
+         *       ]
+         *     }
+         */
+        'application/json': components['schemas']['QuoteRequest'];
+      };
     };
-    getTopProductsReport: {
-        parameters: {
-            query?: {
-                /** @description Tháng báo cáo (YYYY-MM), ví dụ 2026-11 */
-                month?: string;
-                /** @description Tùy chọn ngày bắt đầu (YYYY-MM-DD) */
-                from?: string;
-                /** @description Tùy chọn ngày kết thúc (YYYY-MM-DD) */
-                to?: string;
-                /** @description Số lượng top mỗi danh sách (mặc định 10) */
-                limit?: number;
-                branchId?: components["parameters"]["BranchIdQuery"];
-                /** @description Lọc theo kênh bán hàng */
-                channelId?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Báo giá */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Top sản phẩm bán chạy và bán chậm */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TopProductsResponse"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
+        content: {
+          'application/json': components['schemas']['Quote'];
         };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      422: components['responses']['BusinessRule'];
     };
-    listLowStockAlerts: {
-        parameters: {
-            query?: {
-                /** @description Lọc theo chi nhánh. Bỏ qua để xem tất cả chi nhánh có quyền truy cập. */
-                branchId?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Danh sách cảnh báo đang mở, mảng rỗng nếu không có cảnh báo phù hợp */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StockAlert"][];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-        };
+  };
+  createPosOrder: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description UUID do client sinh mỗi lần bấm Hoàn tất mới; bấm lại sau lỗi mạng thì dùng lại key cũ. Lưu 24 giờ. */
+        'Idempotency-Key': components['parameters']['IdempotencyKey'];
+      };
+      path?: never;
+      cookie?: never;
     };
-    getForecast: {
-        parameters: {
-            query: {
-                branchId: components["parameters"]["BranchIdQueryRequired"];
-                productId: number;
-                /** @description Chỉ lấy một tầm. Bỏ qua để lấy cả 7 và 30. */
-                horizon?: 7 | 30;
-                /** @description Lượt chạy cần xem; bỏ qua để dùng lượt DONE mới nhất */
-                runId?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Dự báo theo ngày */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ForecastResponse"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "branchId": 1,
+         *       "customerId": 125,
+         *       "items": [
+         *         {
+         *           "productId": 101,
+         *           "quantity": 1
+         *         },
+         *         {
+         *           "productId": 205,
+         *           "quantity": 2
+         *         }
+         *       ],
+         *       "payment": {
+         *         "method": "CASH",
+         *         "cashReceived": 250000
+         *       },
+         *       "expectedTotal": 200700
+         *     }
+         */
+        'application/json': components['schemas']['PosOrderRequest'];
+      };
     };
-    listForecastRuns: {
-        parameters: {
-            query?: {
-                status?: components["schemas"]["ForecastRunStatus"];
-                /** @description Số trang, bắt đầu từ 0 */
-                page?: components["parameters"]["Page"];
-                size?: components["parameters"]["Size"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
+    responses: {
+      /** @description Request lặp lại với cùng Idempotency-Key, trả đơn đã tạo trước đó */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Trang lượt chạy */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ForecastRunPage"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
+        content: {
+          'application/json': components['schemas']['Order'];
         };
+      };
+      /** @description Đơn đã tạo */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Order'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      /** @description INSUFFICIENT_STOCK hoặc IDEMPOTENCY_CONFLICT */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description TOTAL_CHANGED, CASH_INSUFFICIENT, PAYMENT_FAILED, PAYMENT_TIMEOUT, PRODUCT_INACTIVE, MANUAL_DISCOUNT_FORBIDDEN */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
     };
-    startForecastRun: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Đã tạo lượt chạy, đang chạy nền */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ForecastRun"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            /** @description FORECAST_RUNNING hoặc FORECAST_NO_DATA */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "code": "FORECAST_RUNNING",
-                     *       "message": "Đang có lượt dự báo chạy",
-                     *       "details": {
-                     *         "runId": 12
-                     *       },
-                     *       "traceId": "4c1f9b30"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description FORECAST_UNAVAILABLE */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "code": "FORECAST_UNAVAILABLE",
-                     *       "message": "Dịch vụ dự báo tạm thời không phản hồi",
-                     *       "details": null,
-                     *       "traceId": "4c1f9b31"
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
+  };
+  listOrders: {
+    parameters: {
+      query?: {
+        branchId?: components['parameters']['BranchIdQuery'];
+        channel?: components['schemas']['ChannelCode'];
+        /** @description Có thể lặp để lọc nhiều trạng thái (`status=RESERVED&status=CONFIRMED`) */
+        status?: components['schemas']['OrderStatus'][];
+        /** @description Ngày tạo từ (theo giờ Việt Nam, gồm cả ngày này) */
+        from?: string;
+        /** @description Ngày tạo đến (gồm cả ngày này) */
+        to?: string;
+        customerId?: number;
+        /** @description Tìm theo mã đơn, mã đơn kênh hoặc số điện thoại khách */
+        q?: string;
+        /** @description Số trang, bắt đầu từ 0 */
+        page?: components['parameters']['Page'];
+        size?: components['parameters']['Size'];
+        /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
+        sort?: components['parameters']['Sort'];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    getForecastRun: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                runId: number;
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Trang đơn hàng */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Lượt chạy */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ForecastRun"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
+        content: {
+          'application/json': components['schemas']['OrderSummaryPage'];
         };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
     };
+  };
+  getOrder: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orderId: components['parameters']['OrderId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Đơn hàng */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Order'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+    };
+  };
+  listInventory: {
+    parameters: {
+      query?: {
+        branchId?: components['parameters']['BranchIdQuery'];
+        productId?: number;
+        categoryId?: number;
+        /** @description Tìm theo tên, SKU hoặc barcode */
+        q?: string;
+        stockStatus?: components['schemas']['StockStatus'];
+        /** @description Số trang, bắt đầu từ 0 */
+        page?: components['parameters']['Page'];
+        size?: components['parameters']['Size'];
+        /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
+        sort?: components['parameters']['Sort'];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Trang tồn kho */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['InventoryPage'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+    };
+  };
+  getInventoryItem: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        branchId: components['parameters']['BranchIdPath'];
+        productId: components['parameters']['ProductId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Tồn kho */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['InventoryItem'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+    };
+  };
+  listInventoryTransactions: {
+    parameters: {
+      query?: {
+        branchId?: components['parameters']['BranchIdQuery'];
+        productId?: number;
+        type?: components['schemas']['InventoryTransactionType'];
+        refType?: components['schemas']['RefType'];
+        refId?: number;
+        from?: string;
+        to?: string;
+        /** @description Số trang, bắt đầu từ 0 */
+        page?: components['parameters']['Page'];
+        size?: components['parameters']['Size'];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Trang giao dịch kho */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['InventoryTransactionPage'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+    };
+  };
+  completeOnlineOrder: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orderId: components['parameters']['OrderId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Đơn sau khi hoàn tất */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Order'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['InvalidStatus'];
+    };
+  };
+  cancelOnlineOrder: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orderId: components['parameters']['OrderId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "reason": "CUSTOMER_REQUEST",
+         *       "note": "Khách gọi điện đổi ý"
+         *     }
+         */
+        'application/json': components['schemas']['CancelOrderRequest'];
+      };
+    };
+    responses: {
+      /** @description Đơn sau khi hủy */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Order'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['InvalidStatus'];
+    };
+  };
+  mapChannelProduct: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Chỉ kênh online */
+        channelCode: components['parameters']['ChannelCodePath'];
+        productId: number;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          externalSku: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Đã lưu ánh xạ */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['Conflict'];
+    };
+  };
+  receiveChannelOrder: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description HMAC-SHA256 của nguyên body (byte gốc, UTF-8) với `webhook_secret` của kênh, dạng hex chữ thường */
+        'X-Signature': components['parameters']['Signature'];
+      };
+      path: {
+        /** @description Chỉ kênh online */
+        channelCode: components['parameters']['ChannelCodePath'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "externalOrderId": "WEB-778812",
+         *       "orderedAt": "2026-11-05T10:15:00+07:00",
+         *       "customer": {
+         *         "name": "Lê Văn Hùng",
+         *         "phone": "0912345678"
+         *       },
+         *       "items": [
+         *         {
+         *           "externalSku": "W-SUA-TH-1L",
+         *           "quantity": 3,
+         *           "unitPrice": 29000
+         *         }
+         *       ],
+         *       "shippingFee": 15000,
+         *       "paymentMethod": "ONLINE"
+         *     }
+         */
+        'application/json': components['schemas']['ChannelOrderRequest'];
+      };
+    };
+    responses: {
+      /** @description Đơn trùng (cùng kênh và `externalOrderId`), trả đơn đã có, không giữ chỗ thêm (BA E1) */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ChannelOrderAck'];
+        };
+      };
+      /** @description Đã nhận và giữ chỗ */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ChannelOrderAck'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['InvalidSignature'];
+      404: components['responses']['NotFound'];
+      /** @description INSUFFICIENT_STOCK – không chi nhánh nào đủ tồn; đơn đã lưu ở REJECTED */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "code": "INSUFFICIENT_STOCK",
+           *       "message": "Không chi nhánh nào đủ hàng cho đơn",
+           *       "details": {
+           *         "orderId": 10988,
+           *         "status": "REJECTED",
+           *         "lines": [
+           *           {
+           *             "productId": 205,
+           *             "sku": "SUA-TH-1L",
+           *             "requested": 3,
+           *             "available": 1
+           *           }
+           *         ]
+           *       },
+           *       "traceId": "c11e0a01"
+           *     }
+           */
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description UNMAPPED_SKU – có SKU kênh chưa ánh xạ; đơn đã lưu ở REJECTED */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "code": "UNMAPPED_SKU",
+           *       "message": "Có mã hàng của kênh chưa được ánh xạ",
+           *       "details": {
+           *         "orderId": 10989,
+           *         "status": "REJECTED",
+           *         "externalSkus": [
+           *           "W-NUOC-MAM-500"
+           *         ]
+           *       },
+           *       "traceId": "c11e0a02"
+           *     }
+           */
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  receiveChannelOrderEvent: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description HMAC-SHA256 của nguyên body (byte gốc, UTF-8) với `webhook_secret` của kênh, dạng hex chữ thường */
+        'X-Signature': components['parameters']['Signature'];
+      };
+      path: {
+        /** @description Chỉ kênh online */
+        channelCode: components['parameters']['ChannelCodePath'];
+        externalOrderId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "type": "PAID",
+         *       "occurredAt": "2026-11-05T10:21:40+07:00",
+         *       "providerRef": "VNP-552910"
+         *     }
+         */
+        'application/json': components['schemas']['ChannelOrderEvent'];
+      };
+    };
+    responses: {
+      /** @description Trạng thái đơn sau sự kiện */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ChannelOrderAck'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['InvalidSignature'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['InvalidStatus'];
+    };
+  };
+  pushChannelStock: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description HMAC-SHA256 của nguyên body (byte gốc, UTF-8) với `webhook_secret` của kênh, dạng hex chữ thường */
+        'X-Signature': components['parameters']['Signature'];
+      };
+      path: {
+        /** @description Chỉ kênh online */
+        channelCode: components['parameters']['ChannelCodePath'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "items": [
+         *         {
+         *           "externalSku": "W-SUA-TH-1L",
+         *           "available": 41,
+         *           "version": 1843
+         *         }
+         *       ]
+         *     }
+         */
+        'application/json': components['schemas']['ChannelStockUpdate'];
+      };
+    };
+    responses: {
+      /** @description Kênh đã nhận */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Dữ liệu không hợp lệ; backend ghi sync_log FAILED, không thử lại */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Sai chữ ký; backend ghi sync_log FAILED, không thử lại */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  pushChannelOrderStatus: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description HMAC-SHA256 của nguyên body (byte gốc, UTF-8) với `webhook_secret` của kênh, dạng hex chữ thường */
+        'X-Signature': components['parameters']['Signature'];
+      };
+      path: {
+        /** @description Chỉ kênh online */
+        channelCode: components['parameters']['ChannelCodePath'];
+        externalOrderId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "status": "REJECTED",
+         *       "reason": "OUT_OF_STOCK",
+         *       "occurredAt": "2026-11-05T10:15:01+07:00"
+         *     }
+         */
+        'application/json': components['schemas']['ChannelOrderStatusUpdate'];
+      };
+    };
+    responses: {
+      /** @description Kênh đã nhận */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Dữ liệu không hợp lệ; backend ghi sync_log FAILED, không thử lại */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Sai chữ ký; backend ghi sync_log FAILED, không thử lại */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listStockDocuments: {
+    parameters: {
+      query?: {
+        branchId?: components['parameters']['BranchIdQuery'];
+        type?: components['schemas']['StockDocumentType'];
+        /** @description Có thể lặp (`status=DRAFT&status=IN_TRANSIT`) */
+        status?: components['schemas']['StockDocumentStatus'][];
+        /** @description Ngày tạo từ (giờ Việt Nam, gồm cả ngày này) */
+        from?: string;
+        to?: string;
+        /** @description Tìm theo mã phiếu hoặc nhà cung cấp */
+        q?: string;
+        /** @description Số trang, bắt đầu từ 0 */
+        page?: components['parameters']['Page'];
+        size?: components['parameters']['Size'];
+        /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
+        sort?: components['parameters']['Sort'];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Trang phiếu kho */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StockDocumentSummaryPage'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+    };
+  };
+  createStockDocument: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['StockDocumentRequest'];
+      };
+    };
+    responses: {
+      /** @description Phiếu nháp */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StockDocument'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['Conflict'];
+    };
+  };
+  getStockDocument: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        documentId: components['parameters']['DocumentId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Phiếu kho */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StockDocument'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+    };
+  };
+  updateStockDocument: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        documentId: components['parameters']['DocumentId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['StockDocumentUpdateRequest'];
+      };
+    };
+    responses: {
+      /** @description Phiếu sau khi sửa */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StockDocument'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['InvalidStatus'];
+    };
+  };
+  approveStockDocument: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        documentId: components['parameters']['DocumentId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Phiếu sau khi duyệt */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StockDocument'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      /** @description INVALID_STATUS hoặc INSUFFICIENT_STOCK */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      422: components['responses']['BusinessRule'];
+    };
+  };
+  receiveStockTransfer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        documentId: components['parameters']['DocumentId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "items": [
+         *         {
+         *           "itemId": 5521,
+         *           "receivedQuantity": 48
+         *         }
+         *       ]
+         *     }
+         */
+        'application/json': components['schemas']['ReceiveTransferRequest'];
+      };
+    };
+    responses: {
+      /** @description Phiếu sau khi nhận */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StockDocument'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['InvalidStatus'];
+    };
+  };
+  cancelStockDocument: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        documentId: components['parameters']['DocumentId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Phiếu đã hủy */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StockDocument'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['InvalidStatus'];
+    };
+  };
+  listPromotions: {
+    parameters: {
+      query?: {
+        status?: components['schemas']['PromotionStatus'][];
+        level?: components['schemas']['PromotionLevel'];
+        /** @description Chỉ lấy chương trình hiệu lực tại thời điểm này */
+        activeAt?: string;
+        branchId?: components['parameters']['BranchIdQuery'];
+        channel?: components['schemas']['ChannelCode'];
+        /** @description Tìm theo mã */
+        q?: string;
+        /** @description Số trang, bắt đầu từ 0 */
+        page?: components['parameters']['Page'];
+        size?: components['parameters']['Size'];
+        /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
+        sort?: components['parameters']['Sort'];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Trang khuyến mại */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PromotionPage'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+    };
+  };
+  createPromotion: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "code": "DON200K-10",
+         *       "type": "PERCENT",
+         *       "level": "ORDER",
+         *       "value": 10,
+         *       "maxDiscount": 30000,
+         *       "minOrder": 200000,
+         *       "startAt": "2026-11-18T00:00:00+07:00",
+         *       "endAt": "2026-11-24T23:59:59+07:00",
+         *       "usageLimit": 500,
+         *       "branchIds": [],
+         *       "channels": [
+         *         "POS",
+         *         "WEB"
+         *       ]
+         *     }
+         */
+        'application/json': components['schemas']['PromotionRequest'];
+      };
+    };
+    responses: {
+      /** @description Chương trình đã tạo */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Promotion'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      409: components['responses']['Conflict'];
+    };
+  };
+  getPromotion: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        promotionId: components['parameters']['PromotionId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Chương trình */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Promotion'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      404: components['responses']['NotFound'];
+    };
+  };
+  updatePromotion: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        promotionId: components['parameters']['PromotionId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PromotionRequest'];
+      };
+    };
+    responses: {
+      /** @description Chương trình sau khi sửa */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Promotion'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['InvalidStatus'];
+    };
+  };
+  changePromotionStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        promotionId: components['parameters']['PromotionId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @enum {string} */
+          status: 'ACTIVE' | 'PAUSED' | 'ENDED';
+        };
+      };
+    };
+    responses: {
+      /** @description Chương trình sau khi đổi trạng thái */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Promotion'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['InvalidStatus'];
+    };
+  };
+  listUsers: {
+    parameters: {
+      query?: {
+        role?: components['schemas']['Role'];
+        branchId?: components['parameters']['BranchIdQuery'];
+        active?: boolean;
+        /** @description Tìm theo tên đăng nhập hoặc họ tên */
+        q?: string;
+        /** @description Số trang, bắt đầu từ 0 */
+        page?: components['parameters']['Page'];
+        size?: components['parameters']['Size'];
+        /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
+        sort?: components['parameters']['Sort'];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Trang tài khoản */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['UserPage'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+    };
+  };
+  createUser: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "username": "thungan.gm004",
+         *       "fullName": "Phạm Thu Ngân",
+         *       "role": "CASHIER",
+         *       "branchIds": [
+         *         1
+         *       ],
+         *       "password": "Demo@123"
+         *     }
+         */
+        'application/json': components['schemas']['UserCreateRequest'];
+      };
+    };
+    responses: {
+      /** @description Tài khoản đã tạo */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['User'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      409: components['responses']['Conflict'];
+    };
+  };
+  getUser: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        userId: components['parameters']['UserId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Tài khoản */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['User'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+    };
+  };
+  updateUser: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        userId: components['parameters']['UserId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UserUpdateRequest'];
+      };
+    };
+    responses: {
+      /** @description Tài khoản sau khi sửa */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['User'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      422: components['responses']['BusinessRule'];
+    };
+  };
+  unlockUser: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        userId: components['parameters']['UserId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Đã mở khóa */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+    };
+  };
+  resetUserPassword: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        userId: components['parameters']['UserId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** Format: password */
+          newPassword: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Đã đặt lại */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+    };
+  };
+  getRevenueReport: {
+    parameters: {
+      query?: {
+        /** @description Ngày bắt đầu (YYYY-MM-DD), mặc định 30 ngày trước */
+        from?: string;
+        /** @description Ngày kết thúc (YYYY-MM-DD), mặc định hôm nay */
+        to?: string;
+        /** @description Chu kỳ gom nhóm (day, week, month) */
+        groupBy?: 'day' | 'week' | 'month';
+        branchId?: components['parameters']['BranchIdQuery'];
+        /** @description Lọc theo kênh bán hàng */
+        channelId?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Báo cáo doanh thu và danh sách các điểm dữ liệu */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RevenueReportResponse'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+    };
+  };
+  getTopProductsReport: {
+    parameters: {
+      query?: {
+        /** @description Tháng báo cáo (YYYY-MM), ví dụ 2026-11 */
+        month?: string;
+        /** @description Tùy chọn ngày bắt đầu (YYYY-MM-DD) */
+        from?: string;
+        /** @description Tùy chọn ngày kết thúc (YYYY-MM-DD) */
+        to?: string;
+        /** @description Số lượng top mỗi danh sách (mặc định 10) */
+        limit?: number;
+        branchId?: components['parameters']['BranchIdQuery'];
+        /** @description Lọc theo kênh bán hàng */
+        channelId?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Top sản phẩm bán chạy và bán chậm */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['TopProductsResponse'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+    };
+  };
+  listLowStockAlerts: {
+    parameters: {
+      query?: {
+        /** @description Lọc theo chi nhánh. Bỏ qua để xem tất cả chi nhánh có quyền truy cập. */
+        branchId?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Danh sách cảnh báo đang mở, mảng rỗng nếu không có cảnh báo phù hợp */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StockAlert'][];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+    };
+  };
+  getForecast: {
+    parameters: {
+      query: {
+        branchId: components['parameters']['BranchIdQueryRequired'];
+        productId: number;
+        /** @description Chỉ lấy một tầm. Bỏ qua để lấy cả 7 và 30. */
+        horizon?: 7 | 30;
+        /** @description Lượt chạy cần xem; bỏ qua để dùng lượt DONE mới nhất */
+        runId?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Dự báo theo ngày */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ForecastResponse'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+    };
+  };
+  listForecastRuns: {
+    parameters: {
+      query?: {
+        status?: components['schemas']['ForecastRunStatus'];
+        /** @description Số trang, bắt đầu từ 0 */
+        page?: components['parameters']['Page'];
+        size?: components['parameters']['Size'];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Trang lượt chạy */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ForecastRunPage'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+    };
+  };
+  startForecastRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Đã tạo lượt chạy, đang chạy nền */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ForecastRun'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      /** @description FORECAST_RUNNING hoặc FORECAST_NO_DATA */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "code": "FORECAST_RUNNING",
+           *       "message": "Đang có lượt dự báo chạy",
+           *       "details": {
+           *         "runId": 12
+           *       },
+           *       "traceId": "4c1f9b30"
+           *     }
+           */
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description FORECAST_UNAVAILABLE */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "code": "FORECAST_UNAVAILABLE",
+           *       "message": "Dịch vụ dự báo tạm thời không phản hồi",
+           *       "details": null,
+           *       "traceId": "4c1f9b31"
+           *     }
+           */
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  getForecastRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        runId: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Lượt chạy */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ForecastRun'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+    };
+  };
 }
