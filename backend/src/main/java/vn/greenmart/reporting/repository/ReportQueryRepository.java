@@ -259,7 +259,7 @@ public class ReportQueryRepository {
                 LEFT JOIN category c ON p.category_id = c.id
                 LEFT JOIN sales s ON s.product_id = p.id
                 LEFT JOIN returns r ON r.product_id = p.id
-                WHERE p.is_active = true
+                WHERE p.is_active OR s.product_id IS NOT NULL OR r.product_id IS NOT NULL
                 ORDER BY net_quantity %s, net_revenue %s, p.id ASC
                 LIMIT :limit
                 """, String.join(" AND ", salesWhere), String.join(" AND ", returnsWhere), orderDirection, orderDirection);
