@@ -474,7 +474,7 @@ paths:
     put:
       tags: [Customers]
       summary: Sửa khách hàng
-      description: Cập nhật thông tin khách hàng. Để mở lại khách đã vô hiệu hóa, gửi `active: true`.
+      description: 'Cập nhật thông tin khách hàng. Để mở lại khách đã vô hiệu hóa, gửi active: true.'
       operationId: updateCustomer
       x-roles: [OWNER, BRANCH_MANAGER, CASHIER]
       requestBody:
@@ -499,7 +499,7 @@ paths:
     post:
       tags: [Customers]
       summary: Vô hiệu hóa khách hàng
-      description: Chuyển trạng thái hoạt động của khách hàng sang không hoạt động (`active = false`). Mở lại bằng `PUT /customers/{customerId}` với `active: true`.
+      description: 'Chuyển trạng thái hoạt động của khách hàng sang không hoạt động (active = false). Mở lại bằng PUT /customers/{customerId} với active: true.'
       operationId: deactivateCustomer
       x-roles: [OWNER, BRANCH_MANAGER]
       responses:

@@ -241,17 +241,12 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /**
-     * Tìm khách hàng
-     * @description Chỉ trả về khách hàng đang hoạt động (`active = true`); khách đã ngừng hoạt động bị ẩn khỏi danh sách tra cứu.
-     */
+    /** Tìm khách hàng */
     get: operations['listCustomers'];
     put?: never;
     /**
      * Tạo khách hàng
-     * @description Thu ngân tạo nhanh tại POS khi số điện thoại chưa có (UC-01 bước 2). Khách mới tạo luôn có `active = true` (bỏ qua `active` nếu gửi).
-     *     Lưu ý: khách đã ngừng hoạt động vẫn giữ SĐT trong hệ thống nên tạo mới trùng SĐT sẽ trả `409 DUPLICATE_PHONE` (kèm `details.customerId`);
-     *     quản lý chi nhánh hoặc chủ chuỗi có thể mở lại khách cũ bằng `PUT /customers/{customerId}` với `active: true`.
+     * @description Thu ngân tạo nhanh tại POS khi số điện thoại chưa có (UC-01 bước 2).
      */
     post: operations['createCustomer'];
     delete?: never;
@@ -273,8 +268,7 @@ export interface paths {
     get: operations['getCustomer'];
     /**
      * Sửa khách hàng
-     * @description Cập nhật thông tin khách hàng. Riêng trường `active` chỉ `OWNER` và `BRANCH_MANAGER` được phép thay đổi
-     *     (ví dụ truyền `active: true` để kích hoạt lại khách hàng đã ngừng hoạt động).
+     * @description Cập nhật thông tin khách hàng. Để mở lại khách đã vô hiệu hóa, gửi active: true.
      */
     put: operations['updateCustomer'];
     post?: never;
@@ -288,15 +282,16 @@ export interface paths {
     parameters: {
       query?: never;
       header?: never;
-      path?: never;
+      path: {
+        customerId: components['parameters']['CustomerId'];
+      };
       cookie?: never;
     };
     get?: never;
     put?: never;
     /**
-     * Ngừng hoạt động khách hàng
-     * @description Đặt `active = false` (xóa mềm, CUS-01). Khách đã ngừng hoạt động bị ẩn khỏi `GET /customers` nhưng vẫn giữ SĐT,
-     *     lịch sử đơn hàng và vẫn nhận đơn mới từ kênh online theo SĐT. Có thể mở lại bằng `PUT /customers/{customerId}` với `active: true`.
+     * Vô hiệu hóa khách hàng
+     * @description Chuyển trạng thái hoạt động của khách hàng sang không hoạt động (active = false). Mở lại bằng PUT /customers/{customerId} với active: true.
      */
     post: operations['deactivateCustomer'];
     delete?: never;
@@ -1276,7 +1271,7 @@ export interface components {
       name: string;
       /** Format: email */
       email?: string | null;
-      /** @description Trạng thái hoạt động của khách hàng (false = đã ngừng hoạt động) */
+      /** @example true */
       active: boolean;
       /** Format: date-time */
       createdAt: string;
@@ -1286,10 +1281,7 @@ export interface components {
       name: string;
       /** Format: email */
       email?: string | null;
-      /**
-       * @description Trạng thái hoạt động. Bỏ qua khi tạo mới `POST /customers` (khách mới luôn `active = true`).
-       *     Khi cập nhật `PUT /customers/{customerId}`, chỉ `OWNER` và `BRANCH_MANAGER` được đổi trường này (ví dụ gửi `active: true` để mở lại khách đã ngừng hoạt động).
-       */
+      /** @description Trạng thái hoạt động (tùy chọn khi sửa; gửi true để mở lại khách đã vô hiệu hóa) */
       active?: boolean | null;
     };
     CustomerPage: components['schemas']['PageMeta'] & {
@@ -2736,6 +2728,8 @@ export interface operations {
         q?: string;
         /** @description Khớp chính xác số điện thoại (dùng ở POS) */
         phone?: components['schemas']['Phone'];
+        /** @description Lọc theo trạng thái hoạt động (mặc định trả về tất cả hoặc theo tham số) */
+        active?: boolean;
         /** @description Số trang, bắt đầu từ 0 */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
@@ -2854,7 +2848,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Khách hàng sau khi ngừng hoạt động */
+      /** @description Đã vô hiệu hóa */
       200: {
         headers: {
           [name: string]: unknown;
