@@ -33,17 +33,24 @@ public class ChannelDelivery {
     private final OutboxService outbox;
     private final URI base;
     private final boolean workerEnabled;
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
+    private final HttpClient http;
 
     public ChannelDelivery(JdbcTemplate jdbc, ObjectMapper json, ChannelSignatures signatures, OutboxService outbox,
                            @Value("${MOCK_CONNECTOR_URL:http://mock-connector:8090}") URI base,
-                           @Value("${greenmart.outbox.enabled:true}") boolean workerEnabled) {
+                           @Value("${greenmart.outbox.enabled:true}") boolean workerEnabled,
+                           HttpClient channelCallbackHttpClient) {
         this.jdbc = jdbc;
         this.json = json;
         this.signatures = signatures;
         this.outbox = outbox;
         this.base = base;
         this.workerEnabled = workerEnabled;
+        this.http = channelCallbackHttpClient;
+    }
+
+    @Bean(destroyMethod = "close")
+    static HttpClient channelCallbackHttpClient() {
+        return HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     }
 
     @Bean

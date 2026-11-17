@@ -275,6 +275,126 @@ class FeatureMatrixBuilder:
         y_combined = np.concatenate(all_y)
         return X_combined, y_combined
 
+    def build_future_features_matrix(
+        self,
+        origin_date: date,
+        horizon: int,
+        scheduled_promotions: Optional[pd.DataFrame] = None,
+    ) -> List[pd.DataFrame]:
+        """Tạo danh sách các DataFrame đặc trưng cho các ngày tương lai sau origin_date (Issue #298).
+
+        Chỉ sử dụng dữ liệu lịch sử <= origin_date.
+        Hỗ trợ origin_date là ngày cuối cùng trong dữ liệu (D), các ngày mục tiêu D+1..D+H
+        không cần xuất hiện trong daily_sales.
+        Nếu origin_date và ngày mục tiêu nằm trong quá khứ và scheduled_promotions là None,
+        sẽ đọc cờ khuyến mại từ dữ liệu lịch sử để đảm bảo tính tương đương tuyệt đối với build_test_features_matrix.
+
+        Trả về danh sách H phần tử DataFrame đặc trưng cho các ngày origin_date + step (step=1..H).
+        """
+        if origin_date not in self.date_to_idx:
+            raise ValueError(f"Ngày gốc {origin_date} không có trong dữ liệu.")
+
+        origin_idx = self.date_to_idx[origin_date]
+
+        # 1. Đặc trưng lịch sử <= origin_idx (tính 1 lần cho toàn bộ các step)
+        w7_start = max(0, origin_idx - 6)
+        mean_7 = np.mean(self.qty_matrix[:, w7_start : origin_idx + 1], axis=1)
+
+        w14_start = max(0, origin_idx - 13)
+        mean_14 = np.mean(self.qty_matrix[:, w14_start : origin_idx + 1], axis=1)
+
+        w28_start = max(0, origin_idx - 27)
+        mean_28 = np.mean(self.qty_matrix[:, w28_start : origin_idx + 1], axis=1)
+
+        qty_at_origin = self.qty_matrix[:, origin_idx]
+
+        feature_dfs: List[pd.DataFrame] = []
+        for step in range(1, horizon + 1):
+            target_date = origin_date + timedelta(days=step)
+
+            # Lượng bán cùng thứ ở các tuần trước origin_idx
+            # Số tuần cần lùi k = ceil(step / 7.0) đảm bảo target_date - 7*k <= origin_date
+            k_weeks = int(math.ceil(step / 7.0))
+            same_dow_date_1w = target_date - timedelta(days=7 * k_weeks)
+            same_dow_date_2w = target_date - timedelta(days=7 * (k_weeks + 1))
+
+            if same_dow_date_1w in self.date_to_idx:
+                idx_dow1 = self.date_to_idx[same_dow_date_1w]
+                same_dow_sale_1w = self.qty_matrix[:, idx_dow1]
+            else:
+                same_dow_sale_1w = mean_7
+
+            if same_dow_date_2w in self.date_to_idx:
+                idx_dow2 = self.date_to_idx[same_dow_date_2w]
+                same_dow_sale_2w = self.qty_matrix[:, idx_dow2]
+            else:
+                same_dow_sale_2w = mean_14
+
+            # 2. Đặc trưng lịch của NGÀY MỤC TIÊU
+            cal_feats = extract_target_date_calendar_features(target_date)
+
+            # 3. Đặc trưng khuyến mại của NGÀY MỤC TIÊU:
+            # - Nếu target_date nằm trong dữ liệu lịch sử và scheduled_promotions là None (phục vụ test tương đương):
+            #   đọc từ ma trận lịch sử promo_flag_matrix / promo_pct_matrix.
+            # - Nếu có scheduled_promotions: đối chiếu lấy cờ và % giảm.
+            # - Mặc định ngày tương lai không có khuyến mại: flag = 0, pct = 0.0.
+            if target_date in self.date_to_idx and scheduled_promotions is None:
+                target_idx = self.date_to_idx[target_date]
+                promo_flag_target = self.promo_flag_matrix[:, target_idx].astype(int)
+                promo_pct_target = self.promo_pct_matrix[:, target_idx]
+            elif scheduled_promotions is not None and not scheduled_promotions.empty:
+                promo_sub = scheduled_promotions[scheduled_promotions["sale_date"] == target_date]
+                if not promo_sub.empty:
+                    promo_map = promo_sub.set_index(["branch_id", "product_id"])
+                    p_flags = []
+                    p_pcts = []
+                    for b_id, p_id in zip(self.branch_ids, self.product_ids):
+                        if (b_id, p_id) in promo_map.index:
+                            row = promo_map.loc[(b_id, p_id)]
+                            p_flags.append(int(row["promo_flag"]))
+                            p_pcts.append(float(row.get("promo_discount_pct", 0.0)))
+                        else:
+                            p_flags.append(0)
+                            p_pcts.append(0.0)
+                    promo_flag_target = np.array(p_flags, dtype=int)
+                    promo_pct_target = np.array(p_pcts, dtype=float)
+                else:
+                    promo_flag_target = np.zeros(self.n_series, dtype=int)
+                    promo_pct_target = np.zeros(self.n_series, dtype=float)
+            else:
+                promo_flag_target = np.zeros(self.n_series, dtype=int)
+                promo_pct_target = np.zeros(self.n_series, dtype=float)
+
+            # 4. Tạo DataFrame đặc trưng đúng chuẩn 18 cột
+            data = {
+                "branch_id": self.branch_ids,
+                "product_id": self.product_ids,
+                "group_code": self.group_codes,
+                "horizon_step": np.full(self.n_series, step, dtype=int),
+                "rolling_mean_7": mean_7,
+                "rolling_mean_14": mean_14,
+                "rolling_mean_28": mean_28,
+                "qty_at_origin": qty_at_origin,
+                "same_dow_sale_1w": same_dow_sale_1w,
+                "same_dow_sale_2w": same_dow_sale_2w,
+                "target_day_of_week": np.full(self.n_series, cal_feats["target_day_of_week"], dtype=int),
+                "target_day_of_month": np.full(self.n_series, cal_feats["target_day_of_month"], dtype=int),
+                "target_month": np.full(self.n_series, cal_feats["target_month"], dtype=int),
+                "target_is_weekend": np.full(self.n_series, cal_feats["target_is_weekend"], dtype=int),
+                "target_is_holiday": np.full(self.n_series, cal_feats["target_is_holiday"], dtype=int),
+                "target_is_tet_pre": np.full(self.n_series, cal_feats["target_is_tet_pre"], dtype=int),
+                "target_promo_flag": promo_flag_target,
+                "target_promo_discount_pct": promo_pct_target,
+            }
+
+            X_df = pd.DataFrame(data)
+            X_df["branch_id"] = X_df["branch_id"].astype("category")
+            X_df["product_id"] = X_df["product_id"].astype("category")
+            X_df["group_code"] = X_df["group_code"].astype("category")
+            feature_dfs.append(X_df)
+
+        return feature_dfs
+
     def build_test_features_matrix(
         self,
         cutoff_date: date,

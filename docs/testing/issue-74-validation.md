@@ -1,6 +1,6 @@
 # Kiểm chứng issue #74 — gắn và tạo nhanh khách POS
 
-Ngày kiểm tra: 16/11/2026. Nhánh: `feature/74-pos-customer`, tách từ `feature/73-pos-cart` (PR #371).
+Ngày kiểm tra: 16/11/2026; cập nhật 17/11/2026 sau khi PR #371 được merge. Nhánh: `feature/74-pos-customer`, đã đồng bộ `develop`.
 
 ## Đối chiếu
 
@@ -32,7 +32,7 @@ Vite local `http://127.0.0.1:5174` nối backend Docker local `http://127.0.0.1:
 4. Tạo khách giả `POS kiểm thử issue 74` với SĐT `0999000074`: backend tạo thành công, màn POS gắn ngay khách mới và báo giá lại. Sau kiểm tra đã xóa **đúng một** bản ghi giả này khỏi database local; truy vấn xác nhận còn **0** bản ghi với SĐT đó. Không tạo đơn và không trừ tồn.
 5. Quan sát bố cục ở 1440×872; khối khách và hộp thoại nằm trong vùng POS và tương ứng cấu trúc Figma.
 
-## Phụ thuộc còn lại
+## Trạng thái tích hợp
 
-- PR #371 (#73) chưa merge vào `develop`; nhánh #74 đang chứa nền mã POS của #73. Cần đưa #74 lên `develop` sau khi #73 merge để diff PR chỉ còn phần #74.
-- Gửi `customerId` trong `POST /orders/pos` là phần thanh toán của #75; hiện #74 đã lưu khách trong trạng thái màn POS và đưa `customerId` vào yêu cầu báo giá. Chưa thể chứng minh khách trên hóa đơn khi #75 chưa có.
+- PR #371 (#73) đã merge vào `develop`; diff nhánh #74 so với `develop` hiện chỉ gồm 7 file của #74.
+- Gửi `customerId` trong `POST /orders/pos` là phần thanh toán của #75 (PR #376 còn mở); hiện #74 đã lưu khách trong trạng thái màn POS và đưa `customerId` vào yêu cầu báo giá. Cần kiểm chứng khách trên hóa đơn sau khi #75 được tích hợp.

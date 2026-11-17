@@ -235,6 +235,25 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
+    public void adjustStock(Long branchId, Long productId, int delta, Long documentId, Long actorId) {
+        entityManager.flush();
+        productCost.lockForStockChange(productId);
+        if (delta > 0) {
+            increaseOnHand(branchId, productId, delta);
+        } else if (delta < 0 && inventoryRepository.sellDirect(branchId, productId, -delta) != 1) {
+            throw insufficientStock(branchId, productId, -delta);
+        }
+
+        transactionWriter.appendAdjustment(branchId, productId, delta, documentId, actorId);
+        if (delta != 0) {
+            stockAlerts.reconcileAfterStockUpdate(branchId, productId);
+            enqueueStockChanged(branchId, productId);
+            entityManager.clear();
+        }
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
     public long exportStock(Long branchId, Long productId, int qty, Long documentId, Long actorId) {
         validateQty(qty);
         if (documentId == null || actorId == null) {

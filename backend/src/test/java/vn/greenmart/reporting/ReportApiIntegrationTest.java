@@ -1,8 +1,13 @@
 package vn.greenmart.reporting;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -16,7 +21,10 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import vn.greenmart.inventory.PostgresTestImage;
 
+import java.util.stream.StreamSupport;
+
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -43,6 +51,7 @@ class ReportApiIntegrationTest {
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired ObjectMapper mapper;
 
     @BeforeEach
     void setupFixtures() {
@@ -197,6 +206,142 @@ class ReportApiIntegrationTest {
                 .andExpect(jsonPath("$.slowSelling[1].netQuantity").value(5));
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "10000, 10000, 0, 0, 2000, 2000, 9000, 9000",
+            "20000, 10000, 5000, 5000, 3999, 999, 12001, 4000",
+            "10000, 10000, 0, 0, 1, 0, 10000, 9999",
+            "10000, 10000, 10000, 10000, 0, 0, 0, 0",
+            "10000, 10000, 0, 10000, 10000, 10000, 0, 0"
+    })
+    void allocatesPaidOrderTotalAcrossProducts(
+            int firstPrice, int secondPrice, int firstLineDiscount, int secondLineDiscount,
+            int orderDiscount, int manualDiscount, int firstRevenue, int secondRevenue
+    ) throws Exception {
+        int subtotal = firstPrice + secondPrice;
+        int discount = firstLineDiscount + secondLineDiscount + orderDiscount;
+        int total = subtotal - discount;
+        jdbc.update("""
+                INSERT INTO sales_order(id, code, channel_id, branch_id, status, subtotal, discount, total,
+                                        manual_discount, manual_discount_reason, created_at, completed_at)
+                VALUES (130, 'ORD-130', 1, 1, 'COMPLETED', ?, ?, ?, ?,
+                        CASE WHEN ? > 0 THEN 'QA manual discount' ELSE NULL END,
+                        '2026-11-17T08:00:00+07:00', '2026-11-17T09:00:00+07:00')
+                """, subtotal, discount, total, manualDiscount, manualDiscount);
+        jdbc.update("""
+                INSERT INTO order_item(id, order_id, product_id, quantity, unit_price, discount, line_total)
+                VALUES (1301, 130, 1, 1, ?, ?, ?),
+                       (1302, 130, 2, 1, ?, ?, ?)
+                """, firstPrice, firstLineDiscount, firstPrice - firstLineDiscount,
+                secondPrice, secondLineDiscount, secondPrice - secondLineDiscount);
+
+        var topProducts = mvc.perform(get("/api/v1/reports/top-products").with(user("11").roles("BRANCH_MANAGER"))
+                        .param("from", "2026-11-17").param("to", "2026-11-17")
+                        .param("branchId", "1").param("channelId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.topSelling[?(@.productId == 1)].revenue", contains(firstRevenue)))
+                .andExpect(jsonPath("$.topSelling[?(@.productId == 2)].revenue", contains(secondRevenue)))
+                .andExpect(jsonPath("$.slowSelling[?(@.productId == 1)].revenue", contains(firstRevenue)))
+                .andExpect(jsonPath("$.slowSelling[?(@.productId == 2)].revenue", contains(secondRevenue)))
+                .andReturn();
+        var revenue = mvc.perform(get("/api/v1/reports/revenue").with(user("11").roles("BRANCH_MANAGER"))
+                        .param("from", "2026-11-17").param("to", "2026-11-17")
+                        .param("branchId", "1").param("channelId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.totalNetRevenue").value(total))
+                .andReturn();
+
+        JsonNode productRows = mapper.readTree(topProducts.getResponse().getContentAsByteArray()).path("topSelling");
+        long productRevenue = StreamSupport.stream(productRows.spliterator(), false)
+                .mapToLong(row -> row.path("revenue").asLong()).sum();
+        assertEquals(mapper.readTree(revenue.getResponse().getContentAsByteArray())
+                .path("summary").path("totalNetRevenue").asLong(), productRevenue);
+    }
+
+    @Test
+    void shouldAllocateActualRefundAndReconcileReportsForSamePeriod() throws Exception {
+        jdbc.update("""
+                INSERT INTO sales_order(id, code, channel_id, branch_id, status, subtotal, discount, total,
+                                        created_at, completed_at)
+                VALUES (120, 'ORD-120', 1, 1, 'COMPLETED', 170000, 16997, 153003,
+                        '2026-11-05T08:00:00+07:00', '2026-11-05T09:00:00+07:00')
+                """);
+        jdbc.update("""
+                INSERT INTO order_item(id, order_id, product_id, quantity, unit_price, discount, line_total)
+                VALUES (1201, 120, 1, 2, 100000, 60000, 140000),
+                       (1202, 120, 2, 1, 50000, 20000, 30000)
+                """);
+        jdbc.update("""
+                INSERT INTO return_document(id, code, order_id, branch_id, reason, refund_amount, status,
+                                            created_by, approved_by, created_at, approved_at)
+                VALUES (220, 'RET-220', 120, 2, 'Lỗi', 90001, 'APPROVED', 12, 10,
+                        '2026-11-09T18:00:00+07:00', '2026-11-10T11:00:00+07:00')
+                """);
+        jdbc.update("""
+                INSERT INTO return_item(id, return_id, order_item_id, quantity, condition)
+                VALUES (2201, 220, 1201, 1, 'RESELLABLE'),
+                       (2202, 220, 1202, 1, 'DAMAGED')
+                """);
+
+        // Use the approval day, so sales revenue does not contribute to either total.
+        var revenue = mvc.perform(get("/api/v1/reports/revenue").with(user("12").roles("BRANCH_MANAGER"))
+                        .param("from", "2026-11-10").param("to", "2026-11-10")
+                        .param("branchId", "2").param("channelId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.totalGrossRevenue").value(0))
+                .andExpect(jsonPath("$.summary.totalReturnAmount").value(90001))
+                .andReturn();
+
+        var topProducts = mvc.perform(get("/api/v1/reports/top-products").with(user("12").roles("BRANCH_MANAGER"))
+                        .param("from", "2026-11-10").param("to", "2026-11-10")
+                        .param("branchId", "2").param("channelId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.topSelling", hasSize(4)))
+                .andExpect(jsonPath("$.topSelling[?(@.productId == 1)].revenue", contains(-63001)))
+                .andExpect(jsonPath("$.topSelling[?(@.productId == 2)].revenue", contains(-27000)))
+                .andExpect(jsonPath("$.slowSelling[?(@.productId == 1)].revenue", contains(-63001)))
+                .andExpect(jsonPath("$.slowSelling[?(@.productId == 2)].revenue", contains(-27000)))
+                .andReturn();
+
+        long returnAmount = mapper.readTree(revenue.getResponse().getContentAsByteArray())
+                .path("summary").path("totalReturnAmount").asLong();
+        JsonNode productRows = mapper.readTree(topProducts.getResponse().getContentAsByteArray()).path("topSelling");
+        long productRevenue = StreamSupport.stream(productRows.spliterator(), false)
+                .mapToLong(row -> row.path("revenue").asLong())
+                .sum();
+        assertEquals(returnAmount, -productRevenue);
+    }
+
+    @Test
+    void shouldKeepReturnedQuantityWhenFullyDiscountedItemsHaveNoRefund() throws Exception {
+        jdbc.update("""
+                INSERT INTO sales_order(id, code, channel_id, branch_id, status, subtotal, discount, total,
+                                        created_at, completed_at)
+                VALUES (121, 'ORD-121', 1, 1, 'COMPLETED', 0, 0, 0,
+                        '2026-11-05T08:00:00+07:00', '2026-11-05T09:00:00+07:00')
+                """);
+        jdbc.update("""
+                INSERT INTO order_item(id, order_id, product_id, quantity, unit_price, discount, line_total)
+                VALUES (1211, 121, 1, 1, 100000, 100000, 0)
+                """);
+        jdbc.update("""
+                INSERT INTO return_document(id, code, order_id, branch_id, reason, refund_amount, status,
+                                            created_by, approved_by, created_at, approved_at)
+                VALUES (221, 'RET-221', 121, 1, 'Lỗi', 0, 'APPROVED', 11, 10,
+                        '2026-11-09T18:00:00+07:00', '2026-11-10T11:00:00+07:00')
+                """);
+        jdbc.update("""
+                INSERT INTO return_item(id, return_id, order_item_id, quantity, condition)
+                VALUES (2211, 221, 1211, 1, 'RESELLABLE')
+                """);
+
+        mvc.perform(get("/api/v1/reports/top-products").with(user("10").roles("OWNER"))
+                        .param("from", "2026-11-10").param("to", "2026-11-10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.topSelling[?(@.productId == 1)].returnedQuantity", contains(1)))
+                .andExpect(jsonPath("$.topSelling[?(@.productId == 1)].revenue", contains(0)));
+    }
+
     @Test
     @DisplayName("AC-3: Phân quyền RBAC và cách ly chi nhánh (AUTH-01, AUTH-02)")
     void shouldEnforceRbacAndBranchIsolation() throws Exception {
@@ -260,5 +405,66 @@ class ReportApiIntegrationTest {
                         .param("limit", "150"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "day, 2023-03-01, 2024-02-29, 2024-03-01, 366",
+            "week, 2020-02-29, 2025-02-27, 2025-02-28, 262",
+            "month, 2021-01-01, 2025-12-31, 2026-01-01, 60"
+    })
+    void revenueAcceptsInclusiveLimitAndRejectsOneDayOver(
+            String groupBy, String from, String lastAllowedDate, String firstRejectedDate, int points
+    ) throws Exception {
+        mvc.perform(get("/api/v1/reports/revenue").with(user("10").roles("OWNER"))
+                        .param("groupBy", groupBy).param("from", from).param("to", lastAllowedDate))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.points", hasSize(points)));
+
+        mvc.perform(get("/api/v1/reports/revenue").with(user("10").roles("OWNER"))
+                        .param("groupBy", groupBy).param("from", from).param("to", firstRejectedDate))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"revenue", "top-products"})
+    void rejectsQaDateRangeBeforeBuildingReport(String report) throws Exception {
+        mvc.perform(get("/api/v1/reports/" + report).with(user("11").roles("BRANCH_MANAGER"))
+                        .param("from", "0001-01-01").param("to", "2026-10-31"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void dailyRevenueRejectsDatesOutsideSupportedYears() throws Exception {
+        mvc.perform(get("/api/v1/reports/revenue").with(user("10").roles("OWNER"))
+                        .param("to", "+999999999-12-31"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void topProductsAcceptsInclusiveLimitAndRejectsOneDayOver() throws Exception {
+        mvc.perform(get("/api/v1/reports/top-products").with(user("10").roles("OWNER"))
+                        .param("from", "2023-03-01").param("to", "2024-02-29"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.period.from").value("2023-03-01"))
+                .andExpect(jsonPath("$.period.to").value("2024-02-29"));
+
+        mvc.perform(get("/api/v1/reports/top-products").with(user("10").roles("OWNER"))
+                        .param("from", "2023-03-01").param("to", "2024-03-01"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void topProductsValidatesEffectiveMonthInsteadOfIgnoredDateRange() throws Exception {
+        mvc.perform(get("/api/v1/reports/top-products").with(user("10").roles("OWNER"))
+                        .param("month", "2024-02")
+                        .param("from", "0001-01-01").param("to", "2026-10-31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.period.from").value("2024-02-01"))
+                .andExpect(jsonPath("$.period.to").value("2024-02-29"));
     }
 }
