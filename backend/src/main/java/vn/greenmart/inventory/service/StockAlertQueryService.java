@@ -40,11 +40,13 @@ public class StockAlertQueryService {
         Map<String, ?> params = branches == null ? Map.of() : Map.of("branches", branches);
         return namedJdbc.query("""
                 SELECT a.id,a.branch_id,a.product_id,p.sku,p.name,a.severity,
-                       i.on_hand-i.reserved AS available,i.reorder_point,a.opened_at
+                       i.on_hand-i.reserved AS available,
+                       i.effective_reorder_point AS reorder_point,a.opened_at
                 FROM stock_alert a
-                JOIN inventory i ON i.branch_id=a.branch_id AND i.product_id=a.product_id
+                JOIN inventory_replenishment i ON i.branch_id=a.branch_id AND i.product_id=a.product_id
                 JOIN product p ON p.id=a.product_id
                 WHERE a.closed_at IS NULL
+                  AND (i.on_hand=i.reserved OR i.on_hand-i.reserved<=i.effective_reorder_point)
                 """ + scope + " ORDER BY CASE a.severity WHEN 'OUT' THEN 0 ELSE 1 END, a.opened_at DESC, a.id DESC",
                 params, (rs, row) -> new StockAlertResponse(
                         rs.getLong("id"), rs.getLong("branch_id"), rs.getLong("product_id"),

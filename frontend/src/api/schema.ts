@@ -420,6 +420,35 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/inventory/{branchId}/{productId}/replenishment': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        branchId: components['parameters']['BranchIdPath'];
+        productId: number;
+      };
+      cookie?: never;
+    };
+    /**
+     * Điểm đặt hàng lại và gợi ý nhập cho một sản phẩm
+     * @description AI-05, BA 8.2–8.3. ROP ưu tiên kế hoạch dự báo của ngày hiện tại theo giờ Việt Nam, nếu thiếu thì dùng ROP nhập tay.
+     *     Gợi ý dùng tồn khả dụng và lượng chuyển kho đang về ở thời điểm đọc, làm tròn lên theo quy cách.
+     *     Khi chưa có kế hoạch từ dự báo, tồn an toàn, nhu cầu dự báo và gợi ý nhập trả null.
+     */
+    get: operations['getInventoryReplenishment'];
+    /**
+     * Đặt ROP nhập tay và quy cách nhập hàng
+     * @description ROP nhập tay là ngưỡng dự phòng. Bỏ trống hoặc truyền null để xóa ngưỡng nhập tay.
+     */
+    put: operations['configureInventoryReplenishment'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/inventory/transactions': {
     parameters: {
       query?: never;
@@ -1559,6 +1588,27 @@ export interface components {
       unit: string;
       horizons: components['schemas']['ForecastHorizon'][];
     };
+    Replenishment: {
+      /** Format: int64 */
+      branchId: number;
+      /** Format: int64 */
+      productId: number;
+      /** Format: int32 */
+      available: number;
+      /** Format: int64 */
+      incoming: number;
+      /** Format: int32 */
+      reorderPoint: number | null;
+      /** Format: int32 */
+      manualReorderPoint: number | null;
+      /** Format: int32 */
+      safetyStock: number | null;
+      forecastDemand: number | null;
+      /** Format: int32 */
+      packSize: number;
+      /** Format: int64 */
+      suggestedQuantity: number | null;
+    };
     /**
      * @example {
      *       "branch": {
@@ -1592,7 +1642,7 @@ export interface components {
       reserved: number;
       /** @description onHand − reserved (BR-01) */
       available: number;
-      /** @description ROP; null khi chưa có dự báo */
+      /** @description ROP dự báo hoặc ROP nhập tay khi thiếu dự báo */
       reorderPoint?: number | null;
       stockStatus: components['schemas']['StockStatus'];
       /**
@@ -3028,6 +3078,69 @@ export interface operations {
           'application/json': components['schemas']['InventoryItem'];
         };
       };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+    };
+  };
+  getInventoryReplenishment: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        branchId: components['parameters']['BranchIdPath'];
+        productId: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Điểm đặt hàng lại và gợi ý nhập */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Replenishment'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+    };
+  };
+  configureInventoryReplenishment: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        branchId: components['parameters']['BranchIdPath'];
+        productId: number;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** Format: int32 */
+          manualReorderPoint?: number | null;
+          /** Format: int32 */
+          packSize: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Cấu hình và gợi ý hiện hành */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Replenishment'];
+        };
+      };
+      400: components['responses']['BadRequest'];
       401: components['responses']['Unauthorized'];
       403: components['responses']['Forbidden'];
       404: components['responses']['NotFound'];
