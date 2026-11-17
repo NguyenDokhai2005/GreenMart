@@ -23,9 +23,10 @@ def pytest_configure(config):
 
 
 @pytest.fixture(autouse=True)
-def default_forecast_internal_token(monkeypatch):
-    """Mặc định thiết lập FORECAST_INTERNAL_TOKEN cho test suite (#311)."""
+def default_forecast_env(monkeypatch):
+    """Mặc định thiết lập biến môi trường an toàn cho test suite (#311, #118)."""
     monkeypatch.setenv("FORECAST_INTERNAL_TOKEN", TEST_INTERNAL_TOKEN)
+    monkeypatch.setenv("FORECAST_SCHEDULER_ENABLED", "false")
 
 
 @pytest.fixture
