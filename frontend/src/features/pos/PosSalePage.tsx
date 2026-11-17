@@ -11,7 +11,9 @@ import { AsyncBlock, Button, EmptyState, Input, Skeleton, Toast } from '../../co
 import { useActiveBranch } from '../auth/useActiveBranch';
 import { mapErrorToState } from '../../lib/errors';
 import type { PosPageProps } from '../../layouts/pos/PosPlaceholderPage';
+import type { Customer } from '../catalog/catalogApi';
 import { cartKey, cartReducer, stockForLine } from './posCart';
+import PosCustomerPanel from './PosCustomerPanel';
 import './posSale.css';
 
 type SearchState =
@@ -37,6 +39,8 @@ export default function PosSalePage({ item }: PosPageProps) {
   const branch = useActiveBranch();
   const branchId = branch.state.status === 'active' ? branch.state.branch.id : 0;
   const [lines, dispatch] = useReducer(cartReducer, []);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const customerId = customer?.id;
   const [query, setQuery] = useState('');
   const normalizedQuery = query.trim();
   const [searchRetry, setSearchRetry] = useState(0);
@@ -47,7 +51,10 @@ export default function PosSalePage({ item }: PosPageProps) {
   const [lookupError, setLookupError] = useState<string | undefined>();
   const [notice, setNotice] = useState<string | undefined>();
   const scanner = useRef({ value: '', at: 0 });
-  const currentCartKey = useMemo(() => cartKey(branchId, lines), [branchId, lines]);
+  const currentCartKey = useMemo(
+    () => `${cartKey(branchId, lines)}:${customerId ?? 'walk-in'}`,
+    [branchId, lines, customerId],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -81,6 +88,7 @@ export default function PosSalePage({ item }: PosPageProps) {
       void quoteOrder(
         {
           branchId,
+          ...(customerId === undefined ? {} : { customerId }),
           items: lines.map(({ product, quantity }) => ({ productId: product.id, quantity })),
         },
         controller.signal,
@@ -99,7 +107,7 @@ export default function PosSalePage({ item }: PosPageProps) {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [branchId, currentCartKey, lines, quoteRetry]);
+  }, [branchId, customerId, currentCartKey, lines, quoteRetry]);
 
   const addByCode = useCallback(
     async (code: string) => {
@@ -286,6 +294,7 @@ export default function PosSalePage({ item }: PosPageProps) {
           <p className="pos-sale__hint">
             Quét barcode để thêm nhanh · Nhập tên rồi chọn Thêm · F2 tìm kiếm
           </p>
+          <PosCustomerPanel customer={customer} onChange={setCustomer} />
         </section>
 
         <section className="pos-sale__panel pos-sale__cart" aria-labelledby="pos-sale-cart-title">
