@@ -45,6 +45,17 @@ public class StockDocumentItem {
         return item;
     }
 
+    public static StockDocumentItem adjustment(Long productId, int onHand) {
+        var item = new StockDocumentItem();
+        item.productId = productId;
+        item.quantity = onHand;
+        return item;
+    }
+
+    void recordCount(int quantity) {
+        countedQuantity = quantity;
+    }
+
     public void recordExportCost(long cost) {
         document.requireDraft();
         if (document.getType() != StockDocumentType.EXPORT || cost < 0) {

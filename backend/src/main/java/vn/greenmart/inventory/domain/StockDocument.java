@@ -100,6 +100,32 @@ public class StockDocument {
         status = StockDocumentStatus.CANCELLED;
     }
 
+    public static StockDocument adjustmentDraft(Long branchId, Long actor, String note, List<StockDocumentItem> items) {
+        var document = new StockDocument();
+        document.code = "PKK-" + UUID.randomUUID().toString().replace("-", "").substring(0, 24);
+        document.type = StockDocumentType.ADJUST;
+        document.branchId = branchId;
+        document.status = StockDocumentStatus.DRAFT;
+        document.createdBy = actor;
+        document.createdAt = OffsetDateTime.now();
+        document.reason = note;
+        items.forEach(item -> {
+            item.attachTo(document);
+            document.items.add(item);
+        });
+        return document;
+    }
+
+    public void recordCounts(String note, Map<Long, Integer> counts) {
+        requireDraft();
+        var countedItems = items.stream().filter(item -> counts.containsKey(item.getProductId())).toList();
+        if (countedItems.size() != counts.size()) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Chỉ nhập số đếm cho sản phẩm đã có trong phiếu");
+        }
+        reason = note;
+        countedItems.forEach(item -> item.recordCount(counts.get(item.getProductId())));
+    }
+
     public static StockDocument transferDraft(Long branchId, Long toBranchId, Long actor,
             String note, List<StockDocumentItem> items) {
         var document = new StockDocument();

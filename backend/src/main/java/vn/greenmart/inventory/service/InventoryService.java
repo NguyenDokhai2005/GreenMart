@@ -78,6 +78,9 @@ public interface InventoryService {
 
     void transferIn(Long branchId, Long productId, int qty, Long documentId, Long actorId);
 
+    /** Add the signed count difference to current on-hand stock and record the adjustment. */
+    void adjustStock(Long branchId, Long productId, int delta, Long documentId, Long actorId);
+
     /** Import approved stock and revalue global cost in the caller's transaction. */
     void importStock(Long branchId, Long productId, int qty, long unitCost, Long documentId, Long actorId);
 
