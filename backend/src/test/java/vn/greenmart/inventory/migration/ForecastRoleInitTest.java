@@ -31,6 +31,11 @@ class ForecastRoleInitTest {
                 .placeholders(Map.of("forecast_user", ROLE)).load().migrate();
         try (var connection = DriverManager.getConnection(POSTGRES.getJdbcUrl(), ROLE, FIXTURE_PASSWORD);
              var statement = connection.createStatement()) {
+            for (String table : new String[]{"product", "branch", "daily_sales", "forecast_run", "forecast_result"}) {
+                try (var rows = statement.executeQuery("SELECT count(*) FROM " + table)) {
+                    assertThat(rows.next()).isTrue();
+                }
+            }
             for (String query : new String[]{"SELECT count(password_hash) FROM app_user",
                     "SELECT count(webhook_secret) FROM sales_channel", "SELECT count(*) FROM audit_log"}) {
                 assertThatThrownBy(() -> statement.executeQuery(query)).isInstanceOfSatisfying(
