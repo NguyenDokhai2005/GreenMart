@@ -75,6 +75,7 @@ Script ghi timing.json chỉ khi mọi bước thành công. Nếu dùng --skip-
 
 - #142 chạy từ nhánh riêng, build + start + seed + health với volume mới đạt **103.95 giây** trên máy có cache, project `greenmart-demo-142-split`. Phạm vi và commit khác số đo 52.50 giây của bản tích hợp.
 - #139: 4 test API với PostgreSQL đạt. #344: 4 test client/API đạt. #329: test DB mới đạt với Flyway của develop đã có migration #330.
+- #344 bổ sung fixture 365 ngày cho một sản phẩm trên stack riêng: POST qua backend trả 202, GET 200, run DONE và 37 dòng kết quả. Số liệu nằm trong evidence/week4-forecast-auth-e2e.json. Đây là smoke xác thực/tích hợp, không đại diện nghiệm thu chất lượng toàn mô hình.
 
 ## Điều kiện đóng issue
 
