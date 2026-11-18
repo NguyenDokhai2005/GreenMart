@@ -80,7 +80,13 @@ public class QuoteServiceImpl implements QuoteService {
 
             long unitPrice = product.salePrice();
             int qty = itemReq.quantity();
-            long lineRawTotal = unitPrice * qty;
+            // Chặn tràn số int64 khi nhân đơn giá với số lượng
+            final long lineRawTotal;
+            try {
+                lineRawTotal = Math.multiplyExact(unitPrice, (long) qty);
+            } catch (ArithmeticException ex) {
+                throw new AppException(ErrorCode.VALIDATION_ERROR, "Thành tiền dòng sản phẩm vượt quá giới hạn cho phép");
+            }
 
             PromotionRef itemPromo = promotionCalculator.evaluateItemPromotion(
                     product.id(), product.sku(), unitPrice, qty, request.branchId()
@@ -92,8 +98,13 @@ public class QuoteServiceImpl implements QuoteService {
 
             long lineTotal = lineRawTotal - lineDiscount;
 
-            subtotal += lineRawTotal;
-            totalItemDiscount += lineDiscount;
+            // Chặn tràn số int64 khi cộng dồn tạm tính và giảm giá nhiều dòng
+            try {
+                subtotal = Math.addExact(subtotal, lineRawTotal);
+                totalItemDiscount = Math.addExact(totalItemDiscount, lineDiscount);
+            } catch (ArithmeticException ex) {
+                throw new AppException(ErrorCode.VALIDATION_ERROR, "Tổng tạm tính giỏ hàng vượt quá giới hạn cho phép");
+            }
 
             quoteLines.add(new QuoteLine(
                     product.id(),
@@ -126,7 +137,12 @@ public class QuoteServiceImpl implements QuoteService {
         }
 
         // 8. Tổng kết giá trị báo giá
-        long totalDiscount = totalItemDiscount + orderDiscount + manualDiscountAmount;
+        final long totalDiscount;
+        try {
+            totalDiscount = Math.addExact(Math.addExact(totalItemDiscount, orderDiscount), manualDiscountAmount);
+        } catch (ArithmeticException ex) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Tổng giảm giá vượt quá giới hạn cho phép");
+        }
         long finalTotal = subtotal - totalDiscount;
 
         return new Quote(
