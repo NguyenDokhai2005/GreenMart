@@ -4329,6 +4329,7 @@ export interface operations {
         };
         content?: never;
       };
+      400: components['responses']['BadRequest'];
       /** @description Chưa đăng nhập */
       401: {
         headers: {
