@@ -15,6 +15,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timezone
 import logging
 import os
+import threading
 from typing import Any, Callable, Optional
 from zoneinfo import ZoneInfo
 
@@ -143,11 +144,14 @@ def check_and_run_missed_forecast(
     connection_factory: Callable[[], Any] = get_db_connection,
     runner_fn: Callable[..., Any] = execute_background_forecast,
     now_dt: Optional[datetime] = None,
-) -> Optional[int]:
+    scheduler: Optional[BackgroundScheduler] = None,
+) -> Optional[Any]:
     """Kiểm tra và chạy bù dự báo nếu bị lỡ lịch 02:00 khi khởi động container.
 
     Khung giờ chạy bù được thống nhất: từ 02:00 đến 06:00 sáng (Asia/Ho_Chi_Minh).
     Nếu khởi động sau 06:00 sáng, không chạy bù để tránh gây quá tải hệ thống giờ cao điểm bán hàng.
+    Chạy bù được đẩy vào nền (qua APScheduler hoặc daemon thread) để không chặn tiến trình
+    khởi động FastAPI (lifespan) và không gây timeout cho các probe /healthz, /livez.
     """
     current_time = now_dt or get_current_vn_time()
     current_hour = current_time.hour
@@ -179,15 +183,44 @@ def check_and_run_missed_forecast(
 
     logger.warning(
         "Phát hiện lỡ lịch chạy dự báo 02:00 ngày %s (thời gian khởi động: %s). "
-        "Tiến hành kích hoạt chạy bù (Startup Catch-up)...",
+        "Tiến hành kích hoạt chạy bù nền (Startup Catch-up Recovery)...",
         today_vn,
         current_time.isoformat(),
     )
-    return run_nightly_forecast_job(
-        connection_factory=connection_factory,
-        runner_fn=runner_fn,
-        now_dt=current_time,
+
+    if scheduler is not None:
+        job = scheduler.add_job(
+            run_nightly_forecast_job,
+            trigger="date",
+            run_date=current_time,
+            id="catchup_forecast",
+            name="Startup catch-up demand forecast run",
+            replace_existing=True,
+            coalesce=True,
+            max_instances=1,
+            kwargs={
+                "connection_factory": connection_factory,
+                "runner_fn": runner_fn,
+                "now_dt": current_time,
+            },
+        )
+        logger.info("Đã đưa job chạy bù vào hàng đợi nền của APScheduler: id=catchup_forecast")
+        return job
+
+    # Fallback khi scheduler không được truyền vào: chạy trong daemon thread để không chặn
+    thread = threading.Thread(
+        target=run_nightly_forecast_job,
+        kwargs={
+            "connection_factory": connection_factory,
+            "runner_fn": runner_fn,
+            "now_dt": current_time,
+        },
+        name="catchup_forecast_thread",
+        daemon=True,
     )
+    thread.start()
+    logger.info("Đã khởi chạy bù trong daemon thread.")
+    return thread
 
 
 def create_and_start_scheduler(

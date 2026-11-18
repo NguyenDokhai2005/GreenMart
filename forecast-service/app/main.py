@@ -54,14 +54,28 @@ def database_ready(connection_factory: Callable = connect) -> bool:
             return cursor.fetchone()[0] is True
 
 
-def create_app(connection_factory: Callable = connect) -> FastAPI:
+def create_app(
+    connection_factory: Callable = connect,
+    runner_fn: Optional[Callable] = None,
+) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         scheduler = None
         try:
-            scheduler = create_and_start_scheduler(connection_factory=connection_factory)
-            # Kiểm tra chạy bù nếu lỡ lịch 02:00 khi khởi động container
-            check_and_run_missed_forecast(connection_factory=connection_factory)
+            scheduler_kwargs = {"connection_factory": connection_factory}
+            if runner_fn is not None:
+                scheduler_kwargs["runner_fn"] = runner_fn
+            scheduler = create_and_start_scheduler(**scheduler_kwargs)
+
+            # Kiểm tra chạy bù nếu lỡ lịch 02:00 khi khởi động container (chạy trong nền, không chặn startup)
+            if scheduler is not None:
+                catchup_kwargs = {
+                    "connection_factory": connection_factory,
+                    "scheduler": scheduler,
+                }
+                if runner_fn is not None:
+                    catchup_kwargs["runner_fn"] = runner_fn
+                check_and_run_missed_forecast(**catchup_kwargs)
         except Exception as exc:
             log.warning("Khởi động scheduler hoặc kiểm tra chạy bù thất bại: %s", exc)
 
@@ -96,7 +110,10 @@ def create_app(connection_factory: Callable = connect) -> FastAPI:
     def live():
         return {"status": "UP"}
 
-    forecast_router = create_forecast_router(connection_factory=connection_factory)
+    router_kwargs = {"connection_factory": connection_factory}
+    if runner_fn is not None:
+        router_kwargs["background_runner"] = runner_fn
+    forecast_router = create_forecast_router(**router_kwargs)
     application.include_router(forecast_router)
 
     return application

@@ -135,21 +135,53 @@ def test_tc_sched_04_run_nightly_job_skips_when_daily_sales_empty(mock_has_run, 
 
 @patch("app.scheduler.forecast_scheduler.run_nightly_forecast_job")
 @patch("app.scheduler.forecast_scheduler.has_run_executed_today")
-def test_tc_sched_05_startup_recovery_triggers_in_catchup_window(mock_has_run, mock_run_job, mock_db):
-    """TC-SCHED-05: Khởi động container lúc 02:15 sáng (trong khung 02:00-06:00) chưa có run -> kích hoạt chạy bù."""
+def test_tc_sched_05_startup_recovery_triggers_in_catchup_window_with_scheduler(mock_has_run, mock_run_job, mock_db):
+    """TC-SCHED-05: Khởi động container lúc 02:15 sáng (trong khung 02:00-06:00) chưa có run -> lập lịch chạy bù qua scheduler."""
     mock_has_run.return_value = False
-    mock_run_job.return_value = 99
+    mock_scheduler = MagicMock()
+    mock_scheduler.add_job.return_value = "catchup_job_instance"
 
     startup_time = datetime(2026, 11, 18, 2, 15, tzinfo=VN_TZ)
 
     result = check_and_run_missed_forecast(
         connection_factory=mock_db["factory"],
         now_dt=startup_time,
+        scheduler=mock_scheduler,
     )
 
-    assert result == 99
+    assert result == "catchup_job_instance"
     mock_has_run.assert_called_once_with(mock_db["conn"], target_date=startup_time.date(), min_hour=2)
-    mock_run_job.assert_called_once()
+    mock_scheduler.add_job.assert_called_once()
+    job_kwargs = mock_scheduler.add_job.call_args[1]
+    assert job_kwargs["trigger"] == "date"
+    assert job_kwargs["run_date"] == startup_time
+    assert job_kwargs["id"] == "catchup_forecast"
+    assert job_kwargs["max_instances"] == 1
+    assert job_kwargs["coalesce"] is True
+    assert job_kwargs["replace_existing"] is True
+    # run_job không bị gọi đồng bộ ngay lúc schedule
+    mock_run_job.assert_not_called()
+
+
+@patch("app.scheduler.forecast_scheduler.threading.Thread")
+@patch("app.scheduler.forecast_scheduler.has_run_executed_today")
+def test_tc_sched_05_startup_recovery_triggers_fallback_thread_when_no_scheduler(mock_has_run, mock_thread_cls, mock_db):
+    """TC-SCHED-05: Khi scheduler=None, khởi tạo daemon thread chạy bù nền."""
+    mock_has_run.return_value = False
+    mock_thread_instance = MagicMock()
+    mock_thread_cls.return_value = mock_thread_instance
+
+    startup_time = datetime(2026, 11, 18, 2, 15, tzinfo=VN_TZ)
+
+    result = check_and_run_missed_forecast(
+        connection_factory=mock_db["factory"],
+        now_dt=startup_time,
+        scheduler=None,
+    )
+
+    assert result == mock_thread_instance
+    mock_thread_instance.start.assert_called_once()
+    assert mock_thread_cls.call_args[1]["daemon"] is True
 
 
 @patch("app.scheduler.forecast_scheduler.run_nightly_forecast_job")
