@@ -88,6 +88,33 @@ afterEach(() => {
 });
 
 describe('POS cart', () => {
+  it.each(['0', '-1', '1.5', '10000', ''])(
+    'shows quantity error and prevents quote for %s',
+    async (value) => {
+      render(<PosSalePage item={POS_NAVIGATION[0]} />);
+      const search = screen.getByLabelText('Quét mã vạch hoặc tìm theo tên / SKU');
+      fireEvent.change(search, { target: { value: product.barcode } });
+      fireEvent.keyDown(search, { key: 'Enter' });
+      const input = await screen.findByRole('spinbutton', { name: `Số lượng ${product.name}` });
+      await waitFor(() => expect(quoteOrder).toHaveBeenCalled());
+      vi.mocked(quoteOrder).mockClear();
+      fireEvent.change(input, { target: { value } });
+      expect(screen.getByText('Số lượng phải là số nguyên từ 1 đến 9.999.')).toBeTruthy();
+      await new Promise((resolve) => setTimeout(resolve, 180));
+      expect(quoteOrder).not.toHaveBeenCalled();
+      expect(
+        (screen.getByRole('button', { name: /Thanh toán/ }) as HTMLButtonElement).disabled,
+      ).toBe(true);
+      fireEvent.change(input, { target: { value: '2' } });
+      await waitFor(() =>
+        expect(quoteOrder).toHaveBeenCalledWith(
+          { branchId: 1, items: [{ productId: 205, quantity: 2 }] },
+          expect.any(AbortSignal),
+        ),
+      );
+    },
+  );
+
   it('adds repeated scans to one line and blocks checkout when quote reports insufficient stock', async () => {
     render(<PosSalePage item={POS_NAVIGATION[0]} />);
     const input = screen.getByLabelText('Quét mã vạch hoặc tìm theo tên / SKU');
