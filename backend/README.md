@@ -1,6 +1,6 @@
 # Backend – Spring Boot
 
-Java 21 · Spring Boot 3 · Maven · PostgreSQL · Redis · RabbitMQ · Flyway.
+Java 21 · Spring Boot 4 · Maven · PostgreSQL · Redis · RabbitMQ · Flyway.
 Kiến trúc modular monolith: mỗi module là một package trong `vn.greenmart`, chỉ gọi nhau qua interface service hoặc sự kiện.
 
 | Thư mục                               | Nội dung                                                                          |

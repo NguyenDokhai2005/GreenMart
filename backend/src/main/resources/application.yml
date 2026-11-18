@@ -34,7 +34,8 @@ spring:
         default-requeue-rejected: false
         retry:
           enabled: true
-          max-attempts: 5
+          # Boot 4 counts retries after the initial delivery (5 deliveries total).
+          max-retries: 4
           initial-interval: 1s
           multiplier: 2
           max-interval: 16s
@@ -64,3 +65,6 @@ management:
           include: readinessState,db,redis
         liveness:
           include: livenessState
+
+# Preserve the existing Jackson 2 wire format during the Boot 4 migration.
+spring.http.converters.preferred-json-mapper: jackson2
