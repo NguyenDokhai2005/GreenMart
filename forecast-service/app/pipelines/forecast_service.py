@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 from app.db.connection import get_db_connection
+from app.events.publisher import publish_forecast_completed
 from app.models.baselines import extract_top_sku_ids_from_sales
 from app.models.evaluator import (
     apply_short_history_fallback,
@@ -190,6 +191,7 @@ def execute_background_forecast(
     optimal_threshold: float = DEFAULT_SLOW_THRESHOLD,
     evaluate_pipeline_fn: Optional[Any] = None,
     retrain_models_fn: Optional[Any] = None,
+    event_publisher_fn: Optional[Any] = None,
 ) -> None:
     """Thực thi toàn bộ luồng dự báo chạy nền cho run_id đã được tạo trước (Issue #114 & #298).
 
@@ -301,6 +303,29 @@ def execute_background_forecast(
                 run_id,
                 total_inserted,
             )
+
+            # 7. Phát sự kiện forecast.completed lên RabbitMQ (SRS 8.4, Issue #118)
+            # Sự kiện phát SAU KHI commit DB thành công.
+            # Lỗi khi phát sự kiện chỉ log ERROR, KHÔNG rollback hay làm hỏng forecast_run đã DONE.
+            pub_fn = event_publisher_fn if event_publisher_fn is not None else publish_forecast_completed
+            try:
+                pub_fn(
+                    run_id=run_id,
+                    status="DONE",
+                    mae=m_h7_ov.mae,
+                    wape=m_h7_ov.wape,
+                    baseline_mae=b_h7_ov.mae,
+                    baseline_wape=b_h7_ov.wape,
+                    cutoff_date=str(last_date),
+                    model_version=DEFAULT_MODEL_VERSION,
+                )
+            except Exception as pub_err:
+                logger.error(
+                    "Lỗi không mong muốn khi gọi publisher cho run_id=%d: %s. "
+                    "Hạn chế đã biết: forecast_run vẫn giữ trạng thái DONE trong CSDL.",
+                    run_id,
+                    pub_err,
+                )
 
     except Exception as exc:
         logger.exception("Lỗi khi thực thi pipeline dự báo nền cho run_id=%d: %s", run_id, exc)
