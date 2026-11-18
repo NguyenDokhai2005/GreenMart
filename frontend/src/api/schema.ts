@@ -961,6 +961,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/integrations/sync-logs': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Xem nhật ký đồng bộ (ADMIN, OWNER) */
+    get: operations['listSyncLogs'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/integrations/sync-logs/{id}/retry': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * ADMIN đưa callback FAILED vào lịch gửi lại
+     * @description Giữ nguyên event và payload. Đặt lại bộ đếm cho lượt gửi mới. Hai yêu cầu đồng thời chỉ xếp một lượt gửi.
+     */
+    post: operations['retrySyncLog'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/forecasts': {
     parameters: {
       query?: never;
@@ -4207,6 +4244,119 @@ export interface operations {
       400: components['responses']['BadRequest'];
       401: components['responses']['Unauthorized'];
       403: components['responses']['Forbidden'];
+    };
+  };
+  listSyncLogs: {
+    parameters: {
+      query?: {
+        channelCode?: 'WEB' | 'MARKET';
+        status?: 'SUCCESS' | 'FAILED' | 'RETRYING';
+        page?: number;
+        size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Nhật ký mới nhất trước */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            page: number;
+            size: number;
+            /** Format: int64 */
+            totalElements: number;
+            content: {
+              /** Format: int64 */
+              id?: number;
+              channelCode?: string;
+              /** @enum {string} */
+              direction?: 'IN' | 'OUT';
+              externalId?: string | null;
+              /** @enum {string} */
+              status?: 'SUCCESS' | 'FAILED' | 'RETRYING';
+              attempts?: number;
+              error?: string | null;
+              /** Format: date-time */
+              createdAt?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Bộ lọc không hợp lệ */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Chưa đăng nhập */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Không đủ quyền */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  retrySyncLog: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Đã đưa vào lịch gửi nền */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Chưa đăng nhập */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Chỉ ADMIN được gửi lại */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Không có nhật ký */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Không phải callback FAILED có thể gửi lại */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
     };
   };
   getForecast: {
