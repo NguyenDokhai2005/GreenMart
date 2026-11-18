@@ -71,6 +71,11 @@ Script ghi timing.json chỉ khi mọi bước thành công. Nếu dùng --skip-
 - Backup và restore vào restore_week4_verified đối chiếu đúng sáu bảng: product=1000, customer=1500, inventory=3000, sales_order=10200, order_item=56341, outbox_event=0. Dùng postgres-backup.py với project/env-file/compose override của demo, restore vào tên DB mới.
 - Các lệnh smoke chỉ thao tác fixture demo, không thay cấu hình local của người dùng.
 
+## Kiểm chứng khi tách từng chức năng
+
+- #142 chạy từ nhánh riêng, build + start + seed + health với volume mới đạt **103.95 giây** trên máy có cache, project `greenmart-demo-142-split`. Phạm vi và commit khác số đo 52.50 giây của bản tích hợp.
+- #139: 4 test API với PostgreSQL đạt. #344: 4 test client/API đạt. #329: test DB mới đạt với Flyway của develop đã có migration #330.
+
 ## Điều kiện đóng issue
 
 Mỗi issue có nhánh và PR riêng, PR ghi Closes cho issue tương ứng. PR #329 ghi thêm Refs #308. Chỉ đóng sau review, CI xanh và merge develop. Tài liệu phục hồi ở DEPLOYMENT-RECOVERY.md; báo cáo cá nhân ở ../reports/SV07-week4.md.
