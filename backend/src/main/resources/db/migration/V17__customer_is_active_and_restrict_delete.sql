@@ -1,4 +1,4 @@
--- V16__customer_is_active_and_restrict_delete.sql
+-- V17__customer_is_active_and_restrict_delete.sql
 
 -- 1. Them cot is_active (mac dinh TRUE cho toan bo khach hang cu)
 ALTER TABLE customer

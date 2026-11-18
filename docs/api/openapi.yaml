@@ -423,7 +423,7 @@ paths:
           schema: { $ref: '#/components/schemas/Phone' }
         - name: active
           in: query
-          description: Lọc theo trạng thái hoạt động (mặc định trả về tất cả hoặc theo tham số)
+          description: Lọc theo trạng thái hoạt động (mặc định true; chỉ OWNER, BRANCH_MANAGER được gửi active=false)
           schema: { type: boolean }
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'

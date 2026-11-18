@@ -2728,7 +2728,7 @@ export interface operations {
         q?: string;
         /** @description Khớp chính xác số điện thoại (dùng ở POS) */
         phone?: components['schemas']['Phone'];
-        /** @description Lọc theo trạng thái hoạt động (mặc định trả về tất cả hoặc theo tham số) */
+        /** @description Lọc theo trạng thái hoạt động (mặc định true; chỉ OWNER, BRANCH_MANAGER được gửi active=false) */
         active?: boolean;
         /** @description Số trang, bắt đầu từ 0 */
         page?: components['parameters']['Page'];

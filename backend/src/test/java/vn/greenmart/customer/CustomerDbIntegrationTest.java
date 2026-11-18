@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -256,6 +257,12 @@ class CustomerDbIntegrationTest {
         PageResponse<CustomerResponse> searchByPhone = customerService.listCustomers(null, "0907776655", PageRequest.of(0, 20));
         assertEquals(0, searchByPhone.totalElements());
 
+        // Quản lý chi nhánh lọc active=false -> tìm lại được khách đã ngừng hoạt động
+        PageResponse<CustomerResponse> inactiveSearch = customerService.listCustomers(null, "0907776655", false, PageRequest.of(0, 20));
+        assertEquals(1, inactiveSearch.totalElements());
+        assertEquals(created.id(), inactiveSearch.content().get(0).id());
+        assertFalse(inactiveSearch.content().get(0).active());
+
         // Đơn kênh ngoài vẫn nhận và gắn đúng khách cũ theo SĐT
         long resolvedId = customerService.resolveChannelCustomer("0907776655", "Khách Ngừng Hoạt Động");
         assertEquals(created.id(), resolvedId);
@@ -267,6 +274,16 @@ class CustomerDbIntegrationTest {
         PageResponse<OrderSummaryResponse> history = customerService.listCustomerOrders(created.id(), PageRequest.of(0, 20));
         assertEquals(1, history.totalElements());
         assertEquals("POS-306-01", history.content().get(0).code());
+
+        // Mở lại khách hàng bằng updateCustomer(active=true) -> hiển thị lại khi tìm mặc định
+        CustomerResponse reactivated = customerService.updateCustomer(
+                created.id(),
+                new CustomerRequest("0907776655", "Khách Ngừng Hoạt Động", "inactive@greenmart.vn", true)
+        );
+        assertTrue(reactivated.active());
+
+        PageResponse<CustomerResponse> activeAgain = customerService.listCustomers(null, "0907776655", PageRequest.of(0, 20));
+        assertEquals(1, activeAgain.totalElements());
     }
 
     @Test

@@ -19,8 +19,9 @@ public interface CustomerService {
 
     PageResponse<CustomerResponse> listCustomers(String q, String phone, Pageable pageable);
 
+    PageResponse<CustomerResponse> listCustomers(String q, String phone, Boolean active, Pageable pageable);
+
     PageResponse<OrderSummaryResponse> listCustomerOrders(Long customerId, Pageable pageable);
 
     boolean exists(Long customerId);
 }
-

@@ -122,12 +122,23 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<CustomerResponse> listCustomers(String q, String phone, Pageable pageable) {
+        return listCustomers(q, phone, null, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<CustomerResponse> listCustomers(String q, String phone, Boolean active, Pageable pageable) {
         ensureAuthenticated();
+
+        boolean targetActive = (active != null) ? active : true;
+        if (!targetActive) {
+            SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER");
+        }
 
         String trimmedQ = (q != null && !q.isBlank()) ? q.trim() : null;
         String trimmedPhone = (phone != null && !phone.isBlank()) ? phone.trim() : null;
 
-        Page<Customer> result = customerRepository.searchCustomers(trimmedQ, trimmedPhone, pageable);
+        Page<Customer> result = customerRepository.searchCustomers(trimmedQ, trimmedPhone, targetActive, pageable);
         return PageResponse.from(result.map(CustomerResponse::from));
     }
 

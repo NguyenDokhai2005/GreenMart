@@ -15,12 +15,17 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
     @Query("""
         SELECT c FROM Customer c
-        WHERE c.isActive = true
+        WHERE c.isActive = :active
           AND (:phone IS NULL OR c.phone = :phone)
           AND (CAST(:q AS string) IS NULL OR (
                 LOWER(c.name) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%'))
                 OR c.phone LIKE CONCAT('%', CAST(:q AS string), '%')
           ))
     """)
-    Page<Customer> searchCustomers(@Param("q") String q, @Param("phone") String phone, Pageable pageable);
+    Page<Customer> searchCustomers(
+        @Param("q") String q,
+        @Param("phone") String phone,
+        @Param("active") boolean active,
+        Pageable pageable
+    );
 }

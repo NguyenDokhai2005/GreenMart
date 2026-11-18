@@ -143,4 +143,30 @@ class CustomerServiceTest {
         AppException ex = assertThrows(AppException.class, () -> customerService.updateCustomer(10L, req));
         assertEquals(ErrorCode.FORBIDDEN.name(), ex.getCode());
     }
+
+    @Test
+    void testListCustomers_ActiveFalse_BranchManager_Success() {
+        authenticate("BRANCH_MANAGER", "5");
+        Customer inactive = new Customer("0901234567", "Khách Đã Ngừng", null);
+        inactive.setId(10L);
+        inactive.setActive(false);
+
+        when(customerRepository.searchCustomers(org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.eq(false), any()))
+            .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(inactive)));
+
+        vn.greenmart.common.pagination.PageResponse<CustomerResponse> res =
+            customerService.listCustomers(null, null, false, org.springframework.data.domain.PageRequest.of(0, 20));
+        assertEquals(1, res.totalElements());
+        org.junit.jupiter.api.Assertions.assertFalse(res.content().get(0).active());
+    }
+
+    @Test
+    void testListCustomers_ActiveFalse_Cashier_ThrowsForbidden() {
+        authenticate("CASHIER", "2");
+
+        AppException ex = assertThrows(AppException.class, () ->
+            customerService.listCustomers(null, null, false, org.springframework.data.domain.PageRequest.of(0, 20))
+        );
+        assertEquals(ErrorCode.FORBIDDEN.name(), ex.getCode());
+    }
 }
