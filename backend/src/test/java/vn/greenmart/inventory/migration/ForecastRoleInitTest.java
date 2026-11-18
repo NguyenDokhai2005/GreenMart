@@ -27,6 +27,19 @@ class ForecastRoleInitTest {
                     "/docker-entrypoint-initdb.d/01-forecast-role.sh");
 
     @Test void newDatabaseDoesNotGrantForecastRoleAccessToSensitiveTables() throws SQLException {
+        // Check init defaults before V14 can revoke legacy grants and hide a regression.
+        try (var owner = DriverManager.getConnection(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+             var statement = owner.createStatement()) {
+            statement.execute("CREATE TABLE init_private_probe(secret text)");
+            try (var rows = statement.executeQuery(
+                    "SELECT has_table_privilege('forecast_ro', 'init_private_probe', 'SELECT')")) {
+                assertThat(rows.next()).isTrue();
+                assertThat(rows.getBoolean(1)).isFalse();
+            } finally {
+                statement.execute("DROP TABLE init_private_probe");
+            }
+        }
         Flyway.configure().dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
                 .placeholders(Map.of("forecast_user", ROLE)).load().migrate();
         try (var connection = DriverManager.getConnection(POSTGRES.getJdbcUrl(), ROLE, FIXTURE_PASSWORD);
