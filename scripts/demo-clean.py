@@ -7,6 +7,7 @@ import secrets
 import re
 import socket
 import subprocess
+import sys
 import time
 import urllib.request
 
@@ -59,7 +60,7 @@ def main():
     started = time.monotonic()
     build_options = [] if args.skip_build else ["--build"]
     run([*prefix, "up", *build_options, "-d", "--wait", "--wait-timeout", "600"], env=env)
-    run(["python", "forecast-service/scripts/generate_data.py"], env=env)
+    run([sys.executable, "forecast-service/scripts/generate_data.py"], env=env)
     sql = ROOT / "forecast-service/data/seed_data.sql"
     with sql.open("rb") as source:
         run([*prefix, "exec", "-T", "postgres", "sh", "-ec",
