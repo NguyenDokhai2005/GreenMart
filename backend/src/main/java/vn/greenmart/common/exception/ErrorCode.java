@@ -48,6 +48,8 @@ public enum ErrorCode {
     WRONG_PASSWORD(HttpStatus.UNPROCESSABLE_ENTITY, "Mật khẩu hiện tại không chính xác"),
     UNMAPPED_SKU(HttpStatus.UNPROCESSABLE_ENTITY, "Mã hàng của kênh chưa được ánh xạ"),
 
+    FORECAST_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Dịch vụ dự báo tạm thời không phản hồi"),
+
     // 500
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Đã có lỗi hệ thống xảy ra, vui lòng thử lại sau");
 
