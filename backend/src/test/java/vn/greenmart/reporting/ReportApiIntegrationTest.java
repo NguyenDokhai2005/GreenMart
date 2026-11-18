@@ -206,6 +206,58 @@ class ReportApiIntegrationTest {
                 .andExpect(jsonPath("$.slowSelling[1].netQuantity").value(5));
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "10000, 10000, 0, 0, 2000, 2000, 9000, 9000",
+            "20000, 10000, 5000, 5000, 3999, 999, 12001, 4000",
+            "10000, 10000, 0, 0, 1, 0, 10000, 9999",
+            "10000, 10000, 10000, 10000, 0, 0, 0, 0",
+            "10000, 10000, 0, 10000, 10000, 10000, 0, 0"
+    })
+    void allocatesPaidOrderTotalAcrossProducts(
+            int firstPrice, int secondPrice, int firstLineDiscount, int secondLineDiscount,
+            int orderDiscount, int manualDiscount, int firstRevenue, int secondRevenue
+    ) throws Exception {
+        int subtotal = firstPrice + secondPrice;
+        int discount = firstLineDiscount + secondLineDiscount + orderDiscount;
+        int total = subtotal - discount;
+        jdbc.update("""
+                INSERT INTO sales_order(id, code, channel_id, branch_id, status, subtotal, discount, total,
+                                        manual_discount, manual_discount_reason, created_at, completed_at)
+                VALUES (130, 'ORD-130', 1, 1, 'COMPLETED', ?, ?, ?, ?,
+                        CASE WHEN ? > 0 THEN 'QA manual discount' ELSE NULL END,
+                        '2026-11-17T08:00:00+07:00', '2026-11-17T09:00:00+07:00')
+                """, subtotal, discount, total, manualDiscount, manualDiscount);
+        jdbc.update("""
+                INSERT INTO order_item(id, order_id, product_id, quantity, unit_price, discount, line_total)
+                VALUES (1301, 130, 1, 1, ?, ?, ?),
+                       (1302, 130, 2, 1, ?, ?, ?)
+                """, firstPrice, firstLineDiscount, firstPrice - firstLineDiscount,
+                secondPrice, secondLineDiscount, secondPrice - secondLineDiscount);
+
+        var topProducts = mvc.perform(get("/api/v1/reports/top-products").with(user("11").roles("BRANCH_MANAGER"))
+                        .param("from", "2026-11-17").param("to", "2026-11-17")
+                        .param("branchId", "1").param("channelId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.topSelling[?(@.productId == 1)].revenue", contains(firstRevenue)))
+                .andExpect(jsonPath("$.topSelling[?(@.productId == 2)].revenue", contains(secondRevenue)))
+                .andExpect(jsonPath("$.slowSelling[?(@.productId == 1)].revenue", contains(firstRevenue)))
+                .andExpect(jsonPath("$.slowSelling[?(@.productId == 2)].revenue", contains(secondRevenue)))
+                .andReturn();
+        var revenue = mvc.perform(get("/api/v1/reports/revenue").with(user("11").roles("BRANCH_MANAGER"))
+                        .param("from", "2026-11-17").param("to", "2026-11-17")
+                        .param("branchId", "1").param("channelId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.totalNetRevenue").value(total))
+                .andReturn();
+
+        JsonNode productRows = mapper.readTree(topProducts.getResponse().getContentAsByteArray()).path("topSelling");
+        long productRevenue = StreamSupport.stream(productRows.spliterator(), false)
+                .mapToLong(row -> row.path("revenue").asLong()).sum();
+        assertEquals(mapper.readTree(revenue.getResponse().getContentAsByteArray())
+                .path("summary").path("totalNetRevenue").asLong(), productRevenue);
+    }
+
     @Test
     void shouldAllocateActualRefundAndReconcileReportsForSamePeriod() throws Exception {
         jdbc.update("""
@@ -288,6 +340,63 @@ class ReportApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.topSelling[?(@.productId == 1)].returnedQuantity", contains(1)))
                 .andExpect(jsonPath("$.topSelling[?(@.productId == 1)].revenue", contains(0)));
+    }
+
+    @Test
+    void keepsProductHistoryAfterDeactivationWithinTheReportScope() throws Exception {
+        jdbc.update("""
+                INSERT INTO sales_order(id, code, channel_id, branch_id, status, subtotal, discount, total,
+                                        created_at, completed_at)
+                VALUES (130, 'ORD-130', 1, 1, 'COMPLETED', 210000, 0, 210000,
+                        '2026-11-09T08:00:00+07:00', '2026-11-09T09:00:00+07:00'),
+                       (131, 'ORD-131', 1, 1, 'COMPLETED', 50000, 0, 50000,
+                        '2026-10-31T08:00:00+07:00', '2026-10-31T09:00:00+07:00'),
+                       (132, 'ORD-132', 1, 2, 'COMPLETED', 20000, 0, 20000,
+                        '2026-11-09T08:00:00+07:00', '2026-11-09T09:00:00+07:00')
+                """);
+        jdbc.update("""
+                INSERT INTO order_item(id, order_id, product_id, quantity, unit_price, discount, line_total)
+                VALUES (1301, 130, 1, 2, 100000, 0, 200000),
+                       (1311, 131, 2, 1, 50000, 0, 50000),
+                       (1321, 132, 3, 1, 20000, 0, 20000),
+                       (1302, 130, 4, 1, 10000, 0, 10000)
+                """);
+        jdbc.update("""
+                INSERT INTO return_document(id, code, order_id, branch_id, reason, refund_amount, status,
+                                            created_by, approved_by, created_at, approved_at)
+                VALUES (230, 'RET-230', 130, 1, 'Lỗi', 100000, 'APPROVED', 11, 10,
+                        '2026-11-09T18:00:00+07:00', '2026-11-10T11:00:00+07:00'),
+                       (231, 'RET-231', 131, 1, 'Lỗi', 50000, 'APPROVED', 11, 10,
+                        '2026-11-01T18:00:00+07:00', '2026-11-02T11:00:00+07:00')
+                """);
+        jdbc.update("""
+                INSERT INTO return_item(id, return_id, order_item_id, quantity, condition)
+                VALUES (2301, 230, 1301, 1, 'DAMAGED'), (2311, 231, 1311, 1, 'DAMAGED')
+                """);
+        jdbc.update("UPDATE product SET is_active=false WHERE id=3");
+
+        var before = mvc.perform(get("/api/v1/reports/top-products").with(user("11").roles("BRANCH_MANAGER"))
+                        .param("month", "2026-11").param("branchId", "1").param("channelId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.topSelling[*].productId", contains(1, 4, 2)))
+                .andExpect(jsonPath("$.topSelling[0].soldQuantity").value(2))
+                .andExpect(jsonPath("$.topSelling[0].returnedQuantity").value(1))
+                .andExpect(jsonPath("$.topSelling[0].netQuantity").value(1))
+                .andExpect(jsonPath("$.topSelling[0].revenue").value(100000))
+                .andExpect(jsonPath("$.topSelling[1].returnedQuantity").value(0))
+                .andExpect(jsonPath("$.topSelling[1].revenue").value(10000))
+                .andExpect(jsonPath("$.topSelling[2].soldQuantity").value(0))
+                .andExpect(jsonPath("$.topSelling[2].revenue").value(-50000))
+                .andReturn();
+
+        jdbc.update("UPDATE product SET is_active=false WHERE id IN (1, 2, 4)");
+
+        var after = mvc.perform(get("/api/v1/reports/top-products").with(user("11").roles("BRANCH_MANAGER"))
+                        .param("month", "2026-11").param("branchId", "1").param("channelId", "1"))
+                .andExpect(status().isOk()).andReturn();
+
+        assertEquals(mapper.readTree(before.getResponse().getContentAsByteArray()),
+                mapper.readTree(after.getResponse().getContentAsByteArray()));
     }
 
     @Test

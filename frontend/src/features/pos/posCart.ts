@@ -9,9 +9,11 @@ export interface CartLine {
 export type CartAction =
   | { type: 'add'; product: Product; available: number }
   | { type: 'quantity'; productId: number; quantity: number }
-  | { type: 'remove'; productId: number };
+  | { type: 'remove'; productId: number }
+  | { type: 'clear' };
 
 export function cartReducer(lines: CartLine[], action: CartAction): CartLine[] {
+  if (action.type === 'clear') return [];
   if (action.type === 'remove') return lines.filter((line) => line.product.id !== action.productId);
   if (action.type === 'quantity') {
     if (!Number.isSafeInteger(action.quantity) || action.quantity < 1 || action.quantity > 9999)

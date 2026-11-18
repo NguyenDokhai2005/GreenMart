@@ -11,7 +11,10 @@ import { AsyncBlock, Button, EmptyState, Input, Skeleton, Toast } from '../../co
 import { useActiveBranch } from '../auth/useActiveBranch';
 import { mapErrorToState } from '../../lib/errors';
 import type { PosPageProps } from '../../layouts/pos/PosPlaceholderPage';
+import type { Customer } from '../catalog/catalogApi';
 import { cartKey, cartReducer, stockForLine } from './posCart';
+import PosCheckoutDialog from './PosCheckoutDialog';
+import PosCustomerPanel from './PosCustomerPanel';
 import './posSale.css';
 
 type SearchState =
@@ -37,6 +40,13 @@ export default function PosSalePage({ item }: PosPageProps) {
   const branch = useActiveBranch();
   const branchId = branch.state.status === 'active' ? branch.state.branch.id : 0;
   const [lines, dispatch] = useReducer(cartReducer, []);
+  const [quantityDrafts, setQuantityDrafts] = useState<Record<number, string>>({});
+  const invalidQuantity = Object.values(quantityDrafts).some(
+    (value) => !/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 9999,
+  );
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [checkoutQuote, setCheckoutQuote] = useState<Quote | null>(null);
+  const customerId = customer?.id;
   const [query, setQuery] = useState('');
   const normalizedQuery = query.trim();
   const [searchRetry, setSearchRetry] = useState(0);
@@ -47,7 +57,10 @@ export default function PosSalePage({ item }: PosPageProps) {
   const [lookupError, setLookupError] = useState<string | undefined>();
   const [notice, setNotice] = useState<string | undefined>();
   const scanner = useRef({ value: '', at: 0 });
-  const currentCartKey = useMemo(() => cartKey(branchId, lines), [branchId, lines]);
+  const currentCartKey = useMemo(
+    () => `${cartKey(branchId, lines)}:${customerId ?? 'walk-in'}`,
+    [branchId, lines, customerId],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -74,13 +87,14 @@ export default function PosSalePage({ item }: PosPageProps) {
   }, [normalizedQuery, searchRetry]);
 
   useEffect(() => {
-    if (lines.length === 0) return;
+    if (lines.length === 0 || invalidQuantity) return;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       setQuoteState({ status: 'loading', key: currentCartKey });
       void quoteOrder(
         {
           branchId,
+          ...(customerId === undefined ? {} : { customerId }),
           items: lines.map(({ product, quantity }) => ({ productId: product.id, quantity })),
         },
         controller.signal,
@@ -99,7 +113,7 @@ export default function PosSalePage({ item }: PosPageProps) {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [branchId, currentCartKey, lines, quoteRetry]);
+  }, [branchId, customerId, currentCartKey, lines, quoteRetry, invalidQuantity]);
 
   const addByCode = useCallback(
     async (code: string) => {
@@ -189,14 +203,17 @@ export default function PosSalePage({ item }: PosPageProps) {
   const searchError =
     searchCurrent && searchState.status === 'error' ? searchState.error : undefined;
   const quoteCurrent = quoteState.key === currentCartKey;
-  const quoteLoading = lines.length > 0 && (!quoteCurrent || quoteState.status === 'loading');
-  const quote = quoteCurrent && quoteState.status === 'ready' ? quoteState.quote : null;
+  const quoteLoading =
+    !invalidQuantity && lines.length > 0 && (!quoteCurrent || quoteState.status === 'loading');
+  const quote =
+    !invalidQuantity && quoteCurrent && quoteState.status === 'ready' ? quoteState.quote : null;
   const quoteError = quoteCurrent && quoteState.status === 'error' ? quoteState.error : undefined;
   const mappedQuoteError =
     quoteError === undefined ? undefined : mapErrorToState(quoteError, 'block');
   const fieldErrors = mappedQuoteError?.kind === 'form' ? mappedQuoteError.fieldErrors : {};
   const shortage = lines.some((line) => !stockForLine(line, quote).sufficient);
-  const canCheckout = lines.length > 0 && !quoteLoading && !!quote?.canComplete && !shortage;
+  const canCheckout =
+    !invalidQuantity && lines.length > 0 && !quoteLoading && !!quote?.canComplete && !shortage;
   const quotedMoney = (amount: number | undefined) =>
     quote ? money(amount ?? 0) : lines.length === 0 ? money(0) : '—';
   const quotedDiscount = (amount: number | undefined) =>
@@ -286,6 +303,7 @@ export default function PosSalePage({ item }: PosPageProps) {
           <p className="pos-sale__hint">
             Quét barcode để thêm nhanh · Nhập tên rồi chọn Thêm · F2 tìm kiếm
           </p>
+          <PosCustomerPanel customer={customer} onChange={setCustomer} />
         </section>
 
         <section className="pos-sale__panel pos-sale__cart" aria-labelledby="pos-sale-cart-title">
@@ -337,51 +355,83 @@ export default function PosSalePage({ item }: PosPageProps) {
                         </span>
                       )}
                     </div>
-                    <div
-                      className="pos-sale__quantity"
-                      aria-label={`Số lượng ${line.product.name}`}
-                    >
-                      <button
-                        type="button"
-                        aria-label={`Giảm số lượng ${line.product.name}`}
-                        disabled={line.quantity <= 1}
-                        onClick={() =>
-                          dispatch({
-                            type: 'quantity',
-                            productId: line.product.id,
-                            quantity: line.quantity - 1,
-                          })
-                        }
-                      >
-                        −
-                      </button>
-                      <input
-                        type="number"
-                        min="1"
-                        max="9999"
+                    <div className="pos-sale__quantity-field">
+                      <div
+                        className="pos-sale__quantity"
                         aria-label={`Số lượng ${line.product.name}`}
-                        value={line.quantity}
-                        onChange={(event) =>
-                          dispatch({
-                            type: 'quantity',
-                            productId: line.product.id,
-                            quantity: Number(event.target.value),
-                          })
-                        }
-                      />
-                      <button
-                        type="button"
-                        aria-label={`Tăng số lượng ${line.product.name}`}
-                        onClick={() =>
-                          dispatch({
-                            type: 'quantity',
-                            productId: line.product.id,
-                            quantity: line.quantity + 1,
-                          })
-                        }
                       >
-                        +
-                      </button>
+                        <button
+                          type="button"
+                          aria-label={`Giảm số lượng ${line.product.name}`}
+                          disabled={
+                            line.quantity <= 1 || quantityDrafts[line.product.id] !== undefined
+                          }
+                          onClick={() =>
+                            dispatch({
+                              type: 'quantity',
+                              productId: line.product.id,
+                              quantity: line.quantity - 1,
+                            })
+                          }
+                        >
+                          −
+                        </button>
+                        <input
+                          type="number"
+                          min="1"
+                          max="9999"
+                          aria-label={`Số lượng ${line.product.name}`}
+                          value={quantityDrafts[line.product.id] ?? line.quantity}
+                          aria-invalid={quantityDrafts[line.product.id] !== undefined || undefined}
+                          aria-describedby={
+                            quantityDrafts[line.product.id] !== undefined
+                              ? `quantity-error-${line.product.id}`
+                              : undefined
+                          }
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            const valid =
+                              /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 9999;
+                            setQuantityDrafts((old) => {
+                              const next = { ...old };
+                              if (valid) delete next[line.product.id];
+                              else next[line.product.id] = value;
+                              return next;
+                            });
+                            if (valid)
+                              dispatch({
+                                type: 'quantity',
+                                productId: line.product.id,
+                                quantity: Number(value),
+                              });
+                          }}
+                        />
+                        <button
+                          type="button"
+                          aria-label={`Tăng số lượng ${line.product.name}`}
+                          disabled={
+                            line.quantity >= 9999 || quantityDrafts[line.product.id] !== undefined
+                          }
+                          onClick={() =>
+                            dispatch({
+                              type: 'quantity',
+                              productId: line.product.id,
+                              quantity: line.quantity + 1,
+                            })
+                          }
+                        >
+                          +
+                        </button>
+                      </div>
+                      {quantityDrafts[line.product.id] !== undefined && (
+                        <span
+                          className="pos-sale__form-error"
+                          id={`quantity-error-${line.product.id}`}
+                          role="alert"
+                        >
+                          Số lượng phải là số nguyên từ 1 đến 9.999.
+                        </span>
+                      )}
                     </div>
                     <span className="pos-sale__amount" data-label="Đơn giá">
                       {money(quotedLine?.unitPrice ?? line.product.salePrice)}
@@ -396,7 +446,14 @@ export default function PosSalePage({ item }: PosPageProps) {
                       className="pos-sale__remove"
                       type="button"
                       aria-label={`Xóa ${line.product.name}`}
-                      onClick={() => dispatch({ type: 'remove', productId: line.product.id })}
+                      onClick={() => {
+                        setQuantityDrafts((old) => {
+                          const next = { ...old };
+                          delete next[line.product.id];
+                          return next;
+                        });
+                        dispatch({ type: 'remove', productId: line.product.id });
+                      }}
                     >
                       ×
                     </button>
@@ -460,9 +517,9 @@ export default function PosSalePage({ item }: PosPageProps) {
               className="pos-sale__checkout"
               disabled={!canCheckout}
               aria-keyshortcuts="F4"
-              onClick={() =>
-                setNotice('Thanh toán chưa khả dụng. Giỏ hàng của bạn vẫn được giữ nguyên.')
-              }
+              onClick={() => {
+                if (quote) setCheckoutQuote(quote);
+              }}
             >
               Thanh toán · F4
             </Button>
@@ -476,6 +533,20 @@ export default function PosSalePage({ item }: PosPageProps) {
           variant="warning"
           title={notice}
           onClose={() => setNotice(undefined)}
+        />
+      )}
+      {checkoutQuote && (
+        <PosCheckoutDialog
+          branchId={branchId}
+          customerId={customerId}
+          lines={lines}
+          quote={checkoutQuote}
+          onClose={() => setCheckoutQuote(null)}
+          onCompleted={() => {
+            dispatch({ type: 'clear' });
+            setCustomer(null);
+          }}
+          onRequote={() => setQuoteRetry((value) => value + 1)}
         />
       )}
     </section>
