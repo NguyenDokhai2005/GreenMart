@@ -1,0 +1,115 @@
+{
+  "date": "2026-11-18",
+  "sourceCommit": "e834d2f8f758ae2725ad4cb39cbbf51ad6ede7ac",
+  "springBoot": "4.0.9",
+  "backendTests": {
+    "passed": 547,
+    "failed": 0,
+    "skipped": 0,
+    "coverageGate": "passed"
+  },
+  "frontendTests": {
+    "passed": 294,
+    "files": 32
+  },
+  "images": [
+    {
+      "service": "backend",
+      "critical": 0,
+      "scannerImageConfigId": "sha256:2eea14ef71d158f97e51b8fa12367c56eb3032beb5f32d8e78591c9951274e80",
+      "runtimeLayersMatchScan": true,
+      "layers": [
+        "sha256:fbb9bbbaf4d2b027acd15252897d5043386eea7121e0e0433e697714bb14beac",
+        "sha256:737f4db85479333a141a2614be1eb1aa074f49ac547cce1ab8fff4b5653972ab",
+        "sha256:6bca355b8e7a36dd4571743326d72d1858d29c7f8d2011a7770af3ff4ff4b9bf",
+        "sha256:cb04ebe10c4d9bfabe9bd3d572669c6dd9660e55ed9facd1fd9024bdb8fd1c21",
+        "sha256:25008743843569ad0739d5e38898c5b6037603e20552ad959a974c38d27add25",
+        "sha256:b21ac9cd6a36dce35cbb098c4efc3497a3c67aca8d365bc24f0b11b15f300f20",
+        "sha256:ed9cbe8b46b8b03d294bf87706a298d282739dbf801ed1c8a42094dcfbb9561e",
+        "sha256:af399e785a00b902f404825c790dd71e80e70f547d3fab02e2d063bbcc4c5267"
+      ]
+    },
+    {
+      "service": "frontend",
+      "critical": 0,
+      "scannerImageConfigId": "sha256:900ae9b537c29873c69730e4b5c1cd2850e90f0dbbbeade30f71353fb50b85c5",
+      "runtimeLayersMatchScan": true,
+      "layers": [
+        "sha256:922ec217407c0fd31cb18b46090bf62e439fb53ecd01f09406d62e25a906e09b",
+        "sha256:0e19dcbccb67aac577319dce0190e9b7029fdd59fa335c735542dc8eb9b72fd3",
+        "sha256:79c8f842099283e9a504808c658818bbc63dc237424d91522e3e9327ad4cdf5c",
+        "sha256:8771405cd03dd8832f4f42d93849a5e63a0994af5dadadfc21e7a80195dd3d29",
+        "sha256:aa3ec426a496bd76f30ec830aae4e5adcb825e47facc4072d84cbfb26ceeae9e",
+        "sha256:d7deb9772f64c1c24c07f260c7da716a1ee1d58067f06cd88e8302f05bfff64f",
+        "sha256:4f2b4173013a21bedf74751ea92ccfc01006211889abda3cfcd4bb58223d3131",
+        "sha256:b0d8fc3ff2a6eabc49fc8c869b58cfa6e442025d0075c8cf998634ecf72f661a",
+        "sha256:e1d2cbc7a61f7120378e16cbd0b888951f23f47d7cda7d395f046e7533446e1d",
+        "sha256:6e41f7454512d88a0417eac6b29f7e04478cb4cce17439af7b3e1c5a12377a66",
+        "sha256:1d572295dcb78b8310e74793eb0b6ed307290eedb9831ad6c1dbe5e756a9314c",
+        "sha256:e04c25f545803f452b6bdc5706882c47bacb0a5bf81ffb931990cd768e104673"
+      ]
+    },
+    {
+      "service": "forecast",
+      "critical": 0,
+      "scannerImageConfigId": "sha256:82d59a8314536fd9543a6c1106dddde300b903b1519767f869629f7c76972fad",
+      "runtimeLayersMatchScan": true,
+      "layers": [
+        "sha256:dd57f90311a2567b55ff22eeacff1602fd04ad7566e315957731359eab173b90",
+        "sha256:cd9a29aa43e014bda7a7815521ab51a3ababf2bceb4de66302701ac217ff26fb",
+        "sha256:961adfab8c074ba37b3fa0c54bb96911f8648a1788176a864bfb0750cfdef155",
+        "sha256:688ef2053b5da5e0048efd435dace328a25d5d4c8cb5e2cd1a7a92c697c586d5",
+        "sha256:b7adc1d8c0ad99eb2700eb8112443e2db561b3625605c13f074170868516e134",
+        "sha256:9b9e2368744ffca24f418d1f63bf00e5fd710a9e8652cc5308849290fbeed814",
+        "sha256:c1a9a4ed4d9cb7b87e8d7091e16317fd4caecbb4bac401fa9b6471c269db31d3",
+        "sha256:ad3181647c18209ab4ca70b66759dbbdaec36afb2213c6d4a828a36e6d3d98d8",
+        "sha256:564dfab512e7453d126a2b99c721cab5e4966ce5969c54af8f4f97609bc02387",
+        "sha256:429cbe19289fe217ec5c49327160db2e75da8aa490ead752b59d124243025286"
+      ]
+    },
+    {
+      "service": "mock-connector",
+      "critical": 0,
+      "scannerImageConfigId": "sha256:6dcfff334d4f831b4bd9005ebbd562ac5642d010a5362d1cd11a7b3e77857e9b",
+      "runtimeLayersMatchScan": true,
+      "layers": [
+        "sha256:75f1d9657d880da5f75298e8f40e9928bb6e260c50d26f97af196845307e3064",
+        "sha256:313a78c90b21a75531eacc3998f28ac7cf2f95060c1974a257ed80bd7a7a062c",
+        "sha256:acb510a1dd0f941dce95b097dde9780de168f02b6a85102c39d920d4eb0b9d26",
+        "sha256:f06a70e4735f2521407da491d35f156f89ead52d32bba35a30186f9111b5052d",
+        "sha256:59264114d489cd77f02912f7f88577b5b52798759d4cfc06df20bc48b15d81da",
+        "sha256:f6b98f0ced122a6d22b285129f35e8fa7a3842cc0e115e815b8ab0b6fddbde98",
+        "sha256:116325431c83cd6a5c2f11fd55f659ed116cfe32370d7b7ebd2ba6629bff9490",
+        "sha256:7a803fd90a6daf471ce6fda15239a44cbcad6483d4acb15f9cb345410d311a8b",
+        "sha256:bce8f5dffb7b33fc3c4a31b7f3304f9c8b0d1d7e6ead48f720b203920dc2aa4c"
+      ]
+    }
+  ],
+  "scanner": "Trivy 0.67.2",
+  "demo": {
+    "project": "greenmart-demo-week4-verified",
+    "seconds": 52.5,
+    "buildIncluded": true,
+    "buildCache": "warm",
+    "seed": "new volume, loaded successfully"
+  },
+  "apiSmoke": {
+    "sync_list": 200,
+    "sync_retry": 202,
+    "sync_delivery": "SUCCESS",
+    "sync_duplicate_retry": 409,
+    "backend_forecast_get_success": 200,
+    "backend_forecast_post": 409,
+    "forecast_token_valid": 404,
+    "forecast_token_missing": 401,
+    "forecast_token_invalid": 401
+  },
+  "backupRestoreCounts": {
+    "product": 1000,
+    "customer": 1500,
+    "inventory": 3000,
+    "sales_order": 10200,
+    "order_item": 56341,
+    "outbox_event": 0
+  }
+}
