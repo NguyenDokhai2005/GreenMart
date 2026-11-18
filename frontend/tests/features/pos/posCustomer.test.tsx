@@ -36,6 +36,15 @@ afterEach(() => {
 });
 
 describe('POS customer', () => {
+  it.each(['0', '-1', 'abc', '1234567890'])('rejects invalid phone %s before requests', (phone) => {
+    render(<PosCustomerPanel customer={null} onChange={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText('Số điện thoại'), { target: { value: phone } });
+    expect(screen.getByRole('alert').textContent).toContain('10–11');
+    fireEvent.click(screen.getByRole('button', { name: 'Tìm khách' }));
+    expect(customers).not.toHaveBeenCalled();
+    expect(saveCustomer).not.toHaveBeenCalled();
+  });
+
   it('finds an exact phone, attaches the returned customer, then allows changing it', async () => {
     const onChange = vi.fn();
     const view = render(<PosCustomerPanel customer={null} onChange={onChange} />);

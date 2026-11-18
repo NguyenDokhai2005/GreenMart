@@ -238,4 +238,55 @@ class QuoteServiceTest {
         assertThat(quote.canComplete()).isFalse();
         assertThat(quote.lines().get(0).sufficient()).isFalse();
     }
+
+    @Test
+    @DisplayName("Issue #387: Tràn số int64 khi nhân đơn giá x số lượng trên 1 dòng -> 400 VALIDATION_ERROR")
+    void testCalculateQuote_LineMultiplyOverflow_ThrowsValidationError() {
+        authenticate("CASHIER");
+
+        ProductSaleInfo maxPriceProduct = new ProductSaleInfo(
+                1001L, "SP-MAX-PRICE", "Sản phẩm giá tối đa int64", "cái", Long.MAX_VALUE, true
+        );
+        when(productService.getSaleInfo(1001L)).thenReturn(maxPriceProduct);
+        when(inventoryService.getAvailable(1L, 1001L)).thenReturn(10);
+
+        QuoteRequest request = new QuoteRequest(
+                1L,
+                null,
+                List.of(new OrderLineRequest(1001L, 2)),
+                null
+        );
+
+        assertThatThrownBy(() -> quoteService.calculateQuote(request))
+                .isInstanceOf(AppException.class)
+                .matches(e -> ((AppException) e).getCode().equals(ErrorCode.VALIDATION_ERROR.name()));
+    }
+
+    @Test
+    @DisplayName("Issue #387: Tràn số int64 khi cộng dồn thành tiền nhiều dòng vào subtotal -> 400 VALIDATION_ERROR")
+    void testCalculateQuote_MultiLineSubtotalAddOverflow_ThrowsValidationError() {
+        authenticate("CASHIER");
+
+        ProductSaleInfo p1 = new ProductSaleInfo(1001L, "SP-LARGE-1", "Sản phẩm lớn 1", "cái", 6_000_000_000_000_000_000L, true);
+        ProductSaleInfo p2 = new ProductSaleInfo(1002L, "SP-LARGE-2", "Sản phẩm lớn 2", "cái", 6_000_000_000_000_000_000L, true);
+
+        when(productService.getSaleInfo(1001L)).thenReturn(p1);
+        when(productService.getSaleInfo(1002L)).thenReturn(p2);
+        when(inventoryService.getAvailable(1L, 1001L)).thenReturn(10);
+        when(inventoryService.getAvailable(1L, 1002L)).thenReturn(10);
+
+        QuoteRequest request = new QuoteRequest(
+                1L,
+                null,
+                List.of(
+                        new OrderLineRequest(1001L, 1),
+                        new OrderLineRequest(1002L, 1)
+                ),
+                null
+        );
+
+        assertThatThrownBy(() -> quoteService.calculateQuote(request))
+                .isInstanceOf(AppException.class)
+                .matches(e -> ((AppException) e).getCode().equals(ErrorCode.VALIDATION_ERROR.name()));
+    }
 }

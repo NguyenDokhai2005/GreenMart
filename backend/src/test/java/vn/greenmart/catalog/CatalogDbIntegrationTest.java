@@ -360,4 +360,99 @@ class CatalogDbIntegrationTest {
         assertEquals(ErrorCode.BRANCH_FORBIDDEN.name(), barcodeEx.getCode());
         assertEquals(2L, barcodeEx.getDeniedBranchId());
     }
+
+    @Test
+    @org.springframework.transaction.annotation.Transactional(
+            propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED
+    )
+    void testIssue386_ConcurrentCategoryUpdates_CannotCreateCycle() throws Exception {
+        Category catA = new Category();
+        catA.setName("Danh mục A");
+        catA = categoryRepository.save(catA);
+
+        Category catB = new Category();
+        catB.setName("Danh mục B");
+        catB = categoryRepository.save(catB);
+
+        Long idA = catA.getId();
+        Long idB = catB.getId();
+
+        try {
+            // Chạy lặp 6 lượt giống kịch bản QA để đảm bảo không bao giờ tạo vòng lặp A <-> B
+            for (int attempt = 1; attempt <= 6; attempt++) {
+                // Reset parentId về null trước mỗi lượt
+                Category resetA = categoryRepository.findById(idA).orElseThrow();
+                resetA.setParentId(null);
+                categoryRepository.save(resetA);
+
+                Category resetB = categoryRepository.findById(idB).orElseThrow();
+                resetB.setParentId(null);
+                categoryRepository.save(resetB);
+
+                java.util.concurrent.CountDownLatch readyLatch = new java.util.concurrent.CountDownLatch(2);
+                java.util.concurrent.CountDownLatch startLatch = new java.util.concurrent.CountDownLatch(1);
+                java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+
+                try {
+                    java.util.concurrent.Future<String> futureA = executor.submit(() -> {
+                        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                                        "1", null, List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OWNER"))
+                                )
+                        );
+                        try {
+                            readyLatch.countDown();
+                            startLatch.await();
+                            categoryService.updateCategory(idA, new CategoryRequest("Danh mục A", idB));
+                            return "200";
+                        } catch (AppException ex) {
+                            return ex.getCode();
+                        } finally {
+                            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+                        }
+                    });
+
+                    java.util.concurrent.Future<String> futureB = executor.submit(() -> {
+                        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                                        "1", null, List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OWNER"))
+                                )
+                        );
+                        try {
+                            readyLatch.countDown();
+                            startLatch.await();
+                            categoryService.updateCategory(idB, new CategoryRequest("Danh mục B", idA));
+                            return "200";
+                        } catch (AppException ex) {
+                            return ex.getCode();
+                        } finally {
+                            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+                        }
+                    });
+
+                    readyLatch.await();
+                    startLatch.countDown();
+
+                    String resA = futureA.get(10, java.util.concurrent.TimeUnit.SECONDS);
+                    String resB = futureB.get(10, java.util.concurrent.TimeUnit.SECONDS);
+
+                    // Đúng 1 luồng thành công (200), luồng còn lại bị chặn bằng CATEGORY_CYCLE
+                    List<String> outcomes = List.of(resA, resB);
+                    assertEquals(1, outcomes.stream().filter("200"::equals).count(), "Lượt " + attempt + ": chỉ 1 luồng được thành công");
+                    assertEquals(1, outcomes.stream().filter(ErrorCode.CATEGORY_CYCLE.name()::equals).count(), "Lượt " + attempt + ": luồng còn lại phải nhận CATEGORY_CYCLE");
+
+                    // Kiểm tra trong PostgreSQL không tồn tại chu trình A <-> B
+                    Category persistedA = categoryRepository.findById(idA).orElseThrow();
+                    Category persistedB = categoryRepository.findById(idB).orElseThrow();
+                    boolean hasCycle = idB.equals(persistedA.getParentId()) && idA.equals(persistedB.getParentId());
+                    org.junit.jupiter.api.Assertions.assertFalse(hasCycle, "Lượt " + attempt + ": DB không được có chu trình A <-> B");
+                } finally {
+                    executor.shutdownNow();
+                }
+            }
+        } finally {
+            jdbcTemplate.update("UPDATE category SET parent_id = NULL WHERE id IN (?, ?)", idA, idB);
+            categoryRepository.deleteAllById(List.of(idA, idB));
+        }
+    }
 }

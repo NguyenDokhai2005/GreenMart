@@ -322,12 +322,12 @@
   }
 
   .pos-sale__cart-product,
-  .pos-sale__quantity,
+  .pos-sale__quantity-field,
   .pos-sale__remove {
     grid-row: 1;
   }
 
-  .pos-sale__quantity {
+  .pos-sale__quantity-field {
     grid-column: 2;
   }
 
