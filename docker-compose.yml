@@ -97,10 +97,15 @@ services:
       FORECAST_DB_USER: ${FORECAST_DB_USER:?Set FORECAST_DB_USER}
       FORECAST_DB_PASSWORD: ${FORECAST_DB_PASSWORD:?Set FORECAST_DB_PASSWORD}
       FORECAST_INTERNAL_TOKEN: ${FORECAST_INTERNAL_TOKEN:?Set FORECAST_INTERNAL_TOKEN}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: '5672'
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?Set RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?Set RABBITMQ_DEFAULT_PASS}
       TZ: Asia/Ho_Chi_Minh
     ports: ['127.0.0.1:8001:8000']
     depends_on:
       postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
       backend: {condition: service_healthy}
   frontend:
     <<: *common
