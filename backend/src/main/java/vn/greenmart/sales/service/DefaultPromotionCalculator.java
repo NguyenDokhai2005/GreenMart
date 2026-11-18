@@ -3,8 +3,11 @@ package vn.greenmart.sales.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import vn.greenmart.common.exception.AppException;
+import vn.greenmart.common.exception.ErrorCode;
 import vn.greenmart.sales.dto.PromotionRef;
 
+import java.math.BigInteger;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Comparator;
@@ -18,7 +21,12 @@ public class DefaultPromotionCalculator implements PromotionCalculator {
 
     @Override
     public PromotionRef evaluateItemPromotion(Long productId, String sku, long unitPrice, int quantity, Long branchId, String channelCode) {
-        long lineSubtotal = unitPrice * quantity;
+        final long lineSubtotal;
+        try {
+            lineSubtotal = Math.multiplyExact(unitPrice, (long) quantity);
+        } catch (ArithmeticException ex) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Thành tiền dòng sản phẩm vượt quá giới hạn cho phép");
+        }
         if (productId == null || lineSubtotal <= 0) {
             return null;
         }
@@ -39,7 +47,7 @@ public class DefaultPromotionCalculator implements PromotionCalculator {
                        OR EXISTS (SELECT 1 FROM promotion_branch pb WHERE pb.promotion_id = p.id AND pb.branch_id = ?))
                   AND (NOT EXISTS (SELECT 1 FROM promotion_channel pc WHERE pc.promotion_id = p.id)
                        OR EXISTS (SELECT 1 FROM promotion_channel pc JOIN sales_channel sc ON sc.id = pc.channel_id
-                                  WHERE pc.promotion_id = p.id AND sc.code = ?))
+                                 WHERE pc.promotion_id = p.id AND sc.code = ?))
                 """,
                 (rs, rowNum) -> new PromotionCandidate(
                         rs.getLong("id"),
@@ -77,7 +85,7 @@ public class DefaultPromotionCalculator implements PromotionCalculator {
                        OR EXISTS (SELECT 1 FROM promotion_branch pb WHERE pb.promotion_id = p.id AND pb.branch_id = ?))
                   AND (NOT EXISTS (SELECT 1 FROM promotion_channel pc WHERE pc.promotion_id = p.id)
                        OR EXISTS (SELECT 1 FROM promotion_channel pc JOIN sales_channel sc ON sc.id = pc.channel_id
-                                  WHERE pc.promotion_id = p.id AND sc.code = ?))
+                                 WHERE pc.promotion_id = p.id AND sc.code = ?))
                 """,
                 (rs, rowNum) -> new PromotionCandidate(
                         rs.getLong("id"),
@@ -113,7 +121,13 @@ public class DefaultPromotionCalculator implements PromotionCalculator {
     private long computeDiscount(PromotionCandidate c, long baseAmount) {
         long rawDiscount;
         if ("PERCENT".equalsIgnoreCase(c.type())) {
-            rawDiscount = (baseAmount * c.value()) / 100L;
+            // Dùng BigInteger tránh tràn số int64 khi nhân baseAmount lớn với phần trăm
+            BigInteger calculated = BigInteger.valueOf(baseAmount)
+                    .multiply(BigInteger.valueOf(c.value()))
+                    .divide(BigInteger.valueOf(100L));
+            rawDiscount = calculated.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0
+                    ? Long.MAX_VALUE
+                    : calculated.longValue();
             if (c.maxDiscount() != null && rawDiscount > c.maxDiscount()) {
                 rawDiscount = c.maxDiscount();
             }
@@ -134,4 +148,3 @@ public class DefaultPromotionCalculator implements PromotionCalculator {
 
     private record EvaluatedCandidate(PromotionCandidate candidate, long discount) {}
 }
-
