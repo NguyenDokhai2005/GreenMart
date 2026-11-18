@@ -393,7 +393,7 @@ def test_persist_forecast_to_db_postgres_datetime64_parquet_format(postgres_cont
         conn2.close()
 
 
-def test_api_forecast_run_e2e_postgres(postgres_container, monkeypatch):
+def test_api_forecast_run_e2e_postgres(postgres_container, auth_headers, monkeypatch):
     """Kiểm thử tích hợp API end-to-end trên PostgreSQL 16 thật (#114).
 
     Kiểm tra:
@@ -462,7 +462,7 @@ def test_api_forecast_run_e2e_postgres(postgres_container, monkeypatch):
     client = TestClient(app)
 
     # 2. Gọi POST /forecast/run
-    post_res = client.post("/forecast/run")
+    post_res = client.post("/forecast/run", headers=auth_headers)
     assert post_res.status_code == 202
     post_data = post_res.json()
     run_id = post_data["runId"]
@@ -470,7 +470,7 @@ def test_api_forecast_run_e2e_postgres(postgres_container, monkeypatch):
     assert "startedAt" in post_data
 
     # 3. Gọi GET /forecast/runs/{runId}
-    get_res = client.get(f"/forecast/runs/{run_id}")
+    get_res = client.get(f"/forecast/runs/{run_id}", headers=auth_headers)
     assert get_res.status_code == 200
     get_data = get_res.json()
     assert get_data["runId"] == run_id
@@ -489,16 +489,20 @@ def test_api_forecast_run_e2e_postgres(postgres_container, monkeypatch):
             cur.execute("SELECT COUNT(*) FROM forecast_run WHERE id = %s;", (run_id,))
             assert cur.fetchone()[0] == 1
 
-            # Kiểm tra số dòng kết quả
-            cur.execute("SELECT COUNT(*), MIN(predicted_qty) FROM forecast_result WHERE run_id = %s;", (run_id,))
-            cnt, min_qty = cur.fetchone()
+            # Kiểm tra số dòng kết quả và ngày mục tiêu tương lai (Issue #298)
+            cur.execute("SELECT COUNT(*), MIN(predicted_qty), MIN(target_date), MAX(target_date) FROM forecast_result WHERE run_id = %s;", (run_id,))
+            cnt, min_qty, min_t_date, max_t_date = cur.fetchone()
             assert cnt == 8 * (7 + 30)
             assert float(min_qty) >= 0.0
+            expected_start = cutoff + timedelta(days=31)  # end_date + 1 (2026-11-01)
+            expected_end = cutoff + timedelta(days=60)    # end_date + 30 (2026-11-30)
+            assert min_t_date == expected_start
+            assert max_t_date == expected_end
     finally:
         conn_verify.close()
 
 
-def test_api_forecast_run_concurrency_409(postgres_container, monkeypatch):
+def test_api_forecast_run_concurrency_409(postgres_container, auth_headers, monkeypatch):
     """Kiểm tra chặn đồng thời trả về HTTP 409 khi đã có run RUNNING (#114)."""
     from contextlib import contextmanager
     from fastapi.testclient import TestClient
@@ -531,14 +535,14 @@ def test_api_forecast_run_concurrency_409(postgres_container, monkeypatch):
     app = create_app(pg_conn_factory)
     client = TestClient(app)
 
-    res = client.post("/forecast/run")
+    res = client.post("/forecast/run", headers=auth_headers)
     assert res.status_code == 409
     data = res.json()
     assert data["code"] == "CONFLICT"
     assert f"run_id={active_run_id}" in data["message"]
 
 
-def test_api_forecast_run_stale_cleanup_postgres(postgres_container, monkeypatch):
+def test_api_forecast_run_stale_cleanup_postgres(postgres_container, auth_headers, monkeypatch):
     """Kiểm tra tự động đánh dấu FAILED các run RUNNING quá 30 phút và khởi tạo run mới (#114)."""
     from contextlib import contextmanager
     from fastapi.testclient import TestClient
@@ -583,7 +587,7 @@ def test_api_forecast_run_stale_cleanup_postgres(postgres_container, monkeypatch
     client = TestClient(app)
 
     # 2. Gọi POST /forecast/run -> Phải thành công vì run cũ đã quá 30 phút và bị đánh dấu FAILED
-    res = client.post("/forecast/run")
+    res = client.post("/forecast/run", headers=auth_headers)
     assert res.status_code == 202
     new_run_id = res.json()["runId"]
     assert new_run_id != stale_id

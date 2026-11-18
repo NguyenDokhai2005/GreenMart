@@ -197,6 +197,7 @@ class PosOrderNegativeTest {
     }
 
     private void cleanTestData() {
+        jdbcTemplate.execute("TRUNCATE audit_log");
         jdbcTemplate.execute("DELETE FROM outbox_event");
         jdbcTemplate.execute("DELETE FROM order_item");
         jdbcTemplate.execute("DELETE FROM payment");

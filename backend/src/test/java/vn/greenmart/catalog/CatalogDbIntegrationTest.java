@@ -15,6 +15,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import vn.greenmart.catalog.domain.Category;
 import vn.greenmart.catalog.domain.Product;
 import vn.greenmart.catalog.dto.CategoryRequest;
+import vn.greenmart.catalog.dto.ProductLookupResponse;
 import vn.greenmart.catalog.dto.ProductRequest;
 import vn.greenmart.catalog.dto.ProductResponse;
 import vn.greenmart.catalog.repository.CategoryRepository;
@@ -239,5 +240,219 @@ class CatalogDbIntegrationTest {
 
         AppException ex = assertThrows(AppException.class, () -> productService.updateProduct(pId, req));
         assertEquals(ErrorCode.UNAUTHORIZED.name(), ex.getCode());
+    }
+
+    @Test
+    @WithMockUser(username = "2", roles = "CASHIER")
+    void testAC8_LookupProduct_BranchMatrix_AndRoles() {
+        Product p = new Product();
+        p.setSku("LOOKUP-MATRIX");
+        p.setName("Sản phẩm Test Matrix");
+        p.setUnit("cái");
+        p.setCategoryId(catChild.getId());
+        p.setSalePrice(15000L);
+        p.setCostPrice(10000L);
+        productRepository.save(p);
+
+        jdbcTemplate.execute("INSERT INTO branch (id, code, name, is_active) VALUES (1, 'GM-001', 'CN 1', true), (2, 'GM-002', 'CN 2', true) ON CONFLICT (id) DO NOTHING");
+        jdbcTemplate.execute("INSERT INTO app_user (id, username, password_hash, full_name, role, is_active) VALUES (2, 'cashier_1', '$2a$10$abcdefghijklmnopqrstuvwxyz123456', 'Thu ngan 1', 'CASHIER', true) ON CONFLICT (id) DO NOTHING");
+        jdbcTemplate.execute("INSERT INTO user_branch (user_id, branch_id) VALUES (2, 1) ON CONFLICT DO NOTHING");
+
+        // Gọi đúng chi nhánh được gán (CN1) -> 200 OK
+        ProductLookupResponse okRes = productService.lookupProduct("LOOKUP-MATRIX", 1L);
+        assertEquals(1L, okRes.branchId());
+
+        // Gọi chéo chi nhánh (CN2) -> 403 BRANCH_FORBIDDEN
+        AppException ex = assertThrows(AppException.class, () -> productService.lookupProduct("LOOKUP-MATRIX", 2L));
+        assertEquals(ErrorCode.BRANCH_FORBIDDEN.name(), ex.getCode());
+    }
+
+    @Test
+    @WithMockUser(username = "3", roles = "BRANCH_MANAGER")
+    void testAC9_LookupProduct_BranchManagerCrossBranch_ThrowsForbidden() {
+        Product p = new Product();
+        p.setSku("LOOKUP-BM");
+        p.setName("Sản phẩm BM");
+        p.setUnit("cái");
+        p.setCategoryId(catChild.getId());
+        p.setSalePrice(15000L);
+        p.setCostPrice(10000L);
+        productRepository.save(p);
+
+        AppException ex = assertThrows(AppException.class, () -> productService.lookupProduct("LOOKUP-BM", 2L));
+        assertEquals(ErrorCode.BRANCH_FORBIDDEN.name(), ex.getCode());
+    }
+
+    @Test
+    @WithMockUser(username = "4", roles = "STOREKEEPER")
+    void testAC10_LookupProduct_StorekeeperCrossBranch_ThrowsForbidden() {
+        Product p = new Product();
+        p.setSku("LOOKUP-SK");
+        p.setName("Sản phẩm SK");
+        p.setUnit("cái");
+        p.setCategoryId(catChild.getId());
+        p.setSalePrice(15000L);
+        p.setCostPrice(10000L);
+        productRepository.save(p);
+
+        AppException ex = assertThrows(AppException.class, () -> productService.lookupProduct("LOOKUP-SK", 2L));
+        assertEquals(ErrorCode.BRANCH_FORBIDDEN.name(), ex.getCode());
+    }
+
+    @Test
+    @WithMockUser(username = "5", roles = "ADMIN")
+    void testAC11_LookupProduct_AdminAllBranches_Success() {
+        Product p = new Product();
+        p.setSku("LOOKUP-ADMIN");
+        p.setName("Sản phẩm Admin");
+        p.setUnit("cái");
+        p.setCategoryId(catChild.getId());
+        p.setSalePrice(20000L);
+        p.setCostPrice(15000L);
+        productRepository.save(p);
+
+        ProductLookupResponse res = productService.lookupProduct("LOOKUP-ADMIN", 2L);
+        assertEquals(2L, res.branchId());
+    }
+
+    @Test
+    @WithMockUser(username = "1", roles = "OWNER")
+    void testAC12_LookupProduct_OwnerAllBranches_Success() {
+        Product p = new Product();
+        p.setSku("LOOKUP-OWNER");
+        p.setName("Sản phẩm Owner");
+        p.setUnit("cái");
+        p.setCategoryId(catChild.getId());
+        p.setSalePrice(20000L);
+        p.setCostPrice(15000L);
+        productRepository.save(p);
+
+        ProductLookupResponse res = productService.lookupProduct("LOOKUP-OWNER", 2L);
+        assertEquals(2L, res.branchId());
+    }
+
+    @Test
+    @WithMockUser(username = "2", roles = "CASHIER")
+    void testAC13_LookupProduct_CrossBranch_CarriesDeniedBranchIdForAudit() {
+        Product p = new Product();
+        p.setSku("COM-SUON-BI-CHA-0001");
+        p.setBarcode("8930000009999");
+        p.setName("Cơm sườn bì chả");
+        p.setUnit("phần");
+        p.setCategoryId(catChild.getId());
+        p.setSalePrice(35000L);
+        p.setCostPrice(25000L);
+        productRepository.save(p);
+
+        jdbcTemplate.execute("INSERT INTO branch (id, code, name, is_active) VALUES (1, 'GM-001', 'CN 1', true), (2, 'GM-002', 'CN 2', true) ON CONFLICT (id) DO NOTHING");
+        jdbcTemplate.execute("INSERT INTO app_user (id, username, password_hash, full_name, role, is_active) VALUES (2, 'thungan.gm001', '$2a$10$abcdefghijklmnopqrstuvwxyz123456', 'Thu ngan GM001', 'CASHIER', true) ON CONFLICT (id) DO NOTHING");
+        jdbcTemplate.execute("INSERT INTO user_branch (user_id, branch_id) VALUES (2, 1) ON CONFLICT DO NOTHING");
+
+        // Tra cứu theo SKU chéo chi nhánh -> ném BRANCH_FORBIDDEN kèm deniedBranchId = 2L
+        AppException skuEx = assertThrows(AppException.class,
+                () -> productService.lookupProduct("COM-SUON-BI-CHA-0001", 2L));
+        assertEquals(ErrorCode.BRANCH_FORBIDDEN.name(), skuEx.getCode());
+        assertEquals(2L, skuEx.getDeniedBranchId());
+
+        // Tra cứu theo barcode chéo chi nhánh -> ném BRANCH_FORBIDDEN kèm deniedBranchId = 2L
+        AppException barcodeEx = assertThrows(AppException.class,
+                () -> productService.lookupProduct("8930000009999", 2L));
+        assertEquals(ErrorCode.BRANCH_FORBIDDEN.name(), barcodeEx.getCode());
+        assertEquals(2L, barcodeEx.getDeniedBranchId());
+    }
+
+    @Test
+    @org.springframework.transaction.annotation.Transactional(
+            propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED
+    )
+    void testIssue386_ConcurrentCategoryUpdates_CannotCreateCycle() throws Exception {
+        Category catA = new Category();
+        catA.setName("Danh mục A");
+        catA = categoryRepository.save(catA);
+
+        Category catB = new Category();
+        catB.setName("Danh mục B");
+        catB = categoryRepository.save(catB);
+
+        Long idA = catA.getId();
+        Long idB = catB.getId();
+
+        try {
+            // Chạy lặp 6 lượt giống kịch bản QA để đảm bảo không bao giờ tạo vòng lặp A <-> B
+            for (int attempt = 1; attempt <= 6; attempt++) {
+                // Reset parentId về null trước mỗi lượt
+                Category resetA = categoryRepository.findById(idA).orElseThrow();
+                resetA.setParentId(null);
+                categoryRepository.save(resetA);
+
+                Category resetB = categoryRepository.findById(idB).orElseThrow();
+                resetB.setParentId(null);
+                categoryRepository.save(resetB);
+
+                java.util.concurrent.CountDownLatch readyLatch = new java.util.concurrent.CountDownLatch(2);
+                java.util.concurrent.CountDownLatch startLatch = new java.util.concurrent.CountDownLatch(1);
+                java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+
+                try {
+                    java.util.concurrent.Future<String> futureA = executor.submit(() -> {
+                        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                                        "1", null, List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OWNER"))
+                                )
+                        );
+                        try {
+                            readyLatch.countDown();
+                            startLatch.await();
+                            categoryService.updateCategory(idA, new CategoryRequest("Danh mục A", idB));
+                            return "200";
+                        } catch (AppException ex) {
+                            return ex.getCode();
+                        } finally {
+                            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+                        }
+                    });
+
+                    java.util.concurrent.Future<String> futureB = executor.submit(() -> {
+                        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                                        "1", null, List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OWNER"))
+                                )
+                        );
+                        try {
+                            readyLatch.countDown();
+                            startLatch.await();
+                            categoryService.updateCategory(idB, new CategoryRequest("Danh mục B", idA));
+                            return "200";
+                        } catch (AppException ex) {
+                            return ex.getCode();
+                        } finally {
+                            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+                        }
+                    });
+
+                    readyLatch.await();
+                    startLatch.countDown();
+
+                    String resA = futureA.get(10, java.util.concurrent.TimeUnit.SECONDS);
+                    String resB = futureB.get(10, java.util.concurrent.TimeUnit.SECONDS);
+
+                    // Đúng 1 luồng thành công (200), luồng còn lại bị chặn bằng CATEGORY_CYCLE
+                    List<String> outcomes = List.of(resA, resB);
+                    assertEquals(1, outcomes.stream().filter("200"::equals).count(), "Lượt " + attempt + ": chỉ 1 luồng được thành công");
+                    assertEquals(1, outcomes.stream().filter(ErrorCode.CATEGORY_CYCLE.name()::equals).count(), "Lượt " + attempt + ": luồng còn lại phải nhận CATEGORY_CYCLE");
+
+                    // Kiểm tra trong PostgreSQL không tồn tại chu trình A <-> B
+                    Category persistedA = categoryRepository.findById(idA).orElseThrow();
+                    Category persistedB = categoryRepository.findById(idB).orElseThrow();
+                    boolean hasCycle = idB.equals(persistedA.getParentId()) && idA.equals(persistedB.getParentId());
+                    org.junit.jupiter.api.Assertions.assertFalse(hasCycle, "Lượt " + attempt + ": DB không được có chu trình A <-> B");
+                } finally {
+                    executor.shutdownNow();
+                }
+            }
+        } finally {
+            jdbcTemplate.update("UPDATE category SET parent_id = NULL WHERE id IN (?, ?)", idA, idB);
+            categoryRepository.deleteAllById(List.of(idA, idB));
+        }
     }
 }

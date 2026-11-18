@@ -42,6 +42,7 @@ public class ChannelOrderIntake {
 
     @Transactional
     public Result receive(String channel, ChannelOrderRequest request) {
+        var now = OffsetDateTime.now(ZoneOffset.UTC);
         var config = channels.findChannel(channel);
         var previous = orders.lockAndFind(config.id(), request.externalOrderId());
         if (previous.isPresent()) {
@@ -52,6 +53,10 @@ public class ChannelOrderIntake {
                     ORDER BY id DESC LIMIT 1
                     """, (rs, row) -> rs.getString(1), Long.toString(old.id())).stream().findFirst().orElse(null) : null;
             return new Result(ack(old, reason), true, null, Map.of());
+        }
+        if (request.orderedAt().isBefore(now.minusDays(7)) || request.orderedAt().isAfter(now.plusMinutes(5))) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR,
+                    "orderedAt không được cũ hơn 7 ngày hoặc ở tương lai quá 5 phút");
         }
         if (config.branchIds().isEmpty()) {
             throw new AppException(ErrorCode.VALIDATION_ERROR, "Kênh chưa có chi nhánh phục vụ");
@@ -108,7 +113,6 @@ public class ChannelOrderIntake {
         long branch = preferred != null && eligible.contains(preferred) ? preferred : eligible.stream().max(Comparator.comparingLong(id ->
                 quantities.keySet().stream().mapToLong(p -> available(balances, id, p)).sum())).orElseThrow();
         boolean cod = request.paymentMethod() == ChannelOrderRequest.PaymentMethod.COD;
-        var now = OffsetDateTime.now(ZoneOffset.UTC);
         String status = cod ? "CONFIRMED" : "RESERVED";
         var order = orders.insert(config.id(), channel, request.externalOrderId(), branch, customer, status,
                 cod ? null : now.plusMinutes(15), request.orderedAt().toInstant(), total, lines);

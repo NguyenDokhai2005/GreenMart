@@ -686,3 +686,63 @@ def format_full_comparison_report(report: FullEvaluationReport) -> str:
     lines.append("")
 
     return "\n".join(lines)
+
+
+def train_production_demand_models(
+    builder: FeatureMatrixBuilder,
+    horizons: Tuple[int, ...] = (7, 30),
+    best_models: Optional[Dict[int, Any]] = None,
+    best_objectives: Optional[Dict[int, str]] = None,
+    sample_step_days: int = 7,
+) -> Dict[int, LightGBMDemandModel]:
+    """Huấn luyện lại mô hình LightGBM trên toàn bộ dữ liệu đến ngày cuối cùng D (Issue #298).
+
+    - Sử dụng cùng cấu hình và hàm mục tiêu (từ best_objectives hoặc best_models) như backtest.
+    - Không dùng validation set / early stopping (X_val=None).
+    - Lấy số vòng lặp tối ưu (best_iteration_) từ best_models[H] của kết quả backtest (hoặc mặc định 100 nếu không có).
+    - Tuân thủ Cách 2: truyền n_estimators qua tham số params của constructor LightGBMDemandModel.
+    """
+    max_date = builder.unique_dates[-1]
+    full_origins = generate_origin_dates_for_training(
+        unique_dates=builder.unique_dates,
+        min_history_days=28,
+        max_target_date=max_date,
+        step_days=sample_step_days,
+    )
+
+    production_models: Dict[int, LightGBMDemandModel] = {}
+    for H in sorted(horizons):
+        # 1. Xác định hàm mục tiêu
+        if best_objectives and H in best_objectives:
+            obj = best_objectives[H]
+        elif best_models and H in best_models and hasattr(best_models[H], "objective"):
+            obj = best_models[H].objective
+        else:
+            obj = "tweedie"
+
+        # 2. Lấy số vòng lặp tối ưu từ backtest
+        n_iters = 100
+        if best_models and H in best_models:
+            b_iter = getattr(best_models[H], "best_iteration_", None)
+            if b_iter is not None and b_iter > 0:
+                n_iters = int(b_iter)
+
+        # 3. Tạo tập train toàn bộ đến max_date
+        X_full, y_full = builder.build_dataset_for_horizon(
+            horizon=H,
+            origin_dates=full_origins,
+            max_target_date=max_date,
+            exclude_stockout=True,
+        )
+
+        # 4. Huấn luyện mô hình sản xuất (không validation, n_estimators gộp qua params)
+        model = LightGBMDemandModel(
+            horizon=H,
+            objective=obj,
+            params={"n_estimators": n_iters},
+        )
+        model.fit(X_train=X_full, y_train=y_full)
+        production_models[H] = model
+
+    return production_models
+

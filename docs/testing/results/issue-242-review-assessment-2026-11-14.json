@@ -1,0 +1,289 @@
+{
+  "issue": 242,
+  "sourceCommit": "d43b75a546c172fbece49b3ea7ef2d9ceae52010",
+  "originalExecutionTimestamp": "2026-11-13T13:22:59.512602+00:00",
+  "summary": {
+    "PASS": 55,
+    "BLOCKED": 10
+  },
+  "supplementalSummary": {
+    "FAIL": 2
+  },
+  "assessment": {
+    "date": "2026-11-14",
+    "kind": "Review classification correction; not a new API execution",
+    "originalArtifact": "issue-242-2026-11-13-recheck/cases.json",
+    "originalSha256": "6593443a75a7eeeed122db6f20f9294f2cfc127ac310e6177762f82d0464e37b",
+    "reviewer": "NguyenDokhai2005",
+    "reviewedPr": 354,
+    "reviewedCommit": "8ff53d5a0a057dc8e2fe7aa3b61c156f610cf2da",
+    "correction": "Only TC-AUTH02-41 classification/decision changes; observed HTTP 403/newAuditRows=0 preserved",
+    "sourceOfDecision": "CHANGES_REQUESTED review submitted 2026-11-14T04:40:39Z; #310 does not resolve Q-31"
+  },
+  "cases": [
+    {
+      "id": "ID-050",
+      "result": "PASS"
+    },
+    {
+      "id": "ID-051",
+      "result": "PASS"
+    },
+    {
+      "id": "ID-052",
+      "result": "PASS"
+    },
+    {
+      "id": "ID-053",
+      "result": "PASS"
+    },
+    {
+      "id": "ID-060",
+      "result": "PASS"
+    },
+    {
+      "id": "ID-061",
+      "result": "PASS"
+    },
+    {
+      "id": "ID-062",
+      "result": "PASS"
+    },
+    {
+      "id": "ID-063",
+      "result": "PASS"
+    },
+    {
+      "id": "ID-064",
+      "result": "PASS"
+    },
+    {
+      "id": "ID-065",
+      "result": "PASS"
+    },
+    {
+      "id": "ID-066",
+      "result": "PASS"
+    },
+    {
+      "id": "ID-070",
+      "result": "BLOCKED"
+    },
+    {
+      "id": "ID-071",
+      "result": "BLOCKED"
+    },
+    {
+      "id": "ID-072",
+      "result": "BLOCKED"
+    },
+    {
+      "id": "ID-080",
+      "result": "PASS"
+    },
+    {
+      "id": "ID-081",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-01",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-02",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-03",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-04",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-05",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-06",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-07",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-08",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-09",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-10",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-11",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-12",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-13",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-14",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-15",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-20",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-21",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-22",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-30",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-31",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-32",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-33",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-34",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-35",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-40",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH01-41",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH02-01",
+      "result": "BLOCKED"
+    },
+    {
+      "id": "TC-AUTH02-02",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH02-03",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH02-04",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH02-05",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH02-06",
+      "result": "BLOCKED"
+    },
+    {
+      "id": "TC-AUTH02-07",
+      "result": "BLOCKED"
+    },
+    {
+      "id": "TC-AUTH02-08",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH02-10",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH02-11",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH02-12",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH02-13",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH02-14",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH02-15",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH02-20",
+      "result": "BLOCKED"
+    },
+    {
+      "id": "TC-AUTH02-21",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH02-22",
+      "result": "BLOCKED"
+    },
+    {
+      "id": "TC-AUTH02-30",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH02-31",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH02-32",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH02-33",
+      "result": "PASS"
+    },
+    {
+      "id": "TC-AUTH02-40",
+      "result": "BLOCKED"
+    },
+    {
+      "id": "TC-AUTH02-41",
+      "result": "BLOCKED",
+      "actualStatus": 403,
+      "newAuditRows": 0,
+      "reason": "Chờ Lead chốt Q-31: audit khi FORBIDDEN do sai vai trò chưa có expected được phê duyệt",
+      "policyQuestion": "Q-31"
+    }
+  ]
+}

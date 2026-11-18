@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,6 +26,11 @@ import java.time.LocalDate;
 public class InventoryController {
     private final InventoryQueryService service;
     private final InventoryTransactionQueryService transactionService;
+
+    @GetMapping("/{branchId}/{productId}")
+    public InventoryItemResponse get(@PathVariable Long branchId, @PathVariable Long productId) {
+        return service.get(branchId, productId);
+    }
 
     @GetMapping("/transactions")
     public PageResponse<InventoryTransactionResponse> transactions(
