@@ -11,14 +11,17 @@ public interface CustomerService {
 
     CustomerResponse createCustomer(CustomerRequest request);
 
+    CustomerResponse deactivateCustomer(Long customerId);
+
     CustomerResponse updateCustomer(Long customerId, CustomerRequest request);
 
     CustomerResponse getCustomer(Long customerId);
 
     PageResponse<CustomerResponse> listCustomers(String q, String phone, Pageable pageable);
 
+    PageResponse<CustomerResponse> listCustomers(String q, String phone, Boolean active, Pageable pageable);
+
     PageResponse<OrderSummaryResponse> listCustomerOrders(Long customerId, Pageable pageable);
 
     boolean exists(Long customerId);
 }
-

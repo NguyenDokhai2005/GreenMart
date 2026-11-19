@@ -87,7 +87,24 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setPhone(normalizedPhone);
         customer.setName(request.name().trim());
         customer.setEmail((request.email() != null && !request.email().isBlank()) ? request.email().trim() : null);
+        if (request.active() != null) {
+            SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER");
+            customer.setActive(request.active());
+        }
 
+        Customer updated = customerRepository.save(customer);
+        return CustomerResponse.from(updated);
+    }
+
+    @Override
+    public CustomerResponse deactivateCustomer(Long customerId) {
+        SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER");
+
+        Customer customer = customerRepository.findById(customerId).orElseThrow(() ->
+            new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy khách hàng", Map.of("customerId", customerId))
+        );
+
+        customer.setActive(false);
         Customer updated = customerRepository.save(customer);
         return CustomerResponse.from(updated);
     }
@@ -105,12 +122,23 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<CustomerResponse> listCustomers(String q, String phone, Pageable pageable) {
+        return listCustomers(q, phone, null, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<CustomerResponse> listCustomers(String q, String phone, Boolean active, Pageable pageable) {
         ensureAuthenticated();
+
+        boolean targetActive = (active != null) ? active : true;
+        if (!targetActive) {
+            SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER");
+        }
 
         String trimmedQ = (q != null && !q.isBlank()) ? q.trim() : null;
         String trimmedPhone = (phone != null && !phone.isBlank()) ? phone.trim() : null;
 
-        Page<Customer> result = customerRepository.searchCustomers(trimmedQ, trimmedPhone, pageable);
+        Page<Customer> result = customerRepository.searchCustomers(trimmedQ, trimmedPhone, targetActive, pageable);
         return PageResponse.from(result.map(CustomerResponse::from));
     }
 
