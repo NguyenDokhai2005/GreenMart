@@ -296,4 +296,28 @@ public class InventoryServiceImpl implements InventoryService {
             throw new IllegalArgumentException("qty phải > 0, nhận: " + qty);
         }
     }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void returnStock(Long branchId, Long productId, int qty, boolean resellable, Long returnDocumentId, Long actorId) {
+        validateQty(qty);
+        if (returnDocumentId == null || actorId == null) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Thiếu tham chiếu phiếu trả hàng hoặc người duyệt");
+        }
+        entityManager.flush();
+        productCost.lockForStockChange(productId);
+        increaseOnHand(branchId, productId, qty);
+        transactionWriter.appendReturn(branchId, productId, qty, returnDocumentId, actorId);
+        if (!resellable) {
+            int rows = inventoryRepository.sellDirect(branchId, productId, qty);
+            if (rows != 1) {
+                throw insufficientStock(branchId, productId, qty);
+            }
+            transactionWriter.appendReturnExport(branchId, productId, qty, returnDocumentId, actorId);
+        } else {
+            stockAlerts.reconcileAfterStockUpdate(branchId, productId);
+            enqueueStockChanged(branchId, productId);
+        }
+        entityManager.clear();
+    }
 }

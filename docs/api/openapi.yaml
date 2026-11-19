@@ -78,6 +78,8 @@ tags:
     description: Khách hàng (CUS-01, CUS-02)
   - name: Orders
     description: Báo giá, bán tại quầy, tra cứu đơn (ORD-01, ORD-06, ORD-07, PAY-01, PRM-02)
+  - name: Returns
+    description: Lập và duyệt phiếu trả hàng toàn bộ hoặc một phần (ORD-04, ORD-05, BR-10, BR-13, BR-18)
   - name: Inventory
     description: Tồn kho và sổ giao dịch kho (INV-01, INV-06)
   - name: Online orders
@@ -694,6 +696,110 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  # ------------------------------------------------------------------ Returns
+  /returns:
+    get:
+      tags: [Returns]
+      summary: Danh sách phiếu trả hàng của một đơn
+      operationId: listReturnsByOrder
+      parameters:
+        - name: orderId
+          in: query
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Danh sách phiếu trả hàng của đơn
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ReturnDocument' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Returns]
+      summary: Tạo phiếu trả hàng (Nháp)
+      description: |
+        Lập phiếu trả toàn bộ hoặc một phần cho đơn COMPLETED trong vòng 7 ngày kể từ completedAt (BR-10).
+        Tiền hoàn phân bổ khuyến mại cấp đơn theo tỷ lệ giá trị dòng và làm tròn xuống đến đồng VND.
+      operationId: createReturn
+      x-roles: [CASHIER, BRANCH_MANAGER, OWNER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateReturnRequest' }
+      responses:
+        '201':
+          description: Phiếu trả hàng đã tạo ở trạng thái DRAFT
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReturnDocument' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidStatus' }
+  /returns/{returnId}:
+    parameters:
+      - $ref: '#/components/parameters/ReturnId'
+    get:
+      tags: [Returns]
+      summary: Chi tiết phiếu trả hàng
+      operationId: getReturn
+      responses:
+        '200':
+          description: Phiếu trả hàng
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReturnDocument' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /returns/{returnId}/approve:
+    parameters:
+      - $ref: '#/components/parameters/ReturnId'
+    post:
+      tags: [Returns]
+      summary: Duyệt phiếu trả hàng
+      description: |
+        Người duyệt phải khác người lập (BR-13, 422 SELF_APPROVAL_FORBIDDEN).
+        Hàng RESELLABLE cộng tồn chi nhánh nhận trả và ghi RETURN; hàng DAMAGED ghi RETURN và EXPORT hủy ngay.
+        Trả hết 100% đơn thì cập nhật trạng thái đơn sang RETURNED.
+      operationId: approveReturn
+      x-roles: [BRANCH_MANAGER, OWNER]
+      responses:
+        '200':
+          description: Phiếu trả hàng đã duyệt
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReturnDocument' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidStatus' }
+        '422': { $ref: '#/components/responses/BusinessRule' }
+  /returns/{returnId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/ReturnId'
+    post:
+      tags: [Returns]
+      summary: Hủy phiếu trả hàng nháp
+      operationId: cancelReturn
+      x-roles: [BRANCH_MANAGER, OWNER]
+      responses:
+        '200':
+          description: Phiếu trả hàng đã hủy
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReturnDocument' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidStatus' }
 
   # ------------------------------------------------------------------ Inventory
   /inventory:
@@ -1911,6 +2017,11 @@ components:
       in: path
       required: true
       schema: { type: integer, format: int64 }
+    ReturnId:
+      name: returnId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -2429,6 +2540,67 @@ components:
             content:
               type: array
               items: { $ref: '#/components/schemas/OrderSummary' }
+
+    # ---------- Returns
+    ReturnStatus:
+      type: string
+      enum: [DRAFT, APPROVED, CANCELLED]
+    ReturnItemCondition:
+      type: string
+      enum: [RESELLABLE, DAMAGED]
+    ReturnItemRequest:
+      type: object
+      required: [orderItemId, quantity, condition]
+      properties:
+        orderItemId: { type: integer, format: int64 }
+        quantity: { type: integer, minimum: 1 }
+        condition: { $ref: '#/components/schemas/ReturnItemCondition' }
+    CreateReturnRequest:
+      type: object
+      required: [orderId, branchId, reason, items]
+      properties:
+        orderId: { type: integer, format: int64 }
+        branchId: { type: integer, format: int64 }
+        reason: { type: string, minLength: 3, maxLength: 255 }
+        items:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/ReturnItemRequest' }
+    ReturnItem:
+      type: object
+      required: [id, orderItemId, productId, sku, name, unit, quantity, condition, refundAmount]
+      properties:
+        id: { type: integer, format: int64 }
+        orderItemId: { type: integer, format: int64 }
+        productId: { type: integer, format: int64, nullable: true }
+        sku: { type: string }
+        name: { type: string }
+        unit: { type: string }
+        quantity: { type: integer }
+        condition: { $ref: '#/components/schemas/ReturnItemCondition' }
+        refundAmount: { $ref: '#/components/schemas/Money' }
+    ReturnDocument:
+      type: object
+      required: [id, code, orderId, orderCode, branch, reason, refundAmount, status, createdBy, createdAt, items]
+      properties:
+        id: { type: integer, format: int64 }
+        code: { type: string, example: RET-GM001-20261118-0001 }
+        orderId: { type: integer, format: int64 }
+        orderCode: { type: string }
+        branch: { $ref: '#/components/schemas/BranchRef' }
+        reason: { type: string }
+        refundAmount: { $ref: '#/components/schemas/Money' }
+        status: { $ref: '#/components/schemas/ReturnStatus' }
+        createdBy: { $ref: '#/components/schemas/UserRef' }
+        approvedBy:
+          type: object
+          allOf: [{ $ref: '#/components/schemas/UserRef' }]
+          nullable: true
+        createdAt: { type: string, format: date-time }
+        approvedAt: { type: string, format: date-time, nullable: true }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ReturnItem' }
 
     # ---------- Inventory
     StockAlert:
