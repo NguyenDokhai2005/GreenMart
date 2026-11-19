@@ -266,9 +266,34 @@ export interface paths {
     };
     /** Chi tiết khách hàng */
     get: operations['getCustomer'];
-    /** Sửa khách hàng */
+    /**
+     * Sửa khách hàng
+     * @description Cập nhật thông tin khách hàng. Để mở lại khách đã vô hiệu hóa, gửi active: true.
+     */
     put: operations['updateCustomer'];
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/customers/{customerId}/deactivate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        customerId: components['parameters']['CustomerId'];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Vô hiệu hóa khách hàng
+     * @description Chuyển trạng thái hoạt động của khách hàng sang không hoạt động (active = false). Mở lại bằng PUT /customers/{customerId} với active: true.
+     */
+    post: operations['deactivateCustomer'];
     delete?: never;
     options?: never;
     head?: never;
@@ -1246,6 +1271,8 @@ export interface components {
       name: string;
       /** Format: email */
       email?: string | null;
+      /** @example true */
+      active: boolean;
       /** Format: date-time */
       createdAt: string;
     };
@@ -1254,6 +1281,8 @@ export interface components {
       name: string;
       /** Format: email */
       email?: string | null;
+      /** @description Trạng thái hoạt động (tùy chọn khi sửa; gửi true để mở lại khách đã vô hiệu hóa) */
+      active?: boolean | null;
     };
     CustomerPage: components['schemas']['PageMeta'] & {
       content: components['schemas']['Customer'][];
@@ -2699,6 +2728,8 @@ export interface operations {
         q?: string;
         /** @description Khớp chính xác số điện thoại (dùng ở POS) */
         phone?: components['schemas']['Phone'];
+        /** @description Lọc theo trạng thái hoạt động (mặc định true; chỉ OWNER, BRANCH_MANAGER được gửi active=false) */
+        active?: boolean;
         /** @description Số trang, bắt đầu từ 0 */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
@@ -2804,6 +2835,31 @@ export interface operations {
       403: components['responses']['Forbidden'];
       404: components['responses']['NotFound'];
       409: components['responses']['Conflict'];
+    };
+  };
+  deactivateCustomer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        customerId: components['parameters']['CustomerId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Đã vô hiệu hóa */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Customer'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
     };
   };
   listCustomerOrders: {
