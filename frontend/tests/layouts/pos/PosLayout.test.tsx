@@ -45,7 +45,8 @@ function renderApp(path = '/pos', auth: AuthSession | null = session()) {
   fetchMock.mockImplementation(async (url) => {
     const path = String(url);
     if (path.includes('/categories')) return json([]);
-    if (path.includes('/products') || path.includes('/customers')) return json({ content: [] });
+    if (path.includes('/products') || path.includes('/customers') || path.includes('/orders?'))
+      return json({ content: [] });
     return json(auth?.user);
   });
   return render(

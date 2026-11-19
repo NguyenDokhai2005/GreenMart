@@ -144,20 +144,58 @@ export default function PosCheckoutDialog({
       open
       title={state.status === 'success' ? 'Thanh toán thành công' : 'Thanh toán đơn hàng'}
       onClose={handleClose}
-      onConfirm={state.status === 'success' ? undefined : () => void handleConfirm()}
-      confirmText={uncertain ? 'Thử lại' : 'Hoàn tất'}
-      cancelText={state.status === 'success' ? 'Đóng' : 'Quay lại'}
+      onConfirm={state.status === 'success' ? handleClose : () => void handleConfirm()}
+      onCancel={state.status === 'success' ? () => window.print() : undefined}
+      confirmText={state.status === 'success' ? 'Đơn hàng mới' : uncertain ? 'Thử lại' : 'Hoàn tất'}
+      cancelText={state.status === 'success' ? 'In hóa đơn' : 'Quay lại'}
       busy={busy}
       closeDisabled={uncertain}
       confirmDisabled={!validCash}
     >
       {state.status === 'success' ? (
         <div className="pos-checkout__success" role="status">
-          <p>Đơn {state.order.code} đã hoàn tất.</p>
-          <strong>Tổng thanh toán: {money(state.order.total)}</strong>
-          {paid?.method === 'CASH' && paid.change != null && (
-            <span>Tiền thối: {money(paid.change)}</span>
-          )}
+          <p className="pos-checkout__receipt-label">HÓA ĐƠN BÁN HÀNG</p>
+          <p className="pos-checkout__receipt-meta">
+            {state.order.code} · {state.order.branch.code} · Thu ngân{' '}
+            {state.order.createdBy?.fullName ?? '—'}
+            {state.order.customer && ` · Khách ${state.order.customer.name}`}
+          </p>
+          <ul className="pos-checkout__receipt-lines">
+            {state.order.items.map((item) => (
+              <li key={item.id}>
+                {item.name} · {item.quantity} × {money(item.unitPrice)}
+                {item.discount > 0 &&
+                  ` − ${item.promotion?.code ?? 'Giảm giá'} ${money(item.discount)}`}{' '}
+                = {money(item.lineTotal)}
+              </li>
+            ))}
+          </ul>
+          <dl className="pos-checkout__receipt-totals">
+            <div>
+              <dt>Tạm tính</dt>
+              <dd>{money(state.order.subtotal)}</dd>
+            </div>
+            <div>
+              <dt>Giảm giá đơn hàng</dt>
+              <dd>−{money(state.order.orderDiscount)}</dd>
+            </div>
+            <div>
+              <dt>Tổng giảm giá</dt>
+              <dd>{money(state.order.discount)}</dd>
+            </div>
+            <div className="pos-checkout__receipt-total">
+              <dt>Tổng thanh toán</dt>
+              <dd>{money(state.order.total)}</dd>
+            </div>
+          </dl>
+          <p className="pos-checkout__receipt-payment">
+            {paid?.method === 'CASH'
+              ? `Tiền mặt · Khách đưa ${money(paid.cashReceived ?? state.order.total)} · Tiền thừa ${money(paid.change ?? 0)}`
+              : `Thanh toán ${paid?.method === 'CARD' ? 'thẻ' : 'QR'} · ${money(state.order.total)}`}
+          </p>
+          <p className="pos-checkout__receipt-note">
+            Đã ghi nhận một đơn hàng. Chỉ bắt đầu giỏ mới sau khi thanh toán thành công.
+          </p>
         </div>
       ) : (
         <div className="pos-checkout">
