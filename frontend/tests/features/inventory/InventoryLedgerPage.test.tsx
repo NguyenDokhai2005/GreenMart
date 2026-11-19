@@ -89,6 +89,36 @@ const transactions: components['schemas']['InventoryTransaction'][] = [
     refCode: 'NK-GM001-001',
     createdAt: '2026-10-20T10:15:00+07:00',
   },
+  {
+    id: 10043,
+    branchId: 1,
+    productId: 2,
+    sku: 'VNM-1L',
+    type: 'TRANSFER_OUT',
+    deltaOnHand: -5,
+    onHandAfter: 45,
+    deltaReserved: 0,
+    reservedAfter: 0,
+    refType: 'STOCK_DOCUMENT',
+    refId: 11,
+    refCode: 'PX-GM001-TRANSFER-011',
+    createdAt: '2026-10-20T09:15:00+07:00',
+  },
+  {
+    id: 10042,
+    branchId: 1,
+    productId: 2,
+    sku: 'VNM-1L',
+    type: 'TRANSFER_IN',
+    deltaOnHand: 3,
+    onHandAfter: 53,
+    deltaReserved: 0,
+    reservedAfter: 0,
+    refType: 'STOCK_DOCUMENT',
+    refId: 12,
+    refCode: 'PX-GM002-TRANSFER-012',
+    createdAt: '2026-10-20T08:15:00+07:00',
+  },
 ];
 
 function renderPage() {
@@ -136,7 +166,13 @@ describe('InventoryLedgerPage', () => {
     expect(screen.getByRole('link', { name: 'NK-GM001-001' }).getAttribute('href')).toBe(
       '/operations/stock-documents/8',
     );
-    expect(screen.getByText('-5')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'PX-GM001-TRANSFER-011' }).getAttribute('href')).toBe(
+      '/operations/transfers/11',
+    );
+    expect(screen.getByRole('link', { name: 'PX-GM002-TRANSFER-012' }).getAttribute('href')).toBe(
+      '/operations/transfers/12',
+    );
+    expect(screen.getAllByText('-5')).toHaveLength(2);
     expect(screen.getByText('+50')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('link', { name: 'ORD-99321' }));

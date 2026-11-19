@@ -8,6 +8,7 @@ import { APP_PATHS } from '../auth/routePolicy';
 import Pagination from './PaginationControl';
 import { useRemote } from '../transfers/useRemote';
 import { catalogApi } from '../catalog/catalogApi';
+import { transferDetailPath } from '../transfers/paths';
 import { listInventoryTransactions } from './inventoryTransactionsApi';
 import './InventoryLedger.css';
 
@@ -221,9 +222,16 @@ export default function InventoryLedgerPage() {
                     <td className="ledger-reference">
                       {transaction.refCode ? (
                         transaction.refType === 'STOCK_DOCUMENT' ? (
-                          <Link to={`${APP_PATHS.stockDocuments}/${transaction.refId}`}>
-                            {transaction.refCode}
-                          </Link>
+                          transaction.type === 'TRANSFER_OUT' ||
+                          transaction.type === 'TRANSFER_IN' ? (
+                            <Link to={transferDetailPath(transaction.refId)}>
+                              {transaction.refCode}
+                            </Link>
+                          ) : (
+                            <Link to={`${APP_PATHS.stockDocuments}/${transaction.refId}`}>
+                              {transaction.refCode}
+                            </Link>
+                          )
                         ) : transaction.refType === 'ORDER' ? (
                           <Link to={`orders/${transaction.refId}`}>{transaction.refCode}</Link>
                         ) : (
