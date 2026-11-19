@@ -16,5 +16,11 @@ public record CustomerRequest(
 
     @Email(message = "Email không đúng định dạng")
     @Size(max = 120, message = "Email tối đa 120 ký tự")
-    String email
-) {}
+    String email,
+
+    Boolean active
+) {
+    public CustomerRequest(String phone, String name, String email) {
+        this(phone, name, email, null);
+    }
+}
