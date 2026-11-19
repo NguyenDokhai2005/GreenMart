@@ -17,6 +17,7 @@ const customer: Customer = {
   name: 'Nguyễn Minh Anh',
   phone: '0912345678',
   email: null,
+  active: true,
   createdAt: '2026-11-15T00:00:00Z',
 };
 
