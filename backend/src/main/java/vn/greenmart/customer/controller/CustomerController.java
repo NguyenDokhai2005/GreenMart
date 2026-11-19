@@ -40,6 +40,7 @@ public class CustomerController {
     public ResponseEntity<PageResponse<CustomerResponse>> listCustomers(
         @RequestParam(name = "q", required = false) String q,
         @RequestParam(name = "phone", required = false) String phone,
+        @RequestParam(name = "active", required = false) Boolean active,
         @RequestParam(name = "page", required = false) Integer page,
         @RequestParam(name = "size", required = false) Integer size,
         HttpServletRequest request
@@ -52,7 +53,7 @@ public class CustomerController {
             Sort.by(Sort.Direction.DESC, "createdAt"),
             ALLOWED_CUSTOMER_SORT_FIELDS
         );
-        return ResponseEntity.ok(customerService.listCustomers(q, phone, pageable));
+        return ResponseEntity.ok(customerService.listCustomers(q, phone, active, pageable));
     }
 
     @PostMapping
@@ -72,6 +73,11 @@ public class CustomerController {
         @Valid @RequestBody CustomerRequest request
     ) {
         return ResponseEntity.ok(customerService.updateCustomer(customerId, request));
+    }
+
+    @PostMapping("/{customerId}/deactivate")
+    public ResponseEntity<CustomerResponse> deactivateCustomer(@PathVariable("customerId") Long customerId) {
+        return ResponseEntity.ok(customerService.deactivateCustomer(customerId));
     }
 
     @GetMapping("/{customerId}/orders")
