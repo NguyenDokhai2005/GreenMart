@@ -85,6 +85,7 @@ export default function Table<T extends object>({
           return (
             <td
               key={String(column.key)}
+              data-label={column.title}
               style={{
                 textAlign: column.align ?? 'left',
               }}
