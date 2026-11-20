@@ -197,21 +197,24 @@ export default function PosCheckoutDialog({
       onClose={handleClose}
       onConfirm={
         state.status === 'success'
-          ? undefined
+          ? handleClose
           : needsQuoteConfirmation
             ? acceptChangedQuote
             : () => void handleConfirm()
       }
+      onCancel={state.status === 'success' ? () => window.print() : undefined}
       confirmText={
-        needsQuoteConfirmation
-          ? changedQuote
-            ? 'Xác nhận tổng mới'
-            : 'Xem lại báo giá'
-          : uncertain || paymentFailed
-            ? 'Thử lại'
-            : 'Hoàn tất'
+        state.status === 'success'
+          ? 'Đơn hàng mới'
+          : needsQuoteConfirmation
+            ? changedQuote
+              ? 'Xác nhận tổng mới'
+              : 'Xem lại báo giá'
+            : uncertain || paymentFailed
+              ? 'Thử lại'
+              : 'Hoàn tất'
       }
-      cancelText={state.status === 'success' ? 'Đóng' : 'Quay lại'}
+      cancelText={state.status === 'success' ? 'In hóa đơn' : 'Quay lại'}
       busy={busy}
       closeDisabled={uncertain}
       confirmDisabled={!needsQuoteConfirmation && !validCash}
