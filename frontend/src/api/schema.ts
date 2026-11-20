@@ -3122,7 +3122,7 @@ export interface operations {
         branchId?: components['parameters']['BranchIdQuery'];
         productId?: number;
         categoryId?: number;
-        /** @description Tìm theo tên, SKU hoặc barcode */
+        /** @description Tìm chuỗi con theo tên, SKU hoặc barcode, không phân biệt hoa thường. Riêng tên sản phẩm không phân biệt dấu tiếng Việt (đ/Đ tương đương d; Unicode dạng tổ hợp và dựng sẵn tương đương). SKU/barcode giữ cách đối chiếu ký tự hiện có, không bỏ dấu. */
         q?: string;
         stockStatus?: components['schemas']['StockStatus'];
         /** @description Số trang, bắt đầu từ 0 */
