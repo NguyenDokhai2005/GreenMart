@@ -69,12 +69,14 @@ sách tin cậy, bỏ qua `X-Forwarded-For`. Không cấu hình tin mọi IP ho�
 ghi đè remote address qua forwarded headers. Nếu thêm gateway/LB trước Nginx,
 cần thiết kế lại chuỗi proxy tin cậy để tránh gom mọi người vào IP gateway.
 
-Sai mật khẩu, username không tồn tại, tài khoản ngừng hoạt động hoặc đang khóa
-đều trả cùng `401 INVALID_CREDENTIALS`, không lộ số lần còn lại hay hạn khóa.
+Theo yêu cầu review của Lead, username không tồn tại/tài khoản ngừng hoạt động
+trả `401 INVALID_CREDENTIALS`; sai mật khẩu trả cùng thông báo kèm
+`details.remainingAttempts`. Lần sai thứ 5 và các lần thử trong thời gian khóa
+trả `401 ACCOUNT_LOCKED` kèm `details.lockedUntil`, không kéo dài mốc khóa.
 Nội bộ vẫn khóa tài khoản sau 5 lần sai liên tiếp trong 15 phút và ghi audit.
 CAPTCHA/email mở khóa cần thiết kế luồng riêng, chưa nằm trong thay đổi này.
-QA cần đối chiếu OpenAPI mới khi cập nhật các script còn chờ `ACCOUNT_LOCKED`
-hoặc `remainingAttempts`; giữ nguyên bằng chứng QA lịch sử. Bài tải POS nên
+QA kiểm lại TC-AUTH01-03/-04/-06 theo OpenAPI và tiêu chí khóa đã duyệt;
+giữ nguyên bằng chứng QA lịch sử. Bài tải POS nên
 chuẩn bị token trước giai đoạn đo để không bị giới hạn login cùng IP.
 
 Kiểm tra bằng JDK 21 và Docker với `mvn -B -ntp verify`. Các test

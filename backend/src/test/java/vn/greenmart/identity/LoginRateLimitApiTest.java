@@ -153,18 +153,23 @@ class LoginRateLimitApiTest {
     }
 
     @Test
-    void unknownWrongInactiveAndLockedHaveSamePublicError() throws Exception {
-        JsonNode expected = null;
+    void publicLoginErrorsFollowLeadsLockoutContractWithoutLeakingInactiveStatus() throws Exception {
         for (var credentials : new String[][]{{"missing", "wrong"}, {"owner", "wrong"},
                 {"inactive", "Demo@123"}, {"locked", "Demo@123"}}) {
             var response = mvc.perform(request("192.0.2.8", credentials[0], credentials[1]))
-                    .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.details").doesNotExist())
+                    .andExpect(status().isUnauthorized())
                     .andReturn().getResponse();
             var error = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(response.getContentAsString());
-            error.remove("traceId");
-            if (expected == null) expected = error;
-            assertThat(error).isEqualTo(expected);
-            assertThat(error.path("code").asText()).isEqualTo("INVALID_CREDENTIALS");
+            assertThat(error.path("traceId").asText()).isNotBlank();
+            if("locked".equals(credentials[0])) {
+                assertThat(error.path("code").asText()).isEqualTo("ACCOUNT_LOCKED");
+                assertThat(error.at("/details/lockedUntil").asText()).isNotBlank();
+            } else {
+                assertThat(error.path("code").asText()).isEqualTo("INVALID_CREDENTIALS");
+                assertThat(error.path("message").asText()).isEqualTo("Sai tên đăng nhập hoặc mật khẩu");
+                if("owner".equals(credentials[0])) assertThat(error.at("/details/remainingAttempts").asInt()).isEqualTo(4);
+                else assertThat(error.has("details")).isFalse();
+            }
         }
         assertThat(jdbc.queryForObject("SELECT failed_login_count FROM app_user WHERE id=3", Integer.class)).isEqualTo(5);
     }

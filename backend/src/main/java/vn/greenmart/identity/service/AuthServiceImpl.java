@@ -54,7 +54,7 @@ public class AuthServiceImpl implements AuthService {
             boolean passwordMatches=matches(request.password(),user.passwordHash());
             if (user.lockedUntil()!=null && user.lockedUntil().isAfter(now)) {
                 log(user,"LOGIN_FAILED",Map.of("reason","ACCOUNT_LOCKED"));
-                return new Attempt(null,new AppException(ErrorCode.INVALID_CREDENTIALS));
+                return new Attempt(null,locked(user.lockedUntil()));
             }
             if (!passwordMatches) {
                 int failures=(user.lockedUntil()!=null?0:user.failures())+1;
@@ -63,9 +63,10 @@ public class AuthServiceImpl implements AuthService {
                 log(user,"LOGIN_FAILED",Map.of("remainingAttempts",Math.max(0,5-failures)));
                 if (until!=null) {
                     log(user,"ACCOUNT_LOCKED",Map.of("lockedUntil",until.toString()));
-                    return new Attempt(null,new AppException(ErrorCode.INVALID_CREDENTIALS));
+                    return new Attempt(null,locked(until));
                 }
-                return new Attempt(null,new AppException(ErrorCode.INVALID_CREDENTIALS));
+                return new Attempt(null,new AppException(ErrorCode.INVALID_CREDENTIALS,
+                        ErrorCode.INVALID_CREDENTIALS.getDefaultMessage(),Map.of("remainingAttempts",Math.max(0,5-failures))));
             }
             users.loginState(user.id(),0,null);
             return new Attempt(tokens(user,null),null);
@@ -76,6 +77,10 @@ public class AuthServiceImpl implements AuthService {
     }
     private User requireUser(long id, boolean lock, ErrorCode failure) {
         return users.find(id,lock).filter(User::active).orElseThrow(()->new AppException(failure));
+    }
+    private AppException locked(OffsetDateTime until) {
+        return new AppException(ErrorCode.ACCOUNT_LOCKED,ErrorCode.ACCOUNT_LOCKED.getDefaultMessage(),
+                Map.of("lockedUntil",until.toString()));
     }
     private TokenResponse tokens(User user, String previous) {
         CurrentUser current=users.current(user);
