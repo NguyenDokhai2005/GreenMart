@@ -12,7 +12,8 @@ import { useActiveBranch } from '../auth/useActiveBranch';
 import { mapErrorToState } from '../../lib/errors';
 import type { PosPageProps } from '../../layouts/pos/PosPlaceholderPage';
 import type { Customer } from '../catalog/catalogApi';
-import { cartKey, cartReducer, stockForLine } from './posCart';
+import { cartKey, cartReducer, stockForLine, type CartLine } from './posCart';
+import type { StockShortage } from './posErrorDetails';
 import PosCheckoutDialog from './PosCheckoutDialog';
 import PosCustomerPanel from './PosCustomerPanel';
 import './posSale.css';
@@ -46,6 +47,10 @@ export default function PosSalePage({ item }: PosPageProps) {
   );
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [checkoutQuote, setCheckoutQuote] = useState<Quote | null>(null);
+  const [stockConflict, setStockConflict] = useState<{
+    message: string;
+    lines: StockShortage[];
+  } | null>(null);
   const customerId = customer?.id;
   const [query, setQuery] = useState('');
   const normalizedQuery = query.trim();
@@ -211,7 +216,19 @@ export default function PosSalePage({ item }: PosPageProps) {
   const mappedQuoteError =
     quoteError === undefined ? undefined : mapErrorToState(quoteError, 'block');
   const fieldErrors = mappedQuoteError?.kind === 'form' ? mappedQuoteError.fieldErrors : {};
-  const shortage = lines.some((line) => !stockForLine(line, quote).sufficient);
+  const conflictByProductId = new Map(stockConflict?.lines.map((line) => [line.productId, line]));
+  function stockFor(line: CartLine) {
+    const current = stockForLine(line, quote);
+    const conflict = conflictByProductId.get(line.product.id);
+    if (!conflict || line.quantity <= conflict.available) return { ...current, conflict: false };
+    return {
+      available: conflict.available,
+      sufficient: false,
+      conflict: true,
+    };
+  }
+  const activeConflict = lines.filter((line) => stockFor(line).conflict);
+  const shortage = lines.some((line) => !stockFor(line).sufficient);
   const canCheckout =
     !invalidQuantity && lines.length > 0 && !quoteLoading && !!quote?.canComplete && !shortage;
   const quotedMoney = (amount: number | undefined) =>
@@ -300,6 +317,23 @@ export default function PosSalePage({ item }: PosPageProps) {
               ))}
             </ul>
           </AsyncBlock>
+          {activeConflict.length > 0 && (
+            <div className="pos-sale__stock-conflict" role="alert">
+              <strong>Không đủ tồn kho</strong>
+              <p>
+                {stockConflict?.message} Giỏ hàng vẫn được giữ nguyên; hãy giảm số lượng hoặc xóa
+                sản phẩm ở dòng đỏ.
+              </p>
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  document.getElementById(`pos-quantity-${activeConflict[0].product.id}`)?.focus()
+                }
+              >
+                Kiểm tra giỏ hàng
+              </Button>
+            </div>
+          )}
           <p className="pos-sale__hint">
             Quét barcode để thêm nhanh · Nhập tên rồi chọn Thêm · F2 tìm kiếm
           </p>
@@ -327,11 +361,11 @@ export default function PosSalePage({ item }: PosPageProps) {
                 <span />
               </div>
               {lines.map((line, index) => {
-                const stock = stockForLine(line, quote);
+                const stock = stockFor(line);
                 const quotedLine = quote?.lines.find((item) => item.productId === line.product.id);
                 return (
                   <div
-                    className={`pos-sale__cart-line${stock.sufficient ? '' : ' pos-sale__cart-line--short'}`}
+                    className={`pos-sale__cart-line${stock.conflict ? ' pos-sale__cart-line--conflict' : stock.sufficient ? '' : ' pos-sale__cart-line--short'}`}
                     key={line.product.id}
                   >
                     <div className="pos-sale__cart-product">
@@ -377,6 +411,7 @@ export default function PosSalePage({ item }: PosPageProps) {
                           −
                         </button>
                         <input
+                          id={`pos-quantity-${line.product.id}`}
                           type="number"
                           min="1"
                           max="9999"
@@ -545,8 +580,19 @@ export default function PosSalePage({ item }: PosPageProps) {
           onCompleted={() => {
             dispatch({ type: 'clear' });
             setCustomer(null);
+            setStockConflict(null);
           }}
           onRequote={() => setQuoteRetry((value) => value + 1)}
+          onQuoteChanged={(changed) => {
+            setCheckoutQuote(changed);
+            setQuoteState({ status: 'ready', key: currentCartKey, quote: changed });
+          }}
+          onStockConflict={(shortages, message) => {
+            if (shortages.length > 0) setStockConflict({ message, lines: shortages });
+            else setNotice(message);
+            setCheckoutQuote(null);
+            setQuoteRetry((value) => value + 1);
+          }}
         />
       )}
     </section>

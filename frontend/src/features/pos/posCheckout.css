@@ -90,6 +90,15 @@
   font-size: var(--gm-font-size-label);
 }
 
+.pos-checkout__changed-total {
+  display: grid;
+  gap: var(--gm-space-2);
+  padding: var(--gm-space-4);
+  border-radius: var(--gm-radius-md);
+  background: var(--gm-color-page);
+  font-size: var(--gm-font-size-label);
+}
+
 .pos-checkout__success {
   display: grid;
   gap: var(--gm-space-3);
