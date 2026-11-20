@@ -6,6 +6,16 @@
 **Tiêu chí nghiệm thu liên quan:** AC-05 (SRS §10), US-10 (Dự báo nhu cầu 7 & 30 ngày), AI-04  
 **Trạng thái nghiệm thu:** **ĐẠT TIÊU CHÍ AC-05** (WAPE mô hình thấp hơn baseline tốt nhất ở cả hai tầm 7 và 30 ngày trên mọi cách đo)
 
+> [!IMPORTANT]
+> **Bộ số liệu nghiệm thu chính thức của Hội đồng:**
+> - **Commit cơ sở:** `450531a` (nhánh `feature/120-final-model-evaluation-report`)
+> - **Tập dữ liệu nguồn:** `forecast-service/data/daily_sales.parquet` (12 tháng, 1.000 SKU, 3 chi nhánh)
+> - **Lệnh sinh số liệu chính thức:**
+>   1. `python forecast-service/scripts/train_initial_lightgbm.py --data-path forecast-service/data/daily_sales.parquet`
+>   2. `python forecast-service/scripts/evaluate_segments.py`
+> - **Thời điểm thực thi:** 20/11/2026 trên môi trường Python 3.11.16 (`forecast-service/.venv`)
+> *(Hội đồng nghiệm thu chấm tiêu chí AC-05 căn cứ theo duy nhất một bộ số chính thức này).*
+
 ---
 
 ## 1. TÓM TẮT ĐIỀU HÀNH & KẾT LUẬN NGHIỆM THU
@@ -13,13 +23,14 @@
 Báo cáo này trình bày kết quả đánh giá thực nghiệm độc lập của mô hình dự báo nhu cầu chính thức (**LightGBM Tweedie kết hợp hậu xử lý ngưỡng 0.4**) đối đầu với các mô hình cơ sở (**Baseline 1 – Naive theo tuần** và **Baseline 2 – Trung bình trượt 28 ngày**) trên tập dữ liệu kiểm tra 30 ngày cuối cùng của hệ thống GreenMart.
 
 ### Kết luận nghiệm thu tiêu chí AC-05:
-Tiêu chí AC-05 quy định trong tài liệu yêu cầu phần mềm ([SRS.md](file:///c:/UTH/HK10/HKDN/GreenMart/docs/requirements/SRS.md)) và phân tích nghiệp vụ ([business-analysis.md](file:///c:/UTH/HK10/HKDN/GreenMart/docs/requirements/business-analysis.md)):
+Tiêu chí AC-05 quy định trong tài liệu yêu cầu phần mềm ([SRS.md](../requirements/SRS.md)) và phân tích nghiệp vụ ([business-analysis.md](../requirements/business-analysis.md)):
 > *"Đạt yêu cầu khi WAPE của mô hình thấp hơn baseline tốt nhất ở cả hai tầm 7 và 30 ngày (tập kiểm tra = 30 ngày cuối, không trộn ngẫu nhiên)."*
 
 Mô hình vận hành chính thức hiện tại của hệ thống (phiên bản `LightGBM-Tweedie-H7-H30` với cấu hình `DEFAULT_SLOW_THRESHOLD = 0.4` được phê duyệt tại commit `450531a`) **CHÍNH THỨC ĐẠT TIÊU CHÍ AC-05**:
 - Ở tầm **7 ngày**: WAPE mô hình đạt **79.13%** (Gộp tuần) và **140.27%** (Ô ngày), **thấp hơn** Baseline 2 (đạt 96.74% và 161.17%), giúp giảm tương ứng **17.61** và **20.90 điểm %** sai số.
-- Ở tầm **30 ngày**: WAPE mô hình đạt **82.68%** (Gộp tuần) và **49.81%** (Tổng cả tầm ROP), **thấp hơn** Baseline 2 (đạt 104.81% và 72.24%), giúp giảm tương ứng **22.13** và **22.43 điểm %** sai số.
+- Ở tầm **30 ngày**: WAPE mô hình đạt **82.68%** (Gộp tuần) và **49.81%** (Tổng cả tầm ROP), **thấp hơn** Baseline 2 (đạt 104.81% và 72.24%), giúp giảm tương ứng **22.13** và **22.43 điểm %** sai số. Riêng ở phương thức Gộp tuần 30 ngày, Zero Forecast đạt WAPE 100.30% (tốt hơn Baseline 2 104.81%), mô hình đạt 82.68% vẫn **thấp hơn cả Zero Forecast 17.62 điểm %**.
 - **Tính toàn diện:** Mô hình chiến thắng Baseline tốt nhất trên **toàn bộ 3 chi nhánh** và **toàn bộ 15 ngành hàng thực tế** trong hệ thống.
+- **Ngoại lệ phân khúc bán chậm:** Ở nhóm 800 SKU bán chậm (Intermittent Demand), mô hình LightGBM ngưỡng 0.4 đạt WAPE 102.31% (30 ngày) và 103.53% (7 ngày) — tuy thắng áp đảo Baseline 2 (188.03% và 181.88%) nhưng **vẫn hơi kém Baseline tham chiếu Zero Forecast** (100.52% và 100.91%), đúng như phân tích minh bạch tại Mục 4 và Mục 8.5.
 
 ---
 
@@ -27,7 +38,7 @@ Mô hình vận hành chính thức hiện tại của hệ thống (phiên bả
 
 > [!NOTE]
 > **Chú thích nguồn thông số ngữ cảnh hệ thống:**
-> Các thông số nền tảng của hệ thống (10.000 đơn hàng `COMPLETED`, 1.000 sản phẩm, 3 chi nhánh với tỷ lệ phân bổ GM-001: 45%, GM-002: 35%, GM-003: 20%; biên độ mùa vụ Tết tăng 50%–100%, 3 ngày Tết giảm 90%; biên độ nhiễu ngẫu nhiên hằng ngày $\pm 10\%$) được trích dẫn trực tiếp từ tài liệu đặc tả yêu cầu [SRS.md](file:///c:/UTH/HK10/HKDN/GreenMart/docs/requirements/SRS.md) (§3.5) và tệp cấu hình sinh dữ liệu [forecast-service/scripts/config.py](file:///c:/UTH/HK10/HKDN/GreenMart/forecast-service/scripts/config.py). Mọi số liệu thực nghiệm đối đầu (MAE, WAPE, $N$) trong báo cáo đều được trích xuất trực tiếp từ các file kết quả thực nghiệm.
+> Các thông số nền tảng của hệ thống (10.000 đơn hàng `COMPLETED`, 1.000 sản phẩm, 3 chi nhánh với tỷ lệ phân bổ GM-001: 45%, GM-002: 35%, GM-003: 20%; biên độ mùa vụ Tết tăng 50%–100%, 3 ngày Tết giảm 90%; biên độ nhiễu ngẫu nhiên hằng ngày $\pm 10\%$) được trích dẫn trực tiếp từ tài liệu đặc tả yêu cầu [SRS.md](../requirements/SRS.md) (§3.5) và tệp cấu hình sinh dữ liệu [config.py](../../forecast-service/scripts/config.py). Mọi số liệu thực nghiệm đối đầu (MAE, WAPE, $N$) trong báo cáo đều được trích xuất trực tiếp từ các file kết quả thực nghiệm.
 
 ### 2.1. Giải thích các chỉ số đo lường
 - **MAE (Mean Absolute Error - Sai số tuyệt đối trung bình):** Đo mức độ lệch tuyệt đối trung bình giữa số lượng sản phẩm dự báo và số lượng bán thực tế:
@@ -44,6 +55,10 @@ Mô hình vận hành chính thức hiện tại của hệ thống (phiên bả
 - **Xử lý ngày hết hàng (Stockout / Censored Demand):** Toàn bộ các ngày mà chi nhánh bị hết hàng (khả dụng = 0 cả ngày) được loại trừ khỏi nhãn đánh giá theo đúng quy định nghiệp vụ BA §9.3, nhằm đảm bảo công bằng khi nhu cầu mua sắm thực tế bị cắt cụt.
 - **Quy tắc sản phẩm mới:** Các chuỗi có dưới 28 ngày dữ liệu lịch sử được tự động áp dụng phương pháp dự phòng (*fallback*) lấy trung bình danh mục tại chi nhánh. (Thống kê thực tế tập Test: 0 chuỗi phát sinh dưới 28 ngày lịch sử, truy xuất từ khóa `short_history_series_count: 0` trong `evaluation_metrics.json`).
 
+> [!NOTE]
+> **Đối soát với kết quả kiểm tra sơ bộ của QA ngày 18/11 (#404):**
+> Trong báo cáo QA ngày 18/11 (ghi nhận tại [system-recheck-2026-11-18.md](../testing/system-recheck-2026-11-18.md) và [system-2026-11-18-coverage.md](../testing/system-2026-11-18-coverage.md)), kiểm thử viên ghi nhận WAPE H7 là `79.2812%` (vs Baseline 2 `97.0159%`) và WAPE H30 tổng tầm là `50.4820%` (vs Baseline 2 `72.3841%`). Báo cáo chính thức này ghi nhận tương ứng: H7 `79.13%` vs `96.74%`, và H30 `49.81%` vs `72.24%`. Sự chênh lệch rất nhỏ (< 0.68 điểm %) xuất phát từ việc lượt chạy thử của QA dùng fixture dữ liệu sinh sơ bộ trước khi đóng băng seed ngẫu nhiên và bộ dữ liệu `daily_sales.parquet` tại commit `450531a`. Cả hai lượt đo đều đồng thuận tuyệt đối về việc mô hình vượt trội Baseline 2 ở cả 2 tầm 7 và 30 ngày. Hội đồng chấm AC-05 thống nhất căn cứ theo bộ số chính thức duy nhất tại báo cáo này.
+
 ### 2.3. Các phương pháp đối đầu
 1. **Baseline 1 – Naive theo tuần (Tuân thủ BA §9.3):** Lấy lượng bán cùng thứ của tuần trước ($D - 7$) làm dự báo cho ngày $D$.
 2. **Baseline 2 – Trung bình trượt 28 ngày (Tuân thủ BA §9.3):** Lấy trung bình số lượng bán trong 28 ngày gần nhất trước ngày dự báo. Đây là **baseline nghiệp vụ tốt nhất**.
@@ -54,10 +69,10 @@ Mô hình vận hành chính thức hiện tại của hệ thống (phiên bả
 ### 2.4. Cách tái tạo số liệu thực nghiệm (Reproducibility)
 > [!NOTE]
 > **Lý do thư mục `artifacts/` không có sẵn trong repo:**
-> Thư mục `forecast-service/artifacts/` chứa các tệp trọng số mô hình dạng text (`lgbm_demand_h7.txt`, `lgbm_demand_h30.txt`) và các tệp JSON kết quả đánh giá. Thư mục này được loại trừ khỏi kho mã nguồn thông qua file [.gitignore](file:///c:/UTH/HK10/HKDN/GreenMart/.gitignore) (dòng 16: `forecast-service/artifacts/`) nhằm tuân thủ quy chuẩn không lưu trữ file nhị phân, trọng số sinh tự động và log phát sinh vào git để tránh phình dung lượng kho mã nguồn.
+> Thư mục `forecast-service/artifacts/` chứa các tệp trọng số mô hình dạng text (`lgbm_demand_h7.txt`, `lgbm_demand_h30.txt`) và các tệp JSON kết quả đánh giá. Thư mục này được loại trừ khỏi kho mã nguồn thông qua file [.gitignore](../../.gitignore) (dòng 16: `forecast-service/artifacts/`) nhằm tuân thủ quy chuẩn không lưu trữ file nhị phân, trọng số sinh tự động và log phát sinh vào git để tránh phình dung lượng kho mã nguồn.
 
 **Môi trường Python yêu cầu:**
-Sử dụng môi trường ảo của module `forecast-service` (đã cài đặt đầy đủ các gói phụ thuộc theo [requirements.txt](file:///c:/UTH/HK10/HKDN/GreenMart/forecast-service/requirements.txt) gồm `lightgbm`, `pandas`, `numpy`, `scipy`):
+Sử dụng môi trường ảo của module `forecast-service` (đã cài đặt đầy đủ các gói phụ thuộc theo [requirements.txt](../../forecast-service/requirements.txt) gồm `lightgbm`, `pandas`, `numpy`, `scipy`):
 - Trên Windows: `forecast-service\.venv\Scripts\python.exe`
 - Trên Linux/macOS: `forecast-service/.venv/bin/python`
 
@@ -88,20 +103,21 @@ Theo quy chuẩn đánh giá, báo cáo đặt song song cả 3 phương thức 
 2. **Gộp theo tuần (Weekly aggregate):** Gộp sản lượng thực tế và dự báo theo cửa sổ 7 ngày ($N = 3.000$ chuỗi-tuần ở tầm 7 ngày; $N = 15.000$ ở tầm 30 ngày). Phục vụ bài toán đặt hàng theo tuần của siêu thị.
 3. **Tổng cả tầm (Horizon aggregate / ROP):** Tổng gộp nhu cầu toàn bộ 7 ngày hoặc 30 ngày cho từng chuỗi ($N = 3.000$ chuỗi). Phục vụ tính điểm đặt hàng lại (ROP) và hạn mức tồn kho an toàn.
 
-| Tầm dự báo | Phương thức đo lường | Baseline 1 (Naive tuần)<br>MAE \| WAPE | Baseline 2 (TB 28 ngày)<br>MAE \| WAPE | LightGBM Bản thô<br>MAE \| WAPE | LightGBM Vận hành (0.4)<br>MAE \| WAPE | Chênh lệch WAPE so với BL2 | Kết quả nghiệm thu |
+| Tầm dự báo | Phương thức đo lường | Baseline 1 (Naive tuần)<br>MAE \| WAPE | Baseline 2 (TB 28 ngày)<br>MAE \| WAPE | LightGBM Bản thô<br>MAE \| WAPE | LightGBM Vận hành (0.4)<br>MAE \| WAPE | Chênh lệch WAPE so với Baseline tốt nhất | Kết quả nghiệm thu |
 |:---:|:---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **7 ngày** | **Từng ô ngày** (sp/ngày) | 0.2743 \| 172.68% | 0.2560 \| 161.17% | 0.2575 \| 162.13% | **0.2228 \| 140.27%** | **-20.90 điểm %** | **✓ THẮNG** |
-| **7 ngày** | **Gộp tuần** (sp/tuần) | 1.2557 \| 113.46% | 1.0706 \| 96.74% | 1.0777 \| 97.38% | **0.8757 \| 79.13%** | **-17.61 điểm %** | **✓ THẮNG** |
-| **7 ngày** | **Tổng cả tầm** (sp/tầm) | 1.2557 \| 113.46% | 1.0706 \| 96.74% | 1.0777 \| 97.38% | **0.8757 \| 79.13%** | **-17.61 điểm %** | **✓ THẮNG** |
+| **7 ngày** | **Từng ô ngày** (sp/ngày) | 0.2743 \| 172.68% | 0.2560 \| 161.17% | 0.2575 \| 162.13% | **0.2228 \| 140.27%** | **-20.90 điểm %** (vs BL2) | **✓ THẮNG** |
+| **7 ngày** | **Gộp tuần** (sp/tuần) | 1.2557 \| 113.46% | 1.0706 \| 96.74% | 1.0777 \| 97.38% | **0.8757 \| 79.13%** | **-17.61 điểm %** (vs BL2) | **✓ THẮNG** |
+| **7 ngày** | **Tổng cả tầm** (sp/tầm) | 1.2557 \| 113.46% | 1.0706 \| 96.74% | 1.0777 \| 97.38% | **0.8757 \| 79.13%** | **-17.61 điểm %** (vs BL2) | **✓ THẮNG** |
 | | | | | | | | |
-| **30 ngày** | **Từng ô ngày** (sp/ngày) | 0.2669 \| 178.48% | 0.2493 \| 166.67% | 0.2500 \| 167.14% | **0.2147 \| 143.58%** | **-23.09 điểm %** | **✓ THẮNG** |
-| **30 ngày** | **Gộp tuần** (sp/tuần) | 1.0712 \| 119.92% | 0.9362 \| 104.81% | 0.9190 \| 102.88% | **0.7385 \| 82.68%** | **-22.13 điểm %** | **✓ THẮNG** |
-| **30 ngày** | **Tổng cả tầm** (sp/tầm) | 4.4940 \| 100.62% | 3.2263 \| 72.24% | 2.6757 \| 59.91% | **2.2245 \| 49.81%** | **-22.43 điểm %** | **✓ THẮNG** |
+| **30 ngày** | **Từng ô ngày** (sp/ngày) | 0.2669 \| 178.48% | 0.2493 \| 166.67% | 0.2500 \| 167.14% | **0.2147 \| 143.58%** | **-23.09 điểm %** (vs BL2) | **✓ THẮNG** |
+| **30 ngày** | **Gộp tuần** (sp/tuần) | 1.0712 \| 119.92% | 0.9362 \| 104.81% | 0.9190 \| 102.88% | **0.7385 \| 82.68%** | **-17.62 điểm %** (vs Zero 100.30%)<br>*-22.13 điểm % (vs BL2)* | **✓ THẮNG** |
+| **30 ngày** | **Tổng cả tầm** (sp/tầm) | 4.4940 \| 100.62% | 3.2263 \| 72.24% | 2.6757 \| 59.91% | **2.2245 \| 49.81%** | **-22.43 điểm %** (vs BL2) | **✓ THẮNG** |
 
 > [!IMPORTANT]
 > **Nhận xét kết quả đối đầu tổng thể:**
-> 1. Mô hình vận hành chính thức vượt trội Baseline 2 ở cả hai tầm dự báo 7 ngày và 30 ngày trên toàn bộ 3 phương thức đo lường.
-> 2. Ở bài toán trọng tâm tồn kho (Tổng cả tầm 30 ngày phục vụ ROP), mô hình giảm WAPE từ **72.24%** xuống **49.81%** (giảm 22.43 điểm %), MAE giảm từ **3.23** xuống **2.22 sản phẩm/chuỗi**, mang lại giá trị thực tiễn rất lớn cho việc tối ưu vốn lưu động.
+> 1. Mô hình vận hành chính thức vượt trội Baseline tốt nhất ở cả hai tầm dự báo 7 ngày và 30 ngày trên toàn bộ 3 phương thức đo lường.
+> 2. Riêng tại tầm 30 ngày Gộp tuần, Zero Forecast đạt WAPE 100.30% (tốt hơn Baseline 2 với 104.81%), mô hình đạt WAPE 82.68% — **thấp hơn cả Zero Forecast 17.62 điểm %** và thấp hơn Baseline 2 là 22.13 điểm %.
+> 3. Ở bài toán trọng tâm tồn kho (Tổng cả tầm 30 ngày phục vụ ROP), mô hình giảm WAPE từ **72.24%** xuống **49.81%** (giảm 22.43 điểm % so với Baseline 2), MAE giảm từ **3.23** xuống **2.22 sản phẩm/chuỗi**, mang lại giá trị thực tiễn rất lớn cho việc tối ưu vốn lưu động.
 
 ---
 
@@ -122,7 +138,7 @@ Quy luật Pareto trong bán lẻ: 200 SKU bán chạy cốt lõi chiếm khoả
 > [!NOTE]
 > **Bản chất kỹ thuật của phân khúc bán chậm:**
 > - Đối với 800 SKU bán chậm, mô hình LightGBM nguyên bản dự báo các số thực dương nhỏ liên tục (ví dụ 0.05, 0.1), khi cộng dồn tạo ra tổng sai số lớn khiến WAPE ở mức ~195%–221% (thua Baseline 2).
-> - Nhờ cơ chế cắt ngưỡng $0.4$ được tối ưu trên tập Validation, khoảng 99.83% ô dự báo nhỏ của nhóm này được đưa về 0 (khóa `metrics -> 7 -> slow_moving -> weekly_aggregate -> model -> zero_pred_ratio: 0.9983` trong [segment_metrics.json](file:///c:/UTH/HK10/HKDN/GreenMart/forecast-service/artifacts/segment_metrics.json)), giúp WAPE giảm từ 181%–188% xuống 102%–103%, bám sát Baseline tham chiếu Zero Forecast.
+> - Nhờ cơ chế cắt ngưỡng $0.4$ được tối ưu trên tập Validation, khoảng 99.83% ô dự báo nhỏ của nhóm này được đưa về 0 (khóa `metrics -> 7 -> slow_moving -> weekly_aggregate -> model -> zero_pred_ratio: 0.9983` trong `segment_metrics.json`), giúp WAPE giảm từ 181%–188% xuống 102%–103%, bám sát Baseline tham chiếu Zero Forecast (tuy vẫn hơi kém Zero Forecast ~1.79 điểm % ở tầm 30 ngày và ~2.62 điểm % ở tầm 7 ngày do còn 0.17% ô dự báo lớn hơn 0).
 
 ---
 
@@ -232,7 +248,7 @@ Nhằm đảm bảo tính trung thực học thuật trước Hội đồng, nh�
 - Đặc biệt, **cửa sổ kiểm tra độc lập (tháng 10/2026) không nằm trong giai đoạn Tết (tháng 1–2/2026)**, nên năng lực dự báo mùa vụ cao điểm Tết của mô hình thực tế **chưa được kiểm chứng trên tập Test**. Khi vận hành thực tế dịp Tết, mô hình sẽ phụ thuộc vào các đặc trưng cờ lịch ngoại sinh (`target_is_tet_pre`, `target_is_holiday`).
 
 ### 8.5. Bản chất của kỹ thuật cắt ngưỡng tĩnh (Heuristic Threshold):
-- Ngưỡng 0.4 đưa 99.83% ô dự báo của 800 SKU bán chậm về 0 (truy xuất chính xác từ khóa `metrics -> 7 -> slow_moving -> weekly_aggregate -> model -> zero_pred_ratio: 0.9983` trong [segment_metrics.json](file:///c:/UTH/HK10/HKDN/GreenMart/forecast-service/artifacts/segment_metrics.json) và `results_clean_weekly -> 7 -> lgb_tweedie_postproc -> slow_moving -> zero_pred_ratio: 0.9983` trong [evaluation_metrics.json](file:///c:/UTH/HK10/HKDN/GreenMart/forecast-service/artifacts/evaluation_metrics.json)).
+- Ngưỡng 0.4 đưa 99.83% ô dự báo của 800 SKU bán chậm về 0 (truy xuất chính xác từ khóa `metrics -> 7 -> slow_moving -> weekly_aggregate -> model -> zero_pred_ratio: 0.9983` trong `segment_metrics.json` và `results_clean_weekly -> 7 -> lgb_tweedie_postproc -> slow_moving -> zero_pred_ratio: 0.9983` trong `evaluation_metrics.json`).
 - Về bản chất toán học, mô hình xấp xỉ phương pháp *Zero Forecast* đối với nhóm này để triệt tiêu phương sai tích lũy: WAPE của nhóm này đạt **~102.31% – 103.53%**, thực chất **gần bằng mô hình dự báo toàn số 0** (Zero Forecast đạt 100.52% – 100.91%). Điều này phản ánh đặc thù mẫu số nhỏ của công thức WAPE trên nhu cầu thưa, chứ không chứng minh mô hình học máy được quy luật phát sinh đơn lẻ tẻ của nhóm này.
 
 ### 8.6. Biên độ vượt trội ở nhóm bán chạy còn hẹp (Tầm 7 ngày chỉ thắng ~2.5 điểm %):
@@ -254,8 +270,8 @@ Nhằm đảm bảo tính trung thực học thuật trước Hội đồng, nh�
 
 ## PHỤ LỤC: DANH MỤC FILE & MINH CHỨNG TRONG HỆ THỐNG
 
-- Báo cáo số liệu phân nhóm: [forecast-service/artifacts/segment_metrics.json](file:///c:/UTH/HK10/HKDN/GreenMart/forecast-service/artifacts/segment_metrics.json)
-- Báo cáo số liệu tổng thể: [forecast-service/artifacts/evaluation_metrics.json](file:///c:/UTH/HK10/HKDN/GreenMart/forecast-service/artifacts/evaluation_metrics.json)
-- Script trích xuất đánh giá phân nhóm: [forecast-service/scripts/evaluate_segments.py](file:///c:/UTH/HK10/HKDN/GreenMart/forecast-service/scripts/evaluate_segments.py)
-- Mã nguồn pipeline dự báo nền: [forecast-service/app/pipelines/forecast_service.py](file:///c:/UTH/HK10/HKDN/GreenMart/forecast-service/app/pipelines/forecast_service.py)
-- Trọng số mô hình chính thức: [artifacts/lgbm_demand_h7.txt](file:///c:/UTH/HK10/HKDN/GreenMart/forecast-service/artifacts/lgbm_demand_h7.txt) & [artifacts/lgbm_demand_h30.txt](file:///c:/UTH/HK10/HKDN/GreenMart/forecast-service/artifacts/lgbm_demand_h30.txt)
+- Báo cáo số liệu phân nhóm: `forecast-service/artifacts/segment_metrics.json` (tạo tự động theo Bước 2, không commit vào repo)
+- Báo cáo số liệu tổng thể: `forecast-service/artifacts/evaluation_metrics.json` (tạo tự động theo Bước 1, không commit vào repo)
+- Script trích xuất đánh giá phân nhóm: [evaluate_segments.py](../../forecast-service/scripts/evaluate_segments.py)
+- Mã nguồn pipeline dự báo nền: [forecast_service.py](../../forecast-service/app/pipelines/forecast_service.py)
+- Trọng số mô hình chính thức: `forecast-service/artifacts/lgbm_demand_h7.txt` & `forecast-service/artifacts/lgbm_demand_h30.txt` (tạo tự động theo Bước 1, không commit vào repo)
