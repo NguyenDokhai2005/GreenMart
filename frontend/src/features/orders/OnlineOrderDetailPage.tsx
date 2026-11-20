@@ -66,7 +66,7 @@ function useOrderDetail(orderId: number) {
     return () => controller.abort();
   }, [key, orderId]);
   return {
-    data: result?.data,
+    data: result?.key === key ? result.data : undefined,
     error: result?.key === key ? result.error : undefined,
     isLoading: result?.key !== key,
     reload: () => setAttempt((value) => value + 1),
@@ -76,6 +76,10 @@ function useOrderDetail(orderId: number) {
 
 export default function OnlineOrderDetailPage() {
   const orderId = Number(useParams().orderId);
+  return <OnlineOrderDetailView key={orderId} orderId={orderId} />;
+}
+
+function OnlineOrderDetailView({ orderId }: { orderId: number }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { state } = useAuth();
@@ -101,6 +105,7 @@ export default function OnlineOrderDetailPage() {
   const fieldErrors = mappedError?.kind === 'form' ? mappedError.fieldErrors : {};
   const missingReason = action === 'cancel' && !reason;
   const missingNote = action === 'cancel' && reason === 'OTHER' && !note.trim();
+  const actionAllowed = action === 'complete' ? canComplete : action === 'cancel' && canCancel;
 
   const closeAction = useCallback(() => {
     if (busy) return;
@@ -109,7 +114,7 @@ export default function OnlineOrderDetailPage() {
   }, [busy]);
 
   async function submitAction() {
-    if (!data || !action || busy || missingReason || missingNote) return;
+    if (!data || !actionAllowed || busy || missingReason || missingNote) return;
     setBusy(true);
     setActionError(null);
     try {
@@ -382,7 +387,7 @@ export default function OnlineOrderDetailPage() {
           cancelText="Quay lại"
           destructive={action === 'cancel'}
           busy={busy}
-          confirmDisabled={missingReason || missingNote}
+          confirmDisabled={!actionAllowed || missingReason || missingNote}
         >
           {action === 'cancel' ? (
             <div className="online-order__cancel-form">

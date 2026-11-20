@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import OnlineOrderDetailPage from '../../../src/features/orders/OnlineOrderDetailPage';
 
@@ -52,6 +52,7 @@ const order = {
 function mount() {
   return render(
     <MemoryRouter initialEntries={['/operations/orders/42']}>
+      <Link to="/operations/orders/43">Đơn kế tiếp</Link>
       <Routes>
         <Route path="/operations/orders/:orderId" element={<OnlineOrderDetailPage />} />
       </Routes>
@@ -117,5 +118,60 @@ describe('Online order detail #81', () => {
     expect(await screen.findByText(order.code)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Hoàn tất đơn' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Hủy đơn' })).toBeNull();
+  });
+
+  it.each([
+    ['BRANCH_MANAGER', 'CONFIRMED', 'WEB', true, true],
+    ['BRANCH_MANAGER', 'RESERVED', 'MARKET', false, true],
+    ['STOREKEEPER', 'CONFIRMED', 'WEB', true, false],
+    ['STOREKEEPER', 'RESERVED', 'WEB', false, false],
+    ['OWNER', 'CONFIRMED', 'WEB', false, false],
+    ['CASHIER', 'CONFIRMED', 'WEB', false, false],
+    ['ADMIN', 'CONFIRMED', 'WEB', false, false],
+    ['BRANCH_MANAGER', 'CONFIRMED', 'POS', false, false],
+  ] as const)(
+    '%s on a %s %s order: complete=%s cancel=%s',
+    async (role, status, channel, complete, cancel) => {
+      authRef.current = { state: { status: 'authenticated', user: { role } } };
+      getOrder.mockResolvedValue({ ...order, status, channel });
+      mount();
+      await screen.findByText(order.code);
+      expect(!!screen.queryByRole('button', { name: 'Hoàn tất đơn' })).toBe(complete);
+      expect(!!screen.queryByRole('button', { name: 'Hủy đơn' })).toBe(cancel);
+    },
+  );
+
+  it('clears the previous order action when the route changes', async () => {
+    getOrder.mockImplementation(async (id: number) => ({
+      ...order,
+      id,
+      code: `WEB-GM001-20261105-${id}`,
+    }));
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Hủy đơn' }));
+    expect(screen.getByRole('dialog', { name: /Hủy đơn/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('link', { name: 'Đơn kế tiếp' }));
+    await screen.findByText('WEB-GM001-20261105-43');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(cancelOnlineOrder).not.toHaveBeenCalled();
+  });
+
+  it('disables a pending action after the server reports a changed order status', async () => {
+    getOrder.mockResolvedValueOnce(order).mockResolvedValueOnce({ ...order, status: 'CANCELLED' });
+    completeOnlineOrder.mockRejectedValue({
+      status: 409,
+      code: 'INVALID_STATUS',
+      message: 'Đơn đã hủy',
+    });
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Hoàn tất đơn' }));
+    fireEvent.click(screen.getByRole('dialog').querySelector('button.gm-button--primary')!);
+    await screen.findByText('Đơn đã hủy, không thể xử lý thêm.');
+    const confirm = screen
+      .getByRole('dialog')
+      .querySelector('button.gm-button--primary') as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+    fireEvent.click(confirm);
+    expect(completeOnlineOrder).toHaveBeenCalledTimes(1);
   });
 });
