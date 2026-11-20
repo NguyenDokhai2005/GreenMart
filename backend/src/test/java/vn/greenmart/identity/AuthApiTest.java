@@ -150,15 +150,16 @@ class AuthApiTest {
     @Test void fifthFailureLocksAndAuditSurvivesHttp401() throws Exception {
         for (int attempt=1;attempt<=5;attempt++) {
             var error=login("thungan.gm001","wrong",401);
-            assertThat(error.get("code").asText()).isEqualTo(attempt==5?"ACCOUNT_LOCKED":"INVALID_CREDENTIALS");
-            if (attempt<5) assertThat(error.at("/details/remainingAttempts").asInt()).isEqualTo(5-attempt);
-            else assertThat(OffsetDateTime.parse(error.at("/details/lockedUntil").asText()).toInstant())
-                    .isEqualTo(clock.instant().plusSeconds(900));
+            assertThat(error.get("code").asText()).isEqualTo("INVALID_CREDENTIALS");
+            assertThat(error.get("message").asText()).isEqualTo("Sai tên đăng nhập hoặc mật khẩu");
+            assertThat(error.has("details")).isFalse();
         }
+        assertThat(jdbc.queryForObject("SELECT locked_until FROM app_user WHERE id=7",OffsetDateTime.class).toInstant())
+                .isCloseTo(clock.instant().plusSeconds(900),within(1,java.time.temporal.ChronoUnit.MICROS));
         assertThat(jdbc.queryForObject("SELECT failed_login_count FROM app_user WHERE id=7",Integer.class)).isEqualTo(5);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_log WHERE action='LOGIN_FAILED'",Integer.class)).isEqualTo(5);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_log WHERE action='ACCOUNT_LOCKED'",Integer.class)).isEqualTo(1);
-        assertThat(login("thungan.gm001","Demo@123",401).get("code").asText()).isEqualTo("ACCOUNT_LOCKED");
+        assertThat(login("thungan.gm001","Demo@123",401).get("code").asText()).isEqualTo("INVALID_CREDENTIALS");
         clock.now=clock.now.plusSeconds(901);
         login();
         assertThat(jdbc.queryForObject("SELECT failed_login_count FROM app_user WHERE id=7",Integer.class)).isZero();
@@ -166,7 +167,8 @@ class AuthApiTest {
     }
     @Test void successfulLoginResetsConsecutiveFailures() throws Exception {
         login("thungan.gm001","wrong",401); login();
-        assertThat(login("thungan.gm001","wrong",401).at("/details/remainingAttempts").asInt()).isEqualTo(4);
+        login("thungan.gm001","wrong",401);
+        assertThat(jdbc.queryForObject("SELECT failed_login_count FROM app_user WHERE id=7",Integer.class)).isEqualTo(1);
     }
     @Test void unknownInactiveAndWrongPasswordShareInvalidCredentials() throws Exception {
         assertThat(login("missing","wrong",401).get("code").asText()).isEqualTo("INVALID_CREDENTIALS");
@@ -232,8 +234,8 @@ class AuthApiTest {
     @Test void logoutRevokesOnlyOwnedSession() throws Exception {
         var a=login(); var b=login();
         var owner=login("owner","Demo@123",200);
-        assertThat(postJson("logout",Map.of("refreshToken",refresh(owner)),401,access(a)).get("code").asText()).isEqualTo("INVALID_REFRESH_TOKEN");
         postJson("logout",Map.of("refreshToken",refresh(a)),204,access(a));
+        mvc.perform(get("/api/v1/auth/me").header("Authorization","Bearer "+access(a))).andExpect(status().isUnauthorized());
         postJson("refresh",Map.of("refreshToken",refresh(a)),401,null);
         postJson("refresh",Map.of("refreshToken",refresh(b)),200,null);
         postJson("refresh",Map.of("refreshToken",refresh(owner)),200,null);
@@ -276,7 +278,7 @@ class AuthApiTest {
             start.countDown();
             var results=new java.util.ArrayList<String>();
             for(var future:futures) results.add(future.get(20,TimeUnit.SECONDS));
-            assertThat(results.stream().filter("ACCOUNT_LOCKED"::equals).count()).isEqualTo(1);
+            assertThat(results).containsOnly("INVALID_CREDENTIALS");
         }
         assertThat(jdbc.queryForObject("SELECT failed_login_count FROM app_user WHERE id=7",Integer.class)).isEqualTo(5);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_log WHERE action='LOGIN_FAILED'",Integer.class)).isEqualTo(5);
@@ -321,7 +323,7 @@ class AuthApiTest {
     @Test void redisStorageFailureDoesNotResetLoginCounterOrReturnTokens() throws Exception {
         login("thungan.gm001","wrong",401);
         redis.opsForValue().set("auth:refresh:{7}","wrong-type-for-failure-test");
-        var error=postJson("login",Map.of("username","thungan.gm001","password","Demo@123"),500,null);
+        var error=postJson("login",Map.of("username","thungan.gm001","password","Demo@123"),503,null);
         assertThat(error.has("accessToken")).isFalse();
         assertThat(error.get("traceId").asText()).isNotBlank();
         assertThat(jdbc.queryForObject("SELECT failed_login_count FROM app_user WHERE id=7",Integer.class)).isEqualTo(1);
@@ -329,9 +331,9 @@ class AuthApiTest {
     @Test void redisRevokeFailureCannotCommitNewPassword() throws Exception {
         var tokens=login();
         String before=jdbc.queryForObject("SELECT password_hash FROM app_user WHERE id=7",String.class);
-        org.mockito.Mockito.doThrow(new org.springframework.data.redis.RedisConnectionFailureException("simulated Redis outage"))
+        org.mockito.Mockito.doThrow(new vn.greenmart.common.exception.AppException(vn.greenmart.common.exception.ErrorCode.AUTH_UNAVAILABLE))
                 .when(refreshStore).revokeAll(7L);
-        var error=postJson("change-password",Map.of("currentPassword","Demo@123","newPassword","Updated@456"),500,access(tokens));
+        var error=postJson("change-password",Map.of("currentPassword","Demo@123","newPassword","Updated@456"),503,access(tokens));
         assertThat(error.get("traceId").asText()).isNotBlank();
         assertThat(jdbc.queryForObject("SELECT password_hash FROM app_user WHERE id=7",String.class)).isEqualTo(before);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_log WHERE action='CHANGE_PASSWORD'",Integer.class)).isZero();

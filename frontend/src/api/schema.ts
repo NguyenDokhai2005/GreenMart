@@ -15,7 +15,14 @@ export interface paths {
     put?: never;
     /**
      * Đăng nhập
-     * @description Sai 5 lần liên tiếp thì khóa tài khoản 15 phút; mỗi lần sai được ghi nhật ký (AUTH-03).
+     * @description Mỗi IP được thử tối đa 20 lần trong 60 giây gần nhất, tính cả đúng, sai và dữ liệu không hợp lệ.
+     *     Request thứ 21 vượt ngưỡng bắt đầu chặn IP trong 60 giây, trả 429 và Retry-After là số giây còn chờ.
+     *     Request trong lúc chặn không kéo dài thời gian chặn. Hết cooldown thì bắt đầu bộ đếm mới.
+     *     Kiểm tra IP chạy trước khi đọc tài khoản từ PostgreSQL. Qua proxy chỉ tin X-Real-IP từ proxy được cấu hình tin cậy.
+     *     Khi kho giới hạn tạm thời không khả dụng, trả 503 trước bước đọc tài khoản.
+     *     Sai mật khẩu 5 lần liên tiếp khóa tài khoản 15 phút; mỗi lần sai được ghi nhật ký (AUTH-03).
+     *     Tài khoản không tồn tại, sai mật khẩu, bị vô hiệu hóa và đang khóa cùng trả 401 INVALID_CREDENTIALS,
+     *     cùng thông báo, không trả remainingAttempts hoặc lockedUntil trong phản hồi đăng nhập.
      */
     post: operations['login'];
     delete?: never;
@@ -35,7 +42,11 @@ export interface paths {
     put?: never;
     /**
      * Làm mới access token
-     * @description Trả cặp token mới; refresh token cũ bị thu hồi (xoay vòng).
+     * @description Trả cặp token mới; refresh token cũ bị thu hồi (xoay vòng), giữ cùng phiên sid.
+     *     Refresh token được xác minh trong Redis trước khi truy vấn tài khoản, rồi kiểm tra/tiêu thụ nguyên tử lại khi xoay.
+     *     Access mới có hạn 15 phút, refresh mới 7 ngày tính từ lúc cấp; không có hạn tổng tuổi phiên.
+     *     Tối đa 60 request/IP trong 60 giây gần nhất; request thứ 61 bắt đầu chặn 60 giây.
+     *     Request lúc chặn không kéo dài cooldown. Tính cả token giả và body không hợp lệ.
      */
     post: operations['refreshToken'];
     delete?: never;
@@ -55,7 +66,11 @@ export interface paths {
     put?: never;
     /**
      * Đăng xuất
-     * @description Thu hồi refresh token. Access token hết hạn tự nhiên sau tối đa 15 phút.
+     * @description Dùng refresh token trong body làm bằng chứng để thu hồi đúng phiên, không cần access token.
+     *     Hoạt động cả khi access hết hạn, tài khoản bị khóa/vô hiệu hóa hoặc token đã xoay vòng trong vòng 7 ngày.
+     *     Access token của phiên mất hiệu lực ngay cho request xác thực tiếp theo; các phiên khác giữ nguyên.
+     *     Token đúng định dạng nhưng đã hết hạn/thu hồi/không tồn tại vẫn trả 204, không tiết lộ trạng thái.
+     *     Không cấp token mới để logout. Redis không khả dụng trả 503; không báo đã thu hồi thành công.
      */
     post: operations['logout'];
     delete?: never;
@@ -95,7 +110,12 @@ export interface paths {
     put?: never;
     /**
      * Đổi mật khẩu
-     * @description Mật khẩu mới tối thiểu 8 ký tự, có chữ và số. Đổi xong thu hồi mọi refresh token của người dùng.
+     * @description Mật khẩu mới tối thiểu 8 ký tự, có chữ và số, tối đa 72 byte UTF-8 cho BCrypt.
+     *     Đổi xong thu hồi mọi phiên, gồm access và refresh token; cần đăng nhập lại.
+     *     Tối đa 5 lần xác minh mật khẩu hiện tại/tài khoản trong 15 phút, gồm cả thành công và thất bại.
+     *     Lần thứ 6 bắt đầu chặn 15 phút; không kéo dài khi thử thêm. Sai mật khẩu được ghi audit.
+     *     Đồng thời giới hạn 20 request/IP trong 60 giây, tính cả body không hợp lệ; vượt ngưỡng chặn 60 giây.
+     *     Hạn mức tài khoản không bị xóa bởi đăng nhập mới, refresh hoặc đổi IP.
      */
     post: operations['changePassword'];
     delete?: never;
@@ -2384,8 +2404,42 @@ export interface operations {
         };
       };
       400: components['responses']['BadRequest'];
-      /** @description INVALID_CREDENTIALS hoặc ACCOUNT_LOCKED */
+      /** @description INVALID_CREDENTIALS cho mọi trường hợp đăng nhập thất bại */
       401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "code": "INVALID_CREDENTIALS",
+           *       "message": "Sai tên đăng nhập hoặc mật khẩu",
+           *       "traceId": "7f3c2a91"
+           *     }
+           */
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description LOGIN_RATE_LIMITED */
+      429: {
+        headers: {
+          /** @description Số giây còn phải chờ trước khi thử lại */
+          'Retry-After'?: number;
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "code": "LOGIN_RATE_LIMITED",
+           *       "message": "Quá nhiều lần đăng nhập. Vui lòng thử lại sau.",
+           *       "traceId": "7f3c2a93"
+           *     }
+           */
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description LOGIN_UNAVAILABLE khi bộ giới hạn lỗi; AUTH_UNAVAILABLE khi không tạo được phiên */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -2417,7 +2471,27 @@ export interface operations {
           'application/json': components['schemas']['TokenResponse'];
         };
       };
+      400: components['responses']['BadRequest'];
       401: components['responses']['Unauthorized'];
+      /** @description REFRESH_RATE_LIMITED; chờ Retry-After giây */
+      429: {
+        headers: {
+          'Retry-After'?: number;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description AUTH_UNAVAILABLE */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
     };
   };
   logout: {
@@ -2440,7 +2514,17 @@ export interface operations {
         };
         content?: never;
       };
+      400: components['responses']['BadRequest'];
       401: components['responses']['Unauthorized'];
+      /** @description AUTH_UNAVAILABLE */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
     };
   };
   getCurrentUser: {
@@ -2487,6 +2571,25 @@ export interface operations {
       400: components['responses']['BadRequest'];
       401: components['responses']['Unauthorized'];
       422: components['responses']['BusinessRule'];
+      /** @description PASSWORD_RATE_LIMITED; chờ Retry-After giây */
+      429: {
+        headers: {
+          'Retry-After'?: number;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description AUTH_UNAVAILABLE */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
     };
   };
   listBranches: {

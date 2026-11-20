@@ -30,10 +30,13 @@ public class JwtTokens {
         this.clock=clock;
     }
     public String issue(long id, String role) {
+        return issue(id, role, java.util.UUID.randomUUID().toString());
+    }
+    public String issue(long id, String role, String sessionId) {
         Instant now=clock.instant();
         var claims=JwtClaimsSet.builder().id(java.util.UUID.randomUUID().toString())
                 .subject(Long.toString(id)).issuedAt(now).expiresAt(now.plusSeconds(900))
-                .claim("role",role).build();
+                .claim("role",role).claim("sid",sessionId).build();
         return encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(),claims)).getTokenValue();
     }
     public Jwt decode(String token) {
@@ -43,6 +46,8 @@ public class JwtTokens {
                 || jwt.getExpiresAt().isBefore(jwt.getIssuedAt()) || Long.parseLong(jwt.getSubject())<=0) {
             throw new JwtException("Invalid access token");
         }
+        try { java.util.UUID.fromString(jwt.getClaimAsString("sid")); }
+        catch (RuntimeException exception) { throw new JwtException("Invalid session claim"); }
         return jwt;
     }
 }

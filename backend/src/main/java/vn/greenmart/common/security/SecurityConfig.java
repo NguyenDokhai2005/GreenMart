@@ -37,7 +37,7 @@ public class SecurityConfig {
                     .requestMatchers(HttpMethod.GET, "/api/v1/integrations/sync-logs").hasAnyRole("ADMIN", "OWNER")
                     .requestMatchers(HttpMethod.POST, "/api/v1/integrations/sync-logs/*/retry").hasRole("ADMIN")
                     .requestMatchers(HttpMethod.PUT, "/api/v1/integrations/*/products/*").hasRole("ADMIN")
-                    .requestMatchers("/api/v1/auth/login","/api/v1/auth/refresh","/actuator/health","/actuator/health/**").permitAll()
+                    .requestMatchers("/api/v1/auth/login","/api/v1/auth/refresh","/api/v1/auth/logout","/actuator/health","/actuator/health/**").permitAll()
                     .requestMatchers("/api/v1/reports/**").hasAnyRole("OWNER", "BRANCH_MANAGER")
                     .requestMatchers("/api/v1/inventory/transactions").hasAnyRole("OWNER", "BRANCH_MANAGER", "STOREKEEPER")
                     .anyRequest().authenticated())

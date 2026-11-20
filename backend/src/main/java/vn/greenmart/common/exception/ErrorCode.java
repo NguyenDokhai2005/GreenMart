@@ -10,7 +10,6 @@ public enum ErrorCode {
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "Phiên đăng nhập đã hết hạn hoặc không hợp lệ"),
     INVALID_SIGNATURE(HttpStatus.UNAUTHORIZED, "Chữ ký webhook không hợp lệ"),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "Sai tên đăng nhập hoặc mật khẩu"),
-    ACCOUNT_LOCKED(HttpStatus.UNAUTHORIZED, "Tài khoản tạm khóa do đăng nhập sai nhiều lần"),
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "Refresh token không hợp lệ hoặc đã hết hạn"),
 
     // 403
@@ -47,6 +46,15 @@ public enum ErrorCode {
     CATEGORY_CYCLE(HttpStatus.UNPROCESSABLE_ENTITY, "Danh mục cha tạo vòng lặp không hợp lệ"),
     WRONG_PASSWORD(HttpStatus.UNPROCESSABLE_ENTITY, "Mật khẩu hiện tại không chính xác"),
     UNMAPPED_SKU(HttpStatus.UNPROCESSABLE_ENTITY, "Mã hàng của kênh chưa được ánh xạ"),
+
+    // 429
+    LOGIN_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Quá nhiều lần đăng nhập. Vui lòng thử lại sau."),
+    REFRESH_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Quá nhiều lần làm mới phiên. Vui lòng thử lại sau."),
+    PASSWORD_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Quá nhiều lần xác minh mật khẩu. Vui lòng thử lại sau."),
+
+    // 503
+    LOGIN_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Dịch vụ đăng nhập tạm thời không khả dụng. Vui lòng thử lại sau."),
+    AUTH_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Dịch vụ xác thực tạm thời không khả dụng. Vui lòng thử lại sau."),
 
     // 500
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Đã có lỗi hệ thống xảy ra, vui lòng thử lại sau");
