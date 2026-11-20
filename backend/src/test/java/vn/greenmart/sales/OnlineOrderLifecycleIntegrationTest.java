@@ -5,6 +5,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -199,7 +201,9 @@ class OnlineOrderLifecycleIntegrationTest {
                         .header("Authorization", "Bearer " + tokens.issue(STOREKEEPER_CN1_ID, "STOREKEEPER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(orderId))
-                .andExpect(jsonPath("$.status").value("COMPLETED"));
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.items[0].promotion").doesNotExist())
+                .andExpect(jsonPath("$.orderPromotion").doesNotExist());
 
         var inv = jdbc.queryForMap("SELECT on_hand, reserved FROM inventory WHERE branch_id = ? AND product_id = ?", branch1Id, productId);
         assertThat(((Number) inv.get("on_hand")).intValue()).isEqualTo(7);
@@ -226,7 +230,9 @@ class OnlineOrderLifecycleIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CANCELLED"))
                 .andExpect(jsonPath("$.statusReason").value("CUSTOMER_REQUEST"))
-                .andExpect(jsonPath("$.payments[0].status").value("REFUNDED"));
+                .andExpect(jsonPath("$.payments[0].status").value("REFUNDED"))
+                .andExpect(jsonPath("$.items[0].promotion").doesNotExist())
+                .andExpect(jsonPath("$.orderPromotion").doesNotExist());
 
         Integer reserved = jdbc.queryForObject(
                 "SELECT reserved FROM inventory WHERE branch_id = ? AND product_id = ?", Integer.class, branch1Id, productId);
@@ -236,6 +242,47 @@ class OnlineOrderLifecycleIntegrationTest {
                 "SELECT COUNT(*) FROM audit_log WHERE entity = 'order' AND entity_id = ? AND action = 'CANCEL_ORDER'",
                 Integer.class, orderId.toString());
         assertThat(auditCount).isEqualTo(1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"complete", "cancel"})
+    @DisplayName("#427: Hoàn tất/hủy online trả mã khuyến mại thật cho cả dòng hàng và đơn")
+    void onlineMutationReturnsRealPromotionCodes(String action) throws Exception {
+        Long orderId = insertOnlineOrder("WEB-PROMO-" + action, "EXT-PROMO-" + action, "CONFIRMED", 3, "NULL");
+        Long itemPromotion = insertPromotion("REAL-ITEM-" + action, "ITEM", 10000);
+        Long orderPromotion = insertPromotion("REAL-ORDER-" + action, "ORDER", 5000);
+        jdbc.update("UPDATE order_item SET promotion_id=?, discount=10000, line_total=140000 WHERE order_id=?", itemPromotion, orderId);
+        jdbc.update("UPDATE sales_order SET promotion_id=?, discount=15000, total=135000 WHERE id=?", orderPromotion, orderId);
+        jdbc.update("INSERT INTO payment(order_id,method,amount,status,paid_at) VALUES(?,'QR',135000,'PAID',NOW())", orderId);
+
+        var request = post("/api/v1/orders/" + orderId + "/" + action);
+        if ("complete".equals(action)) {
+            request.header("Authorization", "Bearer " + tokens.issue(STOREKEEPER_CN1_ID, "STOREKEEPER"));
+        } else {
+            request.header("Authorization", "Bearer " + tokens.issue(MANAGER_CN1_ID, "BRANCH_MANAGER"))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(new CancelOrderRequest(CancelReason.CUSTOMER_REQUEST, null)));
+        }
+        mvc.perform(request)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("complete".equals(action) ? "COMPLETED" : "CANCELLED"))
+                .andExpect(jsonPath("$.items[0].promotion.id").value(itemPromotion))
+                .andExpect(jsonPath("$.items[0].promotion.code").value("REAL-ITEM-" + action))
+                .andExpect(jsonPath("$.items[0].promotion.name").doesNotExist())
+                .andExpect(jsonPath("$.items[0].promotion.discount").value(10000))
+                .andExpect(jsonPath("$.orderPromotion.id").value(orderPromotion))
+                .andExpect(jsonPath("$.orderPromotion.code").value("REAL-ORDER-" + action))
+                .andExpect(jsonPath("$.orderPromotion.name").doesNotExist())
+                .andExpect(jsonPath("$.orderPromotion.discount").value(5000));
+        assertThat(jdbc.queryForObject("SELECT status FROM sales_order WHERE id=?", String.class, orderId))
+                .isEqualTo("complete".equals(action) ? "COMPLETED" : "CANCELLED");
+    }
+
+    private Long insertPromotion(String code, String level, long value) {
+        return jdbc.queryForObject("""
+                INSERT INTO promotion(code,type,level,value,start_at,end_at,status)
+                VALUES(?,'AMOUNT',?,?,NOW()-INTERVAL '1 day',NOW()+INTERVAL '1 day','ACTIVE') RETURNING id
+                """, Long.class, code, level, value);
     }
 
     @Test
