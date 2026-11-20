@@ -107,3 +107,80 @@
 .pos-checkout__success p {
   margin: 0;
 }
+
+.pos-checkout__receipt-label,
+.pos-checkout__receipt-meta,
+.pos-checkout__receipt-payment,
+.pos-checkout__receipt-note {
+  font-size: var(--gm-font-size-sm);
+}
+
+.pos-checkout__receipt-label,
+.pos-checkout__receipt-note {
+  color: var(--gm-color-text-secondary);
+}
+
+.pos-checkout__receipt-lines {
+  display: grid;
+  gap: var(--gm-space-2);
+  margin: 0;
+  padding: var(--gm-space-4);
+  border-radius: var(--gm-radius-md);
+  background: var(--gm-color-page);
+  list-style: none;
+  font-size: var(--gm-font-size-sm);
+}
+
+.pos-checkout__receipt-totals {
+  display: grid;
+  gap: var(--gm-space-2);
+  margin: 0;
+  font-size: var(--gm-font-size-sm);
+}
+
+.pos-checkout__receipt-totals div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--gm-space-4);
+}
+
+.pos-checkout__receipt-totals dd {
+  margin: 0;
+  text-align: right;
+}
+
+.pos-checkout__receipt-total {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+@media print {
+  body:has(.pos-checkout__success) * {
+    visibility: hidden;
+  }
+
+  .gm-dialog:has(.pos-checkout__success),
+  .gm-dialog:has(.pos-checkout__success) * {
+    visibility: visible;
+  }
+
+  .gm-dialog-backdrop:has(.pos-checkout__success) {
+    position: static;
+    display: block;
+    padding: 0;
+    background: white;
+  }
+
+  .gm-dialog:has(.pos-checkout__success) {
+    width: 100%;
+    max-height: none;
+    margin: 0;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .gm-dialog:has(.pos-checkout__success) .gm-dialog__close,
+  .gm-dialog:has(.pos-checkout__success) .gm-dialog__footer {
+    display: none;
+  }
+}
