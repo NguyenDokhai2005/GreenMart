@@ -58,8 +58,8 @@ info:
     | 409 | FORECAST_RUNNING | Đã có lượt dự báo đang chạy; `details.runId` là lượt đang chạy (v3) |
     | 409 | FORECAST_NO_DATA | Chưa có dữ liệu `daily_sales` để chạy dự báo (v3) |
     | 503 | FORECAST_UNAVAILABLE | Backend không gọi được forecast-service (v3) |
-| 422 | RETURN_WINDOW_EXPIRED | Đơn hàng đã quá thời hạn trả hàng 7 ngày kể từ khi hoàn tất (BR-10) (v4) |
-| 422 | RETURN_QUANTITY_EXCEEDED | Số lượng trả vượt quá số lượng còn lại có thể trả (BR-10) (v4) |
+    | 422 | RETURN_WINDOW_EXPIRED | Đơn hàng đã quá thời hạn trả hàng 7 ngày kể từ khi hoàn tất (BR-10) (v4) |
+    | 422 | RETURN_QUANTITY_EXCEEDED | Số lượng trả vượt quá số lượng còn lại có thể trả (BR-10) (v4) |
   contact:
     name: SV01 – BA/Lead
 servers:
