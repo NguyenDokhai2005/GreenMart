@@ -251,7 +251,7 @@ export function getLoginNotice(error: unknown): LoginNotice {
       title: 'Tài khoản tạm khóa',
       description:
         lockedUntil !== undefined && lockedUntil > Date.now()
-          ? `Bạn có thể thử đăng nhập lại sau ${formatLockedUntil(lockedUntil)}.`
+          ? `Tài khoản tạm khóa đến ${formatLockedUntil(lockedUntil)}.`
           : 'Tài khoản đang tạm khóa. Vui lòng thử lại sau.',
       lockedUntil: lockedUntil !== undefined && lockedUntil > Date.now() ? lockedUntil : undefined,
     };

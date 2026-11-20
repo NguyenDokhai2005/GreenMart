@@ -21,8 +21,10 @@ export interface paths {
      *     Kiểm tra IP chạy trước khi đọc tài khoản từ PostgreSQL. Qua proxy chỉ tin X-Real-IP từ proxy được cấu hình tin cậy.
      *     Khi kho giới hạn tạm thời không khả dụng, trả 503 trước bước đọc tài khoản.
      *     Sai mật khẩu 5 lần liên tiếp khóa tài khoản 15 phút; mỗi lần sai được ghi nhật ký (AUTH-03).
-     *     Tài khoản không tồn tại, sai mật khẩu, bị vô hiệu hóa và đang khóa cùng trả 401 INVALID_CREDENTIALS,
-     *     cùng thông báo, không trả remainingAttempts hoặc lockedUntil trong phản hồi đăng nhập.
+     *     Tài khoản không tồn tại hoặc bị vô hiệu hóa trả 401 INVALID_CREDENTIALS với cùng thông báo sai thông tin.
+     *     Sai mật khẩu trước ngưỡng khóa trả INVALID_CREDENTIALS kèm details.remainingAttempts.
+     *     Lần sai thứ 5 và mọi lần thử trong thời gian khóa (kể cả đúng mật khẩu) trả 401 ACCOUNT_LOCKED
+     *     kèm details.lockedUntil (ISO 8601). Thử lại trong lúc khóa không kéo dài mốc khóa.
      */
     post: operations['login'];
     delete?: never;
@@ -2404,19 +2406,12 @@ export interface operations {
         };
       };
       400: components['responses']['BadRequest'];
-      /** @description INVALID_CREDENTIALS cho mọi trường hợp đăng nhập thất bại */
+      /** @description INVALID_CREDENTIALS hoặc ACCOUNT_LOCKED */
       401: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          /**
-           * @example {
-           *       "code": "INVALID_CREDENTIALS",
-           *       "message": "Sai tên đăng nhập hoặc mật khẩu",
-           *       "traceId": "7f3c2a91"
-           *     }
-           */
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
