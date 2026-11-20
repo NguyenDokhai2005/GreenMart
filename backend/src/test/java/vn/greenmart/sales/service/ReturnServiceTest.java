@@ -5,9 +5,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -93,9 +96,6 @@ class ReturnServiceTest {
         authenticate("OWNER", "1");
         when(branchService.getSaleInfo(1L)).thenReturn(new BranchSaleInfo(1L, "GM-001", "GreenMart Quận 1"));
 
-        // Đơn gốc theo ví dụ BA mục 3 & 5.2:
-        // Sữa: 64.000, Rau cải (3 bó): 54.000, Gạo ST25 (giảm dòng 15.000): 105.000 -> Tổng sau giảm dòng = 223.000
-        // KM cấp đơn = 22.300 -> Thực thu = 200.700
         SalesOrder order = new SalesOrder();
         order.setId(100L);
         order.setCode("POS-GM001-20261118-0001");
@@ -104,7 +104,7 @@ class ReturnServiceTest {
         order.setSubtotal(238_000L);
         order.setDiscount(37_300L);
         order.setTotal(200_700L);
-        order.setCompletedAt(Instant.now().minus(5, ChronoUnit.DAYS)); // Cách đây 5 ngày (< 7 ngày)
+        order.setCompletedAt(Instant.now().minus(5, ChronoUnit.DAYS));
 
         OrderItem itemMilk = new OrderItem();
         itemMilk.setId(1L);
@@ -139,7 +139,8 @@ class ReturnServiceTest {
         when(orderItemRepository.findByOrderId(100L)).thenReturn(List.of(itemMilk, itemVeggie, itemRice));
         when(returnItemRepository.sumReturnedQuantitiesByOrder(eq(100L), anyCollection(), isNull()))
                 .thenReturn(List.of());
-        when(jdbcTemplate.queryForObject(contains("INSERT INTO order_sequence"), eq(Long.class), eq(1L), any(LocalDate.class)))
+        // [SỬA THEO REVIEW #410]: Stub theo bảng mới return_sequence
+        when(jdbcTemplate.queryForObject(contains("INSERT INTO return_sequence"), eq(Long.class), eq(1L), any(LocalDate.class)))
                 .thenReturn(1L);
         when(productService.getSaleInfo(20L)).thenReturn(new ProductSaleInfo(20L, "RAU-CAI", "Rau cải 500g", "bó", 18_000L, true));
         when(authService.getFullName(1L)).thenReturn("Chủ Chuỗi");
@@ -163,8 +164,8 @@ class ReturnServiceTest {
     }
 
     @Test
-    @DisplayName("BR-10: Đơn hoàn tất cách đây 8 ngày -> từ chối lập phiếu trả")
-    void testCreateReturn_Expired7DaysWindow_ThrowsValidationError() {
+    @DisplayName("BR-10: Đơn hoàn tất cách đây 8 ngày -> trả 422 RETURN_WINDOW_EXPIRED")
+    void testCreateReturn_Expired7DaysWindow_ThrowsReturnWindowExpired() {
         authenticate("OWNER", "1");
         when(branchService.getSaleInfo(1L)).thenReturn(new BranchSaleInfo(1L, "GM-001", "GreenMart Quận 1"));
 
@@ -185,13 +186,14 @@ class ReturnServiceTest {
                 List.of(new ReturnItemRequest(1L, 1, ReturnItemCondition.RESELLABLE))
         );
 
+        // [SỬA THEO REVIEW #410]: Khẳng định mã lỗi 422 RETURN_WINDOW_EXPIRED
         AppException ex = assertThrows(AppException.class, () -> returnService.createReturn(req));
-        assertEquals(ErrorCode.VALIDATION_ERROR.name(), ex.getCode());
+        assertEquals(ErrorCode.RETURN_WINDOW_EXPIRED.name(), ex.getCode());
     }
 
     @Test
-    @DisplayName("Số lượng trả vượt số còn lại (mua 3, đã trả 2, đòi trả tiếp 2) -> từ chối")
-    void testCreateReturn_QuantityExceedsRemaining_ThrowsValidationError() {
+    @DisplayName("Số lượng trả vượt số còn lại (mua 3, đã trả 2, đòi trả tiếp 2) -> trả 422 RETURN_QUANTITY_EXCEEDED")
+    void testCreateReturn_QuantityExceedsRemaining_ThrowsReturnQuantityExceeded() {
         authenticate("OWNER", "1");
         when(branchService.getSaleInfo(1L)).thenReturn(new BranchSaleInfo(1L, "GM-001", "GreenMart Quận 1"));
 
@@ -228,11 +230,12 @@ class ReturnServiceTest {
                 List.of(new ReturnItemRequest(10L, 2, ReturnItemCondition.RESELLABLE))
         );
 
+        // [SỬA THEO REVIEW #410]: Khẳng định mã lỗi 422 RETURN_QUANTITY_EXCEEDED
         AppException ex = assertThrows(AppException.class, () -> returnService.createReturn(req));
-        assertEquals(ErrorCode.VALIDATION_ERROR.name(), ex.getCode());
+        assertEquals(ErrorCode.RETURN_QUANTITY_EXCEEDED.name(), ex.getCode());
     }
 
-   @Test
+    @Test
     @DisplayName("BR-13 (SoD): Người lập phiếu tự duyệt phiếu của chính mình -> 422 SELF_APPROVAL_FORBIDDEN")
     void testApproveReturn_SelfApproval_Throws422() {
         authenticate("BRANCH_MANAGER", "7");
@@ -243,15 +246,11 @@ class ReturnServiceTest {
         doc.setStatus(ReturnStatus.DRAFT);
         doc.setCreatedBy(7L);
 
-        org.mockito.Mockito.lenient()
+        Mockito.lenient()
                 .when(jdbcTemplate.queryForList(anyString(), eq(Long.class), any()))
                 .thenReturn(List.of(1L));
-        org.mockito.Mockito.lenient()
-                .when(jdbcTemplate.query(
-                        anyString(),
-                        org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.RowMapper<Long>>any(),
-                        any()
-                ))
+        Mockito.lenient()
+                .when(jdbcTemplate.query(anyString(), ArgumentMatchers.<RowMapper<Long>>any(), any()))
                 .thenReturn(List.of(1L));
         when(returnDocumentRepository.findByIdForUpdate(200L)).thenReturn(Optional.of(doc));
 

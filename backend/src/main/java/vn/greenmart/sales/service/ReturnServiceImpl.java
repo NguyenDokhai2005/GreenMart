@@ -76,10 +76,11 @@ public class ReturnServiceImpl implements ReturnService {
             );
         }
 
+        // [SỬA THEO REVIEW #410]: Quá hạn 7 ngày trả 422 RETURN_WINDOW_EXPIRED
         Instant now = Instant.now();
         if (order.getCompletedAt() == null || now.isAfter(order.getCompletedAt().plus(RETURN_WINDOW_DAYS, ChronoUnit.DAYS))) {
             throw new AppException(
-                    ErrorCode.VALIDATION_ERROR,
+                    ErrorCode.RETURN_WINDOW_EXPIRED,
                     "Đơn hàng đã quá thời hạn trả hàng 7 ngày kể từ khi hoàn tất",
                     List.of(new ValidationErrorDetail("orderId", "Đã quá hạn trả hàng 7 ngày (BR-10)"))
             );
@@ -116,11 +117,12 @@ public class ReturnServiceImpl implements ReturnService {
                         List.of(new ValidationErrorDetail("items[" + i + "].orderItemId", "Không thuộc đơn hàng " + order.getCode()))
                 );
             }
+            // [SỬA THEO REVIEW #410]: Vượt số lượng còn lại trả 422 RETURN_QUANTITY_EXCEEDED kèm details items[i].quantity
             long alreadyReturned = alreadyReturnedMap.getOrDefault(oi.getId(), 0L);
             long remainingQty = oi.getQuantity() - alreadyReturned;
             if (itemReq.quantity() > remainingQty) {
                 throw new AppException(
-                        ErrorCode.VALIDATION_ERROR,
+                        ErrorCode.RETURN_QUANTITY_EXCEEDED,
                         "Số lượng trả vượt quá số lượng còn lại có thể trả (" + remainingQty + ")",
                         List.of(new ValidationErrorDetail("items[" + i + "].quantity", "Tối đa được trả " + remainingQty))
                 );
@@ -135,13 +137,13 @@ public class ReturnServiceImpl implements ReturnService {
             totalRefundAmount = Math.addExact(totalRefundAmount, lineRefund);
         }
 
-        // Sinh mã phiếu trả RET-<CN>-<yyyyMMdd>-<seq>
+        // [SỬA THEO REVIEW #410]: Dùng bảng bộ đếm riêng return_sequence (V18) thay cho order_sequence
         String branchCodeClean = branchInfo.code().replace("-", "");
         LocalDate localDate = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"));
         String dateStr = localDate.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         Long seq = jdbcTemplate.queryForObject(
-                "INSERT INTO order_sequence (branch_id, order_date, seq) VALUES (?, ?, 1) "
-                        + "ON CONFLICT (branch_id, order_date) DO UPDATE SET seq = order_sequence.seq + 1 RETURNING seq",
+                "INSERT INTO return_sequence (branch_id, return_date, seq) VALUES (?, ?, 1) "
+                        + "ON CONFLICT (branch_id, return_date) DO UPDATE SET seq = return_sequence.seq + 1 RETURNING seq",
                 Long.class, request.branchId(), localDate
         );
         String code = String.format("RET-%s-%s-%04d", branchCodeClean, dateStr, seq);
@@ -171,9 +173,8 @@ public class ReturnServiceImpl implements ReturnService {
     @Override
     @Transactional(readOnly = true)
     public ReturnResponse getReturn(Long returnId) {
-        if (SecurityUtils.getCurrentRole() == null) {
-            throw new AppException(ErrorCode.UNAUTHORIZED, "Chưa đăng nhập");
-        }
+        // [SỬA THEO REVIEW #410]: Kiểm tra vai trò theo ma trận quyền BA mục 2
+        SecurityUtils.requireRole("CASHIER", "BRANCH_MANAGER", "OWNER");
         ReturnDocument doc = returnDocumentRepository.findById(returnId)
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy phiếu trả hàng"));
         requireBranchAccess(doc.getBranchId());
@@ -187,9 +188,8 @@ public class ReturnServiceImpl implements ReturnService {
     @Override
     @Transactional(readOnly = true)
     public List<ReturnResponse> listReturnsByOrder(Long orderId) {
-        if (SecurityUtils.getCurrentRole() == null) {
-            throw new AppException(ErrorCode.UNAUTHORIZED, "Chưa đăng nhập");
-        }
+        // [SỬA THEO REVIEW #410]: Kiểm tra vai trò theo ma trận quyền BA mục 2
+        SecurityUtils.requireRole("CASHIER", "BRANCH_MANAGER", "OWNER");
         SalesOrder order = salesOrderRepository.findById(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy đơn hàng"));
         List<OrderItem> orderItems = orderItemRepository.findByOrderId(order.getId());
@@ -233,9 +233,10 @@ public class ReturnServiceImpl implements ReturnService {
             );
         }
 
+        // [SỬA THEO REVIEW #410]: Quá hạn 7 ngày trả 422 RETURN_WINDOW_EXPIRED
         if (order.getCompletedAt() == null
                 || doc.getCreatedAt().isAfter(order.getCompletedAt().plus(RETURN_WINDOW_DAYS, ChronoUnit.DAYS))) {
-            throw new AppException(ErrorCode.VALIDATION_ERROR, "Phiếu trả vượt quá thời hạn 7 ngày kể từ khi hoàn tất đơn");
+            throw new AppException(ErrorCode.RETURN_WINDOW_EXPIRED, "Phiếu trả vượt quá thời hạn 7 ngày kể từ khi hoàn tất đơn");
         }
 
         List<OrderItem> orderItems = orderItemRepository.findByOrderId(order.getId());
@@ -254,20 +255,28 @@ public class ReturnServiceImpl implements ReturnService {
         record StockAdjustment(Long productId, int quantity, boolean resellable) {}
         List<StockAdjustment> adjustments = new ArrayList<>();
 
+        int idx = 0;
         for (ReturnItem item : doc.getItems()) {
             OrderItem oi = orderItemMap.get(item.getOrderItemId());
             if (oi == null) {
                 throw new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy dòng đơn hàng gốc");
             }
             long alreadyApproved = approvedBeforeMap.getOrDefault(oi.getId(), 0L);
-            if (item.getQuantity() > (oi.getQuantity() - alreadyApproved)) {
-                throw new AppException(ErrorCode.VALIDATION_ERROR, "Số lượng trả vượt quá số lượng còn lại của đơn hàng");
+            long remainingQty = oi.getQuantity() - alreadyApproved;
+            // [SỬA THEO REVIEW #410]: Vượt số lượng trả trả 422 RETURN_QUANTITY_EXCEEDED
+            if (item.getQuantity() > remainingQty) {
+                throw new AppException(
+                        ErrorCode.RETURN_QUANTITY_EXCEEDED,
+                        "Số lượng trả vượt quá số lượng còn lại của đơn hàng",
+                        List.of(new ValidationErrorDetail("items[" + idx + "].quantity", "Tối đa được trả " + remainingQty))
+                );
             }
             adjustments.add(new StockAdjustment(
                     oi.getProductId(),
                     item.getQuantity(),
                     item.getCondition() == ReturnItemCondition.RESELLABLE
             ));
+            idx++;
         }
 
         // Sắp xếp theo productId ASC để tránh deadlock khi cập nhật kho (BR-01)
@@ -384,6 +393,7 @@ public class ReturnServiceImpl implements ReturnService {
     /**
      * Công thức tiền hoàn của 1 dòng (BR-10 & BA mục 5.2):
      * Hoàn = (SL trả / SL mua) * (lineTotal - KM_đơn * lineTotal / Tổng_sau_giảm_dòng)
+     * Làm tròn xuống đến đồng VND.
      */
     private long calculateLineRefund(SalesOrder order, List<OrderItem> allOrderItems, OrderItem targetItem, int returnQty) {
         long sumAfterItemDiscount = allOrderItems.stream()
