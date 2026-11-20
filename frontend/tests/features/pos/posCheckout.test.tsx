@@ -65,8 +65,17 @@ const quote: Quote = {
 const paidOrder = {
   id: 42,
   code: 'POS-GM001-20261116-0042',
+  branch: { id: 1, code: 'GM-001', name: 'Quận 1' },
+  createdBy: { id: 7, fullName: 'Nguyễn An' },
+  customer: { id: 9, name: 'Lê Hoàng Mai', phone: '0900000000' },
+  items: [
+    { id: 4, name: product.name, quantity: 1, unitPrice: 32000, discount: 0, lineTotal: 32000 },
+  ],
+  subtotal: 32000,
+  orderDiscount: 0,
+  discount: 0,
   total: 32000,
-  payments: [{ method: 'CASH', status: 'PAID', change: 8000 }],
+  payments: [{ method: 'CASH', status: 'PAID', cashReceived: 40000, change: 8000 }],
 };
 
 async function openCheckout() {
@@ -94,6 +103,33 @@ afterEach(() => {
 });
 
 describe('POS checkout', () => {
+  it('shows item and order discounts from the completed API order in the printable receipt', async () => {
+    completePosOrder.mockResolvedValue({
+      ...paidOrder,
+      items: [
+        {
+          ...paidOrder.items[0],
+          discount: 4000,
+          lineTotal: 28000,
+          promotion: { code: 'KM-SUA' },
+        },
+      ],
+      subtotal: 32000,
+      orderDiscount: 3000,
+      discount: 7000,
+      total: 25000,
+      payments: [{ method: 'CARD', status: 'PAID' }],
+    });
+    await openCheckout();
+    fireEvent.click(screen.getByRole('button', { name: 'Thẻ' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
+    const receipt = await screen.findByRole('dialog', { name: 'Thanh toán thành công' });
+    expect(receipt.textContent).toContain('KM-SUA 4.000 đ');
+    expect(receipt.textContent).toContain('Giảm giá đơn hàng−3.000 đ');
+    expect(receipt.textContent).toContain('Tổng giảm giá7.000 đ');
+    expect(receipt.textContent).toContain('Tổng thanh toán25.000 đ');
+  });
+
   it('shows cash change and blocks completion below the quoted total', async () => {
     completePosOrder.mockResolvedValue(paidOrder);
     await openCheckout();
@@ -116,7 +152,17 @@ describe('POS checkout', () => {
     expect(completePosOrder.mock.calls[0][1]).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
-    expect(await screen.findByText(`Đơn ${paidOrder.code} đã hoàn tất.`)).toBeTruthy();
+    const receipt = await screen.findByRole('dialog', { name: 'Thanh toán thành công' });
+    expect(receipt.textContent).toContain(paidOrder.code);
+    expect(receipt.textContent).toContain('Nguyễn An');
+    expect(receipt.textContent).toContain('Lê Hoàng Mai');
+    expect(receipt.textContent).toContain('Tiền thừa 8.000 đ');
+    const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
+    fireEvent.click(screen.getByRole('button', { name: 'In hóa đơn' }));
+    expect(print).toHaveBeenCalledOnce();
+    print.mockRestore();
+    fireEvent.click(screen.getByRole('button', { name: 'Đơn hàng mới' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.getByText('Giỏ hàng đang trống')).toBeTruthy();
   });
 
@@ -139,7 +185,7 @@ describe('POS checkout', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
     await waitFor(() => expect(completePosOrder).toHaveBeenCalledTimes(2));
     expect(completePosOrder.mock.calls[1]).toEqual(completePosOrder.mock.calls[0]);
-    expect(await screen.findByText(`Đơn ${paidOrder.code} đã hoàn tất.`)).toBeTruthy();
+    expect(await screen.findByRole('dialog', { name: 'Thanh toán thành công' })).toBeTruthy();
   });
 
   it.each(['PAYMENT_FAILED', 'PAYMENT_TIMEOUT'])(
@@ -160,7 +206,7 @@ describe('POS checkout', () => {
       expect(completePosOrder.mock.calls[0][0].payment).toEqual({ method: 'CARD' });
       expect(completePosOrder.mock.calls[1][0].payment).toEqual({ method: 'QR' });
       expect(completePosOrder.mock.calls[1][1]).not.toBe(completePosOrder.mock.calls[0][1]);
-      expect(await screen.findByText(`Đơn ${paidOrder.code} đã hoàn tất.`)).toBeTruthy();
+      expect(await screen.findByRole('dialog', { name: 'Thanh toán thành công' })).toBeTruthy();
     },
   );
 
