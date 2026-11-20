@@ -280,6 +280,24 @@ describe('POS cart', () => {
     expect(screen.queryByText('ORDER-1K')).toBeNull();
   });
 
+  it('does not repeat an item promotion code when the name equals the code', async () => {
+    quoteOrder.mockResolvedValue({
+      ...quote(1),
+      lines: [
+        {
+          ...quote(1).lines[0],
+          promotion: { id: 11, code: 'ITEM-2K', name: 'ITEM-2K', discount: 2000 },
+        },
+      ],
+    });
+    render(<PosSalePage item={POS_NAVIGATION[0]} />);
+    const search = screen.getByLabelText('Quét mã vạch hoặc tìm theo tên / SKU');
+    fireEvent.change(search, { target: { value: product.sku } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(await screen.findByText('ITEM-2K')).toBeTruthy();
+    expect(screen.queryByText('ITEM-2K · ITEM-2K')).toBeNull();
+  });
+
   it('adds a product selected from a name search using its SKU', async () => {
     render(<PosSalePage item={POS_NAVIGATION[0]} />);
     const input = screen.getByLabelText('Quét mã vạch hoặc tìm theo tên / SKU');

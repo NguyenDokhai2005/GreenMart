@@ -341,7 +341,8 @@ export default function PosSalePage({ item }: PosPageProps) {
                       </small>
                       {quotedLine?.promotion && (
                         <small className="pos-sale__promotion">
-                          {quotedLine.promotion.name
+                          {quotedLine.promotion.name &&
+                          quotedLine.promotion.name !== quotedLine.promotion.code
                             ? `${quotedLine.promotion.name} · ${quotedLine.promotion.code}`
                             : quotedLine.promotion.code}
                         </small>
