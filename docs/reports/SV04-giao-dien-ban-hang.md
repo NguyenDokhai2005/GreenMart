@@ -44,7 +44,7 @@ Lệnh kiểm tra frontend: `npm run typecheck`, `npm run lint`, `npm run format
 
 | Issue | Bàn giao | Trạng thái tại 20/11/2026 |
 | --- | --- | --- |
-| #78 | Hiển thị khuyến mại POS, PR #411 | CI xanh; chờ review và kiểm tra API/ảnh thật |
+| #78 | Hiển thị khuyến mại POS, PR #411 | Đã thử báo giá ITEM/ORDER với API thật và ảnh 1440 px; chờ Lead review |
 | #79 | Xử lý lỗi POS và khôi phục nút hóa đơn, PR #413 | CI xanh; chờ review và xác nhận lại thiết kế đã cập nhật |
 | #80 | Danh sách đơn/bộ lọc, PR #435 | CI xanh, đã chạy với API thật; chờ Lead review và merge |
 | #81 | Chi tiết và hoàn tất/hủy đơn online, PR #436 | CI xanh, đã chạy GET/Hoàn tất/Hủy với API thật; chờ Lead review và tích hợp #80 |
