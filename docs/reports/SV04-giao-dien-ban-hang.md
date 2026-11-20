@@ -36,7 +36,7 @@ Việc tạo/xác nhận đơn online từ kênh và tự hết hạn là trách
 
 ## 5. Khả dụng và kiểm tra
 
-POS và danh sách đơn đã được thử trên Chrome ở viewport 360 × 780 px bằng Prism mock theo OpenAPI. `document.documentElement.scrollWidth` bằng 360 px trên cả hai route. Một ca POS dùng bàn phím đã đi từ F2, nhập barcode, Enter thêm hàng, F4, Enter mở thanh toán, Tab/Enter chọn thẻ và hoàn tất; hóa đơn thành công vẫn có độ rộng tài liệu 360 px. Mock chỉ xác nhận luồng trình duyệt, bố cục và hình dạng request/response mẫu; không chứng minh tích hợp API nghiệp vụ thật hoặc tốc độ ba món dưới 30 giây của NFR-12.
+POS và danh sách đơn đã được thử trên Chrome ở viewport 360 × 780 px bằng Prism mock theo OpenAPI, sau đó thử lại với backend QA thật. `document.documentElement.scrollWidth` bằng 360 px trên cả hai route. Một ca POS dùng bàn phím đã đi từ F2, nhập barcode, Enter thêm hàng, F4, Enter mở thanh toán, Tab/Enter chọn thẻ và hoàn tất; backend QA tạo hóa đơn `POS-GM001-20261120-0001`, độ rộng tài liệu vẫn là 360 px. Danh sách đơn 360 px cũng lấy được đơn WEB thật. Chưa đo tốc độ ba món dưới 30 giây của NFR-12.
 
 Lệnh kiểm tra frontend: `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm test -- --run`, `npm run build`. CI cũng chạy kiểm tra sinh kiểu API. Với backend QA cô lập từ commit `develop` 4e45b44 và seed SV06, Chrome 1440 px đã hiển thị 1.766 đơn WEB từ `GET /orders` và chi tiết đơn từ `GET /orders/{orderId}`. Hai đơn WEB `CONFIRMED` được tạo riêng trong QA: thao tác Hoàn tất và Hủy qua giao diện lần lượt trả trạng thái `COMPLETED` và `CANCELLED`. Đối chiếu ảnh chính xác với frame Figma 1440 px và đo thời gian ba món theo NFR-12 vẫn cần trước nghiệm thu cuối.
 
@@ -49,7 +49,7 @@ Lệnh kiểm tra frontend: `npm run typecheck`, `npm run lint`, `npm run format
 | #80 | Danh sách đơn/bộ lọc, PR #435 | CI xanh, đã chạy với API thật; chờ Lead review và merge |
 | #81 | Chi tiết và hoàn tất/hủy đơn online, PR #436 | CI xanh, đã chạy GET/Hoàn tất/Hủy với API thật; chờ Lead review và tích hợp #80 |
 | #82 | Giao diện trả hàng | Chờ PR backend #410 và hợp đồng `/returns` được merge vào `develop` |
-| #83 | Bố cục 360 px và bàn phím, PR #437 | PR nháp xếp sau #80; đã thử trên Chrome với mock |
+| #83 | Bố cục 360 px và bàn phím, PR #437 | PR nháp xếp sau #80; CI nhánh xanh, đã thử trên Chrome với mock và API thật |
 | #84 | Kiểm tra quyền và lỗi trạng thái, PR #438 | PR nháp xếp sau #81; ma trận quyền và test hồi quy chạy local |
 
 Các issue chỉ đạt Definition of Done sau khi PR được review, CI xanh, merge vào `develop`, và có bằng chứng chạy với API thật hoặc nghiệm thu tương ứng. Bảng trên không coi PR nháp hay mock là hoàn tất tích hợp.
