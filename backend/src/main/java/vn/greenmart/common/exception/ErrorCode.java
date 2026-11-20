@@ -25,6 +25,8 @@ public enum ErrorCode {
 
     // 409
     CONFLICT(HttpStatus.CONFLICT, "Dữ liệu bị xung đột hoặc đã bị thay đổi bởi giao dịch khác"),
+    FORECAST_RUNNING(HttpStatus.CONFLICT, "Đang có lượt dự báo chạy"),
+    FORECAST_NO_DATA(HttpStatus.CONFLICT, "Chưa có dữ liệu bán hàng để chạy dự báo"),
     INVALID_STATUS(HttpStatus.CONFLICT, "Thao tác không hợp lệ với trạng thái hiện tại"),
     DUPLICATE_SKU(HttpStatus.CONFLICT, "Mã SKU đã tồn tại"),
     DUPLICATE_BARCODE(HttpStatus.CONFLICT, "Mã vạch barcode đã tồn tại"),
