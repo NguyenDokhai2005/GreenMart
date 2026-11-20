@@ -38,7 +38,7 @@ Việc tạo/xác nhận đơn online từ kênh và tự hết hạn là trách
 
 POS và danh sách đơn đã được thử trên Chrome ở viewport 360 × 780 px bằng Prism mock theo OpenAPI. `document.documentElement.scrollWidth` bằng 360 px trên cả hai route. Một ca POS dùng bàn phím đã đi từ F2, nhập barcode, Enter thêm hàng, F4, Enter mở thanh toán, Tab/Enter chọn thẻ và hoàn tất; hóa đơn thành công vẫn có độ rộng tài liệu 360 px. Mock chỉ xác nhận luồng trình duyệt, bố cục và hình dạng request/response mẫu; không chứng minh tích hợp API nghiệp vụ thật hoặc tốc độ ba món dưới 30 giây của NFR-12.
 
-Lệnh kiểm tra frontend: `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm test -- --run`, `npm run build`. CI cũng chạy kiểm tra sinh kiểu API. Bằng chứng theo issue và PR được ghi ở phần sau; kiểm tra thực tế bằng backend và đối chiếu ảnh desktop 1440 px vẫn cần trước nghiệm thu cuối.
+Lệnh kiểm tra frontend: `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm test -- --run`, `npm run build`. CI cũng chạy kiểm tra sinh kiểu API. Với backend QA cô lập từ commit `develop` 4e45b44 và seed SV06, Chrome 1440 px đã hiển thị 1.766 đơn WEB từ `GET /orders` và chi tiết đơn từ `GET /orders/{orderId}`. Hai đơn WEB `CONFIRMED` được tạo riêng trong QA: thao tác Hoàn tất và Hủy qua giao diện lần lượt trả trạng thái `COMPLETED` và `CANCELLED`. Đối chiếu ảnh chính xác với frame Figma 1440 px và đo thời gian ba món theo NFR-12 vẫn cần trước nghiệm thu cuối.
 
 ## 6. Trạng thái bàn giao tại mốc tài liệu
 
@@ -46,8 +46,8 @@ Lệnh kiểm tra frontend: `npm run typecheck`, `npm run lint`, `npm run format
 | --- | --- | --- |
 | #78 | Hiển thị khuyến mại POS, PR #411 | CI xanh; chờ review và kiểm tra API/ảnh thật |
 | #79 | Xử lý lỗi POS và khôi phục nút hóa đơn, PR #413 | CI xanh; chờ review và xác nhận lại thiết kế đã cập nhật |
-| #80 | Danh sách đơn/bộ lọc, PR #435 | PR nháp; CI xanh sau chạy lại job Docker do lỗi tải Maven tạm thời |
-| #81 | Chi tiết và hoàn tất/hủy đơn online, PR #436 | PR nháp; CI xanh; chờ tích hợp với #80 và kiểm chứng API thật |
+| #80 | Danh sách đơn/bộ lọc, PR #435 | CI xanh, đã chạy với API thật; chờ Lead review và merge |
+| #81 | Chi tiết và hoàn tất/hủy đơn online, PR #436 | CI xanh, đã chạy GET/Hoàn tất/Hủy với API thật; chờ Lead review và tích hợp #80 |
 | #82 | Giao diện trả hàng | Chờ PR backend #410 và hợp đồng `/returns` được merge vào `develop` |
 | #83 | Bố cục 360 px và bàn phím, PR #437 | PR nháp xếp sau #80; đã thử trên Chrome với mock |
 | #84 | Kiểm tra quyền và lỗi trạng thái, PR #438 | PR nháp xếp sau #81; ma trận quyền và test hồi quy chạy local |
