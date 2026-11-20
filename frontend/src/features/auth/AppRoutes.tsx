@@ -14,8 +14,13 @@ import ProductsPage from '../catalog/ProductsPage';
 import CustomersPage from '../catalog/CustomersPage';
 import { OperationsHome, OperationsLayout } from '../../layouts/operations';
 import InventoryPage from '../inventory/InventoryPage';
+import InventoryLedgerPage from '../inventory/InventoryLedgerPage';
+import LedgerOrderDetailDialog from '../inventory/LedgerOrderDetailDialog';
 import StockDocumentsPage from '../stock-documents/StockDocumentsPage';
 import StockDocumentDetailDrawer from '../stock-documents/StockDocumentDetailDrawer';
+import TransferDetailPage from '../transfers/TransferDetailPage';
+import TransferListPage from '../transfers/TransferListPage';
+import { TransferCreatePage, TransferEditPage } from '../transfers/TransferFormPage';
 import {
   ADMIN_ROLES,
   APP_PATHS,
@@ -277,6 +282,13 @@ export function AppRoutes() {
         <Route path="products" element={<ProductsPage />} />
         <Route path="customers" element={<CustomersPage />} />
         <Route path="inventory" element={<InventoryPage />} />
+        <Route path="ledger" element={<InventoryLedgerPage />}>
+          <Route path="orders/:id" element={<LedgerOrderDetailDialog />} />
+        </Route>
+        <Route path="transfers" element={<TransferListPage />} />
+        <Route path="transfers/new" element={<TransferCreatePage />} />
+        <Route path="transfers/:id" element={<TransferDetailPage />} />
+        <Route path="transfers/:id/edit" element={<TransferEditPage />} />
         <Route path="stock-documents" element={<StockDocumentsPage />}>
           <Route path=":id" element={<StockDocumentDetailDrawer />} />
         </Route>
