@@ -145,6 +145,22 @@
   font-weight: 700;
 }
 
+@media (max-width: 480px) {
+  .pos-checkout__methods {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pos-checkout__totals > div,
+  .pos-checkout__receipt-totals div {
+    gap: var(--gm-space-2);
+  }
+
+  .pos-checkout__receipt-meta,
+  .pos-checkout__receipt-lines {
+    overflow-wrap: anywhere;
+  }
+}
+
 @media print {
   body:has(.pos-checkout__success) * {
     visibility: hidden;
