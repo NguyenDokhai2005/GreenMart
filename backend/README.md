@@ -115,6 +115,30 @@ logout/refresh đồng thời, tài khoản khóa, vô hiệu hóa và thu hồi
 truy cập công khai; các request còn lại cần xác thực JWT. Quyền vai trò và phạm vi
 chi nhánh tiếp tục được kiểm tra tại security chain và tầng service tương ứng.
 
+## API quản trị tài khoản (#424)
+
+`/api/v1/users` và các thao tác chi tiết, sửa, unlock, reset-password chỉ dành
+cho ADMIN. DTO phản hồi không chứa mật khẩu/hash. Vai trò theo chi nhánh phải
+có ít nhất một chi nhánh đang hoạt động; ADMIN/OWNER bỏ qua branchIds và dùng
+các chi nhánh đang hoạt động. Danh sách có lọc, phân trang và sort theo whitelist.
+
+Đổi vai trò/chi nhánh/trạng thái hoặc reset mật khẩu thu hồi mọi phiên qua
+registry của #155 (PR #434). Khóa dòng tài khoản dùng chung với login/refresh
+ngăn phiên vừa được cấp lọt qua thao tác thu hồi. Redis lỗi thì thay đổi DB bị
+hủy; nếu DB lỗi sau khi thu hồi, phiên vẫn bị thu hồi để giữ an toàn.
+Đổi riêng họ tên không buộc đăng nhập lại. Unlock chỉ xóa khóa do nhập sai,
+không tự kích hoạt tài khoản đã bị Admin vô hiệu hóa.
+
+Admin không được tự vô hiệu hóa hoặc tự đổi vai trò (`SELF_ACTION_FORBIDDEN`
+đã có trong OpenAPI). Các thao tác quản trị được tuần tự hóa bằng khóa giao dịch
+và kiểm tra lại quyền người thao tác sau khi chờ, tránh hai Admin đồng thời hạ
+quyền nhau làm mất toàn bộ Admin. Audit lưu cùng giao dịch, không ghi password/hash.
+Create giữ quy tắc chữ+số; reset theo min/max hiện có trong OpenAPI; cả hai chặn
+vượt 72 byte UTF-8 trước BCrypt. Không đổi schema hoặc OpenAPI trong #424.
+
+`UserAdminApiTest` dùng PostgreSQL/Redis thật; chạy cùng `AuthSessionSecurityTest`
+để kiểm tra quyền, validation, phiên, lỗi Redis/audit và đổi quyền đồng thời.
+
 ## API xem tồn kho (#52)
 
 `GET /api/v1/inventory` trả trang tồn theo OpenAPI, hỗ trợ `branchId`, `productId`,
