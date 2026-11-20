@@ -38,6 +38,7 @@
 }
 
 .online-order__card {
+  min-width: 0;
   padding: var(--gm-space-4);
   border: 1px solid var(--gm-color-border);
   border-radius: var(--gm-radius-lg);
