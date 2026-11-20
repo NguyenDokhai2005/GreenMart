@@ -266,9 +266,34 @@ export interface paths {
     };
     /** Chi tiết khách hàng */
     get: operations['getCustomer'];
-    /** Sửa khách hàng */
+    /**
+     * Sửa khách hàng
+     * @description Cập nhật thông tin khách hàng. Để mở lại khách đã vô hiệu hóa, gửi active: true.
+     */
     put: operations['updateCustomer'];
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/customers/{customerId}/deactivate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        customerId: components['parameters']['CustomerId'];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Vô hiệu hóa khách hàng
+     * @description Chuyển trạng thái hoạt động của khách hàng sang không hoạt động (active = false). Mở lại bằng PUT /customers/{customerId} với active: true.
+     */
+    post: operations['deactivateCustomer'];
     delete?: never;
     options?: never;
     head?: never;
@@ -961,6 +986,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/integrations/sync-logs': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Xem nhật ký đồng bộ (ADMIN, OWNER) */
+    get: operations['listSyncLogs'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/integrations/sync-logs/{id}/retry': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * ADMIN đưa callback FAILED vào lịch gửi lại
+     * @description Giữ nguyên event và payload. Đặt lại bộ đếm cho lượt gửi mới. Hai yêu cầu đồng thời chỉ xếp một lượt gửi.
+     */
+    post: operations['retrySyncLog'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/forecasts': {
     parameters: {
       query?: never;
@@ -1246,6 +1308,8 @@ export interface components {
       name: string;
       /** Format: email */
       email?: string | null;
+      /** @example true */
+      active: boolean;
       /** Format: date-time */
       createdAt: string;
     };
@@ -1254,6 +1318,8 @@ export interface components {
       name: string;
       /** Format: email */
       email?: string | null;
+      /** @description Trạng thái hoạt động (tùy chọn khi sửa; gửi true để mở lại khách đã vô hiệu hóa) */
+      active?: boolean | null;
     };
     CustomerPage: components['schemas']['PageMeta'] & {
       content: components['schemas']['Customer'][];
@@ -2699,6 +2765,8 @@ export interface operations {
         q?: string;
         /** @description Khớp chính xác số điện thoại (dùng ở POS) */
         phone?: components['schemas']['Phone'];
+        /** @description Lọc theo trạng thái hoạt động (mặc định true; chỉ OWNER, BRANCH_MANAGER được gửi active=false) */
+        active?: boolean;
         /** @description Số trang, bắt đầu từ 0 */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
@@ -2804,6 +2872,31 @@ export interface operations {
       403: components['responses']['Forbidden'];
       404: components['responses']['NotFound'];
       409: components['responses']['Conflict'];
+    };
+  };
+  deactivateCustomer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        customerId: components['parameters']['CustomerId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Đã vô hiệu hóa */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Customer'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
     };
   };
   listCustomerOrders: {
@@ -4207,6 +4300,120 @@ export interface operations {
       400: components['responses']['BadRequest'];
       401: components['responses']['Unauthorized'];
       403: components['responses']['Forbidden'];
+    };
+  };
+  listSyncLogs: {
+    parameters: {
+      query?: {
+        channelCode?: 'WEB' | 'MARKET';
+        status?: 'SUCCESS' | 'FAILED' | 'RETRYING';
+        page?: number;
+        size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Nhật ký mới nhất trước */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            page: number;
+            size: number;
+            /** Format: int64 */
+            totalElements: number;
+            content: {
+              /** Format: int64 */
+              id?: number;
+              channelCode?: string;
+              /** @enum {string} */
+              direction?: 'IN' | 'OUT';
+              externalId?: string | null;
+              /** @enum {string} */
+              status?: 'SUCCESS' | 'FAILED' | 'RETRYING';
+              attempts?: number;
+              error?: string | null;
+              /** Format: date-time */
+              createdAt?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Bộ lọc không hợp lệ */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Chưa đăng nhập */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Không đủ quyền */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  retrySyncLog: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Đã đưa vào lịch gửi nền */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      400: components['responses']['BadRequest'];
+      /** @description Chưa đăng nhập */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Chỉ ADMIN được gửi lại */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Không có nhật ký */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Không phải callback FAILED có thể gửi lại */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
     };
   };
   getForecast: {

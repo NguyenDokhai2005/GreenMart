@@ -1,0 +1,286 @@
+{
+  "date": "2026-11-18",
+  "runtimeSourceCommit": "9daa47de2e8ad5ebd755650d5023af637b3d82f9",
+  "publicationBranch": "feature/158-system-recheck-20261118",
+  "scope": "QA report only; all10groups executed with findings/gaps, not an all-PASS or issue-Done declaration",
+  "environment": {
+    "docker": "28.4.0",
+    "engineRamApproxGiB": 8,
+    "backendMemoryMiB": 768,
+    "jvmHeapMiB": 512,
+    "backendCpus": 2,
+    "data": "fresh synthetic QA",
+    "containersStopped": true,
+    "volumesPreserved": true
+  },
+  "suites": {
+    "backend": 538,
+    "backendFailures": 0,
+    "backendErrors": 0,
+    "salesLineCoveragePct": 85.75,
+    "inventoryLineCoveragePct": 96.04,
+    "frontendPassed": 294,
+    "connectorPassed": 8,
+    "forecastFullSuite": {
+      "passed": 214,
+      "skipped": 1,
+      "subtestsPassed": 4
+    },
+    "forecastSkippedCaseRerunPassed": 1,
+    "rbacMainPassed": 591,
+    "rbacSupplementPassed": 173,
+    "auth242Raw": {
+      "PASS": 62,
+      "FAIL": 2,
+      "BLOCKED": 1
+    },
+    "edge153Raw": {
+      "PASS": 39,
+      "BLOCKED": 1
+    },
+    "audit154Raw": {
+      "PASS": 36,
+      "BLOCKED": 2
+    },
+    "security155Raw": {
+      "PASS": 28,
+      "BLOCKED": 3
+    },
+    "paymentCustomerRedisPassed": 33,
+    "latePaidAndAdjustmentSupplementPassed": 35,
+    "newmanPosAssertionsPassed": 15,
+    "newmanAuthAssertionsPassed": 26
+  },
+  "browser": {
+    "accounts": 12,
+    "viewports": [
+      1440,
+      360
+    ],
+    "accountCartCatalogPassed": 28,
+    "checkoutCashCardQrPassed": 6,
+    "documentCreateApprovePassed": 2,
+    "legacyFixmeSkipped": 5,
+    "interpretation": "Separate real checkout/documents bridge some legacy fixme entries; online/invoice/transfer/Forecast UI still incomplete."
+  },
+  "performance": {
+    "measuredFlows": 13984,
+    "createdOrders": 13984,
+    "businessErrorRate": 0.00012871853546910755,
+    "logicalFailures": 0,
+    "readDurationMs": {
+      "max": 275.747847,
+      "p(95)": 10.383119599999992,
+      "min": 0,
+      "med": 4.368641
+    },
+    "createDurationMs": {
+      "p(95)": 55.54948474999982,
+      "min": 7.722732,
+      "med": 13.9320235,
+      "max": 760.43044
+    }
+  },
+  "races": {
+    "pos100": {
+      "created": 5,
+      "rejected": 95,
+      "unexpected": 0
+    },
+    "mixed100": {
+      "pos": 2,
+      "online": 3,
+      "rejected": 95,
+      "unexpected": 0
+    },
+    "reverseTwoSku100": {
+      "wins": 5,
+      "rejected": 95,
+      "unexpected": 0
+    }
+  },
+  "outage": {
+    "freshMappedQaCasesPassed": 21,
+    "minimumSeconds": 300,
+    "result": "POS/outbox/readiness/replay/WEB and MARKET persisted stock checked; no recovery<=60s claim"
+  },
+  "existingBug384": {
+    "result": "FAIL",
+    "proposedPrimary": "SV07 per existing issue; no assignee change",
+    "traceId": "89acf171-4e9b-4958-acbd-73d01ed62246",
+    "pendingEvents": 20325,
+    "oldestPendingSeconds": 284.686329,
+    "tracePending": 2,
+    "traceSent": 0,
+    "traceAgeSeconds": 61.168159,
+    "receivedWithin60Seconds": {
+      "WEB": false,
+      "MARKET": false
+    },
+    "assessment": "Backlog/latency observed; event loss not established"
+  },
+  "fixedBugRegression": {
+    "386": {
+      "racesPassed": 6,
+      "statusesPerRace": [
+        [
+          422,
+          200
+        ],
+        [
+          422,
+          200
+        ],
+        [
+          422,
+          200
+        ],
+        [
+          422,
+          200
+        ],
+        [
+          200,
+          422
+        ],
+        [
+          200,
+          422
+        ]
+      ]
+    },
+    "387": {
+      "http": 400,
+      "unitPrice": 9223372036854775807,
+      "quantity": 2,
+      "total": null
+    },
+    "388": {
+      "beforeRevenue": 10000,
+      "afterDeactivationRevenue": 10000
+    },
+    "389": {
+      "paid": 18000,
+      "productNetRevenue": 18000
+    }
+  },
+  "forecast": {
+    "dailySalesRows": 1095000,
+    "sold": 165566,
+    "returned": 1369,
+    "net": 164197,
+    "futureRows": 111000,
+    "series": 3000,
+    "negativePredictions": 0,
+    "actualPersistentCompletedEvent": "PASS",
+    "ac05Method": "Lead295 horizon aggregate, clean holdout2026-10-02..2026-10-31",
+    "h7ModelWape": 0.7928124391048782,
+    "h7BestBaselineWape": 0.9701593505712568,
+    "h30ModelWape": 0.5048201017669873,
+    "h30BestBaselineWape": 0.7238411089581159,
+    "validationThreshold": 0.4,
+    "slowMovingZeroPredictionRatio": 0.9983333333333333
+  },
+  "contractObservation": {
+    "observedOperations": 61,
+    "contractOperations": 61,
+    "implementedObserved": 51,
+    "notImplementedObserved": 10,
+    "limitation": "Observed is not full role/branch/input/state/schema coverage",
+    "users404": [
+      "GET /users",
+      "POST /users",
+      "GET /users/{userId}",
+      "PUT /users/{userId}",
+      "POST /users/{userId}/unlock",
+      "POST /users/{userId}/reset-password"
+    ],
+    "forecastBackend404": [
+      "GET /forecasts",
+      "GET /forecasts/runs",
+      "POST /forecasts/runs",
+      "GET /forecasts/runs/{runId}"
+    ],
+    "usersOwner": "Not confirmed; #144 is QA test cases, #241 is Auth01 code, not CRUD assignment"
+  },
+  "operations": {
+    "gitleaksCurrentTrackedFindings": 0,
+    "upgradeV15toV16": "PASS",
+    "preservedCounts": {
+      "products": 1000,
+      "ordersAllStatuses": 10200,
+      "inventory": 3000
+    },
+    "backupRestoreCounts": {
+      "product": 1027,
+      "customer": 1504,
+      "inventory": 3028,
+      "sales_order": 24408,
+      "order_item": 70504,
+      "outbox_event": 28428
+    }
+  },
+  "securityScannerRecords": {
+    "dependencies": {
+      "records": 56,
+      "uniqueIdsWithinTarget": 55,
+      "severity": {
+        "HIGH": 27,
+        "MEDIUM": 19,
+        "CRITICAL": 3,
+        "LOW": 7
+      }
+    },
+    "image-backend": {
+      "records": 448,
+      "uniqueIdsWithinTarget": 294,
+      "severity": {
+        "HIGH": 42,
+        "MEDIUM": 283,
+        "LOW": 112,
+        "CRITICAL": 11
+      }
+    },
+    "image-frontend": {
+      "records": 185,
+      "uniqueIdsWithinTarget": 121,
+      "severity": {
+        "CRITICAL": 3,
+        "MEDIUM": 87,
+        "LOW": 39,
+        "HIGH": 56
+      }
+    },
+    "image-forecast": {
+      "records": 238,
+      "uniqueIdsWithinTarget": 109,
+      "severity": {
+        "LOW": 68,
+        "HIGH": 51,
+        "MEDIUM": 105,
+        "UNKNOWN": 14
+      }
+    }
+  },
+  "assessments": [
+    "Auth raw2FAIL are legacy QA expectations superseded by Lead314/259 and independently checked with correct current expectations.",
+    "Initial unmapped-broker callback failures excluded from app findings; mapped fresh21PASS rerun is authoritative for outage.",
+    "UI required-label/confirm-title selectors and no-tests filter repaired only in local harness; latest28+6+2 passed.",
+    "Old POS-placeholder assertions are stale QA tests, not a request to restore placeholder UI.",
+    "Initial Forecast standalone DNS block retained; explicit unavailable broker rerun passed; real publish tested separately.",
+    "Scanner completion does not establish zero vulnerabilities or exploitability.",
+    "Wrapper exit0 does not override individual FAIL/BLOCKED results."
+  ],
+  "remaining": [
+    "existing384",
+    "Users CRUD owner/implementation",
+    "Backend Forecast119/344",
+    "return43 and incomplete UI dependencies",
+    "Q31/CORS/IP policies",
+    "full raw-log/correlation assurance",
+    "CVE applicability triage",
+    "actual02:00/staging/TLS",
+    "manual Figma/UI checklist and POS3items30seconds",
+    "complete allocation/price-after-sale/promo-credit/loss-report HTTP coverage"
+  ]
+}

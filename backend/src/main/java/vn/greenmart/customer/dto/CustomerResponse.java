@@ -9,9 +9,14 @@ public record CustomerResponse(
     String phone,
     String name,
     String email,
+    boolean active,
     Instant createdAt
 ) {
+    public CustomerResponse(Long id, String phone, String name, String email, Instant createdAt) {
+        this(id, phone, name, email, true, createdAt);
+    }
+
     public static CustomerResponse from(Customer c) {
-        return new CustomerResponse(c.getId(), c.getPhone(), c.getName(), c.getEmail(), c.getCreatedAt());
+        return new CustomerResponse(c.getId(), c.getPhone(), c.getName(), c.getEmail(), c.isActive(), c.getCreatedAt());
     }
 }
