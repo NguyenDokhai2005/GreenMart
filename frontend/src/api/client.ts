@@ -438,3 +438,14 @@ export function listOrders(
 export function getOrder(orderId: number, signal?: AbortSignal) {
   return request('/orders/{orderId}', 'get', { path: { orderId }, signal });
 }
+
+export function completeOnlineOrder(orderId: number) {
+  return request('/orders/{orderId}/complete', 'post', { path: { orderId } });
+}
+
+export function cancelOnlineOrder(
+  orderId: number,
+  body: components['schemas']['CancelOrderRequest'],
+) {
+  return request('/orders/{orderId}/cancel', 'post', { path: { orderId }, body });
+}

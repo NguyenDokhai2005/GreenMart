@@ -12,6 +12,7 @@ import BranchSelectionPage from './BranchSelectionPage';
 import LoginPage from './LoginPage';
 import ProductsPage from '../catalog/ProductsPage';
 import CustomersPage from '../catalog/CustomersPage';
+import OnlineOrderDetailPage from '../orders/OnlineOrderDetailPage';
 import { OperationsHome, OperationsLayout } from '../../layouts/operations';
 import InventoryPage from '../inventory/InventoryPage';
 import InventoryLedgerPage from '../inventory/InventoryLedgerPage';
@@ -282,6 +283,7 @@ export function AppRoutes() {
         <Route path="products" element={<ProductsPage />} />
         <Route path="customers" element={<CustomersPage />} />
         <Route path="inventory" element={<InventoryPage />} />
+        <Route path="orders/:orderId" element={<OnlineOrderDetailPage />} />
         <Route path="ledger" element={<InventoryLedgerPage />}>
           <Route path="orders/:id" element={<LedgerOrderDetailDialog />} />
         </Route>
