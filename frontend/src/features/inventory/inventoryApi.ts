@@ -28,7 +28,7 @@ export function listInventory(query: InventoryQuery, signal?: AbortSignal) {
 export type InventoryPageData = Awaited<ReturnType<typeof listInventory>>;
 export type InventoryItem = InventoryPageData['content'][number];
 export type StockStatus = InventoryItem['stockStatus'];
-export type Replenishment = components['schemas']['ReplenishmentResponse'];
+export type Replenishment = components['schemas']['Replenishment'];
 
 export function getReplenishment(branchId: number, productId: number, signal?: AbortSignal) {
   return request('/inventory/{branchId}/{productId}/replenishment', 'get', {
