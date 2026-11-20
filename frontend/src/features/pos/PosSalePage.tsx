@@ -341,7 +341,9 @@ export default function PosSalePage({ item }: PosPageProps) {
                       </small>
                       {quotedLine?.promotion && (
                         <small className="pos-sale__promotion">
-                          {quotedLine.promotion.name || quotedLine.promotion.code}
+                          {quotedLine.promotion.name
+                            ? `${quotedLine.promotion.name} · ${quotedLine.promotion.code}`
+                            : quotedLine.promotion.code}
                         </small>
                       )}
                       {!stock.sufficient && (
@@ -485,7 +487,14 @@ export default function PosSalePage({ item }: PosPageProps) {
                     <span>{quotedDiscount(quote?.itemDiscount)}</span>
                   </div>
                   <div>
-                    <span>Giảm giá đơn hàng</span>
+                    <span>
+                      Giảm giá đơn hàng
+                      {quote?.orderPromotion && (
+                        <small className="pos-sale__order-promotion">
+                          {quote.orderPromotion.code}
+                        </small>
+                      )}
+                    </span>
                     <span>{quotedDiscount(quote?.orderDiscount)}</span>
                   </div>
                   <div>

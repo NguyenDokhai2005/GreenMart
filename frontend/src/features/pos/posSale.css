@@ -85,8 +85,19 @@
 }
 
 .pos-sale__cart-product .pos-sale__promotion,
-.pos-sale__discount {
+.pos-sale__discount,
+.pos-sale__order-promotion {
   color: var(--gm-color-primary);
+}
+
+.pos-sale__promotion,
+.pos-sale__order-promotion {
+  overflow-wrap: anywhere;
+}
+
+.pos-sale__order-promotion {
+  display: block;
+  font-size: var(--gm-font-size-xs);
 }
 
 .pos-sale__products .gm-button {
