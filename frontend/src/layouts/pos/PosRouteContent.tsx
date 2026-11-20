@@ -19,7 +19,7 @@ export type PosPageLoader = (
 ) => Promise<{ default: ComponentType<PosPageProps> }>;
 const loadPlaceholder: PosPageLoader = () => import('./PosPlaceholderPage');
 
-function PosPageError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+export function PosPageError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
   const branch = useActiveBranch();
