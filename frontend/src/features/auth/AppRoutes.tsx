@@ -15,12 +15,14 @@ import CustomersPage from '../catalog/CustomersPage';
 import { OperationsHome, OperationsLayout } from '../../layouts/operations';
 import InventoryPage from '../inventory/InventoryPage';
 import InventoryLedgerPage from '../inventory/InventoryLedgerPage';
+import ForecastPage from '../forecast/ForecastPage';
 import LedgerOrderDetailDialog from '../inventory/LedgerOrderDetailDialog';
-import StockDocumentsPage from '../stock-documents/StockDocumentsPage';
-import StockDocumentDetailDrawer from '../stock-documents/StockDocumentDetailDrawer';
 import TransferDetailPage from '../transfers/TransferDetailPage';
 import TransferListPage from '../transfers/TransferListPage';
 import { TransferCreatePage, TransferEditPage } from '../transfers/TransferFormPage';
+import StockDocumentsPage from '../stock-documents/StockDocumentsPage';
+import StockDocumentDetailDrawer from '../stock-documents/StockDocumentDetailDrawer';
+import StockAlertsPage from '../dashboard/StockAlertsPage';
 import {
   ADMIN_ROLES,
   APP_PATHS,
@@ -282,6 +284,8 @@ export function AppRoutes() {
         <Route path="products" element={<ProductsPage />} />
         <Route path="customers" element={<CustomersPage />} />
         <Route path="inventory" element={<InventoryPage />} />
+        <Route path="forecast" element={<ForecastPage />} />
+        <Route path="alerts" element={<StockAlertsPage />} />
         <Route path="ledger" element={<InventoryLedgerPage />}>
           <Route path="orders/:id" element={<LedgerOrderDetailDialog />} />
         </Route>

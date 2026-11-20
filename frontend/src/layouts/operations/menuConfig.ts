@@ -49,7 +49,7 @@ export const MENU: MenuItem[] = [
       },
       { key: 'transfers', label: 'Chuyển kho', to: `${OP}/transfers`, roles: STAFF },
       { key: 'stocktake', label: 'Kiểm kê', to: `${OP}/stocktake`, roles: STAFF },
-      { key: 'ledger', label: 'Sổ giao dịch', to: `${OP}/ledger`, roles: STAFF },
+      { key: 'ledger', label: 'Sổ giao dịch', to: APP_PATHS.ledger, roles: STAFF },
     ],
   },
   { key: 'forecast', label: 'Dự báo', to: `${OP}/forecast`, icon: 'forecast', roles: MANAGER },
@@ -86,6 +86,7 @@ export const canPickAllBranches = (role: Role) => role === 'OWNER' || role === '
 
 /** Trang đầu của khu Operations: THỦ KHO không có Tổng quan nên vào Tồn kho. */
 export const operationsHomePath = (role: Role) => (role === 'STOREKEEPER' ? `${OP}/inventory` : OP);
+
 /**
  * Nhãn breadcrumb cho đường dẫn hiện tại: mục con của nhóm hiện "Nhóm / Mục" (vd "Kho / Tồn kho"), mục thường hiện tên mục.
  */

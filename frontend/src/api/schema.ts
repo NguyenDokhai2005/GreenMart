@@ -113,9 +113,7 @@ export interface paths {
     };
     /**
      * Danh sách chi nhánh
-     * @description ADMIN và OWNER thấy mọi chi nhánh, có thể lọc theo active.
-     *     Các vai trò đã đăng nhập khác thấy tất cả chi nhánh đang hoạt động.
-     *     Với các vai trò này, active=false trả mảng rỗng.
+     * @description ADMIN, OWNER thấy mọi chi nhánh; vai trò khác chỉ thấy chi nhánh được gán.
      */
     get: operations['listBranches'];
     put?: never;
@@ -266,34 +264,9 @@ export interface paths {
     };
     /** Chi tiết khách hàng */
     get: operations['getCustomer'];
-    /**
-     * Sửa khách hàng
-     * @description Cập nhật thông tin khách hàng. Để mở lại khách đã vô hiệu hóa, gửi active: true.
-     */
+    /** Sửa khách hàng */
     put: operations['updateCustomer'];
     post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/customers/{customerId}/deactivate': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        customerId: components['parameters']['CustomerId'];
-      };
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /**
-     * Vô hiệu hóa khách hàng
-     * @description Chuyển trạng thái hoạt động của khách hàng sang không hoạt động (active = false). Mở lại bằng PUT /customers/{customerId} với active: true.
-     */
-    post: operations['deactivateCustomer'];
     delete?: never;
     options?: never;
     head?: never;
@@ -449,24 +422,15 @@ export interface paths {
     parameters: {
       query?: never;
       header?: never;
-      path: {
-        branchId: components['parameters']['BranchIdPath'];
-        productId: number;
-      };
+      path?: never;
       cookie?: never;
     };
     /**
-     * Điểm đặt hàng lại và gợi ý nhập cho một sản phẩm
-     * @description AI-05, BA 8.2–8.3. ROP ưu tiên kế hoạch dự báo của ngày hiện tại theo giờ Việt Nam, nếu thiếu thì dùng ROP nhập tay.
-     *     Gợi ý dùng tồn khả dụng và lượng chuyển kho đang về ở thời điểm đọc, làm tròn lên theo quy cách.
-     *     Khi chưa có kế hoạch từ dự báo, tồn an toàn, nhu cầu dự báo và gợi ý nhập trả null.
+     * Gợi ý nhập hàng theo dự báo
+     * @description Trả tồn khả dụng, ROP, nhu cầu dự báo và lượng nhập gợi ý cho một sản phẩm tại chi nhánh.
      */
-    get: operations['getInventoryReplenishment'];
-    /**
-     * Đặt ROP nhập tay và quy cách nhập hàng
-     * @description ROP nhập tay là ngưỡng dự phòng. Bỏ trống hoặc truyền null để xóa ngưỡng nhập tay.
-     */
-    put: operations['configureInventoryReplenishment'];
+    get: operations['getReplenishment'];
+    put?: never;
     post?: never;
     delete?: never;
     options?: never;
@@ -671,7 +635,6 @@ export interface paths {
      *     - `EXPORT` (UC-06): bắt buộc `reason`; số lượng ≤ tồn khả dụng lúc tạo (kiểm tra lại khi duyệt).
      *     - `TRANSFER` (UC-07): bắt buộc `toBranchId` ≠ `branchId`; số lượng ≤ khả dụng CN nguồn.
      *     - `ADJUST` (UC-08): không gửi `quantity`; hệ thống chụp tồn thực hiện tại vào `quantity` (snapshot), Thủ kho nhập `countedQuantity` sau qua PUT.
-     *       Gửi `allProducts: true` và bỏ `items` để chụp mọi dòng tồn của chi nhánh. Có thể nhập số đếm qua nhiều PUT, tối đa 500 dòng mỗi lần.
      */
     post: operations['createStockDocument'];
     delete?: never;
@@ -927,9 +890,6 @@ export interface paths {
      * Báo cáo doanh thu theo thời gian
      * @description Doanh thu chỉ tính đơn COMPLETED theo ngày hoàn tất; trả hàng trừ vào ngày trả (BR-18, DASH-01).
      *     Hỗ trợ gom nhóm theo ngày (day), tuần (week), tháng (month).
-     *     Khoảng báo cáo tính cả ngày đầu và ngày cuối. Với day, tối đa 366 ngày. Với week và month,
-     *     ngày cuối phải trước ngày tròn 5 năm tính từ ngày đầu. Ngày báo cáo thuộc năm 0001 đến 9999.
-     *     Khoảng không hợp lệ trả 400 VALIDATION_ERROR.
      */
     get: operations['getRevenueReport'];
     put?: never;
@@ -952,10 +912,28 @@ export interface paths {
      * @description Top sản phẩm theo số lượng ròng (bán trừ trả) trong kỳ báo cáo (DASH-02, BR-18).
      *     Khi không truyền month, from hoặc to, kỳ báo cáo là từ đầu tháng hiện tại đến hôm nay.
      *     Nếu truyền month, tháng báo cáo được ưu tiên hơn from và to.
-     *     Kỳ báo cáo tối đa 366 ngày tính cả ngày đầu và ngày cuối, thuộc năm 0001 đến 9999.
-     *     Khoảng không hợp lệ trả 400 VALIDATION_ERROR.
      */
     get: operations['getTopProductsReport'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/forecasts': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Dự báo nhu cầu theo sản phẩm và chi nhánh
+     * @description Trả dự báo mới nhất đã hoàn tất, theo ngày cho chân trời 7 và 30 ngày.
+     */
+    get: operations['getForecast'];
     put?: never;
     post?: never;
     delete?: never;
@@ -978,112 +956,6 @@ export interface paths {
      *     Chủ chuỗi xem được mọi chi nhánh, quản lý chỉ xem được chi nhánh được phân quyền.
      */
     get: operations['listLowStockAlerts'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/integrations/sync-logs': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Xem nhật ký đồng bộ (ADMIN, OWNER) */
-    get: operations['listSyncLogs'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/integrations/sync-logs/{id}/retry': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /**
-     * ADMIN đưa callback FAILED vào lịch gửi lại
-     * @description Giữ nguyên event và payload. Đặt lại bộ đếm cho lượt gửi mới. Hai yêu cầu đồng thời chỉ xếp một lượt gửi.
-     */
-    post: operations['retrySyncLog'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/forecasts': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * Dự báo theo ngày của một sản phẩm tại một chi nhánh
-     * @description Trả dự báo từng ngày cho tầm 7 và 30 ngày của một sản phẩm × chi nhánh (US-10, AI-03), lấy từ `forecast_result`.
-     *     Mặc định dùng lượt chạy `DONE` mới nhất; truyền `runId` để xem một lượt cũ.
-     *     `cutoffDate` là ngày dữ liệu cuối cùng (D) của lượt chạy, các điểm dự báo là D+1..D+7 và D+1..D+30.
-     *     `actualQty` là bán ròng thực tế trong `daily_sales` (BA mục 9), `null` với ngày chưa có dữ liệu; dùng để vẽ biểu đồ dự báo so với thực tế.
-     *     Chưa có lượt `DONE` nào, hoặc lượt được chọn không có dòng cho sản phẩm × chi nhánh này: 404 `NOT_FOUND`.
-     *     Quản lý chi nhánh và thủ kho chỉ xem chi nhánh được gán (403 `BRANCH_FORBIDDEN`).
-     */
-    get: operations['getForecast'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/forecasts/runs': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * Danh sách lượt chạy dự báo và sai số
-     * @description Lượt chạy mới nhất đứng trước. `mae`, `wape` là sai số tầm 7 ngày của mô hình trên 30 ngày kiểm tra;
-     *     `baselineMae`, `baselineWape` là của baseline tốt nhất (AI-04, BA mục 9). Lượt RUNNING và FAILED có các chỉ số này là `null`.
-     */
-    get: operations['listForecastRuns'];
-    put?: never;
-    /**
-     * Chạy lại dự báo theo yêu cầu
-     * @description "Chạy lại dự báo" (AI-03, ma trận phân quyền BA). Backend gọi `POST /forecast/run` của forecast-service bằng token nội bộ
-     *     và trả ngay lượt mới ở trạng thái RUNNING; theo dõi bằng `GET /forecasts/runs/{runId}`. Lịch 02:00 hằng đêm (#118) dùng cùng luồng.
-     *     Ghi `audit_log` với action `FORECAST_RUN`.
-     */
-    post: operations['startForecastRun'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/forecasts/runs/{runId}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Trạng thái và sai số của một lượt chạy */
-    get: operations['getForecastRun'];
     put?: never;
     post?: never;
     delete?: never;
@@ -1308,8 +1180,6 @@ export interface components {
       name: string;
       /** Format: email */
       email?: string | null;
-      /** @example true */
-      active: boolean;
       /** Format: date-time */
       createdAt: string;
     };
@@ -1318,8 +1188,6 @@ export interface components {
       name: string;
       /** Format: email */
       email?: string | null;
-      /** @description Trạng thái hoạt động (tùy chọn khi sửa; gửi true để mở lại khách đã vô hiệu hóa) */
-      active?: boolean | null;
     };
     CustomerPage: components['schemas']['PageMeta'] & {
       content: components['schemas']['Customer'][];
@@ -1571,110 +1439,6 @@ export interface components {
       /** Format: date-time */
       openedAt: string;
     };
-    /** @enum {string} */
-    ForecastRunStatus: 'RUNNING' | 'DONE' | 'FAILED';
-    ForecastRun: {
-      /**
-       * Format: int64
-       * @example 12
-       */
-      id: number;
-      status: components['schemas']['ForecastRunStatus'];
-      /** Format: date-time */
-      startedAt: string;
-      /** Format: date-time */
-      finishedAt: string | null;
-      /** @example LightGBM-Tweedie-H7-H30 */
-      modelVersion: string;
-      /**
-       * Format: double
-       * @description MAE tầm 7 ngày của mô hình
-       */
-      mae: number | null;
-      /**
-       * Format: double
-       * @description WAPE tầm 7 ngày, tỉ lệ 0–1
-       */
-      wape: number | null;
-      /** Format: double */
-      baselineMae: number | null;
-      /** Format: double */
-      baselineWape: number | null;
-    };
-    ForecastRunPage: components['schemas']['PageMeta'] & {
-      content: components['schemas']['ForecastRun'][];
-    };
-    ForecastPoint: {
-      /**
-       * Format: date
-       * @example 2026-11-18
-       */
-      date: string;
-      /**
-       * Format: double
-       * @example 12.4
-       */
-      predictedQty: number;
-      /**
-       * Format: int32
-       * @description Bán ròng thực tế; null nếu chưa có dữ liệu ngày đó
-       */
-      actualQty: number | null;
-    };
-    ForecastHorizon: {
-      /** @enum {integer} */
-      horizon: 7 | 30;
-      /**
-       * Format: double
-       * @description Tổng dự báo của tầm, dùng cho ROP và gợi ý nhập (BA 8.2, 8.3)
-       */
-      totalPredictedQty: number;
-      /** @description Một điểm mỗi ngày, tăng dần theo ngày */
-      points: components['schemas']['ForecastPoint'][];
-    };
-    ForecastResponse: {
-      /** Format: int64 */
-      runId: number;
-      /**
-       * Format: date
-       * @description Ngày dữ liệu cuối cùng (D) của lượt chạy
-       */
-      cutoffDate: string;
-      /**
-       * Format: date-time
-       * @description `finishedAt` của lượt chạy
-       */
-      generatedAt: string;
-      modelVersion: string;
-      branch: components['schemas']['BranchRef'];
-      /** Format: int64 */
-      productId: number;
-      sku: string;
-      productName: string;
-      unit: string;
-      horizons: components['schemas']['ForecastHorizon'][];
-    };
-    Replenishment: {
-      /** Format: int64 */
-      branchId: number;
-      /** Format: int64 */
-      productId: number;
-      /** Format: int32 */
-      available: number;
-      /** Format: int64 */
-      incoming: number;
-      /** Format: int32 */
-      reorderPoint: number | null;
-      /** Format: int32 */
-      manualReorderPoint: number | null;
-      /** Format: int32 */
-      safetyStock: number | null;
-      forecastDemand: number | null;
-      /** Format: int32 */
-      packSize: number;
-      /** Format: int64 */
-      suggestedQuantity: number | null;
-    };
     /**
      * @example {
      *       "branch": {
@@ -1708,7 +1472,7 @@ export interface components {
       reserved: number;
       /** @description onHand − reserved (BR-01) */
       available: number;
-      /** @description ROP dự báo hoặc ROP nhập tay khi thiếu dự báo */
+      /** @description ROP; null khi chưa có dự báo */
       reorderPoint?: number | null;
       stockStatus: components['schemas']['StockStatus'];
       /**
@@ -1721,6 +1485,26 @@ export interface components {
     };
     InventoryPage: components['schemas']['PageMeta'] & {
       content: components['schemas']['InventoryItem'][];
+    };
+    ReplenishmentResponse: {
+      /** Format: int64 */
+      branchId: number;
+      /** Format: int64 */
+      productId: number;
+      /** @description Khả dụng hiện tại */
+      available: number;
+      /**
+       * Format: int64
+       * @description Hàng đang chuyển đến
+       */
+      incoming: number;
+      reorderPoint?: number | null;
+      manualReorderPoint?: number | null;
+      safetyStock?: number | null;
+      forecastDemand?: number | null;
+      packSize: number;
+      /** Format: int64 */
+      suggestedQuantity?: number | null;
     };
     /**
      * @description Mỗi dòng ghi riêng thay đổi tồn thực (`deltaOnHand`) và tồn giữ chỗ (`deltaReserved`), kèm số dư sau giao dịch.
@@ -1892,22 +1676,9 @@ export interface components {
       supplier?: string;
       exportReason?: components['schemas']['ExportReason'];
       note?: string;
-      /** @description Chỉ ADJUST. Bật để chụp toàn bộ các dòng tồn của chi nhánh. */
-      allProducts?: boolean;
-    } & (
-      | {
-          /** @enum {boolean} */
-          allProducts?: false;
-          /** @description Mỗi `productId` một dòng. ADJUST có thể truyền danh sách sản phẩm cần kiểm kê. */
-          items: components['schemas']['StockDocumentItemRequest'][];
-        }
-      | {
-          /** @enum {string} */
-          type?: 'ADJUST';
-          /** @enum {boolean} */
-          allProducts: true;
-        }
-    );
+      /** @description Mỗi `productId` một dòng. ADJUST có thể truyền danh sách sản phẩm cần kiểm kê */
+      items: components['schemas']['StockDocumentItemRequest'][];
+    };
     StockDocumentUpdateRequest: {
       /** Format: int64 */
       toBranchId?: number;
@@ -2176,6 +1947,34 @@ export interface components {
       };
       topSelling: components['schemas']['ProductSalesItem'][];
       slowSelling: components['schemas']['ProductSalesItem'][];
+    };
+    ForecastPoint: {
+      /** Format: date */
+      date: string;
+      predictedQty: number;
+      actualQty?: number | null;
+    };
+    ForecastHorizon: {
+      /** @enum {integer} */
+      horizon: 7 | 30;
+      totalPredictedQty: number;
+      points: components['schemas']['ForecastPoint'][];
+    };
+    ForecastResponse: {
+      /** Format: int64 */
+      runId: number;
+      /** Format: date */
+      cutoffDate: string;
+      /** Format: date-time */
+      generatedAt: string;
+      modelVersion: string;
+      branch: components['schemas']['BranchRef'];
+      /** Format: int64 */
+      productId: number;
+      sku: string;
+      productName: string;
+      unit: string;
+      horizons: components['schemas']['ForecastHorizon'][];
     };
   };
   responses: {
@@ -2765,8 +2564,6 @@ export interface operations {
         q?: string;
         /** @description Khớp chính xác số điện thoại (dùng ở POS) */
         phone?: components['schemas']['Phone'];
-        /** @description Lọc theo trạng thái hoạt động (mặc định true; chỉ OWNER, BRANCH_MANAGER được gửi active=false) */
-        active?: boolean;
         /** @description Số trang, bắt đầu từ 0 */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
@@ -2872,31 +2669,6 @@ export interface operations {
       403: components['responses']['Forbidden'];
       404: components['responses']['NotFound'];
       409: components['responses']['Conflict'];
-    };
-  };
-  deactivateCustomer: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        customerId: components['parameters']['CustomerId'];
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Đã vô hiệu hóa */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['Customer'];
-        };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
     };
   };
   listCustomerOrders: {
@@ -3176,61 +2948,25 @@ export interface operations {
       404: components['responses']['NotFound'];
     };
   };
-  getInventoryReplenishment: {
+  getReplenishment: {
     parameters: {
       query?: never;
       header?: never;
       path: {
         branchId: components['parameters']['BranchIdPath'];
-        productId: number;
+        productId: components['parameters']['ProductId'];
       };
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      /** @description Điểm đặt hàng lại và gợi ý nhập */
+      /** @description Gợi ý nhập hàng */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['Replenishment'];
-        };
-      };
-      400: components['responses']['BadRequest'];
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
-    };
-  };
-  configureInventoryReplenishment: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        branchId: components['parameters']['BranchIdPath'];
-        productId: number;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': {
-          /** Format: int32 */
-          manualReorderPoint?: number | null;
-          /** Format: int32 */
-          packSize: number;
-        };
-      };
-    };
-    responses: {
-      /** @description Cấu hình và gợi ý hiện hành */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['Replenishment'];
+          'application/json': components['schemas']['ReplenishmentResponse'];
         };
       };
       400: components['responses']['BadRequest'];
@@ -4276,6 +4012,37 @@ export interface operations {
       403: components['responses']['Forbidden'];
     };
   };
+  getForecast: {
+    parameters: {
+      query: {
+        branchId: number;
+        productId: number;
+        /** @description Chỉ lấy một chân trời; bỏ qua để nhận cả 7 và 30 ngày. */
+        horizon?: 7 | 30;
+        /** @description Mã lần chạy đã hoàn thành; mặc định dùng lần chạy mới nhất. */
+        runId?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Dự báo theo ngày */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ForecastResponse'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+    };
+  };
   listLowStockAlerts: {
     parameters: {
       query?: {
@@ -4300,262 +4067,6 @@ export interface operations {
       400: components['responses']['BadRequest'];
       401: components['responses']['Unauthorized'];
       403: components['responses']['Forbidden'];
-    };
-  };
-  listSyncLogs: {
-    parameters: {
-      query?: {
-        channelCode?: 'WEB' | 'MARKET';
-        status?: 'SUCCESS' | 'FAILED' | 'RETRYING';
-        page?: number;
-        size?: number;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Nhật ký mới nhất trước */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': {
-            page: number;
-            size: number;
-            /** Format: int64 */
-            totalElements: number;
-            content: {
-              /** Format: int64 */
-              id?: number;
-              channelCode?: string;
-              /** @enum {string} */
-              direction?: 'IN' | 'OUT';
-              externalId?: string | null;
-              /** @enum {string} */
-              status?: 'SUCCESS' | 'FAILED' | 'RETRYING';
-              attempts?: number;
-              error?: string | null;
-              /** Format: date-time */
-              createdAt?: string;
-            }[];
-          };
-        };
-      };
-      /** @description Bộ lọc không hợp lệ */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Chưa đăng nhập */
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Không đủ quyền */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  retrySyncLog: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Đã đưa vào lịch gửi nền */
-      202: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      400: components['responses']['BadRequest'];
-      /** @description Chưa đăng nhập */
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Chỉ ADMIN được gửi lại */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Không có nhật ký */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Không phải callback FAILED có thể gửi lại */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  getForecast: {
-    parameters: {
-      query: {
-        branchId: components['parameters']['BranchIdQueryRequired'];
-        productId: number;
-        /** @description Chỉ lấy một tầm. Bỏ qua để lấy cả 7 và 30. */
-        horizon?: 7 | 30;
-        /** @description Lượt chạy cần xem; bỏ qua để dùng lượt DONE mới nhất */
-        runId?: number;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Dự báo theo ngày */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ForecastResponse'];
-        };
-      };
-      400: components['responses']['BadRequest'];
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
-    };
-  };
-  listForecastRuns: {
-    parameters: {
-      query?: {
-        status?: components['schemas']['ForecastRunStatus'];
-        /** @description Số trang, bắt đầu từ 0 */
-        page?: components['parameters']['Page'];
-        size?: components['parameters']['Size'];
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Trang lượt chạy */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ForecastRunPage'];
-        };
-      };
-      400: components['responses']['BadRequest'];
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-    };
-  };
-  startForecastRun: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Đã tạo lượt chạy, đang chạy nền */
-      202: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ForecastRun'];
-        };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      /** @description FORECAST_RUNNING hoặc FORECAST_NO_DATA */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          /**
-           * @example {
-           *       "code": "FORECAST_RUNNING",
-           *       "message": "Đang có lượt dự báo chạy",
-           *       "details": {
-           *         "runId": 12
-           *       },
-           *       "traceId": "4c1f9b30"
-           *     }
-           */
-          'application/json': components['schemas']['ErrorResponse'];
-        };
-      };
-      /** @description FORECAST_UNAVAILABLE */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          /**
-           * @example {
-           *       "code": "FORECAST_UNAVAILABLE",
-           *       "message": "Dịch vụ dự báo tạm thời không phản hồi",
-           *       "details": null,
-           *       "traceId": "4c1f9b31"
-           *     }
-           */
-          'application/json': components['schemas']['ErrorResponse'];
-        };
-      };
-    };
-  };
-  getForecastRun: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        runId: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Lượt chạy */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ForecastRun'];
-        };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
     };
   };
 }
