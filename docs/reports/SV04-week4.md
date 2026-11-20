@@ -21,7 +21,7 @@ Các PR trong bảng có trạng thái **MERGED** theo GitHub tại mốc tổng
 
 | Issue | Bàn giao hiện có | Kiểm chứng và giới hạn |
 | --- | --- | --- |
-| #78 | PR #411: khuyến mại theo dòng và cấp đơn | CI xanh; còn review và kiểm tra dữ liệu API/ảnh 1440 px |
+| #78 | PR #411: khuyến mại theo dòng và cấp đơn | 381 test local; Chrome 1440 px với API thật hiển thị mã ITEM/ORDER và số giảm; chờ Lead review |
 | #79 | PR #413: thiếu tồn, đổi tổng, thanh toán lỗi và khôi phục nút in hóa đơn sau merge | CI/QA POS Newman xanh; chờ review và xác nhận lại Figma đã cập nhật |
 | #80 | PR #435: lọc danh sách đơn, URL và phân trang | 384 test frontend local, CI xanh; Chrome 1440 px hiển thị 1.766 đơn WEB từ API thật; chờ review |
 | #81 | PR #436: chi tiết đơn online, hoàn tất/hủy theo vai trò/trạng thái | 382 test frontend local, CI xanh; GET chi tiết và hai thao tác Hoàn tất/Hủy chạy với API thật trong QA cô lập; chờ review và tích hợp #80 |
@@ -36,7 +36,7 @@ Mỗi issue có nhánh và PR riêng. PR #437 xếp sau #435 vì dùng màn danh
 - #82 (màn trả hàng): backend PR #410 và hợp đồng `/returns` chưa merge vào `develop` ở mốc tổng hợp. Frontend chưa được viết trên endpoint chưa có trong OpenAPI chính thức.
 - #418: quy tắc khách ngừng hoạt động/cấm gắn `customerId` vào POS cần BA/backend thống nhất.
 - #425: khuyến mại `ITEM-AMOUNT`, `minQuantity` và phạm vi danh mục cần cập nhật hợp đồng/logic do Lead quyết định.
-- #78–#84 còn cần review và so ảnh desktop với thiết kế đã duyệt. #80/#81/#83 đã chạy với API thật trong QA cô lập; các trường hợp chỉ dùng mock/Prism chưa chứng minh tích hợp backend.
+- #78–#84 còn cần review và so ảnh desktop với thiết kế đã duyệt. #78/#80/#81/#83 đã chạy với API thật trong QA cô lập; các trường hợp chỉ dùng mock/Prism chưa chứng minh tích hợp backend.
 
 ## Bằng chứng và cách kiểm tra lại
 
