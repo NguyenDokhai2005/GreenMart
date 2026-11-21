@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -321,6 +323,49 @@ class ReturnDbIntegrationTest {
 
         mockMvc.perform(post("/api/v1/returns/1/cancel"))
                 .andExpect(status().isForbidden());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"1.5", "1.0", "1e0", "\"1\"", "2147483648", "9223372036854775808"})
+    @WithMockUser(username = "9101", roles = "CASHIER")
+    void invalidIntegerQuantityDoesNotCreateReturnOrChangeStock(String token) throws Exception {
+        SalesOrder order = new SalesOrder();
+        order.setCode("POS-INTEGER-484");
+        order.setChannelId(posChannelId);
+        order.setBranchId(branch2Id);
+        order.setStatus(OrderStatus.COMPLETED);
+        order.setSubtotal(60_000L);
+        order.setDiscount(0L);
+        order.setTotal(60_000L);
+        order.setCreatedBy(CASHIER_ID);
+        order.setCreatedAt(Instant.now().minus(1, ChronoUnit.DAYS));
+        order.setCompletedAt(Instant.now().minus(1, ChronoUnit.DAYS));
+        order = salesOrderRepository.saveAndFlush(order);
+        OrderItem item = new OrderItem();
+        item.setOrderId(order.getId());
+        item.setProductId(productResellId);
+        item.setQuantity(2);
+        item.setUnitPrice(30_000L);
+        item.setDiscount(0L);
+        item.setLineTotal(60_000L);
+        item = orderItemRepository.saveAndFlush(item);
+
+        String counts = "SELECT (SELECT count(*) FROM return_document) AS documents, "
+                + "(SELECT count(*) FROM return_item) AS items, "
+                + "(SELECT count(*) FROM inventory_transaction) AS ledger, "
+                + "(SELECT count(*) FROM audit_log) AS audit, (SELECT count(*) FROM payment) AS payments";
+        var before = jdbcTemplate.queryForMap(counts);
+        var stock = jdbcTemplate.queryForList("SELECT * FROM inventory ORDER BY branch_id,product_id");
+        String body = """
+                {"orderId":%d,"branchId":%d,"reason":"Integer validation",
+                 "items":[{"orderItemId":%d,"quantity":%s,"condition":"RESELLABLE"}]}
+                """.formatted(order.getId(), branch2Id, item.getId(), token);
+        mockMvc.perform(post("/api/v1/returns").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        assertEquals(before, jdbcTemplate.queryForMap(counts));
+        assertEquals(stock, jdbcTemplate.queryForList("SELECT * FROM inventory ORDER BY branch_id,product_id"));
+        assertEquals(OrderStatus.COMPLETED, salesOrderRepository.findById(order.getId()).orElseThrow().getStatus());
     }
 
     // Test HTTP đầy đủ luồng Controller/SecurityConfig
