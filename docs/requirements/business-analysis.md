@@ -283,6 +283,8 @@ Ví dụ: CN1 chuyển 50 chai nước mắm sang CN2. Sau xuất: CN1 giảm 50
 
 3.  Duyệt → ghi ADJUST bằng đúng chênh lệch (không ghi đè trực tiếp, để không làm mất các giao dịch phát sinh trong lúc đếm).
 
+4.  Nếu tồn hiện tại cộng chênh lệch nhỏ hơn lượng đang giữ chỗ (#421), giữ phiếu DRAFT, số đếm và audit nhập số đếm; không bỏ ràng buộc `0 ≤ reserved ≤ on_hand`. Đối soát cho biết tồn dự kiến, phần thiếu và tham chiếu đơn giữ hàng. Quản lý quyết định nhập thêm hàng thực hoặc xử lý đơn qua luồng hủy/hoàn tiền được phép, rồi đối soát và duyệt lại; không tự hủy đơn đã trả tiền hoặc sửa reserved bằng SQL. Duyệt khóa hàng theo thứ tự nhất quán và kiểm lại trong transaction, nên reservation mới có thể làm lần duyệt sau bị chặn. Không tự khóa giữ mới trên toàn hệ thống hoặc tạo trạng thái tạm mới trong quy trình này.
+
 ## 7. Khuyến mại – UC-09
 
 Hệ thống áp khuyến mại cấp sản phẩm trước, rồi áp đúng một khuyến mại cấp đơn có lợi nhất cho khách; thu ngân không chọn tay.
