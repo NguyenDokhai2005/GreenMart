@@ -1169,6 +1169,7 @@ def generate_orders_and_items(
                 subtotal = 0
                 item_discount_total = 0
                 selected_prod_ids: Set[int] = set()
+                used_item_campaigns: Set[int] = set()
 
                 # Xác định các khuyến mại cấp ITEM đang có hiệu lực tại thời điểm, chi nhánh, kênh này
                 active_item_p = [
@@ -1176,6 +1177,7 @@ def generate_orders_and_items(
                     if p.start_at <= created_at <= p.end_at
                     and b_id in p.branch_ids
                     and ch_code in p.channel_codes
+                    and (p.usage_limit is None or p.used_count < p.usage_limit)
                 ]
                 promo_sku_map: Dict[int, Promotion] = {}
                 for p in active_item_p:
@@ -1225,7 +1227,9 @@ def generate_orders_and_items(
                             line_discount = math.floor(quantity * unit_price * item_promo.value / 100)
                         else:  # AMOUNT
                             line_discount = min(item_promo.value * quantity, unit_price * quantity)
-                        item_promo.used_count += 1
+                        if item_promo.id not in used_item_campaigns:
+                            item_promo.used_count += 1
+                            used_item_campaigns.add(item_promo.id)
 
                     line_total = quantity * unit_price - line_discount
                     subtotal += quantity * unit_price
@@ -2433,6 +2437,28 @@ def _write_sql_statements(
     f.write("\nCOMMIT;\n")
 
 
+def validate_promotion_usage(promotions: List[Promotion], orders: List[SalesOrder]) -> None:
+    """Reject inconsistent historical seed before writing SQL; never repair counters."""
+    orders_by_campaign: Dict[int, Set[int]] = {p.id: set() for p in promotions}
+    for order in orders:
+        if order.status not in {"COMPLETED", "RETURNED", "CANCELLED", "EXPIRED", "REJECTED"}:
+            raise ValueError(f"[#422] seed-only check cannot validate order status {order.status}")
+        if order.status not in {"COMPLETED", "RETURNED"}:
+            continue
+        campaign_ids = {item.promotion_id for item in order.items}
+        campaign_ids.add(order.promotion_id)
+        campaign_ids.discard(None)
+        for campaign_id in campaign_ids:
+            if campaign_id not in orders_by_campaign:
+                raise ValueError(f"[#422] Unknown campaign {campaign_id} on order {order.id}")
+            orders_by_campaign[campaign_id].add(order.id)
+    for campaign in promotions:
+        if campaign.used_count != len(orders_by_campaign[campaign.id]):
+            raise ValueError(f"[#422] {campaign.code}: used_count must equal distinct eligible orders")
+        if campaign.used_count < 0 or (campaign.usage_limit is not None and campaign.used_count > campaign.usage_limit):
+            raise ValueError(f"[#422] {campaign.code}: used_count exceeds usage limit")
+
+
 def export_to_sql(
     branches: List[Branch],
     categories: List[Category],
@@ -2451,6 +2477,7 @@ def export_to_sql(
     stream: Optional[Any] = None,
 ) -> None:
     """Xuất toàn bộ dữ liệu mẫu 12 tháng lịch sử thành file SQL hoàn chỉnh (idempotent, newline='\\n')."""
+    validate_promotion_usage(promotions, orders)
     if stream is not None:
         _write_sql_statements(stream, branches, categories, products, users, customers, promotions, orders, returns, audit_logs, stock_documents, stock_document_items, inventories, inventory_transactions)
     else:
@@ -2527,7 +2554,6 @@ def main() -> None:
     sql_path = base_dir / "seed_data.sql"
     json_path = base_dir / "stockout_schedule.json"
 
-    export_stockout_schedule(stockout_schedule, products, json_path)
     export_to_sql(
         branches=branches,
         categories=categories,
@@ -2544,6 +2570,7 @@ def main() -> None:
         inventory_transactions=inventory_transactions,
         filepath=sql_path,
     )
+    export_stockout_schedule(stockout_schedule, products, json_path)
 
 
     # Thống kê
