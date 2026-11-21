@@ -28,6 +28,10 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
           AND (:active IS NULL OR p.active = :active)
           AND (:q IS NULL OR :q = '' OR (
               LOWER(p.name) LIKE LOWER(CONCAT('%', :q, '%'))
+              OR CAST(FUNCTION('translate', LOWER(p.name),
+                  'àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ',
+                  'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd') AS String)
+                 LIKE CONCAT('%', :normalizedQ, '%')
               OR LOWER(p.sku) LIKE LOWER(CONCAT('%', :q, '%'))
               OR LOWER(COALESCE(p.barcode, '')) LIKE LOWER(CONCAT('%', :q, '%'))
           ))
@@ -36,6 +40,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
         @Param("categoryIds") Collection<Long> categoryIds,
         @Param("active") Boolean active,
         @Param("q") String q,
+        @Param("normalizedQ") String normalizedQ,
         Pageable pageable
     );
 }
