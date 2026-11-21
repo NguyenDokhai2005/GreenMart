@@ -19,7 +19,6 @@ import vn.greenmart.common.security.SecurityUtils;
 import vn.greenmart.promotion.domain.Promotion;
 import vn.greenmart.promotion.domain.PromotionLevel;
 import vn.greenmart.promotion.domain.PromotionStatus;
-import vn.greenmart.promotion.domain.PromotionType;
 import vn.greenmart.promotion.dto.PromotionRequest;
 import vn.greenmart.promotion.dto.PromotionResponse;
 import vn.greenmart.promotion.dto.PromotionStatusRequest;
@@ -225,17 +224,18 @@ public class PromotionCrudServiceImpl implements PromotionCrudService {
     private ScopeData validatePromotionBusinessRules(PromotionRequest request, Integer currentUsedCount) {
         List<ValidationErrorDetail> errors = new ArrayList<>();
 
-        if (request.type() == PromotionType.PERCENT && request.value() > 100) {
-            errors.add(new ValidationErrorDetail("value", "Khuyến mại phần trăm chỉ được từ 1 đến 100"));
+        if (request.productIds() != null && request.productIds().stream().anyMatch(java.util.Objects::isNull)) {
+            errors.add(new ValidationErrorDetail("productIds", "Danh sách productIds không được chứa phần tử null"));
         }
-        if (request.type() == PromotionType.AMOUNT && request.maxDiscount() != null) {
-            errors.add(new ValidationErrorDetail("maxDiscount", "Chỉ dùng maxDiscount với khuyến mại PERCENT"));
+        if (request.branchIds() != null && request.branchIds().stream().anyMatch(java.util.Objects::isNull)) {
+            errors.add(new ValidationErrorDetail("branchIds", "Danh sách branchIds không được chứa phần tử null"));
         }
-        if (!request.endAt().isAfter(request.startAt())) {
-            errors.add(new ValidationErrorDetail("endAt", "Thời gian kết thúc phải sau thời gian bắt đầu"));
+        if (request.channels() != null && request.channels().stream().anyMatch(c -> c == null || c.isBlank())) {
+            errors.add(new ValidationErrorDetail("channels", "Danh sách channels không được chứa phần tử null hoặc rỗng"));
         }
-        if (currentUsedCount != null && request.usageLimit() != null && request.usageLimit() < currentUsedCount) {
-            errors.add(new ValidationErrorDetail("usageLimit", "Giới hạn lượt dùng không được nhỏ hơn số lượt đã sử dụng (" + currentUsedCount + ")"));
+
+        if (!errors.isEmpty()) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Dữ liệu khuyến mại không hợp lệ", errors);
         }
 
         List<Long> productIds = request.productIds() != null

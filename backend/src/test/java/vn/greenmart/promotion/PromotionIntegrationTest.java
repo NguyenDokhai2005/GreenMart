@@ -354,4 +354,102 @@ class PromotionIntegrationTest {
                 .andExpect(jsonPath("$.totalElements").value(3))
                 .andExpect(jsonPath("$.totalPages").value(2));
     }
+
+    @Test
+    @WithMockUser(username = "701", roles = "OWNER")
+    @DisplayName("Issue #406 Regression: Phần tử null trong channels, productIds, branchIds khi POST/PUT trả 400 VALIDATION_ERROR và không đổi DB")
+    void testIssue406_NullElementsInScopeLists_PostAndPut_Return400ValidationError() throws Exception {
+        String validDraftBody = """
+            {
+              "code": "QA-NULL-CONTROL",
+              "type": "PERCENT",
+              "level": "ITEM",
+              "value": 10,
+              "startAt": "2026-11-19T00:00:00Z",
+              "endAt": "2026-11-20T00:00:00Z",
+              "productIds": [701],
+              "branchIds": [701],
+              "channels": ["POS"]
+            }
+        """;
+
+        String createdJson = mockMvc.perform(post("/api/v1/promotions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validDraftBody))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        long draftId = objectMapper.readTree(createdJson).get("id").asLong();
+
+        List<java.util.Map.Entry<String, String>> invalidPayloads = List.of(
+                java.util.Map.entry("channels[0]", """
+                    {
+                      "code": "QA-NULL-CH",
+                      "type": "PERCENT",
+                      "level": "ITEM",
+                      "value": 10,
+                      "startAt": "2026-11-19T00:00:00Z",
+                      "endAt": "2026-11-20T00:00:00Z",
+                      "productIds": [701],
+                      "branchIds": [701],
+                      "channels": [null]
+                    }
+                """),
+                java.util.Map.entry("productIds[0]", """
+                    {
+                      "code": "QA-NULL-PROD",
+                      "type": "PERCENT",
+                      "level": "ITEM",
+                      "value": 10,
+                      "startAt": "2026-11-19T00:00:00Z",
+                      "endAt": "2026-11-20T00:00:00Z",
+                      "productIds": [null],
+                      "branchIds": [701],
+                      "channels": ["POS"]
+                    }
+                """),
+                java.util.Map.entry("branchIds[0]", """
+                    {
+                      "code": "QA-NULL-BR",
+                      "type": "PERCENT",
+                      "level": "ITEM",
+                      "value": 10,
+                      "startAt": "2026-11-19T00:00:00Z",
+                      "endAt": "2026-11-20T00:00:00Z",
+                      "productIds": [701],
+                      "branchIds": [null],
+                      "channels": ["POS"]
+                    }
+                """)
+        );
+
+        for (var entry : invalidPayloads) {
+            String expectedField = entry.getKey();
+            String body = entry.getValue();
+
+            mockMvc.perform(post("/api/v1/promotions")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                    .andExpect(jsonPath("$.details[0].field").value(expectedField));
+
+            mockMvc.perform(put("/api/v1/promotions/{id}", draftId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                    .andExpect(jsonPath("$.details[0].field").value(expectedField));
+        }
+
+        Integer totalPromos = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM promotion", Integer.class);
+        org.junit.jupiter.api.Assertions.assertEquals(1, totalPromos);
+
+        mockMvc.perform(get("/api/v1/promotions/{id}", draftId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("QA-NULL-CONTROL"))
+                .andExpect(jsonPath("$.productIds[0]").value(701))
+                .andExpect(jsonPath("$.branchIds[0]").value(701))
+                .andExpect(jsonPath("$.channels[0]").value("POS"));
+    }
 }
