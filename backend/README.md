@@ -1,6 +1,6 @@
 # Backend – Spring Boot
 
-Java 21 · Spring Boot 3 · Maven · PostgreSQL · Redis · RabbitMQ · Flyway.
+Java 21 · Spring Boot 4 · Maven · PostgreSQL · Redis · RabbitMQ · Flyway.
 Kiến trúc modular monolith: mỗi module là một package trong `vn.greenmart`, chỉ gọi nhau qua interface service hoặc sự kiện.
 
 | Thư mục                               | Nội dung                                                                          |
@@ -27,6 +27,26 @@ Khung dự án (pom.xml, Application.java) do SV07 khởi tạo trong tuần 1.
 `DocumentTimestampsMigrationTest` kiểm tra schema mới, nâng cấp từ V3 với
 150 phiếu trả đã duyệt, backfill các trạng thái phiếu kho, chạy lại Flyway và
 các trường hợp timestamp không hợp lệ trên PostgreSQL 16.10.
+
+## Late PAID và tái giữ chỗ (#428)
+
+Đơn EXPIRED nhận PAID muộn dùng `InventoryService.tryReserveAll` trong cùng
+transaction xử lý callback. Batch khóa product rồi dòng tồn theo productId tăng
+dần, kiểm tra đủ toàn bộ SKU trước khi gọi các conditional UPDATE reserve hiện có.
+Một SKU thiếu/mất dòng tồn thì trả false, không ghi dở tồn/ledger/outbox và không
+đánh dấu transaction rollback-only, để nhánh CANCELLED/REFUNDED còn commit được.
+Phương thức thanh toán gốc được giữ khi đã có payment; chỉ dùng fallback QR hiện
+có khi webhook không cung cấp method và chưa có payment gốc.
+
+Không còn transaction REQUIRES_NEW riêng cho tái giữ chỗ: lỗi ghi payment, đơn,
+ledger hoặc outbox làm rollback toàn bộ callback. Người gửi có thể retry sau lỗi
+mà không nhân đôi reservation. Khóa đơn giữ callback lặp/đồng thời chỉ có một hiệu
+ứng; hai đơn tranh hàng cuối vẫn không vượt tồn. Transaction riêng của job expiry
+giữ nguyên. Không thay hợp đồng HMAC/dedup providerRef của issue416.
+
+`LatePaidAtomicityTest` dùng PostgreSQL thật, expiry thật và webhook có chữ ký,
+tiêm lỗi giới hạn theo đơn trong container test riêng rồi gỡ trigger. Kiểm tra
+rollback nhiều SKU, retry, thiếu SKU thứ hai, hoàn tiền cùng audit và đồng thời.
 
 ## Sổ kho cùng transaction (#50)
 

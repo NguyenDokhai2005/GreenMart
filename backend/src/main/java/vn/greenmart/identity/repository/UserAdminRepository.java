@@ -44,6 +44,10 @@ public class UserAdminRepository {
         return new Results(ids,total);
     }
     public void lockAdministration() { jdbc.queryForList("SELECT pg_advisory_xact_lock(424)"); }
+    public boolean usernameExists(String username) {
+        return Boolean.TRUE.equals(jdbc.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM app_user WHERE username=?)", Boolean.class, username));
+    }
     public long create(String username, String fullName, String role, String hash) {
         return jdbc.queryForObject("INSERT INTO app_user(username,full_name,role,password_hash) VALUES(?,?,?,?) RETURNING id",
                 Long.class,username,fullName,role,hash);

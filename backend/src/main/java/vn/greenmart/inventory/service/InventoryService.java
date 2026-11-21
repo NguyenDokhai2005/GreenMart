@@ -1,9 +1,11 @@
 package vn.greenmart.inventory.service;
 
+import java.util.Map;
+
 /**
  * Lõi chống bán vượt tồn (INV-07, BR-01).
  * <p>
- * Mỗi phương thức thực hiện đúng 1 conditional UPDATE nguyên tử và ghi 1 dòng
+ * Mỗi thao tác đơn thực hiện đúng 1 conditional UPDATE nguyên tử và ghi 1 dòng
  * sổ kho trong cùng transaction; lỗi ghi sổ sẽ rollback cả cập nhật tồn.
  * Caller (SalesService) chịu trách nhiệm:
  * <ul>
@@ -31,6 +33,13 @@ public interface InventoryService {
     void reserve(Long branchId, Long productId, int qty, Long refId);
 
     void reserve(Long branchId, Long productId, int qty, Long refId, Long actorId);
+
+    /**
+     * Reserve all products in the caller's transaction, locking product/inventory rows in productId order.
+     * Returns false without stock/ledger changes if any product is unavailable. Unexpected failures
+     * propagate so the complete caller transaction rolls back; this method never commits independently.
+     */
+    boolean tryReserveAll(Long branchId, Map<Long, Integer> quantities, Long refId);
 
     /**
      * Nhả giữ chỗ khi đơn hủy hoặc hết hạn (→ CANCELLED/EXPIRED).
@@ -86,4 +95,6 @@ public interface InventoryService {
 
     /** Reduce unreserved stock, append EXPORT, and return the locked approval-time unit cost. */
     long exportStock(Long branchId, Long productId, int qty, Long documentId, Long actorId);
+
+    void returnStock(Long branchId, Long productId, int qty, boolean resellable, Long returnDocumentId, Long actorId);
 }

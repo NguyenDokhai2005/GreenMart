@@ -47,6 +47,8 @@ public class UserAdminService {
     }
     public UserResponse create(UserRequests.Create request) {
         authorizeWrite();
+        // Administration writes share this transaction lock, including concurrent creates.
+        if (admin.usernameExists(request.username())) throw new AppException(ErrorCode.DUPLICATE_USERNAME);
         var branches=validateBranches(request.role(),request.branchIds());
         String hash=encode(request.password());
         long id=admin.create(request.username(),request.fullName(),request.role().name(),hash);

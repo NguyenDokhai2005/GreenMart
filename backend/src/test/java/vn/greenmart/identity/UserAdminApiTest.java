@@ -6,6 +6,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
@@ -14,11 +15,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -40,7 +42,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties={
-        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration",
+        "spring.autoconfigure.exclude=org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration",
         "management.endpoint.health.group.readiness.include=readinessState,db,redis",
         "greenmart.outbox.enabled=false"
 })
@@ -144,7 +146,8 @@ class UserAdminApiTest {
         var invalid=new java.util.HashMap<>(create("valid","CASHIER",List.of(1L)));
         invalid.put("password","password"); request(post("/api/v1/users"),invalid,admin,400);
         invalid.put("password","é".repeat(36)+"A1"); request(post("/api/v1/users"),invalid,admin,400);
-        request(post("/api/v1/users"),create("admin","ADMIN",List.of()),admin,409);
+        assertThat(request(post("/api/v1/users"),create("admin","ADMIN",List.of()),admin,409)
+                .path("code").asText()).isEqualTo("DUPLICATE_USERNAME");
         for(var query:List.of(Map.of("page","-1"),Map.of("size","101"),Map.of("sort","password_hash,asc"),Map.of("role","BAD"))) {
             var call=get("/api/v1/users"); query.forEach(call::param); request(call,null,admin,400);
         }
@@ -154,6 +157,45 @@ class UserAdminApiTest {
         assertThat(first.path("totalPages").asInt()).isEqualTo(3);
         assertThat(first.path("content").get(0).path("id")).isNotEqualTo(second.path("content").get(0).path("id"));
     }
+    @ParameterizedTest @ValueSource(booleans={true,false})
+    void duplicateUsernameDoesNotChangeExistingAccountMembershipOrAudit(boolean active) throws Exception {
+        jdbc.update("UPDATE app_user SET is_active=? WHERE id=7",active);
+        var existing=jdbc.queryForMap("SELECT full_name,role,is_active,password_hash FROM app_user WHERE id=7");
+        int accounts=jdbc.queryForObject("SELECT count(*) FROM app_user",Integer.class);
+        int auditCount=jdbc.queryForObject("SELECT count(*) FROM audit_log WHERE action='CREATE_USER'",Integer.class);
+        assertThat(request(post("/api/v1/users"),create("cashier","OWNER",List.of()),admin,409)
+                .path("code").asText()).isEqualTo("DUPLICATE_USERNAME");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM app_user",Integer.class)).isEqualTo(accounts);
+        assertThat(jdbc.queryForMap("SELECT full_name,role,is_active,password_hash FROM app_user WHERE id=7")).isEqualTo(existing);
+        assertThat(jdbc.queryForList("SELECT branch_id FROM user_branch WHERE user_id=7",Long.class)).containsExactly(1L);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_log WHERE action='CREATE_USER'",Integer.class)).isEqualTo(auditCount);
+    }
+
+    @Test void concurrentDuplicateUsernameCreatesExactlyOneAccountAndAudit() throws Exception {
+        var start=new CountDownLatch(1);
+        byte[] body=json.writeValueAsBytes(create("concurrent.user","CASHIER",List.of(1L)));
+        try(var executor=Executors.newFixedThreadPool(2)) {
+            Callable<MockHttpServletResponse> createRequest=()-> {
+                start.await();
+                return mvc.perform(post("/api/v1/users").header("Authorization","Bearer "+admin)
+                        .contentType(MediaType.APPLICATION_JSON).content(body)).andReturn().getResponse();
+            };
+            var first=executor.submit(createRequest);
+            var second=executor.submit(createRequest);
+            start.countDown();
+            var responses=List.of(first.get(20,TimeUnit.SECONDS),second.get(20,TimeUnit.SECONDS));
+            assertThat(responses).extracting(MockHttpServletResponse::getStatus)
+                    .containsExactlyInAnyOrder(201,409);
+            var rejected=responses.stream().filter(response->response.getStatus()==409).findFirst().orElseThrow();
+            assertThat(json.readTree(rejected.getContentAsString()).path("code").asText()).isEqualTo("DUPLICATE_USERNAME");
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM app_user WHERE username='concurrent.user'",Integer.class)).isEqualTo(1);
+        long id=jdbc.queryForObject("SELECT id FROM app_user WHERE username='concurrent.user'",Long.class);
+        assertThat(jdbc.queryForList("SELECT branch_id FROM user_branch WHERE user_id=?",Long.class,id)).containsExactly(1L);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_log WHERE action='CREATE_USER' AND entity_id=?",
+                Integer.class,Long.toString(id))).isEqualTo(1);
+    }
+
     @ParameterizedTest @ValueSource(strings={"role","branches","active"})
     void accessChangesRevokeAllExistingSessionsPermanently(String change) throws Exception {
         var issued=login("cashier"); var another=login("cashier");
