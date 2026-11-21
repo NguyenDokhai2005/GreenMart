@@ -10,6 +10,7 @@ import vn.greenmart.sales.dto.PromotionRef;
 import java.math.BigInteger;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.Clock;
 import java.util.Comparator;
 import java.util.List;
 
@@ -18,6 +19,7 @@ import java.util.List;
 public class DefaultPromotionCalculator implements PromotionCalculator {
 
     private final JdbcTemplate jdbcTemplate;
+    private final Clock clock;
 
     @Override
     public PromotionRef evaluateItemPromotion(Long productId, String sku, long unitPrice, int quantity, Long branchId, String channelCode) {
@@ -31,7 +33,7 @@ public class DefaultPromotionCalculator implements PromotionCalculator {
             return null;
         }
         String effectiveChannel = (channelCode != null && !channelCode.isBlank()) ? channelCode.trim().toUpperCase() : "POS";
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         Timestamp nowTs = Timestamp.from(now);
 
         List<PromotionCandidate> candidates = jdbcTemplate.query(
@@ -41,7 +43,7 @@ public class DefaultPromotionCalculator implements PromotionCalculator {
                 JOIN promotion_product pp ON pp.promotion_id = p.id AND pp.product_id = ?
                 WHERE p.status = 'ACTIVE'
                   AND p.level = 'ITEM'
-                  AND p.start_at <= ? AND p.end_at >= ?
+                  AND p.start_at <= ? AND p.end_at > ?
                   AND (p.usage_limit IS NULL OR p.used_count < p.usage_limit)
                   AND (NOT EXISTS (SELECT 1 FROM promotion_branch pb WHERE pb.promotion_id = p.id)
                        OR EXISTS (SELECT 1 FROM promotion_branch pb WHERE pb.promotion_id = p.id AND pb.branch_id = ?))
@@ -69,7 +71,7 @@ public class DefaultPromotionCalculator implements PromotionCalculator {
             return null;
         }
         String effectiveChannel = (channelCode != null && !channelCode.isBlank()) ? channelCode.trim().toUpperCase() : "POS";
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         Timestamp nowTs = Timestamp.from(now);
 
         List<PromotionCandidate> candidates = jdbcTemplate.query(
@@ -78,7 +80,7 @@ public class DefaultPromotionCalculator implements PromotionCalculator {
                 FROM promotion p
                 WHERE p.status = 'ACTIVE'
                   AND p.level = 'ORDER'
-                  AND p.start_at <= ? AND p.end_at >= ?
+                  AND p.start_at <= ? AND p.end_at > ?
                   AND (p.min_order IS NULL OR ? >= p.min_order)
                   AND (p.usage_limit IS NULL OR p.used_count < p.usage_limit)
                   AND (NOT EXISTS (SELECT 1 FROM promotion_branch pb WHERE pb.promotion_id = p.id)

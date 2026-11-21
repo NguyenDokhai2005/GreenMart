@@ -26,6 +26,7 @@ import vn.greenmart.promotion.dto.PromotionStatusRequest;
 import vn.greenmart.promotion.repository.PromotionRepository;
 
 import java.time.Instant;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -44,6 +45,7 @@ public class PromotionCrudServiceImpl implements PromotionCrudService {
     private final PromotionRepository promotionRepository;
     private final JdbcTemplate jdbcTemplate;
     private final AuditLogRepository auditLogRepository;
+    private final Clock clock;
 
     @Override
     @Transactional(readOnly = true)
@@ -154,7 +156,7 @@ public class PromotionCrudServiceImpl implements PromotionCrudService {
     public PromotionResponse updatePromotion(Long promotionId, PromotionRequest request) {
         SecurityUtils.requireRole("OWNER");
 
-        Promotion promotion = promotionRepository.findById(promotionId)
+        Promotion promotion = promotionRepository.findForUpdate(promotionId)
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy chương trình khuyến mại", Map.of("promotionId", promotionId)));
 
         if (promotion.getStatus() != PromotionStatus.DRAFT && promotion.getStatus() != PromotionStatus.PAUSED) {
@@ -194,7 +196,7 @@ public class PromotionCrudServiceImpl implements PromotionCrudService {
     public PromotionResponse changeStatus(Long promotionId, PromotionStatusRequest request) {
         SecurityUtils.requireRole("OWNER");
 
-        Promotion promotion = promotionRepository.findById(promotionId)
+        Promotion promotion = promotionRepository.findForUpdate(promotionId)
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy chương trình khuyến mại", Map.of("promotionId", promotionId)));
 
         PromotionStatus current = promotion.getStatus();
@@ -215,6 +217,9 @@ public class PromotionCrudServiceImpl implements PromotionCrudService {
             );
         }
 
+        if (target == PromotionStatus.ACTIVE && !promotion.getEndAt().isAfter(clock.instant())) {
+            throw new AppException(ErrorCode.INVALID_STATUS, "Không thể kích hoạt khuyến mại đã hết hạn");
+        }
         promotion.setStatus(target);
         Promotion updated = promotionRepository.save(promotion);
         saveAudit("CHANGE_PROMOTION_STATUS", updated.getId(), Map.of("from", current.name(), "to", target.name()));
@@ -233,6 +238,9 @@ public class PromotionCrudServiceImpl implements PromotionCrudService {
         }
         if (!request.endAt().isAfter(request.startAt())) {
             errors.add(new ValidationErrorDetail("endAt", "Thời gian kết thúc phải sau thời gian bắt đầu"));
+        }
+        if (!request.endAt().isAfter(clock.instant())) {
+            errors.add(new ValidationErrorDetail("endAt", "Thời gian kết thúc phải ở tương lai"));
         }
         if (currentUsedCount != null && request.usageLimit() != null && request.usageLimit() < currentUsedCount) {
             errors.add(new ValidationErrorDetail("usageLimit", "Giới hạn lượt dùng không được nhỏ hơn số lượt đã sử dụng (" + currentUsedCount + ")"));

@@ -1507,7 +1507,7 @@ paths:
           schema: { $ref: '#/components/schemas/PromotionLevel' }
         - name: activeAt
           in: query
-          description: Chỉ lấy chương trình hiệu lực tại thời điểm này
+          description: Lọc khoảng startAt ≤ activeAt < endAt; kết hợp status để lọc trạng thái chương trình.
           schema: { type: string, format: date-time }
         - $ref: '#/components/parameters/BranchIdQuery'
         - name: channel
@@ -1606,6 +1606,9 @@ paths:
       summary: Đổi trạng thái chương trình
       description: |
         DRAFT → ACTIVE; ACTIVE ⇄ PAUSED; ACTIVE/PAUSED → ENDED (không quay lại). Chỉ ACTIVE trong thời gian hiệu lực mới được áp (BR-07).
+        Có thể bật chương trình trước startAt; chỉ áp dụng khi startAt ≤ thời điểm tính < endAt.
+        Bật lại chương trình đã hết hạn (endAt ≤ thời điểm xử lý) trả 409 INVALID_STATUS.
+        Job kết thúc DRAFT/ACTIVE/PAUSED hết hạn theo lịch mỗi phút; việc tính giá và ghi lượt dùng luôn kiểm thời hạn trực tiếp, không chờ job.
         Đơn đang mở báo giá với KM vừa tạm dừng sẽ nhận 422 `TOTAL_CHANGED` khi hoàn tất.
       operationId: changePromotionStatus
       x-roles: [OWNER]
@@ -3126,7 +3129,7 @@ components:
         maxDiscount: { type: integer, format: int64, minimum: 1, nullable: true, description: 'Mức giảm tối đa, chỉ với PERCENT' }
         minOrder: { type: integer, format: int64, minimum: 0, nullable: true, description: 'Tổng sau giảm dòng tối thiểu, chỉ với ORDER' }
         startAt: { type: string, format: date-time }
-        endAt: { type: string, format: date-time, description: Phải sau startAt }
+        endAt: { type: string, format: date-time, description: 'Phải sau startAt và ở tương lai khi tạo/sửa qua API thông thường; sai trả 400 VALIDATION_ERROR. Thời điểm kết thúc không còn được áp dụng.' }
         usageLimit: { type: integer, minimum: 1, nullable: true, description: Tổng lượt dùng tối đa (BR-08); null = không giới hạn }
         productIds:
           type: array
