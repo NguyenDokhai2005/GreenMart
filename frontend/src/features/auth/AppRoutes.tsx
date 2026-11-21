@@ -12,10 +12,17 @@ import BranchSelectionPage from './BranchSelectionPage';
 import LoginPage from './LoginPage';
 import ProductsPage from '../catalog/ProductsPage';
 import CustomersPage from '../catalog/CustomersPage';
+import OrdersPage from '../orders/OrdersPage';
+import OnlineOrderDetailPage from '../orders/OnlineOrderDetailPage';
 import { OperationsHome, OperationsLayout } from '../../layouts/operations';
 import InventoryPage from '../inventory/InventoryPage';
+import InventoryLedgerPage from '../inventory/InventoryLedgerPage';
+import LedgerOrderDetailDialog from '../inventory/LedgerOrderDetailDialog';
 import StockDocumentsPage from '../stock-documents/StockDocumentsPage';
 import StockDocumentDetailDrawer from '../stock-documents/StockDocumentDetailDrawer';
+import TransferDetailPage from '../transfers/TransferDetailPage';
+import TransferListPage from '../transfers/TransferListPage';
+import { TransferCreatePage, TransferEditPage } from '../transfers/TransferFormPage';
 import {
   ADMIN_ROLES,
   APP_PATHS,
@@ -126,6 +133,7 @@ function WorkspaceMountPoint({ title }: { title: string }) {
 
 const loadPosPage: PosPageLoader = (item) => {
   if (item.segment === '') return import('../pos/PosSalePage');
+  if (item.segment === 'receipts') return import('../pos/PosReceiptsPage');
   if (item.segment === 'products') return Promise.resolve({ default: ProductsPage });
   if (item.segment === 'customers') return Promise.resolve({ default: CustomersPage });
   return import('../../layouts/pos/PosPlaceholderPage');
@@ -276,6 +284,15 @@ export function AppRoutes() {
         <Route path="products" element={<ProductsPage />} />
         <Route path="customers" element={<CustomersPage />} />
         <Route path="inventory" element={<InventoryPage />} />
+        <Route path="orders" element={<OrdersPage />} />
+        <Route path="orders/:orderId" element={<OnlineOrderDetailPage />} />
+        <Route path="ledger" element={<InventoryLedgerPage />}>
+          <Route path="orders/:id" element={<LedgerOrderDetailDialog />} />
+        </Route>
+        <Route path="transfers" element={<TransferListPage />} />
+        <Route path="transfers/new" element={<TransferCreatePage />} />
+        <Route path="transfers/:id" element={<TransferDetailPage />} />
+        <Route path="transfers/:id/edit" element={<TransferEditPage />} />
         <Route path="stock-documents" element={<StockDocumentsPage />}>
           <Route path=":id" element={<StockDocumentDetailDrawer />} />
         </Route>

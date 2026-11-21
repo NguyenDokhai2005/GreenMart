@@ -7,6 +7,7 @@ export interface DialogProps {
   title: string;
   children: ReactNode;
   onClose: () => void;
+  onCancel?: () => void;
   onConfirm?: () => void;
   confirmText?: string;
   cancelText?: string;
@@ -21,6 +22,7 @@ export default function Dialog({
   title,
   children,
   onClose,
+  onCancel,
   onConfirm,
   confirmText = 'Xác nhận',
   cancelText = 'Quay lại',
@@ -153,7 +155,11 @@ export default function Dialog({
         <div className="gm-dialog__body">{children}</div>
 
         <footer className="gm-dialog__footer">
-          <Button variant="secondary" onClick={onClose} disabled={busy || closeDisabled}>
+          <Button
+            variant="secondary"
+            onClick={onCancel ?? onClose}
+            disabled={busy || closeDisabled}
+          >
             {cancelText}
           </Button>
 

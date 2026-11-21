@@ -135,7 +135,7 @@ class CustomerIntegrationTest {
         CustomerResponse res = new CustomerResponse(1L, "0901234567", "Trần Thị Mai", null, Instant.now());
         PageResponse<CustomerResponse> pageRes = new PageResponse<>(List.of(res), 0, 20, 1, 1);
 
-        when(customerService.listCustomers(isNull(), isNull(), any())).thenReturn(pageRes);
+        when(customerService.listCustomers(isNull(), isNull(), isNull(), any())).thenReturn(pageRes);
 
         mockMvc.perform(get("/api/v1/customers"))
             .andExpect(status().isOk())
@@ -147,7 +147,7 @@ class CustomerIntegrationTest {
         CustomerResponse res = new CustomerResponse(1L, "0901234567", "Trần Thị Mai", null, Instant.now());
         PageResponse<CustomerResponse> pageRes = new PageResponse<>(List.of(res), 0, 20, 1, 1);
 
-        when(customerService.listCustomers(isNull(), eq("0901234567"), any())).thenReturn(pageRes);
+        when(customerService.listCustomers(isNull(), eq("0901234567"), isNull(), any())).thenReturn(pageRes);
 
         mockMvc.perform(get("/api/v1/customers").param("phone", "0901234567"))
             .andExpect(status().isOk())
@@ -159,7 +159,7 @@ class CustomerIntegrationTest {
         CustomerResponse res = new CustomerResponse(1L, "0901234567", "Trần Thị Mai", null, Instant.now());
         PageResponse<CustomerResponse> pageRes = new PageResponse<>(List.of(res), 0, 20, 1, 1);
 
-        when(customerService.listCustomers(eq("Trần"), isNull(), any())).thenReturn(pageRes);
+        when(customerService.listCustomers(eq("Trần"), isNull(), isNull(), any())).thenReturn(pageRes);
 
         mockMvc.perform(get("/api/v1/customers").param("q", "Trần"))
             .andExpect(status().isOk())
@@ -171,7 +171,7 @@ class CustomerIntegrationTest {
         CustomerResponse res = new CustomerResponse(1L, "0901234567", "Trần Thị Mai", null, Instant.now());
         PageResponse<CustomerResponse> pageRes = new PageResponse<>(List.of(res), 0, 20, 1, 1);
 
-        when(customerService.listCustomers(eq("Trần"), eq("0901234567"), any())).thenReturn(pageRes);
+        when(customerService.listCustomers(eq("Trần"), eq("0901234567"), isNull(), any())).thenReturn(pageRes);
 
         mockMvc.perform(get("/api/v1/customers")
                 .param("phone", "0901234567")
@@ -179,6 +179,18 @@ class CustomerIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content[0].phone").value("0901234567"));
     }
+
+    @Test
+  void testListCustomers_WithActiveFalse_Returns200() throws Exception {
+      CustomerResponse res = new CustomerResponse(1L, "0901234567", "Trần Thị Mai", null, false, Instant.now());
+      PageResponse<CustomerResponse> pageRes = new PageResponse<>(List.of(res), 0, 20, 1, 1);
+
+      when(customerService.listCustomers(isNull(), isNull(), eq(false), any())).thenReturn(pageRes);
+
+      mockMvc.perform(get("/api/v1/customers").param("active", "false"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.content[0].active").value(false));
+  }
 
     @Test
     void testListCustomerOrders_Success_Returns200() throws Exception {
@@ -204,5 +216,16 @@ class CustomerIntegrationTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
             .andExpect(jsonPath("$.details[0].field").value("page"));
+    }
+
+    @Test
+    void testDeactivateCustomer_Returns200WithActiveFalse() throws Exception {
+        CustomerResponse res = new CustomerResponse(1L, "0901234567", "Trần Thị Mai", null, false, Instant.now());
+        when(customerService.deactivateCustomer(1L)).thenReturn(res);
+
+        mockMvc.perform(post("/api/v1/customers/1/deactivate"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(1))
+            .andExpect(jsonPath("$.active").value(false));
     }
 }

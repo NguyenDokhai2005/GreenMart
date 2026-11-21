@@ -49,6 +49,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Testcontainers
 @DisplayName("Issue #259 & #333: [ORD-06/ORD-07] GET /orders và GET /orders/{orderId}")
 class OrderDetailIntegrationTest {
+    // Business-module tests isolate the session registry; auth tests exercise real Redis.
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    vn.greenmart.identity.repository.RefreshTokenStore authSessions;
+
 
     @Container
     static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(PostgresTestImage.IMAGE);
@@ -92,6 +96,8 @@ class OrderDetailIntegrationTest {
 
     @BeforeEach
     void setupFixtures() {
+        org.mockito.Mockito.when(authSessions.isSessionActive(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+
         cleanTestData();
 
         // Chi nhánh

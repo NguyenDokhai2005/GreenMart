@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -225,5 +226,110 @@ class CustomerDbIntegrationTest {
         PageResponse<CustomerResponse> bothRes = customerService.listCustomers("QA151", "0991510151", PageRequest.of(0, 20));
         assertEquals(1, bothRes.totalElements());
         assertEquals("0991510151", bothRes.content().get(0).phone());
+    }
+
+    @Test
+    @WithMockUser(username = "8888", roles = "BRANCH_MANAGER")
+    @DisplayName("Issue #306 (AC1 & AC3): Ngừng hoạt động khách -> ẩn khỏi tra cứu POS, đơn kênh vẫn nhận theo SĐT và giữ lịch sử đơn")
+    void testDeactivateCustomer_HiddenFromPosSearch_ChannelOrderStillResolvesByPhone() {
+        CustomerResponse created = customerService.createCustomer(
+                new CustomerRequest("0907776655", "Khách Ngừng Hoạt Động", "inactive@greenmart.vn")
+        );
+        insertedCustomerIds.add(created.id());
+        assertTrue(created.active());
+
+        // Tạo sẵn 1 đơn POS trước khi ngừng hoạt động
+        Long orderId = jdbcTemplate.queryForObject(String.format("""
+            INSERT INTO sales_order (code, channel_id, branch_id, customer_id, status, subtotal, discount, total, created_at)
+            VALUES ('POS-306-01', %d, %d, %d, 'COMPLETED', 120000, 0, 120000, NOW())
+            RETURNING id
+        """, posChannelId, branch1Id, created.id()), Long.class);
+        insertedOrderIds.add(orderId);
+
+        // Quản lý chi nhánh ngừng hoạt động khách hàng
+        CustomerResponse deactivated = customerService.deactivateCustomer(created.id());
+        org.junit.jupiter.api.Assertions.assertFalse(deactivated.active());
+
+        // Tra cứu tại POS (theo q và theo phone) -> bị ẩn hoàn toàn
+        PageResponse<CustomerResponse> searchByQ = customerService.listCustomers("0907776655", null, PageRequest.of(0, 20));
+        assertEquals(0, searchByQ.totalElements());
+
+        PageResponse<CustomerResponse> searchByPhone = customerService.listCustomers(null, "0907776655", PageRequest.of(0, 20));
+        assertEquals(0, searchByPhone.totalElements());
+
+        // Quản lý chi nhánh lọc active=false -> tìm lại được khách đã ngừng hoạt động
+        PageResponse<CustomerResponse> inactiveSearch = customerService.listCustomers(null, "0907776655", false, PageRequest.of(0, 20));
+        assertEquals(1, inactiveSearch.totalElements());
+        assertEquals(created.id(), inactiveSearch.content().get(0).id());
+        assertFalse(inactiveSearch.content().get(0).active());
+
+        // Đơn kênh ngoài vẫn nhận và gắn đúng khách cũ theo SĐT
+        long resolvedId = customerService.resolveChannelCustomer("0907776655", "Khách Ngừng Hoạt Động");
+        assertEquals(created.id(), resolvedId);
+
+        // Chi tiết khách và lịch sử đơn cũ vẫn được giữ nguyên
+        CustomerResponse detail = customerService.getCustomer(created.id());
+        org.junit.jupiter.api.Assertions.assertFalse(detail.active());
+
+        PageResponse<OrderSummaryResponse> history = customerService.listCustomerOrders(created.id(), PageRequest.of(0, 20));
+        assertEquals(1, history.totalElements());
+        assertEquals("POS-306-01", history.content().get(0).code());
+
+        // Mở lại khách hàng bằng updateCustomer(active=true) -> hiển thị lại khi tìm mặc định
+        CustomerResponse reactivated = customerService.updateCustomer(
+                created.id(),
+                new CustomerRequest("0907776655", "Khách Ngừng Hoạt Động", "inactive@greenmart.vn", true)
+        );
+        assertTrue(reactivated.active());
+
+        PageResponse<CustomerResponse> activeAgain = customerService.listCustomers(null, "0907776655", PageRequest.of(0, 20));
+        assertEquals(1, activeAgain.totalElements());
+    }
+
+    @Test
+    @org.springframework.transaction.annotation.Transactional(
+            propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED
+    )
+    @WithMockUser(username = "1", roles = "OWNER")
+    @DisplayName("Issue #306 (AC2): Khách đã có đơn -> xóa cứng bằng SQL bị FK ON DELETE RESTRICT từ chối, đơn cũ giữ nguyên customer_id")
+    void testDeleteCustomerWithOrders_RestrictedByForeignKey() {
+        Customer customer = customerRepository.save(new Customer("0906665544", "Khách Có Đơn", null));
+        Long orderId = jdbcTemplate.queryForObject(String.format("""
+            INSERT INTO sales_order (code, channel_id, branch_id, customer_id, status, subtotal, discount, total, created_at)
+            VALUES ('POS-306-02', %d, %d, %d, 'COMPLETED', 90000, 0, 90000, NOW())
+            RETURNING id
+        """, posChannelId, branch1Id, customer.getId()), Long.class);
+
+        try {
+            // Thử xóa cứng khách hàng bằng SQL -> PostgreSQL từ chối do ON DELETE RESTRICT
+            assertThrows(
+                    org.springframework.dao.DataIntegrityViolationException.class,
+                    () -> jdbcTemplate.update("DELETE FROM customer WHERE id = ?", customer.getId())
+            );
+
+            // Đơn cũ vẫn giữ nguyên customer_id
+            Long linkedCustomerId = jdbcTemplate.queryForObject(
+                    "SELECT customer_id FROM sales_order WHERE id = ?", Long.class, orderId
+            );
+            assertEquals(customer.getId(), linkedCustomerId);
+        } finally {
+            jdbcTemplate.update("DELETE FROM sales_order WHERE id = ?", orderId);
+            jdbcTemplate.update("DELETE FROM customer WHERE id = ?", customer.getId());
+        }
+    }
+
+    @Test
+    @WithMockUser(username = "8888", roles = "CASHIER")
+    @DisplayName("Issue #306: CASHIER tạo khách với active=false -> hệ thống bỏ qua, khách mới luôn active=true và tra cứu được")
+    void testCreateCustomer_WithActiveFalse_IgnoredAndAlwaysCreatedActive() {
+        CustomerRequest req = new CustomerRequest("0905554433", "Khách Tạo Bởi Thu Ngân", "cashier.cus@greenmart.vn", false);
+        CustomerResponse created = customerService.createCustomer(req);
+        insertedCustomerIds.add(created.id());
+
+        assertTrue(created.active());
+
+        PageResponse<CustomerResponse> searchResult = customerService.listCustomers(null, "0905554433", PageRequest.of(0, 20));
+        assertEquals(1, searchResult.totalElements());
+        assertEquals(created.id(), searchResult.content().get(0).id());
     }
 }

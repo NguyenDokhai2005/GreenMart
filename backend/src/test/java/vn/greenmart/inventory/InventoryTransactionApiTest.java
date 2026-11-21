@@ -33,6 +33,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Testcontainers
 class InventoryTransactionApiTest {
+    // Business-module tests isolate the session registry; auth tests exercise real Redis.
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    vn.greenmart.identity.repository.RefreshTokenStore authSessions;
+
     @Container static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(PostgresTestImage.IMAGE);
     @DynamicPropertySource static void database(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
@@ -45,6 +49,8 @@ class InventoryTransactionApiTest {
     @Autowired JwtTokens tokens;
 
     @BeforeEach void fixtures() {
+        org.mockito.Mockito.when(authSessions.isSessionActive(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+
         jdbc.execute("TRUNCATE branch,category,app_user CASCADE");
         jdbc.update("INSERT INTO branch(id,code,name) VALUES(71,'B71','Branch 71'),(72,'B72','Branch 72')");
         jdbc.update("INSERT INTO category(id,name) VALUES(81,'Milk')");

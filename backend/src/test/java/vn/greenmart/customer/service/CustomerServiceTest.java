@@ -108,4 +108,65 @@ class CustomerServiceTest {
         org.junit.jupiter.api.Assertions.assertTrue(customerService.exists(10L));
         org.junit.jupiter.api.Assertions.assertFalse(customerService.exists(999L));
     }
+
+    @Test
+    void testDeactivateCustomer_BranchManager_Success() {
+        authenticate("BRANCH_MANAGER", "5");
+        Customer existing = new Customer("0901234567", "Khách Hàng A", "a@gmail.com");
+        existing.setId(10L);
+
+        when(customerRepository.findById(10L)).thenReturn(Optional.of(existing));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CustomerResponse res = customerService.deactivateCustomer(10L);
+        org.junit.jupiter.api.Assertions.assertFalse(res.active());
+    }
+
+    @Test
+    void testDeactivateCustomer_Cashier_ThrowsForbidden() {
+        authenticate("CASHIER", "2");
+
+        AppException ex = assertThrows(AppException.class, () -> customerService.deactivateCustomer(10L));
+        assertEquals(ErrorCode.FORBIDDEN.name(), ex.getCode());
+    }
+
+    @Test
+    void testUpdateCustomer_CashierCannotChangeActive_ThrowsForbidden() {
+        authenticate("CASHIER", "2");
+        Customer existing = new Customer("0901234567", "Khách Hàng A", null);
+        existing.setId(10L);
+
+        when(customerRepository.findById(10L)).thenReturn(Optional.of(existing));
+        when(customerRepository.findByPhone("0901234567")).thenReturn(Optional.of(existing));
+
+        CustomerRequest req = new CustomerRequest("0901234567", "Khách Hàng A", null, false);
+        AppException ex = assertThrows(AppException.class, () -> customerService.updateCustomer(10L, req));
+        assertEquals(ErrorCode.FORBIDDEN.name(), ex.getCode());
+    }
+
+    @Test
+    void testListCustomers_ActiveFalse_BranchManager_Success() {
+        authenticate("BRANCH_MANAGER", "5");
+        Customer inactive = new Customer("0901234567", "Khách Đã Ngừng", null);
+        inactive.setId(10L);
+        inactive.setActive(false);
+
+        when(customerRepository.searchCustomers(org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.eq(false), any()))
+            .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(inactive)));
+
+        vn.greenmart.common.pagination.PageResponse<CustomerResponse> res =
+            customerService.listCustomers(null, null, false, org.springframework.data.domain.PageRequest.of(0, 20));
+        assertEquals(1, res.totalElements());
+        org.junit.jupiter.api.Assertions.assertFalse(res.content().get(0).active());
+    }
+
+    @Test
+    void testListCustomers_ActiveFalse_Cashier_ThrowsForbidden() {
+        authenticate("CASHIER", "2");
+
+        AppException ex = assertThrows(AppException.class, () ->
+            customerService.listCustomers(null, null, false, org.springframework.data.domain.PageRequest.of(0, 20))
+        );
+        assertEquals(ErrorCode.FORBIDDEN.name(), ex.getCode());
+    }
 }
