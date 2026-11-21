@@ -16,6 +16,8 @@ info:
     - JSON, tên trường camelCase, thời gian ISO 8601 có múi giờ (`2026-11-05T09:30:00+07:00`).
     - Tiền là số nguyên VND, không có phần thập phân.
     - Xác thực bằng header `Authorization: Bearer <accessToken>`; access token 15 phút, refresh token 7 ngày.
+    - Access token gắn với phiên `sid`; logout thu hồi ngay access và refresh của phiên đó. Đổi mật khẩu thu hồi mọi phiên.
+    - API được bảo vệ có thể trả 503 `AUTH_UNAVAILABLE` nếu không kiểm tra được trạng thái phiên trong Redis.
     - Phân trang `?page=0&size=20&sort=field,asc|desc`; `page` bắt đầu từ 0, `size` tối đa 100.
     - Mọi lỗi dùng chung định dạng `ErrorResponse`; danh sách mã lỗi ở cuối mô tả này.
 
@@ -31,8 +33,8 @@ info:
     | --- | --- | --- |
     | 400 | VALIDATION_ERROR | Dữ liệu sai định dạng; `details` là danh sách `{field, message}` |
     | 401 | UNAUTHORIZED | Thiếu token, token sai hoặc hết hạn |
-    | 401 | INVALID_CREDENTIALS | Sai tên đăng nhập hoặc mật khẩu |
-    | 401 | ACCOUNT_LOCKED | Khóa 15 phút sau 5 lần sai; `details.lockedUntil` |
+    | 401 | INVALID_CREDENTIALS | Sai tên đăng nhập/mật khẩu hoặc tài khoản bị vô hiệu hóa; sai mật khẩu có details.remainingAttempts |
+    | 401 | ACCOUNT_LOCKED | Tài khoản tạm khóa sau 5 lần sai liên tiếp; details.lockedUntil là mốc hết khóa |
     | 401 | INVALID_REFRESH_TOKEN | Refresh token sai, hết hạn hoặc đã thu hồi |
     | 403 | FORBIDDEN | Vai trò không đủ quyền |
     | 403 | BRANCH_FORBIDDEN | Thao tác trên chi nhánh không được gán |
@@ -46,6 +48,11 @@ info:
     | 422 | CASH_INSUFFICIENT | Tiền khách đưa nhỏ hơn tổng |
     | 422 | PAYMENT_FAILED / PAYMENT_TIMEOUT | Thanh toán thẻ/QR thất bại hoặc quá 60 giây |
     | 422 | MANUAL_DISCOUNT_FORBIDDEN | Giảm giá tay không phải QL chi nhánh hoặc thiếu lý do (BR-19) |
+    | 429 | LOGIN_RATE_LIMITED | Vượt 20 lần thử đăng nhập/IP trong 60 giây; có header `Retry-After` |
+    | 429 | REFRESH_RATE_LIMITED | Vượt 60 lần refresh/IP trong 60 giây |
+    | 429 | PASSWORD_RATE_LIMITED | Vượt hạn mức đổi mật khẩu theo tài khoản hoặc IP |
+    | 503 | LOGIN_UNAVAILABLE | Tạm thời không kiểm tra được giới hạn đăng nhập |
+    | 503 | AUTH_UNAVAILABLE | Tạm thời không kiểm tra/thu hồi được phiên hoặc hạn mức xác thực |
     | 422 | CATEGORY_CYCLE | Đặt danh mục cha tạo vòng lặp |
     | 422 | WRONG_PASSWORD | Mật khẩu hiện tại sai khi đổi mật khẩu |
     | 401 | INVALID_SIGNATURE | Webhook thiếu hoặc sai chữ ký HMAC (v2) |
@@ -58,6 +65,8 @@ info:
     | 409 | FORECAST_RUNNING | Đã có lượt dự báo đang chạy; `details.runId` là lượt đang chạy (v3) |
     | 409 | FORECAST_NO_DATA | Chưa có dữ liệu `daily_sales` để chạy dự báo (v3) |
     | 503 | FORECAST_UNAVAILABLE | Backend không gọi được forecast-service (v3) |
+    | 422 | RETURN_WINDOW_EXPIRED | Đơn hàng đã quá thời hạn trả hàng 7 ngày kể từ khi hoàn tất (BR-10) (v4) |
+    | 422 | RETURN_QUANTITY_EXCEEDED | Số lượng trả vượt quá số lượng còn lại có thể trả (BR-10) (v4) |
   contact:
     name: SV01 – BA/Lead
 servers:
@@ -78,6 +87,8 @@ tags:
     description: Khách hàng (CUS-01, CUS-02)
   - name: Orders
     description: Báo giá, bán tại quầy, tra cứu đơn (ORD-01, ORD-06, ORD-07, PAY-01, PRM-02)
+  - name: Returns
+    description: Lập và duyệt phiếu trả hàng toàn bộ hoặc một phần (ORD-04, ORD-05, BR-10, BR-13, BR-18)
   - name: Inventory
     description: Tồn kho và sổ giao dịch kho (INV-01, INV-06)
   - name: Online orders
@@ -107,7 +118,17 @@ paths:
     post:
       tags: [Auth]
       summary: Đăng nhập
-      description: Sai 5 lần liên tiếp thì khóa tài khoản 15 phút; mỗi lần sai được ghi nhật ký (AUTH-03).
+      description: |
+        Mỗi IP được thử tối đa 20 lần trong 60 giây gần nhất, tính cả đúng, sai và dữ liệu không hợp lệ.
+        Request thứ 21 vượt ngưỡng bắt đầu chặn IP trong 60 giây, trả 429 và Retry-After là số giây còn chờ.
+        Request trong lúc chặn không kéo dài thời gian chặn. Hết cooldown thì bắt đầu bộ đếm mới.
+        Kiểm tra IP chạy trước khi đọc tài khoản từ PostgreSQL. Qua proxy chỉ tin X-Real-IP từ proxy được cấu hình tin cậy.
+        Khi kho giới hạn tạm thời không khả dụng, trả 503 trước bước đọc tài khoản.
+        Sai mật khẩu 5 lần liên tiếp khóa tài khoản 15 phút; mỗi lần sai được ghi nhật ký (AUTH-03).
+        Tài khoản không tồn tại hoặc bị vô hiệu hóa trả 401 INVALID_CREDENTIALS với cùng thông báo sai thông tin.
+        Sai mật khẩu trước ngưỡng khóa trả INVALID_CREDENTIALS kèm details.remainingAttempts.
+        Lần sai thứ 5 và mọi lần thử trong thời gian khóa (kể cả đúng mật khẩu) trả 401 ACCOUNT_LOCKED
+        kèm details.lockedUntil (ISO 8601). Thử lại trong lúc khóa không kéo dài mốc khóa.
       operationId: login
       security: []
       requestBody:
@@ -129,15 +150,35 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
               examples:
-                invalid:
-                  value: { code: INVALID_CREDENTIALS, message: Sai tên đăng nhập hoặc mật khẩu, details: { remainingAttempts: 3 }, traceId: 7f3c2a91 }
+                wrongPassword:
+                  value: { code: INVALID_CREDENTIALS, message: Sai tên đăng nhập hoặc mật khẩu, details: { remainingAttempts: 4 }, traceId: 7f3c2a91 }
                 locked:
                   value: { code: ACCOUNT_LOCKED, message: Tài khoản tạm khóa do đăng nhập sai nhiều lần, details: { lockedUntil: '2026-11-05T09:45:00+07:00' }, traceId: 7f3c2a92 }
+        '429':
+          description: LOGIN_RATE_LIMITED
+          headers:
+            Retry-After:
+              description: Số giây còn phải chờ trước khi thử lại
+              schema: { type: integer, minimum: 1, maximum: 60 }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example: { code: LOGIN_RATE_LIMITED, message: Quá nhiều lần đăng nhập. Vui lòng thử lại sau., traceId: 7f3c2a93 }
+        '503':
+          description: LOGIN_UNAVAILABLE khi bộ giới hạn lỗi; AUTH_UNAVAILABLE khi không tạo được phiên
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
   /auth/refresh:
     post:
       tags: [Auth]
       summary: Làm mới access token
-      description: Trả cặp token mới; refresh token cũ bị thu hồi (xoay vòng).
+      description: |
+        Trả cặp token mới; refresh token cũ bị thu hồi (xoay vòng), giữ cùng phiên sid.
+        Refresh token được xác minh trong Redis trước khi truy vấn tài khoản, rồi kiểm tra/tiêu thụ nguyên tử lại khi xoay.
+        Access mới có hạn 15 phút, refresh mới 7 ngày tính từ lúc cấp; không có hạn tổng tuổi phiên.
+        Tối đa 60 request/IP trong 60 giây gần nhất; request thứ 61 bắt đầu chặn 60 giây.
+        Request lúc chặn không kéo dài cooldown. Tính cả token giả và body không hợp lệ.
       operationId: refreshToken
       security: []
       requestBody:
@@ -151,13 +192,33 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TokenResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429':
+          description: REFRESH_RATE_LIMITED; chờ Retry-After giây
+          headers:
+            Retry-After:
+              schema: { type: integer, minimum: 1, maximum: 60 }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          description: AUTH_UNAVAILABLE
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
   /auth/logout:
     post:
       tags: [Auth]
       summary: Đăng xuất
-      description: Thu hồi refresh token. Access token hết hạn tự nhiên sau tối đa 15 phút.
+      description: |
+        Dùng refresh token trong body làm bằng chứng để thu hồi đúng phiên, không cần access token.
+        Hoạt động cả khi access hết hạn, tài khoản bị khóa/vô hiệu hóa hoặc token đã xoay vòng trong vòng 7 ngày.
+        Access token của phiên mất hiệu lực ngay cho request xác thực tiếp theo; các phiên khác giữ nguyên.
+        Token đúng định dạng nhưng đã hết hạn/thu hồi/không tồn tại vẫn trả 204, không tiết lộ trạng thái.
+        Không cấp token mới để logout. Redis không khả dụng trả 503; không báo đã thu hồi thành công.
       operationId: logout
+      security: []
       requestBody:
         required: true
         content:
@@ -165,7 +226,13 @@ paths:
             schema: { $ref: '#/components/schemas/RefreshRequest' }
       responses:
         '204': { description: Đã đăng xuất }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '503':
+          description: AUTH_UNAVAILABLE
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
   /auth/me:
     get:
       tags: [Auth]
@@ -183,7 +250,13 @@ paths:
     post:
       tags: [Auth]
       summary: Đổi mật khẩu
-      description: Mật khẩu mới tối thiểu 8 ký tự, có chữ và số. Đổi xong thu hồi mọi refresh token của người dùng.
+      description: |
+        Mật khẩu mới tối thiểu 8 ký tự, có chữ và số, tối đa 72 byte UTF-8 cho BCrypt.
+        Đổi xong thu hồi mọi phiên, gồm access và refresh token; cần đăng nhập lại.
+        Tối đa 5 lần xác minh mật khẩu hiện tại/tài khoản trong 15 phút, gồm cả thành công và thất bại.
+        Lần thứ 6 bắt đầu chặn 15 phút; không kéo dài khi thử thêm. Sai mật khẩu được ghi audit.
+        Đồng thời giới hạn 20 request/IP trong 60 giây, tính cả body không hợp lệ; vượt ngưỡng chặn 60 giây.
+        Hạn mức tài khoản không bị xóa bởi đăng nhập mới, refresh hoặc đổi IP.
       operationId: changePassword
       requestBody:
         required: true
@@ -195,6 +268,19 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/BusinessRule' }
+        '429':
+          description: PASSWORD_RATE_LIMITED; chờ Retry-After giây
+          headers:
+            Retry-After:
+              schema: { type: integer, minimum: 1, maximum: 900 }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          description: AUTH_UNAVAILABLE
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   # ------------------------------------------------------------------ Branches
   /branches:
@@ -695,6 +781,113 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  # ------------------------------------------------------------------ Returns
+  /returns:
+    get:
+      tags: [Returns]
+      summary: Danh sách phiếu trả hàng của một đơn
+      operationId: listReturnsByOrder
+      x-roles: [CASHIER, BRANCH_MANAGER, OWNER]
+      parameters:
+        - name: orderId
+          in: query
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Danh sách phiếu trả hàng của đơn
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ReturnDocument' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Returns]
+      summary: Tạo phiếu trả hàng (Nháp)
+      description: |
+        Lập phiếu trả toàn bộ hoặc một phần cho đơn COMPLETED trong vòng 7 ngày kể từ completedAt (BR-10).
+        Tiền hoàn phân bổ khuyến mại cấp đơn theo tỷ lệ giá trị dòng và làm tròn xuống đến đồng VND.
+      operationId: createReturn
+      x-roles: [CASHIER, BRANCH_MANAGER, OWNER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateReturnRequest' }
+      responses:
+        '201':
+          description: Phiếu trả hàng đã tạo ở trạng thái DRAFT
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReturnDocument' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidStatus' }
+        '422': { $ref: '#/components/responses/BusinessRule' }
+  /returns/{returnId}:
+    parameters:
+      - $ref: '#/components/parameters/ReturnId'
+    get:
+      tags: [Returns]
+      summary: Chi tiết phiếu trả hàng
+      operationId: getReturn
+      x-roles: [CASHIER, BRANCH_MANAGER, OWNER]
+      responses:
+        '200':
+          description: Phiếu trả hàng
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReturnDocument' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /returns/{returnId}/approve:
+    parameters:
+      - $ref: '#/components/parameters/ReturnId'
+    post:
+      tags: [Returns]
+      summary: Duyệt phiếu trả hàng
+      description: |
+        Người duyệt phải khác người lập (BR-13, 422 SELF_APPROVAL_FORBIDDEN).
+        Hàng RESELLABLE cộng tồn chi nhánh nhận trả và ghi RETURN; hàng DAMAGED ghi RETURN và EXPORT hủy ngay.
+        Trả hết 100% đơn thì cập nhật trạng thái đơn sang RETURNED.
+      operationId: approveReturn
+      x-roles: [BRANCH_MANAGER, OWNER]
+      responses:
+        '200':
+          description: Phiếu trả hàng đã duyệt
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReturnDocument' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidStatus' }
+        '422': { $ref: '#/components/responses/BusinessRule' }
+  /returns/{returnId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/ReturnId'
+    post:
+      tags: [Returns]
+      summary: Hủy phiếu trả hàng nháp
+      operationId: cancelReturn
+      x-roles: [BRANCH_MANAGER, OWNER]
+      responses:
+        '200':
+          description: Phiếu trả hàng đã hủy
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReturnDocument' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidStatus' }
+
   # ------------------------------------------------------------------ Inventory
   /inventory:
     get:
@@ -712,7 +905,7 @@ paths:
           schema: { type: integer, format: int64 }
         - name: q
           in: query
-          description: Tìm theo tên, SKU hoặc barcode
+          description: Tìm chuỗi con theo tên, SKU hoặc barcode, không phân biệt hoa thường. Riêng tên sản phẩm không phân biệt dấu tiếng Việt (đ/Đ tương đương d; Unicode dạng tổ hợp và dựng sẵn tương đương). SKU/barcode giữ cách đối chiếu ký tự hiện có, không bỏ dấu.
           schema: { type: string }
         - name: stockStatus
           in: query
@@ -1911,6 +2104,11 @@ components:
       in: path
       required: true
       schema: { type: integer, format: int64 }
+    ReturnId:
+      name: returnId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -2429,6 +2627,67 @@ components:
             content:
               type: array
               items: { $ref: '#/components/schemas/OrderSummary' }
+
+    # ---------- Returns
+    ReturnStatus:
+      type: string
+      enum: [DRAFT, APPROVED, CANCELLED]
+    ReturnItemCondition:
+      type: string
+      enum: [RESELLABLE, DAMAGED]
+    ReturnItemRequest:
+      type: object
+      required: [orderItemId, quantity, condition]
+      properties:
+        orderItemId: { type: integer, format: int64 }
+        quantity: { type: integer, minimum: 1 }
+        condition: { $ref: '#/components/schemas/ReturnItemCondition' }
+    CreateReturnRequest:
+      type: object
+      required: [orderId, branchId, reason, items]
+      properties:
+        orderId: { type: integer, format: int64 }
+        branchId: { type: integer, format: int64 }
+        reason: { type: string, minLength: 3, maxLength: 255 }
+        items:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/ReturnItemRequest' }
+    ReturnItem:
+      type: object
+      required: [id, orderItemId, productId, sku, name, unit, quantity, condition, refundAmount]
+      properties:
+        id: { type: integer, format: int64 }
+        orderItemId: { type: integer, format: int64 }
+        productId: { type: integer, format: int64, nullable: true }
+        sku: { type: string }
+        name: { type: string }
+        unit: { type: string }
+        quantity: { type: integer }
+        condition: { $ref: '#/components/schemas/ReturnItemCondition' }
+        refundAmount: { $ref: '#/components/schemas/Money' }
+    ReturnDocument:
+      type: object
+      required: [id, code, orderId, orderCode, branch, reason, refundAmount, status, createdBy, createdAt, items]
+      properties:
+        id: { type: integer, format: int64 }
+        code: { type: string, example: RET-GM001-20261118-0001 }
+        orderId: { type: integer, format: int64 }
+        orderCode: { type: string }
+        branch: { $ref: '#/components/schemas/BranchRef' }
+        reason: { type: string }
+        refundAmount: { $ref: '#/components/schemas/Money' }
+        status: { $ref: '#/components/schemas/ReturnStatus' }
+        createdBy: { $ref: '#/components/schemas/UserRef' }
+        approvedBy:
+          type: object
+          allOf: [{ $ref: '#/components/schemas/UserRef' }]
+          nullable: true
+        createdAt: { type: string, format: date-time }
+        approvedAt: { type: string, format: date-time, nullable: true }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ReturnItem' }
 
     # ---------- Inventory
     StockAlert:

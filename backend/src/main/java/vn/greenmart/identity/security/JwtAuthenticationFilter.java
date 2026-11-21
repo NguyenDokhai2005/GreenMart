@@ -28,6 +28,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String path=request.getServletPath();
         if (path.isEmpty()) path=request.getRequestURI();
         return path.equals("/api/v1/auth/login") || path.equals("/api/v1/auth/refresh")
+                || path.equals("/api/v1/auth/logout")
                 || path.equals("/actuator/health") || path.startsWith("/actuator/health/");
     }
     @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
@@ -38,13 +39,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (!header.regionMatches(true,0,"Bearer ",0,7)) throw new JwtException("Bearer required");
                 var jwt=tokens.decode(header.substring(7));
                 long id=Long.parseLong(jwt.getSubject());
-                String role=auth.activeRole(id);
+                String role=auth.activeRole(id,jwt.getClaimAsString("sid"));
                 if (!role.equals(jwt.getClaimAsString("role"))) throw new JwtException("Role changed");
                 var context=SecurityContextHolder.createEmptyContext();
                 context.setAuthentication(new UsernamePasswordAuthenticationToken(id,null,
                         List.of(new SimpleGrantedAuthority("ROLE_"+role))));
                 SecurityContextHolder.setContext(context);
-            } catch (JwtException | IllegalArgumentException | AppException ex) {
+            } catch (AppException ex) {
+                SecurityContextHolder.clearContext();
+                SecurityErrors.write(response,mapper,ErrorCode.AUTH_UNAVAILABLE.name().equals(ex.getCode())
+                        ? ErrorCode.AUTH_UNAVAILABLE : ErrorCode.UNAUTHORIZED); return;
+            } catch (JwtException | IllegalArgumentException ex) {
                 SecurityContextHolder.clearContext();
                 SecurityErrors.write(response,mapper,ErrorCode.UNAUTHORIZED); return;
             }

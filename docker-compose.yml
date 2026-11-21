@@ -63,6 +63,7 @@ services:
       FORECAST_SERVICE_URL: http://forecast-service:8000
       SPRING_DATA_REDIS_HOST: redis
       SPRING_RABBITMQ_HOST: rabbitmq
+      LOGIN_TRUSTED_PROXIES: ${LOGIN_TRUSTED_PROXIES:-frontend}
       TZ: Asia/Ho_Chi_Minh
     ports: ['127.0.0.1:8080:8080']
     depends_on:
