@@ -115,7 +115,7 @@ class CustomerServiceTest {
         Customer existing = new Customer("0901234567", "Khách Hàng A", "a@gmail.com");
         existing.setId(10L);
 
-        when(customerRepository.findById(10L)).thenReturn(Optional.of(existing));
+        when(customerRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(existing));
         when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
 
         CustomerResponse res = customerService.deactivateCustomer(10L);
@@ -136,7 +136,7 @@ class CustomerServiceTest {
         Customer existing = new Customer("0901234567", "Khách Hàng A", null);
         existing.setId(10L);
 
-        when(customerRepository.findById(10L)).thenReturn(Optional.of(existing));
+        when(customerRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(existing));
         when(customerRepository.findByPhone("0901234567")).thenReturn(Optional.of(existing));
 
         CustomerRequest req = new CustomerRequest("0901234567", "Khách Hàng A", null, false);

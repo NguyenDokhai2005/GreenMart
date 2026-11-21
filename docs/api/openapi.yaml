@@ -44,6 +44,7 @@ info:
     | 409 | IDEMPOTENCY_CONFLICT | Cùng `Idempotency-Key` nhưng nội dung khác, hoặc request trước chưa xử lý xong |
     | 409 | CATEGORY_IN_USE | Xóa danh mục còn sản phẩm hoặc danh mục con |
     | 422 | PRODUCT_INACTIVE | Bán sản phẩm đã ngừng bán |
+    | 422 | CUSTOMER_INACTIVE | POS gắn khách ngừng hoạt động hoặc tra đúng số điện thoại khách inactive; liên hệ Quản lý/Chủ cửa hàng để kích hoạt lại |
     | 422 | TOTAL_CHANGED | Tổng tính lại khác `expectedTotal` (KM hết hạn/hết lượt, đổi giá); `details.quote` là báo giá mới |
     | 422 | CASH_INSUFFICIENT | Tiền khách đưa nhỏ hơn tổng |
     | 422 | PAYMENT_FAILED / PAYMENT_TIMEOUT | Thanh toán thẻ/QR thất bại hoặc quá 60 giây |
@@ -497,6 +498,11 @@ paths:
     get:
       tags: [Customers]
       summary: Tìm khách hàng
+      description: |
+        Tìm kiếm mặc định chỉ trả khách active. Khi có phone khớp chính xác khách inactive và active không được gửi
+        hoặc là true, trả 422 CUSTOMER_INACTIVE kèm hướng dẫn liên hệ Quản lý/Chủ cửa hàng để kích hoạt lại;
+        không trả hồ sơ khách trong lỗi. Phone chưa tồn tại trả 200 với content rỗng.
+        OWNER/BRANCH_MANAGER gửi active=false để xem khách inactive; CASHIER không có quyền này.
       operationId: listCustomers
       parameters:
         - name: q
@@ -521,10 +527,15 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/CustomerPage' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/BusinessRule' }
     post:
       tags: [Customers]
       summary: Tạo khách hàng
-      description: Thu ngân tạo nhanh tại POS khi số điện thoại chưa có (UC-01 bước 2).
+      description: |
+        Thu ngân tạo nhanh tại POS khi số điện thoại chưa có (UC-01 bước 2).
+        Số điện thoại đã tồn tại vẫn trả 409 DUPLICATE_PHONE; nếu thuộc khách inactive, message hướng dẫn
+        liên hệ Quản lý/Chủ cửa hàng kích hoạt lại, không tạo khách trùng hoặc tự kích hoạt.
       operationId: createCustomer
       x-roles: [OWNER, BRANCH_MANAGER, CASHIER]
       requestBody:
@@ -624,6 +635,8 @@ paths:
       description: |
         Tính tạm tính, khuyến mại có lợi nhất (BR-07) và tổng. Không ghi gì vào CSDL, không giữ tồn.
         POS gọi sau mỗi thay đổi giỏ hàng (UC-01 bước 3).
+        customerId phải tồn tại và active; inactive trả 422 CUSTOMER_INACTIVE, không tồn tại trả 404.
+        Không gắn customerId vẫn được bán cho khách lẻ.
       operationId: quoteOrder
       x-roles: [BRANCH_MANAGER, CASHIER]
       requestBody:
@@ -661,6 +674,9 @@ paths:
         - Tổng tính lại khác `expectedTotal` → 422 `TOTAL_CHANGED`, không tạo đơn (UC-01 5b).
         - Thiếu tồn lúc hoàn tất → 409 `INSUFFICIENT_STOCK`, không tạo đơn, giỏ hàng giữ nguyên (5a).
         - Thanh toán thẻ/QR thất bại hoặc quá 60 giây → 422, không tạo đơn (4a).
+        - Khách bị ngừng hoạt động (kể cả sau báo giá) → 422 CUSTOMER_INACTIVE, không tạo đơn/payment hoặc trừ tồn.
+          Kiểm tra và khóa trạng thái khách trong transaction hoàn tất; chỉ OWNER/BRANCH_MANAGER kích hoạt lại bằng API có sẵn.
+          Retry cùng key/body của đơn đã thành công vẫn trả đơn cũ, không tạo đơn mới dù khách sau đó ngừng hoạt động.
       operationId: createPosOrder
       x-roles: [BRANCH_MANAGER, CASHIER]
       parameters:
@@ -708,7 +724,7 @@ paths:
                         - { productId: 205, sku: SUA-TH-1L, requested: 2, available: 1 }
                     traceId: a91d07e2
         '422':
-          description: TOTAL_CHANGED, CASH_INSUFFICIENT, PAYMENT_FAILED, PAYMENT_TIMEOUT, PRODUCT_INACTIVE, MANUAL_DISCOUNT_FORBIDDEN
+          description: TOTAL_CHANGED, CASH_INSUFFICIENT, PAYMENT_FAILED, PAYMENT_TIMEOUT, PRODUCT_INACTIVE, CUSTOMER_INACTIVE, MANUAL_DISCOUNT_FORBIDDEN
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }

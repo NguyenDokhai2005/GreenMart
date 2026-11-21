@@ -37,6 +37,7 @@ public enum ErrorCode {
     CATEGORY_IN_USE(HttpStatus.CONFLICT, "Danh mục đang có sản phẩm hoặc danh mục con"),
 
     // 422
+    CUSTOMER_INACTIVE(HttpStatus.UNPROCESSABLE_ENTITY, "Khách hàng đã ngừng hoạt động"),
     SELF_APPROVAL_FORBIDDEN(HttpStatus.UNPROCESSABLE_ENTITY, "Người lập không được tự duyệt phiếu"),
     COUNTED_QUANTITY_REQUIRED(HttpStatus.UNPROCESSABLE_ENTITY, "Phải nhập số đếm cho từng dòng kiểm kê trước khi duyệt"),
     RECEIVED_QUANTITY_EXCEEDED(HttpStatus.UNPROCESSABLE_ENTITY, "Số lượng nhận vượt số lượng đã chuyển"),

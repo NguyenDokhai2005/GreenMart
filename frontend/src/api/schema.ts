@@ -263,12 +263,20 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Tìm khách hàng */
+    /**
+     * Tìm khách hàng
+     * @description Tìm kiếm mặc định chỉ trả khách active. Khi có phone khớp chính xác khách inactive và active không được gửi
+     *     hoặc là true, trả 422 CUSTOMER_INACTIVE kèm hướng dẫn liên hệ Quản lý/Chủ cửa hàng để kích hoạt lại;
+     *     không trả hồ sơ khách trong lỗi. Phone chưa tồn tại trả 200 với content rỗng.
+     *     OWNER/BRANCH_MANAGER gửi active=false để xem khách inactive; CASHIER không có quyền này.
+     */
     get: operations['listCustomers'];
     put?: never;
     /**
      * Tạo khách hàng
      * @description Thu ngân tạo nhanh tại POS khi số điện thoại chưa có (UC-01 bước 2).
+     *     Số điện thoại đã tồn tại vẫn trả 409 DUPLICATE_PHONE; nếu thuộc khách inactive, message hướng dẫn
+     *     liên hệ Quản lý/Chủ cửa hàng kích hoạt lại, không tạo khách trùng hoặc tự kích hoạt.
      */
     post: operations['createCustomer'];
     delete?: never;
@@ -355,6 +363,8 @@ export interface paths {
      * Tính tiền giỏ hàng
      * @description Tính tạm tính, khuyến mại có lợi nhất (BR-07) và tổng. Không ghi gì vào CSDL, không giữ tồn.
      *     POS gọi sau mỗi thay đổi giỏ hàng (UC-01 bước 3).
+     *     customerId phải tồn tại và active; inactive trả 422 CUSTOMER_INACTIVE, không tồn tại trả 404.
+     *     Không gắn customerId vẫn được bán cho khách lẻ.
      */
     post: operations['quoteOrder'];
     delete?: never;
@@ -382,6 +392,9 @@ export interface paths {
      *     - Tổng tính lại khác `expectedTotal` → 422 `TOTAL_CHANGED`, không tạo đơn (UC-01 5b).
      *     - Thiếu tồn lúc hoàn tất → 409 `INSUFFICIENT_STOCK`, không tạo đơn, giỏ hàng giữ nguyên (5a).
      *     - Thanh toán thẻ/QR thất bại hoặc quá 60 giây → 422, không tạo đơn (4a).
+     *     - Khách bị ngừng hoạt động (kể cả sau báo giá) → 422 CUSTOMER_INACTIVE, không tạo đơn/payment hoặc trừ tồn.
+     *       Kiểm tra và khóa trạng thái khách trong transaction hoàn tất; chỉ OWNER/BRANCH_MANAGER kích hoạt lại bằng API có sẵn.
+     *       Retry cùng key/body của đơn đã thành công vẫn trả đơn cũ, không tạo đơn mới dù khách sau đó ngừng hoạt động.
      */
     post: operations['createPosOrder'];
     delete?: never;
@@ -3024,6 +3037,8 @@ export interface operations {
         };
       };
       401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      422: components['responses']['BusinessRule'];
     };
   };
   createCustomer: {
@@ -3275,7 +3290,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
-      /** @description TOTAL_CHANGED, CASH_INSUFFICIENT, PAYMENT_FAILED, PAYMENT_TIMEOUT, PRODUCT_INACTIVE, MANUAL_DISCOUNT_FORBIDDEN */
+      /** @description TOTAL_CHANGED, CASH_INSUFFICIENT, PAYMENT_FAILED, PAYMENT_TIMEOUT, PRODUCT_INACTIVE, CUSTOMER_INACTIVE, MANUAL_DISCOUNT_FORBIDDEN */
       422: {
         headers: {
           [name: string]: unknown;

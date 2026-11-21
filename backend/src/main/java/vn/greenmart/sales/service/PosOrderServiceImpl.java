@@ -86,6 +86,7 @@ public class PosOrderServiceImpl implements PosOrderService {
             throw AppException.branchForbidden(request.branchId(), "Bạn không có quyền thao tác trên chi nhánh này");
         }
 
+        customerService.lockActivePosCustomer(request.customerId());
         // Tính lại Báo giá & Kiểm tra expectedTotal
         QuoteRequest quoteRequest = new QuoteRequest(
                 request.branchId(),
