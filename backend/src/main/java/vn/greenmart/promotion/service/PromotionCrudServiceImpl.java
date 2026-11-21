@@ -19,6 +19,7 @@ import vn.greenmart.common.security.SecurityUtils;
 import vn.greenmart.promotion.domain.Promotion;
 import vn.greenmart.promotion.domain.PromotionLevel;
 import vn.greenmart.promotion.domain.PromotionStatus;
+import vn.greenmart.promotion.domain.PromotionType;
 import vn.greenmart.promotion.dto.PromotionRequest;
 import vn.greenmart.promotion.dto.PromotionResponse;
 import vn.greenmart.promotion.dto.PromotionStatusRequest;
@@ -29,6 +30,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -224,10 +226,25 @@ public class PromotionCrudServiceImpl implements PromotionCrudService {
     private ScopeData validatePromotionBusinessRules(PromotionRequest request, Integer currentUsedCount) {
         List<ValidationErrorDetail> errors = new ArrayList<>();
 
-        if (request.productIds() != null && request.productIds().stream().anyMatch(java.util.Objects::isNull)) {
+        // 4 quy tắc nghiệp vụ gốc của khuyến mại
+        if (request.type() == PromotionType.PERCENT && request.value() > 100) {
+            errors.add(new ValidationErrorDetail("value", "Khuyến mại phần trăm chỉ được từ 1 đến 100"));
+        }
+        if (request.type() == PromotionType.AMOUNT && request.maxDiscount() != null) {
+            errors.add(new ValidationErrorDetail("maxDiscount", "Chỉ dùng maxDiscount với khuyến mại PERCENT"));
+        }
+        if (!request.endAt().isAfter(request.startAt())) {
+            errors.add(new ValidationErrorDetail("endAt", "Thời gian kết thúc phải sau thời gian bắt đầu"));
+        }
+        if (currentUsedCount != null && request.usageLimit() != null && request.usageLimit() < currentUsedCount) {
+            errors.add(new ValidationErrorDetail("usageLimit", "Giới hạn lượt dùng không được nhỏ hơn số lượt đã sử dụng (" + currentUsedCount + ")"));
+        }
+
+        // Guard phần tử null/rỗng trong các danh sách phạm vi 
+        if (request.productIds() != null && request.productIds().stream().anyMatch(Objects::isNull)) {
             errors.add(new ValidationErrorDetail("productIds", "Danh sách productIds không được chứa phần tử null"));
         }
-        if (request.branchIds() != null && request.branchIds().stream().anyMatch(java.util.Objects::isNull)) {
+        if (request.branchIds() != null && request.branchIds().stream().anyMatch(Objects::isNull)) {
             errors.add(new ValidationErrorDetail("branchIds", "Danh sách branchIds không được chứa phần tử null"));
         }
         if (request.channels() != null && request.channels().stream().anyMatch(c -> c == null || c.isBlank())) {
