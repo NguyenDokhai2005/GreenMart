@@ -2,9 +2,13 @@ import type { components, operations, paths } from './schema';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/, '');
 const SESSION_STORAGE_KEY = 'greenmart.session';
+const LOGOUT_WARNING_KEY = 'greenmart.logout-warning';
 const AUTH_EXEMPT_PATHS = new Set(['/auth/login', '/auth/refresh']);
 let sessionMutationVersion = 0;
+let sessionCommitVersion = 0;
 const sessionExpiredListeners = new Set<() => void>();
+const sessionUpdatedListeners = new Set<(user: CurrentUser) => void>();
+const logoutWarningListeners = new Set<() => void>();
 
 export type Role = components['schemas']['Role'];
 export type PaymentMethod = components['schemas']['PaymentMethod'];
@@ -62,6 +66,11 @@ export function onSessionExpired(listener: () => void): () => void {
   return () => sessionExpiredListeners.delete(listener);
 }
 
+export function onSessionUpdated(listener: (user: CurrentUser) => void): () => void {
+  sessionUpdatedListeners.add(listener);
+  return () => sessionUpdatedListeners.delete(listener);
+}
+
 function notifySessionExpired(): void {
   for (const listener of sessionExpiredListeners) {
     try {
@@ -95,6 +104,28 @@ function isAuthSession(value: unknown): value is AuthSession {
 
 function getSessionStorage(): Storage | undefined {
   return typeof globalThis.sessionStorage === 'undefined' ? undefined : globalThis.sessionStorage;
+}
+
+export function hasLogoutWarning(): boolean {
+  return getSessionStorage()?.getItem(LOGOUT_WARNING_KEY) === '1';
+}
+
+export function onLogoutWarning(listener: () => void): () => void {
+  logoutWarningListeners.add(listener);
+  return () => logoutWarningListeners.delete(listener);
+}
+
+function setLogoutWarning(value: boolean): void {
+  const storage = getSessionStorage();
+  if (value) storage?.setItem(LOGOUT_WARNING_KEY, '1');
+  else storage?.removeItem(LOGOUT_WARNING_KEY);
+  for (const listener of logoutWarningListeners) {
+    try {
+      listener();
+    } catch {
+      /* A UI listener must not change the revocation result. */
+    }
+  }
 }
 
 export function readStoredSession(): AuthSession | null {
@@ -224,6 +255,13 @@ function refreshSession(session: AuthSession): Promise<AuthSession> {
       }
 
       storeSession(value);
+      for (const listener of sessionUpdatedListeners) {
+        try {
+          listener(value.user);
+        } catch {
+          // UI listeners must not turn a successful rotation into a failed session.
+        }
+      }
       return value;
     })
     .catch((error: unknown) => {
@@ -349,6 +387,8 @@ export async function login(
   }
 
   storeSession(value);
+  sessionCommitVersion += 1;
+  setLogoutWarning(false);
   return value;
 }
 
@@ -358,45 +398,18 @@ export function getCurrentUser(): Promise<CurrentUser> {
 
 export async function logout(): Promise<void> {
   sessionMutationVersion += 1;
+  const commitVersion = sessionCommitVersion;
   const session = readStoredSession();
   clearStoredSession();
   if (!session) return;
 
-  const pendingRefresh = refreshes.get(session.refreshToken);
-  if (pendingRefresh) {
-    // The refresh owns rotation and revokes its result when it finds the local
-    // session cleared. Do not race it with a second use of the same refresh token.
-    try {
-      await pendingRefresh;
-    } catch (error) {
-      if (!(error instanceof SessionExpiredError)) throw error;
-    }
-    return;
-  }
-
   try {
     await revokeSession(session);
-    return;
+    if (commitVersion === sessionCommitVersion) setLogoutWarning(false);
   } catch (error) {
-    if (!(error instanceof ApiError) || error.status !== 401 || error.code !== 'UNAUTHORIZED') {
-      throw error;
-    }
-  }
-
-  let rotated: unknown;
-  try {
-    rotated = await requestRaw<unknown>('/auth/refresh', {
-      method: 'POST',
-      body: JSON.stringify({ refreshToken: session.refreshToken }),
-    });
-  } catch (error) {
-    // A rejected refresh is already expired/revoked; local logout is complete.
-    if (error instanceof ApiError && error.status === 401) return;
+    if (commitVersion === sessionCommitVersion) setLogoutWarning(true);
     throw error;
   }
-  if (!isAuthSession(rotated)) throw new ApiError('API trả về phiên đăng nhập không hợp lệ.', 502);
-  // Never publish a logout-only rotation to storage or the authentication UI.
-  await revokeSession(rotated);
 }
 
 export function searchProducts(query: string, signal?: AbortSignal): Promise<ProductPage> {

@@ -16,7 +16,7 @@ public class AuthController {
     @PostMapping("/login") public TokenResponse login(@Valid @RequestBody AuthRequests.Login request) { return service.login(request); }
     @PostMapping("/refresh") public TokenResponse refresh(@Valid @RequestBody AuthRequests.Refresh request) { return service.refresh(request.refreshToken()); }
     @PostMapping("/logout") @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void logout(@Valid @RequestBody AuthRequests.Refresh request) { service.logout(SecurityUtils.getCurrentUserId(),request.refreshToken()); }
+    public void logout(@Valid @RequestBody AuthRequests.Refresh request) { service.logout(request.refreshToken()); }
     @GetMapping("/me") public CurrentUser me() { return service.me(SecurityUtils.getCurrentUserId()); }
     @PostMapping("/change-password") @ResponseStatus(HttpStatus.NO_CONTENT)
     public void changePassword(@Valid @RequestBody AuthRequests.ChangePassword request) {
