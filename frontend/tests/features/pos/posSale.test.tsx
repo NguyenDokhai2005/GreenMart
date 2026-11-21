@@ -232,6 +232,7 @@ describe('POS cart', () => {
         },
       ],
       itemDiscount: 12000,
+      orderPromotion: { id: 12, code: 'DON-8K', name: 'Giảm đơn 8.000 đ', discount: 8000 },
       orderDiscount: 8000,
       discount: 20000,
       total: 12000,
@@ -240,11 +241,61 @@ describe('POS cart', () => {
     const input = screen.getByLabelText('Quét mã vạch hoặc tìm theo tên / SKU');
     fireEvent.change(input, { target: { value: product.sku } });
     fireEvent.keyDown(input, { key: 'Enter' });
-    await waitFor(() => expect(screen.getByText('KM Sữa tươi')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('KM Sữa tươi · KM-SUA')).toBeTruthy());
+    expect(screen.getByText('DON-8K')).toBeTruthy();
     expect(screen.getAllByText('−12.000 đ').length).toBeGreaterThan(0);
     expect(screen.getByText('−8.000 đ')).toBeTruthy();
     expect(screen.getByText('−20.000 đ')).toBeTruthy();
     expect(screen.getByText('12.000 đ')).toBeTruthy();
+  });
+
+  it('shows the promotion code alone when its name is missing and hides order code after a requote', async () => {
+    quoteOrder.mockResolvedValueOnce({
+      ...quote(1),
+      lines: [
+        {
+          ...quote(1).lines[0],
+          discount: 2000,
+          lineTotal: 30000,
+          promotion: { id: 11, code: 'ITEM-2K', discount: 2000 },
+        },
+      ],
+      orderPromotion: { id: 12, code: 'ORDER-1K', discount: 1000 },
+      itemDiscount: 2000,
+      orderDiscount: 1000,
+      discount: 3000,
+      total: 29000,
+    });
+    render(<PosSalePage item={POS_NAVIGATION[0]} />);
+    const search = screen.getByLabelText('Quét mã vạch hoặc tìm theo tên / SKU');
+    fireEvent.change(search, { target: { value: product.sku } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    await waitFor(() => expect(screen.getByText('ITEM-2K')).toBeTruthy());
+    expect(screen.getByText('ORDER-1K')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: `Tăng số lượng ${product.name}` }));
+    await waitFor(() => expect(quoteOrder).toHaveBeenCalledTimes(2));
+    await screen.findAllByText('64.000 đ');
+    expect(screen.queryByText('ITEM-2K')).toBeNull();
+    expect(screen.queryByText('ORDER-1K')).toBeNull();
+  });
+
+  it('does not repeat an item promotion code when the name equals the code', async () => {
+    quoteOrder.mockResolvedValue({
+      ...quote(1),
+      lines: [
+        {
+          ...quote(1).lines[0],
+          promotion: { id: 11, code: 'ITEM-2K', name: 'ITEM-2K', discount: 2000 },
+        },
+      ],
+    });
+    render(<PosSalePage item={POS_NAVIGATION[0]} />);
+    const search = screen.getByLabelText('Quét mã vạch hoặc tìm theo tên / SKU');
+    fireEvent.change(search, { target: { value: product.sku } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(await screen.findByText('ITEM-2K')).toBeTruthy();
+    expect(screen.queryByText('ITEM-2K · ITEM-2K')).toBeNull();
   });
 
   it('adds a product selected from a name search using its SKU', async () => {

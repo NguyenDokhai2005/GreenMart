@@ -13,6 +13,9 @@ import vn.greenmart.identity.repository.AuthUserRepository;
 import vn.greenmart.identity.repository.AuthUserRepository.User;
 import vn.greenmart.identity.repository.RefreshTokenStore;
 import vn.greenmart.identity.security.JwtTokens;
+import vn.greenmart.identity.security.AuthRateLimiter;
+import vn.greenmart.common.exception.RateLimitException;
+import org.springframework.dao.DataAccessException;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -28,11 +31,13 @@ public class AuthServiceImpl implements AuthService {
     private final Clock clock;
     private final TransactionTemplate tx;
     private final String dummyHash;
+    private final AuthRateLimiter limits;
 
     public AuthServiceImpl(AuthUserRepository users, RefreshTokenStore refresh, JwtTokens jwt,
-            PasswordEncoder passwords, AuditLogRepository audit, Clock clock, PlatformTransactionManager manager) {
+            PasswordEncoder passwords, AuditLogRepository audit, Clock clock, PlatformTransactionManager manager, AuthRateLimiter limits) {
         this.users=users; this.refresh=refresh; this.jwt=jwt; this.passwords=passwords; this.audit=audit;
         this.clock=clock; this.tx=new TransactionTemplate(manager);
+        this.limits=limits;
         dummyHash=passwords.encode("dummy-password-for-unknown-user");
     }
     private record Attempt(TokenResponse token, AppException error) {}
@@ -46,11 +51,12 @@ public class AuthServiceImpl implements AuthService {
                 return new Attempt(null,new AppException(ErrorCode.INVALID_CREDENTIALS));
             }
             OffsetDateTime now=OffsetDateTime.now(clock);
+            boolean passwordMatches=matches(request.password(),user.passwordHash());
             if (user.lockedUntil()!=null && user.lockedUntil().isAfter(now)) {
                 log(user,"LOGIN_FAILED",Map.of("reason","ACCOUNT_LOCKED"));
                 return new Attempt(null,locked(user.lockedUntil()));
             }
-            if (!matches(request.password(),user.passwordHash())) {
+            if (!passwordMatches) {
                 int failures=(user.lockedUntil()!=null?0:user.failures())+1;
                 OffsetDateTime until=failures>=5?now.plusMinutes(15):null;
                 users.loginState(user.id(),failures,until);
@@ -60,7 +66,7 @@ public class AuthServiceImpl implements AuthService {
                     return new Attempt(null,locked(until));
                 }
                 return new Attempt(null,new AppException(ErrorCode.INVALID_CREDENTIALS,
-                        ErrorCode.INVALID_CREDENTIALS.getDefaultMessage(),Map.of("remainingAttempts",5-failures)));
+                        ErrorCode.INVALID_CREDENTIALS.getDefaultMessage(),Map.of("remainingAttempts",Math.max(0,5-failures))));
             }
             users.loginState(user.id(),0,null);
             return new Attempt(tokens(user,null),null);
@@ -69,21 +75,21 @@ public class AuthServiceImpl implements AuthService {
         if (outcome.error()!=null) throw outcome.error();
         return outcome.token();
     }
+    private User requireUser(long id, boolean lock, ErrorCode failure) {
+        return users.find(id,lock).filter(User::active).orElseThrow(()->new AppException(failure));
+    }
     private AppException locked(OffsetDateTime until) {
         return new AppException(ErrorCode.ACCOUNT_LOCKED,ErrorCode.ACCOUNT_LOCKED.getDefaultMessage(),
                 Map.of("lockedUntil",until.toString()));
     }
-    private User requireUser(long id, boolean lock, ErrorCode failure) {
-        return users.find(id,lock).filter(User::active).orElseThrow(()->new AppException(failure));
-    }
     private TokenResponse tokens(User user, String previous) {
-        String access=jwt.issue(user.id(),user.role());
         CurrentUser current=users.current(user);
-        String rotated=previous==null?refresh.issue(user.id()):refresh.rotate(user.id(),previous);
-        return new TokenResponse(access,rotated,"Bearer",900,current);
+        var session=previous==null?refresh.issue(user.id()):refresh.rotate(user.id(),previous);
+        String access=jwt.issue(user.id(),user.role(),session.id());
+        return new TokenResponse(access,session.token(),"Bearer",900,current);
     }
     @Override public TokenResponse refresh(String token) {
-        long id=refresh.userId(token);
+        long id=refresh.verify(token);
         return tx.execute(status -> {
             User user=requireUser(id,true,ErrorCode.INVALID_REFRESH_TOKEN);
             if (user.lockedUntil()!=null && user.lockedUntil().isAfter(OffsetDateTime.now(clock)))
@@ -91,23 +97,27 @@ public class AuthServiceImpl implements AuthService {
             return tokens(user,token);
         });
     }
-    @Override public void logout(long userId, String token) {
-        if (refresh.userId(token)!=userId) throw new AppException(ErrorCode.INVALID_REFRESH_TOKEN);
-        tx.executeWithoutResult(status -> {
-            requireUser(userId,true,ErrorCode.UNAUTHORIZED);
-            refresh.revoke(userId,token);
-        });
+    @Override public void logout(String token) {
+        refresh.revoke(token);
     }
     @Override public CurrentUser me(long userId) {
         return tx.execute(status -> users.current(requireUser(userId,false,ErrorCode.UNAUTHORIZED)));
     }
-    @Override public String activeRole(long userId) {
+    @Override public String activeRole(long userId, String sessionId) {
+        if (!refresh.isSessionActive(userId,sessionId)) throw new AppException(ErrorCode.UNAUTHORIZED);
         return tx.execute(status -> users.activeRole(userId).orElseThrow(()->new AppException(ErrorCode.UNAUTHORIZED)));
     }
     @Override public void changePassword(long userId, AuthRequests.ChangePassword request) {
-        tx.executeWithoutResult(status -> {
+        try {
+            long retryAfter=limits.retryAfterSeconds(AuthRateLimiter.Bucket.PASSWORD_USER,Long.toString(userId));
+            if (retryAfter>0) throw new RateLimitException(ErrorCode.PASSWORD_RATE_LIMITED,retryAfter);
+        } catch (DataAccessException exception) { throw new AppException(ErrorCode.AUTH_UNAVAILABLE); }
+        AppException failure=tx.execute(status -> {
             User user=requireUser(userId,true,ErrorCode.UNAUTHORIZED);
-            if (!matches(request.currentPassword(),user.passwordHash())) throw new AppException(ErrorCode.WRONG_PASSWORD);
+            if (!matches(request.currentPassword(),user.passwordHash())) {
+                log(user,"CHANGE_PASSWORD_FAILED",Map.of("reason","WRONG_PASSWORD"));
+                return new AppException(ErrorCode.WRONG_PASSWORD);
+            }
             if (request.newPassword().getBytes(java.nio.charset.StandardCharsets.UTF_8).length>72) {
                 throw new AppException(ErrorCode.VALIDATION_ERROR,"Mật khẩu BCrypt không được vượt quá 72 byte UTF-8");
             }
@@ -120,7 +130,9 @@ public class AuthServiceImpl implements AuthService {
             refresh.revokeAll(userId);
             users.password(userId,encoded);
             log(user,"CHANGE_PASSWORD",Map.of());
+            return null;
         });
+        if (failure!=null) throw failure;
     }
     private void log(User user, String action, Map<String,Object> details) {
         var entry=new AuditLog();

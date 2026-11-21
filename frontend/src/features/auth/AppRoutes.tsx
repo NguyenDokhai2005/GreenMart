@@ -12,6 +12,8 @@ import BranchSelectionPage from './BranchSelectionPage';
 import LoginPage from './LoginPage';
 import ProductsPage from '../catalog/ProductsPage';
 import CustomersPage from '../catalog/CustomersPage';
+import OrdersPage from '../orders/OrdersPage';
+import OnlineOrderDetailPage from '../orders/OnlineOrderDetailPage';
 import { OperationsHome, OperationsLayout } from '../../layouts/operations';
 import InventoryPage from '../inventory/InventoryPage';
 import InventoryLedgerPage from '../inventory/InventoryLedgerPage';

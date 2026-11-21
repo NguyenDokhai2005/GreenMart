@@ -201,7 +201,11 @@ public class GlobalExceptionHandler {
             ex.getDetails(),
             traceId
         );
-        return ResponseEntity.status(ex.getStatus()).body(response);
+        var result = ResponseEntity.status(ex.getStatus());
+        if (ex instanceof RateLimitException limit) {
+            result.header("Retry-After", Long.toString(limit.getRetryAfterSeconds()));
+        }
+        return result.body(response);
     }
     // Lỗi hệ thống không mong muốn
     @ExceptionHandler(Exception.class)

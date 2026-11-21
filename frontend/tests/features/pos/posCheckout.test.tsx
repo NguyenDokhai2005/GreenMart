@@ -198,7 +198,7 @@ describe('POS checkout', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Thẻ' }));
       fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
       expect(await screen.findByText('Thẻ thất bại')).toBeTruthy();
-      expect(screen.getByText(/Bạn có thể chọn phương thức khác/)).toBeTruthy();
+      expect(screen.getByText(/Thử lại hoặc chọn phương thức khác/)).toBeTruthy();
       expect(screen.getByRole('spinbutton', { name: `Số lượng ${product.name}` })).toBeTruthy();
       fireEvent.click(screen.getByRole('button', { name: 'QR' }));
       fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
@@ -210,18 +210,120 @@ describe('POS checkout', () => {
     },
   );
 
-  it('requotes an unchanged cart after a TOTAL_CHANGED response', async () => {
+  it('retries a known payment failure with the same key and unchanged request', async () => {
+    completePosOrder
+      .mockRejectedValueOnce({
+        status: 422,
+        code: 'PAYMENT_FAILED',
+        message: 'Thanh toán thất bại',
+      })
+      .mockResolvedValueOnce(paidOrder);
+    await openCheckout();
+    fireEvent.click(screen.getByRole('button', { name: 'Thẻ' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
+    expect(await screen.findByText('Thanh toán thất bại')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
+    await waitFor(() => expect(completePosOrder).toHaveBeenCalledTimes(2));
+    expect(completePosOrder.mock.calls[1]).toEqual(completePosOrder.mock.calls[0]);
+  });
+
+  it('marks the stock line red with the available quantity after a checkout conflict', async () => {
+    completePosOrder.mockRejectedValueOnce({
+      status: 409,
+      code: 'INSUFFICIENT_STOCK',
+      message: 'Không đủ tồn kho khả dụng',
+      details: { lines: [{ productId: 205, sku: product.sku, requested: 1, available: 0 }] },
+    });
+    await openCheckout();
+    fireEvent.click(screen.getByRole('button', { name: 'Thẻ' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.getByText('Thiếu hàng · chỉ còn 0')).toBeTruthy();
+    const quantity = screen.getByRole('spinbutton', { name: `Số lượng ${product.name}` });
+    expect(quantity.closest('.pos-sale__cart-line--conflict')).toBeTruthy();
+    expect((quantity as HTMLInputElement).value).toBe('1');
+    expect(
+      (screen.getByRole('button', { name: 'Thanh toán · F4' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Kiểm tra giỏ hàng' }));
+    expect(document.activeElement).toBe(quantity);
+  });
+
+  it('shows details.quote and requires confirmation before retrying TOTAL_CHANGED', async () => {
+    const changedQuote: Quote = {
+      ...quote,
+      lines: [{ ...quote.lines[0], discount: 2000, lineTotal: 30000 }],
+      itemDiscount: 2000,
+      discount: 2000,
+      total: 30000,
+    };
+    completePosOrder
+      .mockRejectedValueOnce({
+        status: 422,
+        code: 'TOTAL_CHANGED',
+        message: 'Tổng tiền đã thay đổi',
+        details: { quote: changedQuote },
+      })
+      .mockResolvedValueOnce({ ...paidOrder, total: 30000 });
+    await openCheckout();
+    fireEvent.click(screen.getByRole('button', { name: 'Thẻ' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
+    expect(await screen.findByText('Tổng tiền đã thay đổi')).toBeTruthy();
+    expect(screen.getByText('Tổng mới: 30.000 đ')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'QR' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(completePosOrder).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận tổng mới' }));
+    expect(screen.getByRole('dialog', { name: 'Thanh toán đơn hàng' })).toBeTruthy();
+    expect(screen.getAllByText('30.000 đ').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
+    await waitFor(() => expect(completePosOrder).toHaveBeenCalledTimes(2));
+    expect(completePosOrder.mock.calls[1][0].expectedTotal).toBe(30000);
+    expect(completePosOrder.mock.calls[1][1]).not.toBe(completePosOrder.mock.calls[0][1]);
+    expect(quoteOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires more cash before retrying when the confirmed total increases', async () => {
+    const changedQuote: Quote = {
+      ...quote,
+      lines: [{ ...quote.lines[0], unitPrice: 42000, lineTotal: 42000 }],
+      subtotal: 42000,
+      total: 42000,
+    };
     completePosOrder.mockRejectedValueOnce({
       status: 422,
       code: 'TOTAL_CHANGED',
       message: 'Tổng tiền đã thay đổi',
+      details: { quote: changedQuote },
+    });
+    await openCheckout();
+    const cash = screen.getByRole('textbox', { name: 'Tiền khách đưa (VND)' });
+    fireEvent.change(cash, { target: { value: '40000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
+    expect(await screen.findByText('Tổng mới: 42.000 đ')).toBeTruthy();
+    expect((cash as HTMLInputElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận tổng mới' }));
+    expect((cash as HTMLInputElement).disabled).toBe(false);
+    expect(screen.getByText('Tiền khách đưa nhỏ hơn tổng thanh toán.')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Hoàn tất' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    expect(completePosOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it('requotes without resubmitting when TOTAL_CHANGED details are incomplete', async () => {
+    completePosOrder.mockRejectedValueOnce({
+      status: 422,
+      code: 'TOTAL_CHANGED',
+      message: 'Tổng tiền đã thay đổi',
+      details: { quote: { total: 30000 } },
     });
     await openCheckout();
     fireEvent.click(screen.getByRole('button', { name: 'Thẻ' }));
     fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
     expect(await screen.findByText('Tổng tiền đã thay đổi')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Quay lại' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Xem lại báo giá' }));
     await waitFor(() => expect(quoteOrder).toHaveBeenCalledTimes(2));
     expect(screen.getByRole('spinbutton', { name: `Số lượng ${product.name}` })).toBeTruthy();
+    expect(completePosOrder).toHaveBeenCalledTimes(1);
   });
 });
