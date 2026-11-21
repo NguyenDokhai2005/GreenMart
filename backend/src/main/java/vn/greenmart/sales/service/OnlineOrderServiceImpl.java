@@ -20,7 +20,6 @@ import vn.greenmart.common.security.SecurityUtils;
 import vn.greenmart.integration.channel.ChannelCatalog;
 import vn.greenmart.integration.outbox.OutboxService;
 import vn.greenmart.integration.webhook.ChannelOrderIntake;
-import vn.greenmart.inventory.exception.InsufficientStockException;
 import vn.greenmart.inventory.service.InventoryService;
 import vn.greenmart.sales.domain.OrderItem;
 import vn.greenmart.sales.domain.OrderStatus;
@@ -232,7 +231,7 @@ public class OnlineOrderServiceImpl implements OnlineOrderService {
             order.setReservedUntil(null);
             salesOrderRepository.save(order);
 
-            recordPaidPayment(order, occurredAt, providerRef);
+            recordPayment(order, occurredAt, providerRef, PaymentStatus.PAID);
             enqueueOrderLifecycleEvent(order.getId(), OrderStatus.CONFIRMED.name(), occurredAt, null);
             return buildChannelAck(order, null);
         }
@@ -240,17 +239,17 @@ public class OnlineOrderServiceImpl implements OnlineOrderService {
         // Ngoại lệ BA E2 / EX-06: Thanh toán đến muộn sau khi đơn đã EXPIRED
         if (order.getStatus() == OrderStatus.EXPIRED) {
             List<OrderItem> items = orderItemRepository.findByOrderId(order.getId());
-            List<OrderItem> sortedItems = items.stream()
-                    .sorted(Comparator.comparing(OrderItem::getProductId))
-                    .toList();
-
-            boolean reReserved = tryReReserveInNewTx(order.getBranchId(), order.getId(), sortedItems);
+            Map<Long, Integer> quantities = new LinkedHashMap<>();
+            for (OrderItem item : items) {
+                quantities.merge(item.getProductId(), item.getQuantity(), Math::addExact);
+            }
+            boolean reReserved = inventoryService.tryReserveAll(order.getBranchId(), quantities, order.getId());
             if (reReserved) {
                 order.setStatus(OrderStatus.CONFIRMED);
                 order.setReservedUntil(null);
                 salesOrderRepository.save(order);
 
-                recordPaidPayment(order, occurredAt, providerRef);
+                recordPayment(order, occurredAt, providerRef, PaymentStatus.PAID);
                 enqueueOrderLifecycleEvent(order.getId(), OrderStatus.CONFIRMED.name(), occurredAt, null);
                 return buildChannelAck(order, null);
             } else {
@@ -259,14 +258,7 @@ public class OnlineOrderServiceImpl implements OnlineOrderService {
                 order.setReservedUntil(null);
                 salesOrderRepository.save(order);
 
-                Payment refundPayment = new Payment();
-                refundPayment.setOrderId(order.getId());
-                refundPayment.setMethod(PaymentMethod.QR);
-                refundPayment.setAmount(order.getTotal());
-                refundPayment.setStatus(PaymentStatus.REFUNDED);
-                refundPayment.setProviderRef(providerRef);
-                refundPayment.setPaidAt(occurredAt);
-                paymentRepository.save(refundPayment);
+                recordPayment(order, occurredAt, providerRef, PaymentStatus.REFUNDED);
 
                 writeAuditLog(null, "CANCEL_ORDER", order.getId(), Map.of(
                         "reason", "OUT_OF_STOCK",
@@ -282,22 +274,6 @@ public class OnlineOrderServiceImpl implements OnlineOrderService {
                 "Không thể ghi nhận thanh toán cho đơn ở trạng thái " + order.getStatus().name(),
                 Map.of("currentStatus", order.getStatus().name(), "allowed", List.of("RESERVED", "EXPIRED"))
         );
-    }
-
-    private boolean tryReReserveInNewTx(Long branchId, Long orderId, List<OrderItem> sortedItems) {
-        TransactionTemplate newTx = new TransactionTemplate(transactionManager);
-        newTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-        try {
-            newTx.executeWithoutResult(status -> {
-                for (OrderItem item : sortedItems) {
-                    inventoryService.reserve(branchId, item.getProductId(), item.getQuantity(), orderId);
-                }
-            });
-            return true;
-        } catch (InsufficientStockException ex) {
-            log.info("Giữ chỗ lại thất bại cho đơn quá hạn orderId={}: thiếu tồn productId={}", orderId, ex.getProductId());
-            return false;
-        }
     }
 
     private ChannelOrderIntake.Ack handleChannelCancelledEvent(
@@ -453,12 +429,12 @@ public class OnlineOrderServiceImpl implements OnlineOrderService {
         }));
     }
 
-    private void recordPaidPayment(SalesOrder order, Instant paidAt, String providerRef) {
+    private void recordPayment(SalesOrder order, Instant paidAt, String providerRef, PaymentStatus targetStatus) {
         List<Payment> existing = paymentRepository.findByOrderId(order.getId());
         if (!existing.isEmpty()) {
             for (Payment p : existing) {
-                if (p.getStatus() != PaymentStatus.PAID) {
-                    p.setStatus(PaymentStatus.PAID);
+                if (p.getStatus() != targetStatus) {
+                    p.setStatus(targetStatus);
                     p.setProviderRef(providerRef != null ? providerRef : p.getProviderRef());
                     p.setPaidAt(paidAt);
                     paymentRepository.save(p);
@@ -468,9 +444,10 @@ public class OnlineOrderServiceImpl implements OnlineOrderService {
         }
         Payment payment = new Payment();
         payment.setOrderId(order.getId());
+        // The event has no method field; retain the existing fallback only when no original payment exists.
         payment.setMethod(PaymentMethod.QR);
         payment.setAmount(order.getTotal());
-        payment.setStatus(PaymentStatus.PAID);
+        payment.setStatus(targetStatus);
         payment.setProviderRef(providerRef);
         payment.setPaidAt(paidAt);
         paymentRepository.save(payment);

@@ -146,6 +146,7 @@ describe('rendered authentication flow', () => {
     );
 
     expect(container.textContent).toContain('09:15');
+    expect(container.textContent).toContain('Tài khoản tạm khóa đến');
     expect(input('password').disabled).toBe(true);
     expect(input('username').disabled).toBe(false);
     await fill('username', 'another-user');

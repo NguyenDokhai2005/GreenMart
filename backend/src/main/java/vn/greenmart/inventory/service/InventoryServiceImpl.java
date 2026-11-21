@@ -13,6 +13,7 @@ import vn.greenmart.common.exception.ErrorCode;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Map;
+import java.util.TreeMap;
 import vn.greenmart.integration.outbox.OutboxService;
 import vn.greenmart.inventory.exception.InsufficientStockException;
 import vn.greenmart.inventory.repository.InventoryRepository;
@@ -68,6 +69,25 @@ public class InventoryServiceImpl implements InventoryService {
         stockAlerts.reconcileAfterStockUpdate(branchId, productId);
         transactionWriter.appendOrder(branchId, productId, Type.RESERVE, 0, qty, refId, actorId);
         enqueueStockChanged(branchId, productId);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean tryReserveAll(Long branchId, Map<Long, Integer> quantities, Long refId) {
+        var sorted = new TreeMap<>(Map.copyOf(quantities));
+        sorted.values().forEach(this::validateQty);
+        entityManager.flush();
+        // Check the whole batch under retained row locks before writing anything. An expected
+        // shortage must not throw through a transactional reserve proxy and poison the refund transaction.
+        for (var line : sorted.entrySet()) {
+            productCost.lockForStockChange(line.getKey());
+            var available = inventoryRepository.lockAvailable(branchId, line.getKey());
+            if (available.isEmpty() || available.get() < line.getValue()) return false;
+        }
+        for (var line : sorted.entrySet()) {
+            reserve(branchId, line.getKey(), line.getValue(), refId);
+        }
+        return true;
     }
 
     /**
@@ -295,5 +315,29 @@ public class InventoryServiceImpl implements InventoryService {
         if (qty <= 0) {
             throw new IllegalArgumentException("qty phải > 0, nhận: " + qty);
         }
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void returnStock(Long branchId, Long productId, int qty, boolean resellable, Long returnDocumentId, Long actorId) {
+        validateQty(qty);
+        if (returnDocumentId == null || actorId == null) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Thiếu tham chiếu phiếu trả hàng hoặc người duyệt");
+        }
+        entityManager.flush();
+        productCost.lockForStockChange(productId);
+        increaseOnHand(branchId, productId, qty);
+        transactionWriter.appendReturn(branchId, productId, qty, returnDocumentId, actorId);
+        if (!resellable) {
+            int rows = inventoryRepository.sellDirect(branchId, productId, qty);
+            if (rows != 1) {
+                throw insufficientStock(branchId, productId, qty);
+            }
+            transactionWriter.appendReturnExport(branchId, productId, qty, returnDocumentId, actorId);
+        } else {
+            stockAlerts.reconcileAfterStockUpdate(branchId, productId);
+            enqueueStockChanged(branchId, productId);
+        }
+        entityManager.clear();
     }
 }

@@ -5,6 +5,7 @@ import {
   clearStoredSession,
   getCurrentUser,
   getOrder,
+  hasLogoutWarning,
   listOrders,
   login,
   logout,
@@ -470,58 +471,73 @@ describe('session refresh', () => {
     expect(sessionStorage.getItem('greenmart.session')).toBeNull();
   });
 
-  it('refreshes an expired access token only to revoke logout, without storing the rotated session', async () => {
+  it('revokes directly even when access has expired; never refreshes to log out', async () => {
     await signIn();
-    const rotated = { ...session, accessToken: 'rotated-access', refreshToken: 'rotated-refresh' };
-    fetchMock.mockResolvedValueOnce(json({ code: 'UNAUTHORIZED' }, 401));
-    fetchMock.mockResolvedValueOnce(json(rotated));
-    fetchMock.mockImplementationOnce(async () => {
-      expect(readStoredSession()).toBeNull();
-      return new Response(null, { status: 204 });
-    });
-
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
     await logout();
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      '/api/v1/auth/logout',
-      '/api/v1/auth/refresh',
-      '/api/v1/auth/logout',
-    ]);
-    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
-      refreshToken: rotated.refreshToken,
-    });
-    expect(new Headers(fetchMock.mock.calls[2]?.[1]?.headers).get('Authorization')).toBe(
-      `Bearer ${rotated.accessToken}`,
-    );
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/api/v1/auth/logout']);
     expect(readStoredSession()).toBeNull();
   });
 
-  it('does not erase a new login when the old logout refresh completes', async () => {
+  it('does not hide server revocation failures as successful logout', async () => {
+    await signIn();
+    fetchMock.mockResolvedValueOnce(json({ code: 'AUTH_UNAVAILABLE' }, 503));
+    await expect(logout()).rejects.toMatchObject({ status: 503, code: 'AUTH_UNAVAILABLE' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(readStoredSession()).toBeNull();
+    expect(hasLogoutWarning()).toBe(true);
+  });
+
+  it('retains a logout failure warning when an intervening login attempt fails', async () => {
     await signIn();
     let release!: (response: Response) => void;
-    fetchMock.mockResolvedValueOnce(json({ code: 'UNAUTHORIZED' }, 401));
     fetchMock.mockImplementationOnce(
       () =>
         new Promise<Response>((resolve) => {
           release = resolve;
         }),
     );
-    const pendingLogout = logout();
-    await vi.waitFor(() => expect(release).toBeTypeOf('function'));
-    const latest = { ...session, accessToken: 'latest-access', refreshToken: 'latest-refresh' };
-    fetchMock.mockResolvedValueOnce(json(latest));
-    await login('test-user', 'test-only');
-    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
-    release(
-      json({ ...session, accessToken: 'old-rotated-access', refreshToken: 'old-rotated-refresh' }),
-    );
-    await pendingLogout;
-    expect(readStoredSession()).toEqual(latest);
-    expect(JSON.parse(String(fetchMock.mock.calls.at(-1)?.[1]?.body))).toEqual({
-      refreshToken: 'old-rotated-refresh',
-    });
+    const pending = logout();
+    const rejection = expect(pending).rejects.toMatchObject({ status: 503 });
+    fetchMock.mockResolvedValueOnce(json({ code: 'INVALID_CREDENTIALS' }, 401));
+    await expect(login('test-user', 'incorrect')).rejects.toMatchObject({ status: 401 });
+    release(json({ code: 'AUTH_UNAVAILABLE' }, 503));
+    await rejection;
+    expect(readStoredSession()).toBeNull();
+    expect(hasLogoutWarning()).toBe(true);
   });
 
-  it('waits for a pending refresh on logout and revokes the late rotated token', async () => {
+  it.each([204, 503])(
+    'does not affect a newer login when previous logout finishes (%s)',
+    async (status) => {
+      await signIn();
+      let release!: (response: Response) => void;
+      fetchMock.mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            release = resolve;
+          }),
+      );
+      const pending = logout();
+      const newer = { ...session, accessToken: 'new-access', refreshToken: 'new-refresh' };
+      fetchMock.mockResolvedValueOnce(json(newer));
+      await login('test-user', 'test-only');
+      release(
+        status === 204
+          ? new Response(null, { status: 204 })
+          : json({ code: 'AUTH_UNAVAILABLE' }, 503),
+      );
+      if (status === 204) await pending;
+      else await expect(pending).rejects.toMatchObject({ status: 503 });
+      expect(readStoredSession()).toEqual(newer);
+      expect(hasLogoutWarning()).toBe(false);
+      expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+        '/api/v1/auth/logout',
+        '/api/v1/auth/login',
+      ]);
+    },
+  );
+  it('revokes immediately during pending refresh and also discards its late response', async () => {
     await signIn();
     let release!: (response: Response) => void;
     fetchMock.mockResolvedValueOnce(json({ code: 'UNAUTHORIZED' }, 401));
@@ -534,6 +550,7 @@ describe('session refresh', () => {
     const pendingRequest = expect(getCurrentUser()).rejects.toBeInstanceOf(SessionExpiredError);
     await vi.waitFor(() => expect(release).toBeTypeOf('function'));
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
     const pendingLogout = logout();
     expect(readStoredSession()).toBeNull();
     release(json({ ...session, refreshToken: 'rotated-refresh' }));
@@ -542,30 +559,28 @@ describe('session refresh', () => {
       '/api/v1/auth/me',
       '/api/v1/auth/refresh',
       '/api/v1/auth/logout',
+      '/api/v1/auth/logout',
     ]);
-    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
+    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({
       refreshToken: 'rotated-refresh',
     });
     expect(readStoredSession()).toBeNull();
   });
 
-  it('finishes logout when the refresh token has already expired', async () => {
+  it('finishes idempotent logout when the refresh token has already expired', async () => {
     await signIn();
-    fetchMock.mockResolvedValueOnce(json({ code: 'UNAUTHORIZED' }, 401));
-    fetchMock.mockResolvedValueOnce(json({ code: 'INVALID_REFRESH_TOKEN' }, 401));
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
     await expect(logout()).resolves.toBeUndefined();
     expect(readStoredSession()).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('does not loop when the retried logout is unauthorized', async () => {
+  it('does not retry or swallow a rejected logout', async () => {
     await signIn();
-    fetchMock.mockResolvedValueOnce(json({ code: 'UNAUTHORIZED' }, 401));
-    fetchMock.mockResolvedValueOnce(json(session));
-    fetchMock.mockResolvedValueOnce(json({ code: 'UNAUTHORIZED' }, 401));
+    fetchMock.mockResolvedValueOnce(json({ code: 'INVALID_REFRESH_TOKEN' }, 401));
     await expect(logout()).rejects.toMatchObject({ status: 401 });
     expect(readStoredSession()).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -1,0 +1,45 @@
+name: Dependency and image security
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [backend, frontend, forecast-service, mock-connector]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Build versioned image
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          VERSION=$(python -c 'import xml.etree.ElementTree as E; print(E.parse("backend/pom.xml").getroot().find("{http://maven.apache.org/POM/4.0.0}version").text)')
+          NAME="greenmart-${SERVICE}"
+          if [[ "$SERVICE" == forecast-service ]]; then NAME=greenmart-forecast; fi
+          IMAGE="${NAME}:${VERSION}-sha-${GITHUB_SHA}"
+          docker build --pull -t "$IMAGE" "$SERVICE"
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            docker tag "$IMAGE" "${NAME}:${GITHUB_REF_NAME}"
+          fi
+          docker save "$IMAGE" -o image.tar
+      - name: Scan dependencies and image, reject every Critical finding
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          mkdir -p reports
+          failed=0
+          docker run --rm -v trivy-cache:/root/.cache/trivy -v "$PWD:/work" aquasec/trivy:0.67.2 fs --scanners vuln --severity CRITICAL --exit-code 1 --format json --output /work/reports/dependencies.json "/work/$SERVICE" || failed=1
+          docker run --rm -v trivy-cache:/root/.cache/trivy -v "$PWD:/work" aquasec/trivy:0.67.2 image --input /work/image.tar --scanners vuln --severity CRITICAL --exit-code 1 --format json --output /work/reports/image.json || failed=1
+          exit "$failed"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: security-${{ matrix.service }}
+          path: reports/

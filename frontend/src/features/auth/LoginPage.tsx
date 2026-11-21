@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocation } from 'react-router';
 import { Button, Checkbox, Input, Toast } from '../../components/ui';
+import { hasLogoutWarning, onLogoutWarning } from '../../api/client';
 import { useAuth } from './useAuth';
 import {
   getLoginFieldErrors,
@@ -31,6 +32,7 @@ function formatCountdown(milliseconds: number): string {
 export default function LoginPage() {
   const { signIn } = useAuth();
   const location = useLocation();
+  const logoutWarning = useSyncExternalStore(onLogoutWarning, hasLogoutWarning, () => false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -156,17 +158,18 @@ export default function LoginPage() {
             />
           )}
 
-        {typeof location.state === 'object' &&
-          location.state !== null &&
-          'logoutWarning' in location.state &&
-          location.state.logoutWarning === true && (
-            <Toast
-              variant="warning"
-              title="Đã đăng xuất khỏi thiết bị này"
-              description="Máy chủ chưa xác nhận thu hồi phiên."
-              className="login-page__notice"
-            />
-          )}
+        {(logoutWarning ||
+          (typeof location.state === 'object' &&
+            location.state !== null &&
+            'logoutWarning' in location.state &&
+            location.state.logoutWarning === true)) && (
+          <Toast
+            variant="warning"
+            title="Đã đăng xuất khỏi thiết bị này"
+            description="Máy chủ chưa xác nhận thu hồi phiên."
+            className="login-page__notice"
+          />
+        )}
 
         {visibleNotice && (
           <Toast
