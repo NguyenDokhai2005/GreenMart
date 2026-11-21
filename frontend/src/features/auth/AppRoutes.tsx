@@ -286,6 +286,8 @@ export function AppRoutes() {
         <Route path="products" element={<ProductsPage />} />
         <Route path="customers" element={<CustomersPage />} />
         <Route path="inventory" element={<InventoryPage />} />
+        <Route path="orders" element={<OrdersPage />} />
+        <Route path="orders/:orderId" element={<OnlineOrderDetailPage />} />
         <Route path="forecast" element={<ForecastPage />} />
         <Route path="alerts" element={<StockAlertsPage />} />
         <Route path="ledger" element={<InventoryLedgerPage />}>
