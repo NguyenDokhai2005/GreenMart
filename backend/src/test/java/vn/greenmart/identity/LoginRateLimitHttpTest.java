@@ -30,7 +30,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 @AutoConfigureTestRestTemplate
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration",
+        "spring.autoconfigure.exclude=org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration",
         "management.endpoint.health.group.readiness.include=readinessState,db,redis",
         "greenmart.security.login.trusted-proxies="
 })

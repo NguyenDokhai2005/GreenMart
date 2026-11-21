@@ -36,8 +36,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration",
+        "spring.autoconfigure.exclude=org.springframework.boot.data.redis.autoconfigure.RedisAutoConfiguration,"
+                + "org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration",
         "management.endpoint.health.group.readiness.include=readinessState,db",
         "greenmart.outbox.enabled=false"
 })
