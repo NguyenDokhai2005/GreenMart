@@ -85,6 +85,8 @@ Người lập phiếu không được tự duyệt phiếu của mình (tách n
 
 3.  Thu ngân nhập số điện thoại khách (tùy chọn). Có trong hệ thống thì gắn khách; chưa có thì tạo nhanh với tên + số điện thoại.
 
+    Khách đã ngừng hoạt động không được gắn vào báo giá hoặc đơn POS mới (#418). Tra đúng số điện thoại của khách này báo `422 CUSTOMER_INACTIVE` và hướng dẫn liên hệ Quản lý chi nhánh/Chủ cửa hàng; không coi là chưa tồn tại để tạo lại. Tìm kiếm thông thường vẫn ẩn khách inactive; quản lý/chủ cửa hàng có thể xem bằng bộ lọc và kích hoạt lại qua API sửa khách hiện có, thu ngân không tự kích hoạt. Hoàn tất kiểm tra lại trạng thái khách và khóa dòng trong cùng transaction với đơn, thanh toán và tồn; nếu bị chặn thì không có tác động bán hàng. Gửi lại yêu cầu đã thành công chỉ trả đơn cũ. Lịch sử đơn vẫn giữ liên kết khách. Ngoại lệ đơn kênh online #306 tiếp tục nhận theo số điện thoại và không tự tái kích hoạt khách.
+
 4.  Sau mỗi thay đổi giỏ hàng, hệ thống tính lại tạm tính, khuyến mại và tổng tiền (xem mục 7).
 
 5.  Thu ngân chọn phương thức: tiền mặt, thẻ hoặc QR.

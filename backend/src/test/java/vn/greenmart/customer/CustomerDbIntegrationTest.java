@@ -111,7 +111,10 @@ class CustomerDbIntegrationTest {
             insertedCustomerIds.clear();
         }
         jdbcTemplate.update("DELETE FROM user_branch WHERE user_id = ?", TEST_USER_ID);
-        jdbcTemplate.update("DELETE FROM app_user WHERE id = ?", TEST_USER_ID);
+        // Transactional cases roll back their audit and actor together. Deleting an audited actor
+        // explicitly would invoke ON DELETE SET NULL and violate the append-only audit trigger.
+        jdbcTemplate.update("DELETE FROM app_user WHERE id=? AND NOT EXISTS (SELECT 1 FROM audit_log WHERE user_id=?)",
+                TEST_USER_ID, TEST_USER_ID);
     }
 
     @Test
@@ -250,12 +253,13 @@ class CustomerDbIntegrationTest {
         CustomerResponse deactivated = customerService.deactivateCustomer(created.id());
         org.junit.jupiter.api.Assertions.assertFalse(deactivated.active());
 
-        // Tra cứu tại POS (theo q và theo phone) -> bị ẩn hoàn toàn
+        // General search stays hidden (#306); exact POS phone lookup reports inactive (#418).
         PageResponse<CustomerResponse> searchByQ = customerService.listCustomers("0907776655", null, PageRequest.of(0, 20));
         assertEquals(0, searchByQ.totalElements());
 
-        PageResponse<CustomerResponse> searchByPhone = customerService.listCustomers(null, "0907776655", PageRequest.of(0, 20));
-        assertEquals(0, searchByPhone.totalElements());
+        AppException inactive = assertThrows(AppException.class,
+                () -> customerService.listCustomers(null, "0907776655", PageRequest.of(0, 20)));
+        assertEquals(ErrorCode.CUSTOMER_INACTIVE.name(), inactive.getCode());
 
         // Quản lý chi nhánh lọc active=false -> tìm lại được khách đã ngừng hoạt động
         PageResponse<CustomerResponse> inactiveSearch = customerService.listCustomers(null, "0907776655", false, PageRequest.of(0, 20));

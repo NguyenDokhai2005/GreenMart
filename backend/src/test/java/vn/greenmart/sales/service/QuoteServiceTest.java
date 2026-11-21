@@ -84,7 +84,6 @@ class QuoteServiceTest {
         // Gạo ST25 5kg: 120.000 đ x 1 = 120.000 đ
         ProductSaleInfo gao = new ProductSaleInfo(101L, "GAO-ST25-5KG", "Gạo ST25 5kg", "túi", 120000L, true);
 
-        when(customerService.exists(125L)).thenReturn(true);
         when(productService.getSaleInfo(205L)).thenReturn(sua);
         when(productService.getSaleInfo(206L)).thenReturn(rau);
         when(productService.getSaleInfo(101L)).thenReturn(gao);
