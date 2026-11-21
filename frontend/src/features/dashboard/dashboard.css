@@ -20,7 +20,9 @@
 }
 
 .gm-dashboard__heading h1 {
-  font-size: 22px;
+  margin: 0 0 var(--gm-space-1);
+  font-size: 28px;
+  line-height: 36px;
 }
 
 .gm-dashboard__heading p,

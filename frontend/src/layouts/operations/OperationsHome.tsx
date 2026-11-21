@@ -15,7 +15,6 @@ export default function OperationsHome() {
   }
   return (
     <div style={{ display: 'grid', gap: 16 }}>
-      <h1>Tổng quan vận hành</h1>
       <Suspense fallback={<Skeleton height={360} />}>
         <DashboardPage />
       </Suspense>
