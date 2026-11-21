@@ -86,4 +86,6 @@ public interface InventoryService {
 
     /** Reduce unreserved stock, append EXPORT, and return the locked approval-time unit cost. */
     long exportStock(Long branchId, Long productId, int qty, Long documentId, Long actorId);
+
+    void returnStock(Long branchId, Long productId, int qty, boolean resellable, Long returnDocumentId, Long actorId);
 }

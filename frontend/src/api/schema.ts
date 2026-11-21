@@ -430,6 +430,90 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/returns': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Danh sách phiếu trả hàng của một đơn */
+    get: operations['listReturnsByOrder'];
+    put?: never;
+    /**
+     * Tạo phiếu trả hàng (Nháp)
+     * @description Lập phiếu trả toàn bộ hoặc một phần cho đơn COMPLETED trong vòng 7 ngày kể từ completedAt (BR-10).
+     *     Tiền hoàn phân bổ khuyến mại cấp đơn theo tỷ lệ giá trị dòng và làm tròn xuống đến đồng VND.
+     */
+    post: operations['createReturn'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/returns/{returnId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        returnId: components['parameters']['ReturnId'];
+      };
+      cookie?: never;
+    };
+    /** Chi tiết phiếu trả hàng */
+    get: operations['getReturn'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/returns/{returnId}/approve': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        returnId: components['parameters']['ReturnId'];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Duyệt phiếu trả hàng
+     * @description Người duyệt phải khác người lập (BR-13, 422 SELF_APPROVAL_FORBIDDEN).
+     *     Hàng RESELLABLE cộng tồn chi nhánh nhận trả và ghi RETURN; hàng DAMAGED ghi RETURN và EXPORT hủy ngay.
+     *     Trả hết 100% đơn thì cập nhật trạng thái đơn sang RETURNED.
+     */
+    post: operations['approveReturn'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/returns/{returnId}/cancel': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        returnId: components['parameters']['ReturnId'];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Hủy phiếu trả hàng nháp */
+    post: operations['cancelReturn'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/inventory': {
     parameters: {
       query?: never;
@@ -1575,6 +1659,58 @@ export interface components {
     OrderSummaryPage: components['schemas']['PageMeta'] & {
       content: components['schemas']['OrderSummary'][];
     };
+    /** @enum {string} */
+    ReturnStatus: 'DRAFT' | 'APPROVED' | 'CANCELLED';
+    /** @enum {string} */
+    ReturnItemCondition: 'RESELLABLE' | 'DAMAGED';
+    ReturnItemRequest: {
+      /** Format: int64 */
+      orderItemId: number;
+      quantity: number;
+      condition: components['schemas']['ReturnItemCondition'];
+    };
+    CreateReturnRequest: {
+      /** Format: int64 */
+      orderId: number;
+      /** Format: int64 */
+      branchId: number;
+      reason: string;
+      items: components['schemas']['ReturnItemRequest'][];
+    };
+    ReturnItem: {
+      /** Format: int64 */
+      id: number;
+      /** Format: int64 */
+      orderItemId: number;
+      /** Format: int64 */
+      productId: number | null;
+      sku: string;
+      name: string;
+      unit: string;
+      quantity: number;
+      condition: components['schemas']['ReturnItemCondition'];
+      refundAmount: components['schemas']['Money'];
+    };
+    ReturnDocument: {
+      /** Format: int64 */
+      id: number;
+      /** @example RET-GM001-20261118-0001 */
+      code: string;
+      /** Format: int64 */
+      orderId: number;
+      orderCode: string;
+      branch: components['schemas']['BranchRef'];
+      reason: string;
+      refundAmount: components['schemas']['Money'];
+      status: components['schemas']['ReturnStatus'];
+      createdBy: components['schemas']['UserRef'];
+      approvedBy?: components['schemas']['UserRef'] | null;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      approvedAt?: string | null;
+      items: components['schemas']['ReturnItem'][];
+    };
     StockAlert: {
       /** Format: int64 */
       id: number;
@@ -2361,6 +2497,7 @@ export interface components {
     ProductId: number;
     CustomerId: number;
     OrderId: number;
+    ReturnId: number;
     /** @description UUID do client sinh mỗi lần bấm Hoàn tất mới; bấm lại sau lỗi mạng thì dùng lại key cũ. Lưu 24 giờ. */
     IdempotencyKey: string;
     /** @description Chỉ kênh online */
@@ -3212,6 +3349,139 @@ export interface operations {
       401: components['responses']['Unauthorized'];
       403: components['responses']['Forbidden'];
       404: components['responses']['NotFound'];
+    };
+  };
+  listReturnsByOrder: {
+    parameters: {
+      query: {
+        orderId: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Danh sách phiếu trả hàng của đơn */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReturnDocument'][];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      404: components['responses']['NotFound'];
+    };
+  };
+  createReturn: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateReturnRequest'];
+      };
+    };
+    responses: {
+      /** @description Phiếu trả hàng đã tạo ở trạng thái DRAFT */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReturnDocument'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['InvalidStatus'];
+      422: components['responses']['BusinessRule'];
+    };
+  };
+  getReturn: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        returnId: components['parameters']['ReturnId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Phiếu trả hàng */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReturnDocument'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+    };
+  };
+  approveReturn: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        returnId: components['parameters']['ReturnId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Phiếu trả hàng đã duyệt */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReturnDocument'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['InvalidStatus'];
+      422: components['responses']['BusinessRule'];
+    };
+  };
+  cancelReturn: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        returnId: components['parameters']['ReturnId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Phiếu trả hàng đã hủy */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReturnDocument'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['InvalidStatus'];
     };
   };
   listInventory: {

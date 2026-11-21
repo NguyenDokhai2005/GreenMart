@@ -47,6 +47,8 @@ public enum ErrorCode {
     CATEGORY_CYCLE(HttpStatus.UNPROCESSABLE_ENTITY, "Danh mục cha tạo vòng lặp không hợp lệ"),
     WRONG_PASSWORD(HttpStatus.UNPROCESSABLE_ENTITY, "Mật khẩu hiện tại không chính xác"),
     UNMAPPED_SKU(HttpStatus.UNPROCESSABLE_ENTITY, "Mã hàng của kênh chưa được ánh xạ"),
+    RETURN_WINDOW_EXPIRED(HttpStatus.UNPROCESSABLE_ENTITY, "Đơn hàng đã quá thời hạn trả hàng 7 ngày"),
+    RETURN_QUANTITY_EXCEEDED(HttpStatus.UNPROCESSABLE_ENTITY, "Số lượng trả vượt quá số lượng còn lại có thể trả"),
 
     // 429
     LOGIN_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Quá nhiều lần đăng nhập. Vui lòng thử lại sau."),
