@@ -39,10 +39,14 @@ spring:
           multiplier: 2
           max-interval: 16s
 server:
+  forward-headers-strategy: none
   error:
     include-stacktrace: never
     include-message: never
 greenmart:
+  security:
+    login:
+      trusted-proxies: ${LOGIN_TRUSTED_PROXIES:}
   jwt:
     secret: ${JWT_SECRET}
 logging:

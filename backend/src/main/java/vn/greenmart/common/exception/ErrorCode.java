@@ -48,6 +48,15 @@ public enum ErrorCode {
     WRONG_PASSWORD(HttpStatus.UNPROCESSABLE_ENTITY, "Mật khẩu hiện tại không chính xác"),
     UNMAPPED_SKU(HttpStatus.UNPROCESSABLE_ENTITY, "Mã hàng của kênh chưa được ánh xạ"),
 
+    // 429
+    LOGIN_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Quá nhiều lần đăng nhập. Vui lòng thử lại sau."),
+    REFRESH_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Quá nhiều lần làm mới phiên. Vui lòng thử lại sau."),
+    PASSWORD_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Quá nhiều lần xác minh mật khẩu. Vui lòng thử lại sau."),
+
+    // 503
+    LOGIN_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Dịch vụ đăng nhập tạm thời không khả dụng. Vui lòng thử lại sau."),
+    AUTH_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Dịch vụ xác thực tạm thời không khả dụng. Vui lòng thử lại sau."),
+
     // 500
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Đã có lỗi hệ thống xảy ra, vui lòng thử lại sau");
 

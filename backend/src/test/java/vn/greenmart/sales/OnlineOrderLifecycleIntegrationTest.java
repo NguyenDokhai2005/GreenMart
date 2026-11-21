@@ -42,6 +42,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Testcontainers
 @DisplayName("Issue #320 (#40, #41, #42): Vòng đời đơn online & 4 đường nhả giữ chỗ")
 class OnlineOrderLifecycleIntegrationTest {
+    // Business-module tests isolate the session registry; auth tests exercise real Redis.
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    vn.greenmart.identity.repository.RefreshTokenStore authSessions;
+
 
     @Container
     static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(PostgresTestImage.IMAGE);
@@ -85,6 +89,8 @@ class OnlineOrderLifecycleIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.when(authSessions.isSessionActive(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+
         cleanTestData();
 
         jdbc.execute("""

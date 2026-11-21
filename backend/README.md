@@ -46,9 +46,76 @@ test chỉ dùng nó để dọn dữ liệu trong PostgreSQL container riêng.
 
 ## Lưu ý Bảo mật & Phân quyền
 
-- `SecurityConfig` hiện tại cấu hình `anyRequest().permitAll()` để không chặn các endpoint đọc công khai (`GET /api/v1/products`, `/categories`, `/products/lookup`) trong khi module `identity` đang hoàn thiện.
-- Các thao tác ghi (POST, PUT, DELETE) được kiểm soát vai trò chặt chẽ tại tầng Service thông qua `SecurityUtils.requireRole(...)
-- Kế hoạch hoàn thiện: Issue #146 sẽ tích hợp JWT Filter và chuyển sang `anyRequest().authenticated()` trên chính `SecurityConfig` này.
+### Giới hạn đăng nhập theo IP (#155)
+
+`POST /api/v1/auth/login` cho phép tối đa 20 lần thử trong 60 giây gần nhất
+cho mỗi IP, tính cả thành công và body không hợp lệ. Lần thứ 21 bắt đầu chặn
+60 giây, trả `429 LOGIN_RATE_LIMITED` kèm `Retry-After` (giây còn lại).
+Request trong lúc chặn không kéo dài hạn chặn; hết hạn bắt đầu bộ đếm mới.
+Thành công không xóa bộ đếm IP. Redis Lua thực hiện kiểm tra/cập nhật nguyên tử,
+dùng chung hạn mức khi có nhiều backend. Redis không khả dụng thì login trả
+`503 LOGIN_UNAVAILABLE`, không truy vấn tài khoản. Filter chạy trước Spring Security
+và controller. Refresh có bộ đếm riêng 60 request/IP/phút, vượt ngưỡng chặn
+60 giây (`REFRESH_RATE_LIMITED`). Đổi mật khẩu có bộ đếm riêng 20 request/IP/phút
+và 5 lần xác minh/tài khoản/15 phút, vượt ngưỡng chặn 60 giây hoặc 15 phút
+(`PASSWORD_RATE_LIMITED`). Tính cả thành công/thất bại; thay IP/đăng nhập lại
+không xóa hạn mức tài khoản. Mọi phản hồi 429 có `Retry-After`.
+
+Mặc định backend lấy IP từ socket. Chỉ đặt `LOGIN_TRUSTED_PROXIES` cho proxy thực
+sự được quản lý, dạng danh sách IP, CIDR hoặc tên dịch vụ phân cách bằng dấu phẩy.
+Compose mặc định tin dịch vụ `frontend`; Nginx của dịch vụ này ghi đè `X-Real-IP`
+bằng IP kết nối đến nó. Backend chỉ nhận `X-Real-IP` khi socket peer thuộc danh
+sách tin cậy, bỏ qua `X-Forwarded-For`. Không cấu hình tin mọi IP hoặc bật tự động
+ghi đè remote address qua forwarded headers. Nếu thêm gateway/LB trước Nginx,
+cần thiết kế lại chuỗi proxy tin cậy để tránh gom mọi người vào IP gateway.
+
+Theo yêu cầu review của Lead, username không tồn tại/tài khoản ngừng hoạt động
+trả `401 INVALID_CREDENTIALS`; sai mật khẩu trả cùng thông báo kèm
+`details.remainingAttempts`. Lần sai thứ 5 và các lần thử trong thời gian khóa
+trả `401 ACCOUNT_LOCKED` kèm `details.lockedUntil`, không kéo dài mốc khóa.
+Nội bộ vẫn khóa tài khoản sau 5 lần sai liên tiếp trong 15 phút và ghi audit.
+CAPTCHA/email mở khóa cần thiết kế luồng riêng, chưa nằm trong thay đổi này.
+QA kiểm lại TC-AUTH01-03/-04/-06 theo OpenAPI và tiêu chí khóa đã duyệt;
+giữ nguyên bằng chứng QA lịch sử. Bài tải POS nên
+chuẩn bị token trước giai đoạn đo để không bị giới hạn login cùng IP.
+
+Kiểm tra bằng JDK 21 và Docker với `mvn -B -ntp verify`. Các test
+`AuthRateLimiterTest`, `LoginClientIpResolverTest`, `LoginRateLimitApiTest`
+và `LoginRateLimitHttpTest` kiểm tra Redis thật, đồng thời, proxy giả mạo,
+thứ tự chặn trước DB và HTTP qua Tomcat.
+
+### Phiên JWT và đăng xuất
+
+Access JWT có hạn 15 phút và claim `sid` gắn với phiên đăng nhập. Refresh token
+có hạn 7 ngày, xoay vòng khi dùng và giữ cùng `sid`. Backend xác minh refresh
+trong Redis trước khi truy vấn tài khoản; Lua kiểm tra/tiêu thụ lại nguyên tử
+khi xoay để giữ an toàn với refresh đồng thời và đổi mật khẩu.
+
+Mỗi request có JWT kiểm tra phiên còn hoạt động trong Redis trước khi đọc
+trạng thái/vai trò từ DB. Logout thu hồi đúng phiên ngay, gồm access và refresh;
+đổi mật khẩu thu hồi mọi phiên. Request đã được xác thực trước lúc thu hồi
+có thể đang xử lý; thu hồi chặn các lần xác thực tiếp theo.
+
+`POST /api/v1/auth/logout` dùng refresh token trong body làm bằng chứng thu hồi,
+không cần access còn hạn hoặc tài khoản đang hoạt động. Token đã xoay vẫn có
+lookup SHA-256 về phiên trong tối đa 7 ngày để logout không bỏ sót request
+refresh chạy đồng thời. Lookup chỉ cho phép thu hồi, không cho phép dùng lại
+refresh cũ để cấp token. Các lookup và bản ghi phiên tự hết hạn; không lưu
+nguyên văn refresh token. Gọi lại logout với token đúng định dạng vẫn trả 204.
+Redis lỗi trả `503 AUTH_UNAVAILABLE`, không báo thu hồi thành công hay coi token
+đã hết hạn. Frontend xóa phiên local, báo lỗi nếu server chưa thu hồi được và
+không xin token mới để đăng xuất. Refresh thành công cập nhật cả user/role/
+chi nhánh trong AuthContext.
+
+Triển khai thay đổi này yêu cầu đăng nhập lại một lần: JWT cũ chưa có `sid`
+hoặc refresh cũ chưa có registry phiên bị từ chối. Không cần migration DB.
+Các bài test module nghiệp vụ tự ký JWT dùng mock registry để tách phạm vi;
+`AuthSessionSecurityTest` kiểm tra registry thật với PostgreSQL/Redis, gồm
+logout/refresh đồng thời, tài khoản khóa, vô hiệu hóa và thu hồi mọi phiên.
+
+`SecurityConfig` cho phép login/refresh/logout, health và các callback tích hợp được chỉ định
+truy cập công khai; các request còn lại cần xác thực JWT. Quyền vai trò và phạm vi
+chi nhánh tiếp tục được kiểm tra tại security chain và tầng service tương ứng.
 
 ## API xem tồn kho (#52)
 
