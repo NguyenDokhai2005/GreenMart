@@ -1,4 +1,5 @@
 import { request } from '../../api/client';
+import type { components } from '../../api/schema';
 
 export interface InventoryQuery {
   /** undefined = mọi chi nhánh được phép xem (OWNER/ADMIN chọn "Tất cả chi nhánh"). */
@@ -27,3 +28,11 @@ export function listInventory(query: InventoryQuery, signal?: AbortSignal) {
 export type InventoryPageData = Awaited<ReturnType<typeof listInventory>>;
 export type InventoryItem = InventoryPageData['content'][number];
 export type StockStatus = InventoryItem['stockStatus'];
+export type Replenishment = components['schemas']['Replenishment'];
+
+export function getReplenishment(branchId: number, productId: number, signal?: AbortSignal) {
+  return request('/inventory/{branchId}/{productId}/replenishment', 'get', {
+    path: { branchId, productId },
+    signal,
+  });
+}
