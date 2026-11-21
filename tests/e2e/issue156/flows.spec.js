@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createHmac, randomUUID } from 'node:crypto';
+import { eventHeaders } from '../../../mock-connector/src/event-signature.js';
 import { spawnSync } from 'node:child_process';
 
 const base = `http://127.0.0.1:${process.env.QA156_PORT}/api/v1`;
@@ -117,7 +118,9 @@ test('API online: signed WEB → RESERVED → PAID → CONFIRMED → COMPLETED',
   sql(`UPDATE sales_channel SET webhook_secret='${secret}' WHERE code='WEB'; INSERT INTO channel_product(channel_id,product_id,external_sku) SELECT id,${Number(p.id)},'${p.sku}' FROM sales_channel WHERE code='WEB';`, true);
   async function signed(path, body, expected) {
     const raw = JSON.stringify(body);
-    return call('POST', path, null, raw, expected, { 'X-Signature': createHmac('sha256', secret).update(raw).digest('hex') });
+    const headers = path.endsWith('/events') ? eventHeaders({ path: '/api/v1' + path, body: raw, secret })
+      : { 'X-Signature': createHmac('sha256', secret).update(raw).digest('hex') };
+    return call('POST', path, null, raw, expected, headers);
   }
   const intake = await signed('/integrations/WEB/orders', { externalOrderId: p.sku, orderedAt: new Date().toISOString(),
     customer: { name: p.sku, phone: '0991560014' }, items: [{ externalSku: p.sku, quantity: 3, unitPrice: 31000 }],

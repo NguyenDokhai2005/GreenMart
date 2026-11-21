@@ -52,6 +52,11 @@ batch trước khi ghi. WEB và MARKET có state/secret riêng. Trạng thái l�
 `mockdata`; khởi động lại không mất version. `GET /mock/state` phục vụ quan sát demo,
 `GET /healthz` là healthcheck. Secrets chỉ ở server, không đưa ra trình duyệt/log.
 
+Sự kiện PAID/CANCELLED dùng chữ ký envelope v1 gắn với method/path/eventId/timestamp/body,
+khác chữ ký body của intake/callback. Gửi qua `POST /demo/{channel}/orders/{externalOrderId}/events`;
+lưu UUID trước lần gửi đầu và truyền `X-Event-ID` để retry cùng body kể cả khi mất response.
+Helper ký nằm ở `src/event-signature.js`. Xem [giao thức và chuyển đổi](../docs/operations/CHANNEL-EVENTS.md).
+
 Chạy riêng từ thư mục `mock-connector`: đặt `CHANNEL_WEB_SECRET`,
 `CHANNEL_MARKET_SECRET`, `BACKEND_URL=http://localhost:8080`,
 `STATE_FILE=./data/state.json`, rồi `npm start`. Mặc định cổng 8090 khớp OpenAPI.
