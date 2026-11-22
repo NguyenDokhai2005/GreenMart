@@ -33,6 +33,8 @@ except ImportError:
     import config  # type: ignore
 
 
+PROMOTION_EXPIRY_SQL = "UPDATE promotion SET status='ENDED' WHERE status IN ('DRAFT','ACTIVE','PAUSED') AND end_at<=CURRENT_TIMESTAMP;"
+
 # ==============================================================================
 # CẤU TRÚC DỮ LIỆU ĐỐI TƯỢNG (DATA MODELS)
 # ==============================================================================
@@ -2260,6 +2262,9 @@ def _write_sql_statements(
         for p in promotions
     ]
     f.write(",\n".join(promo_lines) + ";\n\n")
+    # Historical eligibility was evaluated above; persisted status reflects import time.
+    # Keep prices/counters and the generated file deterministic across generation dates.
+    f.write(PROMOTION_EXPIRY_SQL + "\n\n")
 
     # promotion_branch
     pb_lines = []

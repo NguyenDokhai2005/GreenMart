@@ -1106,7 +1106,7 @@ class TestGeneratorStage4(unittest.TestCase):
         actual_sql_sha = hashlib.sha256(sql_bytes).hexdigest()
 
         # #422 intentionally changes only ITEM campaign usage counters in the SQL export.
-        GOLDEN_SQL_SHA256 = "4d712b9ea2c8c748efb2d7bfe04ed4450d555c7086883272023c8bcea9664c10"
+        GOLDEN_SQL_SHA256 = "1cf75e9def010855661279a02ea160be49c33168aec6a8fac614fd5eab24fcf3"
         GOLDEN_JSON_SHA256 = "d0226a3d258fa87649db164118a5d600052de8f422e94e5beecb8a3e05d1dc91"
 
         self.assertEqual(actual_sql_sha, GOLDEN_SQL_SHA256, "Mã SHA-256 in-memory của SQL không được thay đổi")

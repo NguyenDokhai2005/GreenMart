@@ -323,4 +323,5 @@ class CatalogIntegrationTest {
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
     }
+    
 }

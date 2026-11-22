@@ -53,6 +53,7 @@ public class OnlineOrderServiceImpl implements OnlineOrderService {
     private final SalesOrderRepository salesOrderRepository;
     private final OrderItemRepository orderItemRepository;
     private final PaymentRepository paymentRepository;
+    private final ChannelPaymentReferences paymentReferences;
     private final InventoryService inventoryService;
     private final PromotionService promotionService;
     private final OutboxService outboxService;
@@ -207,6 +208,7 @@ public class OnlineOrderServiceImpl implements OnlineOrderService {
         Instant occurredAt = event.occurredAt().toInstant();
 
         if (event.type() == ChannelOrderEventRequest.EventType.PAID) {
+            paymentReferences.claim(order.getId(), event.providerRef());
             return handlePaidEvent(channelCode, order, occurredAt, event.providerRef());
         } else if (event.type() == ChannelOrderEventRequest.EventType.CANCELLED) {
             return handleChannelCancelledEvent(channelCode, order, occurredAt);
@@ -223,6 +225,10 @@ public class OnlineOrderServiceImpl implements OnlineOrderService {
     ) {
         // Idempotent: đơn đã CONFIRMED hoặc COMPLETED -> trả 200
         if (order.getStatus() == OrderStatus.CONFIRMED || order.getStatus() == OrderStatus.COMPLETED) {
+            boolean samePayment = paymentRepository.findByOrderId(order.getId()).stream().anyMatch(payment ->
+                    (payment.getStatus() == PaymentStatus.PAID || payment.getStatus() == PaymentStatus.REFUNDED)
+                            && providerRef.equals(payment.getProviderRef()));
+            if (!samePayment) throw new AppException(ErrorCode.INVALID_STATUS, "Đơn đã xác nhận không có giao dịch thanh toán này");
             return buildChannelAck(order, null);
         }
 

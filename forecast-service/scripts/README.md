@@ -276,8 +276,9 @@ Tùy theo môi trường, bạn có thể thực thi từ thư mục gốc của
 8. **Mã vân tay cơ sở dữ liệu (Database Fingerprint)**: Lặp qua 23 bảng, tính `count(*)` và `md5(string_agg(t::text, '|' ORDER BY t::text))` và in bảng đối chiếu.
 
 ### 4.5 Ý nghĩa SHA256SUMS và Database Fingerprint
+- Vòng đời khuyến mại (#426): SQL xuất ra chuẩn hóa các chương trình `DRAFT`/`ACTIVE`/`PAUSED` đã đến `end_at` sang `ENDED` tại thời điểm nạp (`CURRENT_TIMESTAMP`). Câu lệnh này không đổi ngày lịch sử, tiền hóa đơn hoặc `used_count`. File SQL vẫn tái lập được; trạng thái trong database phản ánh thời điểm thực tế nạp dữ liệu. Job backend tiếp tục xử lý các chương trình hết hạn về sau.
 - **File SHA256SUMS**: Bảo chứng tính xác định (deterministic) ở tầng tệp văn bản. Cùng một seed ngẫu nhiên sẽ luôn tạo ra 2 file SQL và JSON có mã băm SHA-256 giống hệt nhau:
-  - `seed_data.sql`: `4d712b9ea2c8c748efb2d7bfe04ed4450d555c7086883272023c8bcea9664c10`
+  - `seed_data.sql`: `1cf75e9def010855661279a02ea160be49c33168aec6a8fac614fd5eab24fcf3`
   - `stockout_schedule.json`: `d0226a3d258fa87649db164118a5d600052de8f422e94e5beecb8a3e05d1dc91`
 - **Database Fingerprint**: Bảo chứng tính tái lập (idempotent) ở tầng cơ sở dữ liệu. Sau khi seed 2 lần liên tiếp, mã MD5 trên toàn bộ dữ liệu của từng bảng phải trùng khớp 100%.
 

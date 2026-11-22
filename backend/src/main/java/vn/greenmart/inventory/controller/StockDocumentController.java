@@ -11,6 +11,7 @@ import vn.greenmart.inventory.domain.StockDocumentStatus;
 import vn.greenmart.inventory.domain.StockDocumentType;
 import vn.greenmart.inventory.dto.StockDocumentRequests;
 import vn.greenmart.inventory.dto.StockDocumentResponse;
+import vn.greenmart.inventory.dto.StocktakeReconciliation;
 import vn.greenmart.inventory.dto.StockDocumentSummary;
 import vn.greenmart.inventory.service.StockDocumentQueryService;
 import vn.greenmart.inventory.service.StockDocumentService;
@@ -44,6 +45,9 @@ public class StockDocumentController {
 
     @GetMapping("/{id}")
     public StockDocumentResponse get(@PathVariable Long id) { return service.get(id); }
+
+    @GetMapping("/{id}/reconciliation")
+    public StocktakeReconciliation reconciliation(@PathVariable Long id) { return service.reconciliation(id); }
 
     @PutMapping("/{id}")
     public StockDocumentResponse update(@PathVariable Long id, @Valid @RequestBody StockDocumentRequests.Update request) {

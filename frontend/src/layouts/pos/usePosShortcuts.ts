@@ -21,13 +21,14 @@ export function usePosShortcuts(items: readonly PosNavigationItem[]) {
         return;
       }
 
-      // Do not take keystrokes from forms, barcode inputs, or editable widgets.
+      // Navigation chords remain available in the POS scanner field.
       if (
         event
           .composedPath()
           .some(
             (target) =>
               target instanceof HTMLElement &&
+              target.id !== 'pos-product-search' &&
               target.matches(
                 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]',
               ),

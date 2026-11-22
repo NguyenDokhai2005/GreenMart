@@ -15,6 +15,8 @@ interface PosCustomerPanelProps {
   onChange: (customer: Customer | null) => void;
 }
 
+const normalizePhone = (value: string) => value.replace(/\s/g, '');
+
 export default function PosCustomerPanel({ customer, onChange }: PosCustomerPanelProps) {
   const [phone, setPhone] = useState('');
   const [phoneError, setPhoneError] = useState('');
@@ -56,7 +58,7 @@ export default function PosCustomerPanel({ customer, onChange }: PosCustomerPane
   useEffect(() => () => createController.current?.abort(), []);
 
   function findCustomer(value = phone) {
-    const candidate = value.trim();
+    const candidate = normalizePhone(value);
     if (!/^0[0-9]{9,10}$/.test(candidate)) {
       setPhoneError(
         candidate
@@ -90,7 +92,7 @@ export default function PosCustomerPanel({ customer, onChange }: PosCustomerPane
   }
 
   async function createCustomer() {
-    const values = { name: name.trim(), phone: createPhone.trim() };
+    const values = { name: name.trim(), phone: normalizePhone(createPhone) };
     const errors = validateCatalogForm('customer', values);
     setFormErrors(errors);
     setCreateError('');
@@ -138,7 +140,7 @@ export default function PosCustomerPanel({ customer, onChange }: PosCustomerPane
   }
 
   function findDuplicate() {
-    const candidate = createPhone.trim();
+    const candidate = normalizePhone(createPhone);
     setCreating(false);
     setDuplicate(false);
     findCustomer(candidate);
@@ -176,8 +178,10 @@ export default function PosCustomerPanel({ customer, onChange }: PosCustomerPane
             onChange={(event) => {
               setPhone(event.target.value);
               setPhoneError(
-                validateCatalogForm('customer', { name: 'Khách', phone: event.target.value })
-                  .phone ?? '',
+                validateCatalogForm('customer', {
+                  name: 'Khách',
+                  phone: normalizePhone(event.target.value),
+                }).phone ?? '',
               );
               setLookupPhone(null);
               setLookup({ status: 'idle' });
@@ -239,7 +243,7 @@ export default function PosCustomerPanel({ customer, onChange }: PosCustomerPane
         <div className="pos-customer__dialog-content">
           <p>
             {duplicate
-              ? `Số điện thoại ${createPhone.trim()} đã tồn tại trong hệ thống.`
+              ? `Số điện thoại ${normalizePhone(createPhone)} đã tồn tại trong hệ thống.`
               : 'Khách chưa có trong hệ thống. Tạo mới để gắn vào giỏ hàng hiện tại.'}
           </p>
           <Input
@@ -266,7 +270,10 @@ export default function PosCustomerPanel({ customer, onChange }: PosCustomerPane
               setFormErrors((errors) => ({
                 ...errors,
                 phone:
-                  validateCatalogForm('customer', { name, phone: event.target.value }).phone ?? '',
+                  validateCatalogForm('customer', {
+                    name,
+                    phone: normalizePhone(event.target.value),
+                  }).phone ?? '',
               }));
             }}
           />
