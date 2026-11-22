@@ -4,15 +4,23 @@ import type { Product, Quote } from '../../../src/api/client';
 import PosSalePage from '../../../src/features/pos/PosSalePage';
 import { POS_NAVIGATION } from '../../../src/layouts/pos/posNavigation';
 
-const { searchProducts, lookupProduct, quoteOrder, completePosOrder, customers, roleRef } =
-  vi.hoisted(() => ({
-    searchProducts: vi.fn(),
-    lookupProduct: vi.fn(),
-    quoteOrder: vi.fn(),
-    completePosOrder: vi.fn(),
-    customers: vi.fn(),
-    roleRef: { current: 'CASHIER' as string },
-  }));
+const {
+  searchProducts,
+  lookupProduct,
+  quoteOrder,
+  completePosOrder,
+  customers,
+  listInventory,
+  roleRef,
+} = vi.hoisted(() => ({
+  searchProducts: vi.fn(),
+  lookupProduct: vi.fn(),
+  quoteOrder: vi.fn(),
+  completePosOrder: vi.fn(),
+  customers: vi.fn(),
+  listInventory: vi.fn(),
+  roleRef: { current: 'CASHIER' as string },
+}));
 
 vi.mock('../../../src/api/client', () => ({
   searchProducts,
@@ -21,6 +29,7 @@ vi.mock('../../../src/api/client', () => ({
   completePosOrder,
 }));
 vi.mock('../../../src/features/catalog/catalogApi', () => ({ catalogApi: { customers } }));
+vi.mock('../../../src/features/inventory/inventoryApi', () => ({ listInventory }));
 vi.mock('../../../src/features/auth/useActiveBranch', () => ({
   useActiveBranch: () => ({
     state: { status: 'active', branch: { id: 1, code: 'GM-001', name: 'Quận 1' } },
@@ -107,6 +116,9 @@ it('opens checkout with F4 from the search field without completing an order', a
 });
 
 beforeEach(() => {
+  listInventory
+    .mockReset()
+    .mockResolvedValue({ content: [{ productId: product.id, available: 5 }] });
   roleRef.current = 'CASHIER';
   sessionStorage.clear();
   searchProducts.mockReset().mockResolvedValue({ content: [product] });

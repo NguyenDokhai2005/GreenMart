@@ -13,6 +13,7 @@ import { useAuth } from '../auth/useAuth';
 import { mapErrorToState } from '../../lib/errors';
 import type { PosPageProps } from '../../layouts/pos/PosPlaceholderPage';
 import type { Customer } from '../catalog/catalogApi';
+import { getInventoryItem, listInventory } from '../inventory/inventoryApi';
 import {
   cartKey,
   cartReducer,
@@ -37,6 +38,12 @@ type QuoteState =
   | { status: 'loading'; key: string }
   | { status: 'ready'; key: string; quote: Quote }
   | { status: 'error'; key: string; error: unknown };
+type AvailabilityState = {
+  key: string;
+  values?: Map<number, number>;
+  missing?: Set<number>;
+  error?: unknown;
+};
 
 function isEditable(target: EventTarget | null) {
   return (
@@ -103,6 +110,8 @@ function PosSaleContent({
   const [query, setQuery] = useState('');
   const normalizedQuery = query.trim();
   const [searchRetry, setSearchRetry] = useState(0);
+  const [stockRetry, setStockRetry] = useState(0);
+  const [availability, setAvailability] = useState<AvailabilityState>({ key: '' });
   const [quoteRetry, setQuoteRetry] = useState(0);
   const [searchState, setSearchState] = useState<SearchState>({ status: 'loading', key: '' });
   const [quoteState, setQuoteState] = useState<QuoteState>({ status: 'idle', key: '' });
@@ -265,6 +274,36 @@ function PosSaleContent({
   const searchCurrent = searchState.key === normalizedQuery;
   const searchLoading = !searchCurrent || searchState.status === 'loading';
   const products = searchCurrent && searchState.status === 'ready' ? searchState.products : [];
+  const suggestedProducts = products.slice(0, 8);
+  const suggestedProductIds = suggestedProducts.map((product) => product.id).join(',');
+  const availabilityKey = `${branchId}:${normalizedQuery}:${stockRetry}`;
+  useEffect(() => {
+    if (!branchId || searchLoading) return;
+    const controller = new AbortController();
+    const ids = suggestedProductIds.split(',').filter(Boolean).map(Number);
+    void (async () => {
+      try {
+        const page = await listInventory(
+          { branchId, q: normalizedQuery, page: 0, size: 100 },
+          controller.signal,
+        );
+        const values = new Map(page.content.map((stock) => [stock.productId, stock.available]));
+        const absentIds = ids.filter((id) => !values.has(id));
+        const fallback = await Promise.allSettled(
+          absentIds.map((id) => getInventoryItem(branchId, id, controller.signal)),
+        );
+        const missing = new Set<number>();
+        fallback.forEach((result, index) => {
+          if (result.status === 'fulfilled') values.set(absentIds[index], result.value.available);
+          else missing.add(absentIds[index]);
+        });
+        if (!controller.signal.aborted) setAvailability({ key: availabilityKey, values, missing });
+      } catch (error) {
+        if (!controller.signal.aborted) setAvailability({ key: availabilityKey, error });
+      }
+    })();
+    return () => controller.abort();
+  }, [branchId, normalizedQuery, stockRetry, searchLoading, availabilityKey, suggestedProductIds]);
   const searchError =
     searchCurrent && searchState.status === 'error' ? searchState.error : undefined;
   const quoteCurrent = quoteState.key === currentCartKey;
@@ -362,12 +401,23 @@ function PosSaleContent({
             skeleton={<Skeleton lines={3} height={40} />}
           >
             <ul className="pos-sale__products">
-              {products.slice(0, 8).map((product) => (
+              {suggestedProducts.map((product) => (
                 <li key={product.id}>
                   <div>
                     <strong>{product.name}</strong>
                     <small>
                       {product.sku} · {product.unit}
+                    </small>
+                    <small>
+                      {availability.key !== availabilityKey
+                        ? 'Đang tải tồn khả dụng…'
+                        : availability.error
+                          ? 'Không tải được tồn khả dụng'
+                          : availability.values?.has(product.id)
+                            ? `Tồn khả dụng: ${availability.values.get(product.id)}`
+                            : availability.missing?.has(product.id)
+                              ? 'Không tải được tồn khả dụng'
+                              : 'Chưa có dữ liệu tồn khả dụng'}
                     </small>
                   </div>
                   <span>{money(product.salePrice)}</span>
@@ -687,6 +737,7 @@ function PosSaleContent({
             setManualAmount('');
             setManualReason('');
             setStockConflict(null);
+            setStockRetry((value) => value + 1);
           }}
           onRequote={() => setQuoteRetry((value) => value + 1)}
           onQuoteChanged={(changed) => {

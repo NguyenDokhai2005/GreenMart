@@ -5,17 +5,31 @@ import PosSalePage from '../../../src/features/pos/PosSalePage';
 import { cartReducer, posCartDraftKey, stockForLine } from '../../../src/features/pos/posCart';
 import { POS_NAVIGATION } from '../../../src/layouts/pos/posNavigation';
 
-const { searchProducts, lookupProduct, quoteOrder, customers, roleRef } = vi.hoisted(() => ({
+const {
+  searchProducts,
+  lookupProduct,
+  quoteOrder,
+  customers,
+  listInventory,
+  getInventoryItem,
+  roleRef,
+} = vi.hoisted(() => ({
   searchProducts: vi.fn(),
   lookupProduct: vi.fn(),
   quoteOrder: vi.fn(),
   customers: vi.fn(),
+  listInventory: vi.fn(),
+  getInventoryItem: vi.fn(),
   roleRef: { current: 'CASHIER' as string },
 }));
 
 vi.mock('../../../src/api/client', () => ({ searchProducts, lookupProduct, quoteOrder }));
 vi.mock('../../../src/features/catalog/catalogApi', () => ({
   catalogApi: { customers },
+}));
+vi.mock('../../../src/features/inventory/inventoryApi', () => ({
+  listInventory,
+  getInventoryItem,
 }));
 vi.mock('../../../src/features/auth/useActiveBranch', () => ({
   useActiveBranch: () => ({
@@ -66,6 +80,10 @@ function quote(quantity: number): Quote {
 }
 
 beforeEach(() => {
+  listInventory
+    .mockReset()
+    .mockResolvedValue({ content: [{ productId: product.id, available: 5 }] });
+  getInventoryItem.mockReset().mockResolvedValue({ productId: product.id, available: 5 });
   roleRef.current = 'CASHIER';
   sessionStorage.clear();
   searchProducts.mockReset().mockResolvedValue({ content: [product] });
@@ -94,6 +112,21 @@ afterEach(() => {
 });
 
 describe('POS cart', () => {
+  it('shows available stock for the active branch beside a suggested product', async () => {
+    render(<PosSalePage item={POS_NAVIGATION[0]} />);
+    expect(await screen.findByText('Tồn khả dụng: 5')).toBeTruthy();
+    expect(listInventory).toHaveBeenCalledWith(
+      { branchId: 1, q: '', page: 0, size: 100 },
+      expect.any(AbortSignal),
+    );
+  });
+  it('loads exact stock when the suggested product is absent from the first inventory page', async () => {
+    listInventory.mockResolvedValue({ content: [] });
+    getInventoryItem.mockResolvedValue({ productId: product.id, available: 0 });
+    render(<PosSalePage item={POS_NAVIGATION[0]} />);
+    expect(await screen.findByText('Tồn khả dụng: 0')).toBeTruthy();
+    expect(getInventoryItem).toHaveBeenCalledWith(1, product.id, expect.any(AbortSignal));
+  });
   it('restores a branch-scoped draft after remount and requests a fresh quote', async () => {
     const first = render(<PosSalePage item={POS_NAVIGATION[0]} />);
     const search = screen.getByLabelText('Quét mã vạch hoặc tìm theo tên / SKU');

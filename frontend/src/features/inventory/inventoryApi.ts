@@ -24,6 +24,14 @@ export function listInventory(query: InventoryQuery, signal?: AbortSignal) {
   });
 }
 
+/** GET /inventory/{branchId}/{productId}: tồn chính xác cho gợi ý chưa có ở trang đầu. */
+export function getInventoryItem(branchId: number, productId: number, signal?: AbortSignal) {
+  return request('/inventory/{branchId}/{productId}', 'get', {
+    path: { branchId, productId },
+    signal,
+  });
+}
+
 export type InventoryPageData = Awaited<ReturnType<typeof listInventory>>;
 export type InventoryItem = InventoryPageData['content'][number];
 export type StockStatus = InventoryItem['stockStatus'];
