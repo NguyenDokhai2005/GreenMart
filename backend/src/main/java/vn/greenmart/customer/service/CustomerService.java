@@ -24,4 +24,8 @@ public interface CustomerService {
     PageResponse<OrderSummaryResponse> listCustomerOrders(Long customerId, Pageable pageable);
 
     boolean exists(Long customerId);
+
+    void validatePosCustomer(Long customerId);
+
+    void lockActivePosCustomer(Long customerId);
 }
