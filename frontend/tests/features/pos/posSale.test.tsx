@@ -5,17 +5,20 @@ import PosSalePage from '../../../src/features/pos/PosSalePage';
 import { cartReducer, stockForLine } from '../../../src/features/pos/posCart';
 import { POS_NAVIGATION } from '../../../src/layouts/pos/posNavigation';
 
-const { searchProducts, lookupProduct, quoteOrder, customers } = vi.hoisted(() => ({
+const { searchProducts, lookupProduct, quoteOrder, customers, listInventory, getInventoryItem } = vi.hoisted(() => ({
   searchProducts: vi.fn(),
   lookupProduct: vi.fn(),
   quoteOrder: vi.fn(),
   customers: vi.fn(),
+  listInventory: vi.fn(),
+  getInventoryItem: vi.fn(),
 }));
 
 vi.mock('../../../src/api/client', () => ({ searchProducts, lookupProduct, quoteOrder }));
 vi.mock('../../../src/features/catalog/catalogApi', () => ({
   catalogApi: { customers },
 }));
+vi.mock('../../../src/features/inventory/inventoryApi', () => ({ listInventory, getInventoryItem }));
 vi.mock('../../../src/features/auth/useActiveBranch', () => ({
   useActiveBranch: () => ({
     state: { status: 'active', branch: { id: 1, code: 'GM-001', name: 'Quận 1' } },
@@ -62,6 +65,10 @@ function quote(quantity: number): Quote {
 }
 
 beforeEach(() => {
+  listInventory
+    .mockReset()
+    .mockResolvedValue({ content: [{ productId: product.id, available: 5 }] });
+  getInventoryItem.mockReset().mockResolvedValue({ productId: product.id, available: 5 });
   searchProducts.mockReset().mockResolvedValue({ content: [product] });
   lookupProduct.mockReset().mockResolvedValue({ product, branchId: 1, available: 1 });
   customers.mockReset().mockResolvedValue({
@@ -88,6 +95,21 @@ afterEach(() => {
 });
 
 describe('POS cart', () => {
+  it('shows available stock for the active branch beside a suggested product', async () => {
+    render(<PosSalePage item={POS_NAVIGATION[0]} />);
+    expect(await screen.findByText('Tồn khả dụng: 5')).toBeTruthy();
+    expect(listInventory).toHaveBeenCalledWith(
+      { branchId: 1, q: '', page: 0, size: 100 },
+      expect.any(AbortSignal),
+    );
+  });
+  it('loads exact stock when the suggested product is absent from the first inventory page', async () => {
+    listInventory.mockResolvedValue({ content: [] });
+    getInventoryItem.mockResolvedValue({ productId: product.id, available: 0 });
+    render(<PosSalePage item={POS_NAVIGATION[0]} />);
+    expect(await screen.findByText('Tồn khả dụng: 0')).toBeTruthy();
+    expect(getInventoryItem).toHaveBeenCalledWith(1, product.id, expect.any(AbortSignal));
+  });
   it.each(['0', '-1', '1.5', '10000', ''])(
     'shows quantity error and prevents quote for %s',
     async (value) => {

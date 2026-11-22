@@ -4,15 +4,15 @@ import type { Product, Quote } from '../../../src/api/client';
 import PosSalePage from '../../../src/features/pos/PosSalePage';
 import { POS_NAVIGATION } from '../../../src/layouts/pos/posNavigation';
 
-const { searchProducts, lookupProduct, quoteOrder, completePosOrder, customers } = vi.hoisted(
-  () => ({
+const { searchProducts, lookupProduct, quoteOrder, completePosOrder, customers, listInventory } =
+  vi.hoisted(() => ({
     searchProducts: vi.fn(),
     lookupProduct: vi.fn(),
     quoteOrder: vi.fn(),
     completePosOrder: vi.fn(),
     customers: vi.fn(),
-  }),
-);
+    listInventory: vi.fn(),
+  }));
 
 vi.mock('../../../src/api/client', () => ({
   searchProducts,
@@ -21,6 +21,7 @@ vi.mock('../../../src/api/client', () => ({
   completePosOrder,
 }));
 vi.mock('../../../src/features/catalog/catalogApi', () => ({ catalogApi: { customers } }));
+vi.mock('../../../src/features/inventory/inventoryApi', () => ({ listInventory }));
 vi.mock('../../../src/features/auth/useActiveBranch', () => ({
   useActiveBranch: () => ({
     state: { status: 'active', branch: { id: 1, code: 'GM-001', name: 'Quận 1' } },
@@ -90,6 +91,9 @@ async function openCheckout() {
 }
 
 beforeEach(() => {
+  listInventory
+    .mockReset()
+    .mockResolvedValue({ content: [{ productId: product.id, available: 5 }] });
   searchProducts.mockReset().mockResolvedValue({ content: [product] });
   lookupProduct.mockReset().mockResolvedValue({ product, branchId: 1, available: 5 });
   quoteOrder.mockReset().mockResolvedValue(quote);
