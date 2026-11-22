@@ -23,6 +23,5 @@ public record CreateReturnRequest(
     String reason,
 
     @NotEmpty(message = "Danh sách sản phẩm trả không được để trống")
-    @Valid
-    List<ReturnItemRequest> items
+    List<@NotNull(message = "Dòng sản phẩm trả không được null") @Valid ReturnItemRequest> items
 ) {}
