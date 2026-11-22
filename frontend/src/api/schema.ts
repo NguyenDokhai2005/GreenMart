@@ -808,9 +808,39 @@ export interface paths {
     get: operations['getStockDocument'];
     /**
      * Sửa phiếu nháp
-     * @description Chỉ phiếu DRAFT. Không đổi được `type`, `branchId`. Với ADJUST, dùng để nhập `countedQuantity`.
+     * @description Chỉ phiếu DRAFT. Không đổi được type, branchId. Với ADJUST, dùng để nhập countedQuantity.
+     *     Số đếm/chênh lệch được giữ trên phiếu và ghi audit RECORD_STOCK_COUNT cùng transaction,
+     *     kể cả khi lần duyệt sau bị chặn do reservation. Không tự thay đổi tồn hoặc đơn hàng khi nhập số đếm.
      */
     put: operations['updateStockDocument'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/stock-documents/{documentId}/reconciliation': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Đối soát tồn và đơn giữ chỗ trước khi duyệt kiểm kê
+     * @description Chỉ ADJUST/DRAFT, cùng quyền và phạm vi chi nhánh như xem phiếu. Đọc snapshot nhất quán;
+     *     không sửa tồn, hủy đơn hoặc ghi audit khi đọc. projectedOnHand = onHand + countedQuantity - snapshotQuantity.
+     *     shortfall = max(0, reserved - projectedOnHand). Nhập thêm hàng hoặc xử lý đơn qua luồng được phép,
+     *     rồi đọc lại và thử duyệt; hàng phát sinh sau snapshot không bị mất.
+     *     inventoryReady chỉ phản ánh điều kiện tồn/số đếm, không thay kiểm tra quyền hoặc BR-13/BR-17.
+     *     Mỗi SKU trả tối đa 20 đơn RESERVED/CONFIRMED theo id; reservationOrderCount và reservationGap
+     *     tính trên toàn bộ đơn đang giữ chỗ, không chỉ 20 dòng. Gap khác 0 cần đối soát dữ liệu,
+     *     không sửa reserved bằng SQL. Không trả hồ sơ khách, payment hoặc tự chọn đơn để hủy.
+     *     Kết quả có thể cũ sau response; approve kiểm lại với khóa hàng trong transaction.
+     */
+    get: operations['reconcileStocktake'];
+    put?: never;
     post?: never;
     delete?: never;
     options?: never;
@@ -834,6 +864,10 @@ export interface paths {
      *     - `EXPORT`: DRAFT → APPROVED, on_hand giảm (EXPORT); không vượt khả dụng → 409 `INSUFFICIENT_STOCK`.
      *     - `TRANSFER`: DRAFT → **IN_TRANSIT** (duyệt kèm xác nhận xuất, BA 6.3), on_hand CN nguồn giảm (TRANSFER_OUT).
      *     - `ADJUST`: DRAFT → APPROVED, ghi ADJUST bằng chênh lệch `countedQuantity − quantity` (BR-17); mọi dòng phải có `countedQuantity`.
+     *       Kiểm tra mọi dòng dưới khóa product→inventory theo productId tăng dần trước ghi tồn.
+     *       Nếu tồn dự kiến nhỏ hơn reserved, trả 409 INSUFFICIENT_STOCK; details có documentId,
+     *       reconciliationPath và lines theo StocktakeReconciliationLine. Giữ số đếm/audit đã lưu ở transaction trước.
+     *       Không tự hủy đơn/hoàn tiền hoặc sửa reserved; xử lý bằng nhập kho/luồng đơn hợp lệ rồi duyệt lại.
      *
      *     Ghi `audit_log` (AUTH-03), outbox `stock.changed`.
      */
@@ -2092,6 +2126,44 @@ export interface components {
         itemId: number;
         /** @description ≤ quantity (không nhận thừa) */
         receivedQuantity: number;
+      }[];
+    };
+    StocktakeReconciliation: {
+      /** Format: int64 */
+      documentId: number;
+      /** Format: int64 */
+      branchId: number;
+      inventoryReady: boolean;
+      lines: components['schemas']['StocktakeReconciliationLine'][];
+    };
+    StocktakeReconciliationLine: {
+      /** Format: int64 */
+      productId: number;
+      sku: string;
+      snapshotQuantity: number;
+      countedQuantity: number | null;
+      difference: number | null;
+      onHand: number;
+      reserved: number;
+      /** Format: int64 */
+      projectedOnHand: number | null;
+      /** Format: int64 */
+      shortfall: number;
+      /**
+       * Format: int64
+       * @description reserved trừ tổng lượng của mọi đơn RESERVED/CONFIRMED; dương là chưa quy được cho đơn, âm là đơn giữ vượt tổng reserved
+       */
+      reservationGap: number;
+      /** Format: int64 */
+      reservationOrderCount: number;
+      reservationOrders: {
+        /** Format: int64 */
+        orderId: number;
+        code: string;
+        /** @enum {string} */
+        status: 'RESERVED' | 'CONFIRMED';
+        /** Format: int64 */
+        quantity: number;
       }[];
     };
     StockDocumentItem: {
@@ -4130,6 +4202,32 @@ export interface operations {
       409: components['responses']['InvalidStatus'];
     };
   };
+  reconcileStocktake: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        documentId: components['parameters']['DocumentId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Thông tin đối soát, gồm cả trường hợp chưa đủ điều kiện tồn để duyệt */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StocktakeReconciliation'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['InvalidStatus'];
+    };
+  };
   approveStockDocument: {
     parameters: {
       query?: never;
@@ -4150,6 +4248,7 @@ export interface operations {
           'application/json': components['schemas']['StockDocument'];
         };
       };
+      400: components['responses']['BadRequest'];
       401: components['responses']['Unauthorized'];
       403: components['responses']['Forbidden'];
       404: components['responses']['NotFound'];

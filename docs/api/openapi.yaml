@@ -1402,7 +1402,10 @@ paths:
     put:
       tags: [Stock documents]
       summary: Sửa phiếu nháp
-      description: Chỉ phiếu DRAFT. Không đổi được `type`, `branchId`. Với ADJUST, dùng để nhập `countedQuantity`.
+      description: |
+        Chỉ phiếu DRAFT. Không đổi được type, branchId. Với ADJUST, dùng để nhập countedQuantity.
+        Số đếm/chênh lệch được giữ trên phiếu và ghi audit RECORD_STOCK_COUNT cùng transaction,
+        kể cả khi lần duyệt sau bị chặn do reservation. Không tự thay đổi tồn hoặc đơn hàng khi nhập số đếm.
       operationId: updateStockDocument
       x-roles: [STOREKEEPER, BRANCH_MANAGER]
       parameters:
@@ -1423,6 +1426,34 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/InvalidStatus' }
+  /stock-documents/{documentId}/reconciliation:
+    get:
+      tags: [Stock documents]
+      summary: Đối soát tồn và đơn giữ chỗ trước khi duyệt kiểm kê
+      description: |
+        Chỉ ADJUST/DRAFT, cùng quyền và phạm vi chi nhánh như xem phiếu. Đọc snapshot nhất quán;
+        không sửa tồn, hủy đơn hoặc ghi audit khi đọc. projectedOnHand = onHand + countedQuantity - snapshotQuantity.
+        shortfall = max(0, reserved - projectedOnHand). Nhập thêm hàng hoặc xử lý đơn qua luồng được phép,
+        rồi đọc lại và thử duyệt; hàng phát sinh sau snapshot không bị mất.
+        inventoryReady chỉ phản ánh điều kiện tồn/số đếm, không thay kiểm tra quyền hoặc BR-13/BR-17.
+        Mỗi SKU trả tối đa 20 đơn RESERVED/CONFIRMED theo id; reservationOrderCount và reservationGap
+        tính trên toàn bộ đơn đang giữ chỗ, không chỉ 20 dòng. Gap khác 0 cần đối soát dữ liệu,
+        không sửa reserved bằng SQL. Không trả hồ sơ khách, payment hoặc tự chọn đơn để hủy.
+        Kết quả có thể cũ sau response; approve kiểm lại với khóa hàng trong transaction.
+      operationId: reconcileStocktake
+      x-roles: [OWNER, BRANCH_MANAGER, STOREKEEPER]
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      responses:
+        '200':
+          description: Thông tin đối soát, gồm cả trường hợp chưa đủ điều kiện tồn để duyệt
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StocktakeReconciliation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidStatus' }
   /stock-documents/{documentId}/approve:
     post:
       tags: [Stock documents]
@@ -1433,6 +1464,10 @@ paths:
         - `EXPORT`: DRAFT → APPROVED, on_hand giảm (EXPORT); không vượt khả dụng → 409 `INSUFFICIENT_STOCK`.
         - `TRANSFER`: DRAFT → **IN_TRANSIT** (duyệt kèm xác nhận xuất, BA 6.3), on_hand CN nguồn giảm (TRANSFER_OUT).
         - `ADJUST`: DRAFT → APPROVED, ghi ADJUST bằng chênh lệch `countedQuantity − quantity` (BR-17); mọi dòng phải có `countedQuantity`.
+          Kiểm tra mọi dòng dưới khóa product→inventory theo productId tăng dần trước ghi tồn.
+          Nếu tồn dự kiến nhỏ hơn reserved, trả 409 INSUFFICIENT_STOCK; details có documentId,
+          reconciliationPath và lines theo StocktakeReconciliationLine. Giữ số đếm/audit đã lưu ở transaction trước.
+          Không tự hủy đơn/hoàn tiền hoặc sửa reserved; xử lý bằng nhập kho/luồng đơn hợp lệ rồi duyệt lại.
 
         Ghi `audit_log` (AUTH-03), outbox `stock.changed`.
       operationId: approveStockDocument
@@ -1440,6 +1475,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/DocumentId'
       responses:
+        '400': { $ref: '#/components/responses/BadRequest' }
         '200':
           description: Phiếu sau khi duyệt
           content:
@@ -3050,6 +3086,45 @@ components:
             properties:
               itemId: { type: integer, format: int64 }
               receivedQuantity: { type: integer, minimum: 0, description: '≤ quantity (không nhận thừa)' }
+    StocktakeReconciliation:
+      type: object
+      required: [documentId, branchId, inventoryReady, lines]
+      properties:
+        documentId: { type: integer, format: int64 }
+        branchId: { type: integer, format: int64 }
+        inventoryReady: { type: boolean }
+        lines:
+          type: array
+          items: { $ref: '#/components/schemas/StocktakeReconciliationLine' }
+    StocktakeReconciliationLine:
+      type: object
+      required: [productId, sku, snapshotQuantity, countedQuantity, difference, onHand, reserved, projectedOnHand, shortfall, reservationGap, reservationOrderCount, reservationOrders]
+      properties:
+        productId: { type: integer, format: int64 }
+        sku: { type: string }
+        snapshotQuantity: { type: integer, minimum: 0 }
+        countedQuantity: { type: integer, minimum: 0, nullable: true }
+        difference: { type: integer, nullable: true }
+        onHand: { type: integer, minimum: 0 }
+        reserved: { type: integer, minimum: 0 }
+        projectedOnHand: { type: integer, format: int64, nullable: true }
+        shortfall: { type: integer, format: int64, minimum: 0 }
+        reservationGap:
+          type: integer
+          format: int64
+          description: reserved trừ tổng lượng của mọi đơn RESERVED/CONFIRMED; dương là chưa quy được cho đơn, âm là đơn giữ vượt tổng reserved
+        reservationOrderCount: { type: integer, format: int64, minimum: 0 }
+        reservationOrders:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            required: [orderId, code, status, quantity]
+            properties:
+              orderId: { type: integer, format: int64 }
+              code: { type: string }
+              status: { type: string, enum: [RESERVED, CONFIRMED] }
+              quantity: { type: integer, format: int64, minimum: 1 }
     StockDocumentItem:
       type: object
       required: [id, productId, sku, productName, unit, quantity]
