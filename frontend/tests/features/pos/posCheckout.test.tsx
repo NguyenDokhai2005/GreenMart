@@ -26,6 +26,9 @@ vi.mock('../../../src/features/auth/useActiveBranch', () => ({
     state: { status: 'active', branch: { id: 1, code: 'GM-001', name: 'Quận 1' } },
   }),
 }));
+vi.mock('../../../src/features/auth/useAuth', () => ({
+  useAuth: () => ({ state: { status: 'authenticated', user: { id: 7 } } }),
+}));
 
 const product: Product = {
   id: 205,
@@ -90,6 +93,7 @@ async function openCheckout() {
 }
 
 beforeEach(() => {
+  sessionStorage.clear();
   searchProducts.mockReset().mockResolvedValue({ content: [product] });
   lookupProduct.mockReset().mockResolvedValue({ product, branchId: 1, available: 5 });
   quoteOrder.mockReset().mockResolvedValue(quote);
