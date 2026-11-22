@@ -9,10 +9,19 @@ import {
 } from '../../api/client';
 import { AsyncBlock, Button, EmptyState, Input, Skeleton, Toast } from '../../components/ui';
 import { useActiveBranch } from '../auth/useActiveBranch';
+import { useAuth } from '../auth/useAuth';
 import { mapErrorToState } from '../../lib/errors';
 import type { PosPageProps } from '../../layouts/pos/PosPlaceholderPage';
 import type { Customer } from '../catalog/catalogApi';
-import { cartKey, cartReducer, stockForLine, type CartLine } from './posCart';
+import {
+  cartKey,
+  cartReducer,
+  posCartDraftKey,
+  readPosCartDraft,
+  stockForLine,
+  writePosCartDraft,
+  type CartLine,
+} from './posCart';
 import type { StockShortage } from './posErrorDetails';
 import PosCheckoutDialog from './PosCheckoutDialog';
 import PosCustomerPanel from './PosCustomerPanel';
@@ -37,9 +46,30 @@ function isEditable(target: EventTarget | null) {
 }
 
 export default function PosSalePage({ item }: PosPageProps) {
+  const { state } = useAuth();
   const branch = useActiveBranch();
-  const branchId = branch.state.status === 'active' ? branch.state.branch.id : 0;
-  const [lines, dispatch] = useReducer(cartReducer, []);
+  if (state.status !== 'authenticated' || branch.state.status !== 'active') return null;
+  const branchId = branch.state.branch.id;
+  const draftKey = posCartDraftKey(state.user.id, branchId);
+  return (
+    <PosSaleContent
+      key={draftKey}
+      item={item}
+      branchId={branchId}
+      branchCode={branch.state.branch.code}
+      draftKey={draftKey}
+    />
+  );
+}
+
+function PosSaleContent({
+  item,
+  branchId,
+  branchCode,
+  draftKey,
+}: PosPageProps & { branchId: number; branchCode: string; draftKey: string }) {
+  const [lines, dispatch] = useReducer(cartReducer, draftKey, readPosCartDraft);
+  useEffect(() => writePosCartDraft(draftKey, lines), [draftKey, lines]);
   const [quantityDrafts, setQuantityDrafts] = useState<Record<number, string>>({});
   const invalidQuantity = Object.values(quantityDrafts).some(
     (value) => !/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 9999,
@@ -172,7 +202,8 @@ export default function PosSalePage({ item }: PosPageProps) {
       }
       if (event.key === 'F4') {
         event.preventDefault();
-        document.getElementById('pos-checkout')?.focus();
+        const checkout = document.getElementById('pos-checkout') as HTMLButtonElement | null;
+        if (checkout && !checkout.disabled) checkout.click();
         return;
       }
       if (event.key === 'Escape') {
@@ -263,7 +294,7 @@ export default function PosSalePage({ item }: PosPageProps) {
         <h1 data-pos-heading tabIndex={-1}>
           Bán hàng tại quầy
         </h1>
-        <span>Chi nhánh {branch.state.status === 'active' ? branch.state.branch.code : ''}</span>
+        <span>Chi nhánh {branchCode}</span>
       </div>
       <div className="pos-sale__grid">
         <section className="pos-sale__panel" aria-labelledby="pos-sale-search-title">

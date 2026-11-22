@@ -99,7 +99,8 @@ class LatePaidAtomicityTest {
         String body = json.writeValueAsString(Map.of("type", "PAID", "occurredAt", OffsetDateTime.now().toString(),
                 "providerRef", "PAY-" + externalId));
         return post("/api/v1/integrations/WEB/orders/{id}/events", externalId)
-                .header("X-Signature", signatures.sign("WEB", body.getBytes(StandardCharsets.UTF_8)))
+                .headers(vn.greenmart.integration.SignedChannelEvents.headers(signatures, "WEB",
+                        "/api/v1/integrations/WEB/orders/" + externalId + "/events", body))
                 .contentType(MediaType.APPLICATION_JSON).content(body);
     }
 

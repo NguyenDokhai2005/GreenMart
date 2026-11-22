@@ -1,10 +1,12 @@
 package vn.greenmart.catalog.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import vn.greenmart.common.json.StrictLongDeserializer;
 
 public record ProductRequest(
     @NotBlank(message = "Mã SKU không được để trống")
@@ -24,14 +26,17 @@ public record ProductRequest(
     String unit,
 
     @NotNull(message = "Danh mục không được để trống")
+    @JsonDeserialize(using = StrictLongDeserializer.class)
     Long categoryId,
 
     @NotNull(message = "Giá bán không được để trống")
     @Min(value = 0, message = "Giá bán phải lớn hơn hoặc bằng 0")
+    @JsonDeserialize(using = StrictLongDeserializer.class)
     Long salePrice,
 
     @NotNull(message = "Giá vốn không được để trống")
     @Min(value = 0, message = "Giá vốn phải lớn hơn hoặc bằng 0")
+    @JsonDeserialize(using = StrictLongDeserializer.class)
     Long costPrice,
 
     Boolean active

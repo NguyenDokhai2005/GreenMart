@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Product, Quote } from '../../../src/api/client';
 import PosSalePage from '../../../src/features/pos/PosSalePage';
-import { cartReducer, stockForLine } from '../../../src/features/pos/posCart';
+import { cartReducer, posCartDraftKey, stockForLine } from '../../../src/features/pos/posCart';
 import { POS_NAVIGATION } from '../../../src/layouts/pos/posNavigation';
 
 const { searchProducts, lookupProduct, quoteOrder, customers } = vi.hoisted(() => ({
@@ -20,6 +20,9 @@ vi.mock('../../../src/features/auth/useActiveBranch', () => ({
   useActiveBranch: () => ({
     state: { status: 'active', branch: { id: 1, code: 'GM-001', name: 'Quận 1' } },
   }),
+}));
+vi.mock('../../../src/features/auth/useAuth', () => ({
+  useAuth: () => ({ state: { status: 'authenticated', user: { id: 7 } } }),
 }));
 
 const product: Product = {
@@ -62,6 +65,7 @@ function quote(quantity: number): Quote {
 }
 
 beforeEach(() => {
+  sessionStorage.clear();
   searchProducts.mockReset().mockResolvedValue({ content: [product] });
   lookupProduct.mockReset().mockResolvedValue({ product, branchId: 1, available: 1 });
   customers.mockReset().mockResolvedValue({
@@ -88,6 +92,27 @@ afterEach(() => {
 });
 
 describe('POS cart', () => {
+  it('restores a branch-scoped draft after remount and requests a fresh quote', async () => {
+    const first = render(<PosSalePage item={POS_NAVIGATION[0]} />);
+    const search = screen.getByLabelText('Quét mã vạch hoặc tìm theo tên / SKU');
+    fireEvent.change(search, { target: { value: product.barcode } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    await screen.findByRole('spinbutton', { name: `Số lượng ${product.name}` });
+    await waitFor(() =>
+      expect(sessionStorage.getItem(posCartDraftKey(7, 1))).toContain(product.sku),
+    );
+    first.unmount();
+    quoteOrder.mockClear();
+    render(<PosSalePage item={POS_NAVIGATION[0]} />);
+    expect(screen.getByRole('spinbutton', { name: `Số lượng ${product.name}` })).toBeTruthy();
+    await waitFor(() =>
+      expect(quoteOrder).toHaveBeenCalledWith(
+        { branchId: 1, items: [{ productId: product.id, quantity: 1 }] },
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(sessionStorage.getItem(posCartDraftKey(7, 2))).toBeNull();
+  });
   it.each(['0', '-1', '1.5', '10000', ''])(
     'shows quantity error and prevents quote for %s',
     async (value) => {
@@ -332,7 +357,7 @@ describe('POS cart', () => {
     await waitFor(() => expect(quoteOrder).toHaveBeenCalledTimes(1));
 
     fireEvent.change(screen.getByLabelText('Số điện thoại'), {
-      target: { value: '0912345678' },
+      target: { value: '091 234 5678' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Tìm khách' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Gắn khách' }));
