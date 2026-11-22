@@ -4,6 +4,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
@@ -22,6 +23,9 @@ import java.util.Map;
 @Service
 @Transactional
 public class CustomerServiceImpl implements CustomerService {
+
+    private static final String INACTIVE_CUSTOMER_MESSAGE =
+            "Khách hàng đã ngừng hoạt động. Liên hệ Quản lý hoặc Chủ cửa hàng để kích hoạt lại.";
 
     private final CustomerRepository customerRepository;
     private final OrderQueryService orderQueryService;
@@ -50,7 +54,7 @@ public class CustomerServiceImpl implements CustomerService {
         customerRepository.findByPhone(normalizedPhone).ifPresent(existing -> {
             throw new AppException(
                 ErrorCode.DUPLICATE_PHONE,
-                "Số điện thoại đã thuộc khách hàng khác",
+                existing.isActive() ? "Số điện thoại đã thuộc khách hàng khác" : INACTIVE_CUSTOMER_MESSAGE,
                 Map.of("phone", normalizedPhone, "customerId", existing.getId())
             );
         });
@@ -69,7 +73,7 @@ public class CustomerServiceImpl implements CustomerService {
     public CustomerResponse updateCustomer(Long customerId, CustomerRequest request) {
         SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER", "CASHIER");
 
-        Customer customer = customerRepository.findById(customerId).orElseThrow(() ->
+        Customer customer = customerRepository.findByIdForUpdate(customerId).orElseThrow(() ->
             new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy khách hàng", Map.of("customerId", customerId))
         );
 
@@ -89,6 +93,9 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setEmail((request.email() != null && !request.email().isBlank()) ? request.email().trim() : null);
         if (request.active() != null) {
             SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER");
+            if (customer.isActive() != request.active()) {
+                recordStatusChange(customerId, request.active());
+            }
             customer.setActive(request.active());
         }
 
@@ -100,10 +107,11 @@ public class CustomerServiceImpl implements CustomerService {
     public CustomerResponse deactivateCustomer(Long customerId) {
         SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER");
 
-        Customer customer = customerRepository.findById(customerId).orElseThrow(() ->
+        Customer customer = customerRepository.findByIdForUpdate(customerId).orElseThrow(() ->
             new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy khách hàng", Map.of("customerId", customerId))
         );
 
+        if (customer.isActive()) recordStatusChange(customerId, false);
         customer.setActive(false);
         Customer updated = customerRepository.save(customer);
         return CustomerResponse.from(updated);
@@ -138,6 +146,14 @@ public class CustomerServiceImpl implements CustomerService {
         String trimmedQ = (q != null && !q.isBlank()) ? q.trim() : null;
         String trimmedPhone = (phone != null && !phone.isBlank()) ? phone.trim() : null;
 
+        // Exact phone lookup distinguishes inactive customers without exposing their directory.
+        if (trimmedPhone != null && targetActive) {
+            Customer customer = customerRepository.findByPhone(trimmedPhone).orElse(null);
+            if (customer != null && !customer.isActive()) {
+                throw new AppException(ErrorCode.CUSTOMER_INACTIVE, INACTIVE_CUSTOMER_MESSAGE);
+            }
+        }
+
         Page<Customer> result = customerRepository.searchCustomers(trimmedQ, trimmedPhone, targetActive, pageable);
         return PageResponse.from(result.map(CustomerResponse::from));
     }
@@ -164,8 +180,39 @@ public class CustomerServiceImpl implements CustomerService {
         }
     }
 
+    private void recordStatusChange(Long customerId, boolean active) {
+        jdbcTemplate.update("""
+                INSERT INTO audit_log(user_id,action,entity,entity_id,detail)
+                VALUES (?,?, 'customer', ?, jsonb_build_object('active',CAST(? AS boolean)))
+                """, SecurityUtils.getCurrentUserId(), active ? "REACTIVATE_CUSTOMER" : "DEACTIVATE_CUSTOMER",
+                customerId.toString(), active);
+    }
+
     @Override
     public boolean exists(Long customerId) {
         return customerRepository.existsById(customerId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void validatePosCustomer(Long customerId) {
+        requireActivePosCustomer(customerId, false);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void lockActivePosCustomer(Long customerId) {
+        // Held until POS commits: deactivation cannot race between validation and order creation.
+        requireActivePosCustomer(customerId, true);
+    }
+
+    private void requireActivePosCustomer(Long customerId, boolean lock) {
+        if (customerId == null) return;
+        var states = jdbcTemplate.queryForList("SELECT is_active FROM customer WHERE id=?"
+                + (lock ? " FOR SHARE" : ""), Boolean.class, customerId);
+        if (states.isEmpty()) throw new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy khách hàng");
+        if (!Boolean.TRUE.equals(states.getFirst())) {
+            throw new AppException(ErrorCode.CUSTOMER_INACTIVE, INACTIVE_CUSTOMER_MESSAGE);
+        }
     }
 }

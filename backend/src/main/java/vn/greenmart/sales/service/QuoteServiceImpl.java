@@ -50,9 +50,7 @@ public class QuoteServiceImpl implements QuoteService {
         }
 
         // 3. Kiểm tra khách hàng nếu có
-        if (request.customerId() != null && !customerService.exists(request.customerId())) {
-            throw new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy khách hàng với id: " + request.customerId());
-        }
+        customerService.validatePosCustomer(request.customerId());
 
         // 4. Kiểm tra trùng lặp productId trong giỏ hàng
         Set<Long> seenProductIds = new HashSet<>();
