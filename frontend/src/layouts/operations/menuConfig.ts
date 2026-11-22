@@ -61,7 +61,6 @@ export const MENU: MenuItem[] = [
     children: [
       { key: 'branches', label: 'Chi nhánh', to: `${AD}/branches`, roles: ['ADMIN'] },
       { key: 'staff', label: 'Nhân sự & phân quyền', to: `${AD}/staff`, roles: ['ADMIN'] },
-      { key: 'settings', label: 'Cấu hình hệ thống', to: `${AD}/settings`, roles: ['ADMIN'] },
       { key: 'audit', label: 'Nhật ký hoạt động', to: `${AD}/audit`, roles: ['ADMIN'] },
       { key: 'channels', label: 'Trạng thái đồng bộ kênh', to: `${AD}/channels`, roles: ['ADMIN'] },
       { key: 'locked', label: 'Danh sách tài khoản bị khóa', to: `${AD}/locked`, roles: ['ADMIN'] },
