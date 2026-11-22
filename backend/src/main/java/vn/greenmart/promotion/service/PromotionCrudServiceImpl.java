@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -225,6 +226,7 @@ public class PromotionCrudServiceImpl implements PromotionCrudService {
     private ScopeData validatePromotionBusinessRules(PromotionRequest request, Integer currentUsedCount) {
         List<ValidationErrorDetail> errors = new ArrayList<>();
 
+        // 4 quy tắc nghiệp vụ gốc của khuyến mại
         if (request.type() == PromotionType.PERCENT && request.value() > 100) {
             errors.add(new ValidationErrorDetail("value", "Khuyến mại phần trăm chỉ được từ 1 đến 100"));
         }
@@ -236,6 +238,21 @@ public class PromotionCrudServiceImpl implements PromotionCrudService {
         }
         if (currentUsedCount != null && request.usageLimit() != null && request.usageLimit() < currentUsedCount) {
             errors.add(new ValidationErrorDetail("usageLimit", "Giới hạn lượt dùng không được nhỏ hơn số lượt đã sử dụng (" + currentUsedCount + ")"));
+        }
+
+        // Guard phần tử null/rỗng trong các danh sách phạm vi 
+        if (request.productIds() != null && request.productIds().stream().anyMatch(Objects::isNull)) {
+            errors.add(new ValidationErrorDetail("productIds", "Danh sách productIds không được chứa phần tử null"));
+        }
+        if (request.branchIds() != null && request.branchIds().stream().anyMatch(Objects::isNull)) {
+            errors.add(new ValidationErrorDetail("branchIds", "Danh sách branchIds không được chứa phần tử null"));
+        }
+        if (request.channels() != null && request.channels().stream().anyMatch(c -> c == null || c.isBlank())) {
+            errors.add(new ValidationErrorDetail("channels", "Danh sách channels không được chứa phần tử null hoặc rỗng"));
+        }
+
+        if (!errors.isEmpty()) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Dữ liệu khuyến mại không hợp lệ", errors);
         }
 
         List<Long> productIds = request.productIds() != null
