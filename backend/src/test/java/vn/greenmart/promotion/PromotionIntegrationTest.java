@@ -28,8 +28,10 @@ import vn.greenmart.sales.dto.QuoteRequest;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -353,5 +355,246 @@ class PromotionIntegrationTest {
                 .andExpect(jsonPath("$.content[0].code").value("KM-ALL-CH"))
                 .andExpect(jsonPath("$.totalElements").value(3))
                 .andExpect(jsonPath("$.totalPages").value(2));
+    }
+
+    @Test
+    @WithMockUser(username = "701", roles = "OWNER")
+    @DisplayName("Issue #406 Regression: Phần tử null trong channels, productIds, branchIds khi POST/PUT trả 400 VALIDATION_ERROR và không đổi DB")
+    void testIssue406_NullElementsInScopeLists_PostAndPut_Return400ValidationError() throws Exception {
+        String validDraftBody = """
+            {
+              "code": "QA-NULL-CONTROL",
+              "type": "PERCENT",
+              "level": "ITEM",
+              "value": 10,
+              "startAt": "2030-11-19T00:00:00Z",
+              "endAt": "2030-11-20T00:00:00Z",
+              "productIds": [701],
+              "branchIds": [701],
+              "channels": ["POS"]
+            }
+        """;
+
+        String createdJson = mockMvc.perform(post("/api/v1/promotions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validDraftBody))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        long draftId = objectMapper.readTree(createdJson).get("id").asLong();
+
+        var invalidPayloads = List.of(
+                java.util.Map.entry("channels[0]", """
+                    {
+                      "code": "QA-NULL-CH",
+                      "type": "PERCENT",
+                      "level": "ITEM",
+                      "value": 10,
+                      "startAt": "2030-11-19T00:00:00Z",
+                      "endAt": "2030-11-20T00:00:00Z",
+                      "productIds": [701],
+                      "branchIds": [701],
+                      "channels": [null]
+                    }
+                """),
+                java.util.Map.entry("productIds[0]", """
+                    {
+                      "code": "QA-NULL-PROD",
+                      "type": "PERCENT",
+                      "level": "ITEM",
+                      "value": 10,
+                      "startAt": "2030-11-19T00:00:00Z",
+                      "endAt": "2030-11-20T00:00:00Z",
+                      "productIds": [null],
+                      "branchIds": [701],
+                      "channels": ["POS"]
+                    }
+                """),
+                java.util.Map.entry("branchIds[0]", """
+                    {
+                      "code": "QA-NULL-BR",
+                      "type": "PERCENT",
+                      "level": "ITEM",
+                      "value": 10,
+                      "startAt": "2030-11-19T00:00:00Z",
+                      "endAt": "2030-11-20T00:00:00Z",
+                      "productIds": [701],
+                      "branchIds": [null],
+                      "channels": ["POS"]
+                    }
+                """)
+        );
+
+        for (var entry : invalidPayloads) {
+            String expectedField = entry.getKey();
+            String body = entry.getValue();
+
+            mockMvc.perform(post("/api/v1/promotions")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                    .andExpect(jsonPath("$.details[0].field").value(expectedField));
+
+            mockMvc.perform(put("/api/v1/promotions/{id}", draftId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                    .andExpect(jsonPath("$.details[0].field").value(expectedField));
+        }
+
+        Integer totalPromos = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM promotion", Integer.class);
+        assertEquals(1, totalPromos);
+
+        mockMvc.perform(get("/api/v1/promotions/{id}", draftId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("QA-NULL-CONTROL"))
+                .andExpect(jsonPath("$.productIds[0]").value(701))
+                .andExpect(jsonPath("$.branchIds[0]").value(701))
+                .andExpect(jsonPath("$.channels[0]").value("POS"));
+    }
+
+    @Test
+    @WithMockUser(username = "701", roles = "OWNER")
+    @DisplayName("Regression 4 quy tắc nghiệp vụ: PERCENT>100, AMOUNT+maxDiscount, endAt<=startAt, usageLimit<usedCount -> 400 VALIDATION_ERROR đúng field & giữ nguyên DB/audit")
+    void testBusinessRulesRegression_400WithExactField_AndValidBoundaryValues_Return200() throws Exception {
+        record RuleCase(String expectedField, String body) {}
+
+        // Tạo 1 KM DRAFT làm control cho PUT
+        String controlBody = """
+            {
+              "code": "QA-RULE-CTRL",
+              "type": "PERCENT",
+              "level": "ORDER",
+              "value": 10,
+              "startAt": "2030-11-19T00:00:00Z",
+              "endAt": "2030-11-20T00:00:00Z",
+              "usageLimit": 10
+            }
+        """;
+        String createdJson = mockMvc.perform(post("/api/v1/promotions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(controlBody))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long draftId = objectMapper.readTree(createdJson).get("id").asLong();
+
+        // 1. PERCENT > 100 (value = 101) -> field: value
+        String percentOver100 = """
+            {
+              "code": "QA-PCT-101",
+              "type": "PERCENT",
+              "level": "ORDER",
+              "value": 101,
+              "startAt": "2030-11-19T00:00:00Z",
+              "endAt": "2030-11-20T00:00:00Z"
+            }
+        """;
+        // 2. AMOUNT kèm maxDiscount -> field: maxDiscount
+        String amountWithMaxDiscount = """
+            {
+              "code": "QA-AMT-CAP",
+              "type": "AMOUNT",
+              "level": "ORDER",
+              "value": 10000,
+              "maxDiscount": 1000,
+              "startAt": "2030-11-19T00:00:00Z",
+              "endAt": "2030-11-20T00:00:00Z"
+            }
+        """;
+        // 3a. endAt == startAt -> field: endAt
+        String endEqualStart = """
+            {
+              "code": "QA-END-EQ",
+              "type": "AMOUNT",
+              "level": "ORDER",
+              "value": 10000,
+              "startAt": "2030-11-19T00:00:00Z",
+              "endAt": "2030-11-19T00:00:00Z"
+            }
+        """;
+        // 3b. endAt < startAt -> field: endAt
+        String endBeforeStart = """
+            {
+              "code": "QA-END-LT",
+              "type": "AMOUNT",
+              "level": "ORDER",
+              "value": 10000,
+              "startAt": "2030-11-20T00:00:00Z",
+              "endAt": "2030-11-19T00:00:00Z"
+            }
+        """;
+
+        List<RuleCase> postAndPutCases = List.of(
+                new RuleCase("value", percentOver100),
+                new RuleCase("maxDiscount", amountWithMaxDiscount),
+                new RuleCase("endAt", endEqualStart),
+                new RuleCase("endAt", endBeforeStart)
+        );
+
+        for (RuleCase tc : postAndPutCases) {
+            mockMvc.perform(post("/api/v1/promotions")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(tc.body()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                    .andExpect(jsonPath("$.details[0].field").value(tc.expectedField()));
+
+            mockMvc.perform(put("/api/v1/promotions/{id}", draftId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(tc.body()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                    .andExpect(jsonPath("$.details[0].field").value(tc.expectedField()));
+        }
+
+        // Xác minh không phát sinh bản ghi mới và audit_log chỉ có 1 dòng CREATE_PROMOTION ban đầu
+        org.junit.jupiter.api.Assertions.assertEquals(1, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM promotion", Integer.class));
+        org.junit.jupiter.api.Assertions.assertEquals(1, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM audit_log", Integer.class));
+
+        // 4. PUT khuyến mại PAUSED đã dùng 5 lượt, giảm usageLimit từ 10 xuống 4 -> 400 VALIDATION_ERROR, field: usageLimit
+        jdbcTemplate.update("UPDATE promotion SET status = 'PAUSED', used_count = 5 WHERE id = ?", draftId);
+
+        String reduceLimitBelowUsed = """
+            {
+              "code": "QA-RULE-CTRL",
+              "type": "PERCENT",
+              "level": "ORDER",
+              "value": 10,
+              "startAt": "2030-11-19T00:00:00Z",
+              "endAt": "2030-11-20T00:00:00Z",
+              "usageLimit": 4
+            }
+        """;
+        mockMvc.perform(put("/api/v1/promotions/{id}", draftId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(reduceLimitBelowUsed))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.details[0].field").value("usageLimit"));
+
+        // Kiểm tra DB giữ nguyên usage_limit = 10 và audit_log vẫn chỉ có 1 bản ghi
+        org.junit.jupiter.api.Assertions.assertEquals(10, jdbcTemplate.queryForObject("SELECT usage_limit FROM promotion WHERE id = ?", Integer.class, draftId));
+        org.junit.jupiter.api.Assertions.assertEquals(1, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM audit_log", Integer.class));
+
+        // 5. Biên hợp lệ: PERCENT = 100 và usageLimit == usedCount (5) -> 200 OK
+        String validBoundaryUpdate = """
+            {
+              "code": "QA-RULE-CTRL",
+              "type": "PERCENT",
+              "level": "ORDER",
+              "value": 100,
+              "startAt": "2030-11-19T00:00:00Z",
+              "endAt": "2030-11-20T00:00:00Z",
+              "usageLimit": 5
+            }
+        """;
+        mockMvc.perform(put("/api/v1/promotions/{id}", draftId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validBoundaryUpdate))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.value").value(100))
+                .andExpect(jsonPath("$.usageLimit").value(5));
     }
 }

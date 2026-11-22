@@ -18,6 +18,7 @@ import vn.greenmart.inventory.domain.ExportReason;
 import vn.greenmart.inventory.exception.InsufficientStockException;
 import vn.greenmart.inventory.dto.StockDocumentRequests;
 import vn.greenmart.inventory.dto.StockDocumentResponse;
+import vn.greenmart.inventory.dto.StocktakeReconciliation;
 import vn.greenmart.inventory.repository.StockDocumentRepository;
 
 import java.util.HashMap;
@@ -34,6 +35,7 @@ public class StockDocumentServiceImpl implements StockDocumentService {
     private final JdbcTemplate jdbc;
     private final NamedParameterJdbcTemplate namedJdbc;
     private final InventoryService inventoryService;
+    private final StocktakeReconciliationService reconciliation;
 
     @Override @Transactional
     public StockDocumentResponse create(StockDocumentRequests.Create request) {
@@ -86,6 +88,17 @@ public class StockDocumentServiceImpl implements StockDocumentService {
         return response(document);
     }
 
+    @Override @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public StocktakeReconciliation reconciliation(Long id) {
+        SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER", "STOREKEEPER");
+        var document = load(id, false);
+        if (document.getType() != StockDocumentType.ADJUST) {
+            throw new AppException(ErrorCode.INVALID_STATUS, "Đối soát giữ chỗ chỉ dùng cho phiếu kiểm kê ADJUST");
+        }
+        document.requireDraft();
+        return reconciliation.inspect(document);
+    }
+
     @Override @Transactional
     public StockDocumentResponse update(Long id, StockDocumentRequests.Update request) {
         SecurityUtils.requireRole("STOREKEEPER", "BRANCH_MANAGER");
@@ -104,7 +117,19 @@ public class StockDocumentServiceImpl implements StockDocumentService {
             document.reviseTransfer(destination, note, outboundItems(document.getBranchId(), request.items()));
         } else if (document.getType() == StockDocumentType.ADJUST) {
             requireAdjustmentFields(request.toBranchId(), request.supplier(), request.exportReason());
-            document.recordCounts(note, adjustmentCounts(request.items()));
+            var counts = adjustmentCounts(request.items());
+            document.recordCounts(note, counts);
+            var entry = new AuditLog();
+            entry.setUserId(requireActor());
+            entry.setAction("RECORD_STOCK_COUNT");
+            entry.setEntity("stock_document");
+            entry.setEntityId(id.toString());
+            entry.setDetail(Map.of("counts", document.getItems().stream()
+                    .filter(item -> counts.containsKey(item.getProductId()))
+                    .map(item -> Map.of("productId", item.getProductId(), "snapshotQuantity", item.getQuantity(),
+                            "countedQuantity", item.getCountedQuantity(),
+                            "difference", item.getCountedQuantity() - item.getQuantity())).toList()));
+            audit.save(entry);
         } else {
             requireExportFields(request.toBranchId(), request.supplier());
             String reason = request.exportReason() == null ? document.getExportReason().name() : request.exportReason();
@@ -166,6 +191,7 @@ public class StockDocumentServiceImpl implements StockDocumentService {
             invalid("Phiếu kho thiếu số lượng hoặc đơn giá hợp lệ");
         }
         Long branchId = document.getBranchId();
+        if (isAdjustment) reconciliation.validateForApproval(document);
         var exportCosts = new java.util.HashMap<Long, Long>();
         long exportTotal = 0;
         for (var line : lines) {

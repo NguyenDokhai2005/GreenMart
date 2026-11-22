@@ -1,12 +1,15 @@
 package vn.greenmart.sales.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import vn.greenmart.common.json.StrictLongDeserializer;
 
 public record ManualDiscount(
     @NotNull(message = "Số tiền giảm giá thủ công không được để trống")
     @Min(value = 0, message = "Số tiền giảm giá thủ công phải lớn hơn hoặc bằng 0")
+    @JsonDeserialize(using = StrictLongDeserializer.class)
     Long amount,
 
     @NotNull(message = "Lý do giảm giá thủ công không được để trống")
