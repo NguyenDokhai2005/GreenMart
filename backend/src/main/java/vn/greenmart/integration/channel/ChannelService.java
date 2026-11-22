@@ -30,7 +30,7 @@ public class ChannelService implements ChannelCatalog {
 
     @Override public long resolveProductId(String channelCode, String externalSku) {
         var channel = findChannel(channelCode);
-        validateSku(externalSku);
+        externalSku = ExternalSkus.requireValid(externalSku);
         var ids = jdbc.queryForList("SELECT product_id FROM channel_product WHERE channel_id=? AND external_sku=?",
                 Long.class, channel.id(), externalSku);
         if (ids.isEmpty()) throw new AppException(ErrorCode.UNMAPPED_SKU,
@@ -39,6 +39,7 @@ public class ChannelService implements ChannelCatalog {
     }
 
     @Override public java.util.Optional<Long> findMappedProduct(long channelId, String externalSku) {
+        externalSku = ExternalSkus.requireValid(externalSku);
         return jdbc.queryForList("SELECT product_id FROM channel_product WHERE channel_id=? AND external_sku=?",
                 Long.class, channelId, externalSku).stream().findFirst();
     }
@@ -47,7 +48,7 @@ public class ChannelService implements ChannelCatalog {
     @Transactional
     public void mapProduct(String channelCode, long productId, String externalSku) {
         SecurityUtils.requireRole("ADMIN");
-        validateSku(externalSku);
+        externalSku = ExternalSkus.requireValid(externalSku);
         if (productId <= 0) throw new AppException(ErrorCode.VALIDATION_ERROR);
         long channelId = findChannel(channelCode).id();
         try {
@@ -83,8 +84,5 @@ public class ChannelService implements ChannelCatalog {
     private void validateCode(String code) {
         if (!List.of("WEB", "MARKET").contains(code == null ? "" : code))
             throw new AppException(ErrorCode.NOT_FOUND, "Kênh tích hợp không tồn tại");
-    }
-    private void validateSku(String sku) {
-        if (sku == null || sku.isBlank() || sku.length() > 60) throw new AppException(ErrorCode.VALIDATION_ERROR);
     }
 }

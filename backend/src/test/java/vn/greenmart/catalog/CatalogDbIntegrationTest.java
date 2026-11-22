@@ -79,6 +79,8 @@ class CatalogDbIntegrationTest {
         auditLogRepository.deleteAll();
         productRepository.deleteAll();
         categoryRepository.deleteAll();
+        // Flush fixture removals before IDENTITY inserts reuse names protected by #430's unique index.
+        categoryRepository.flush();
 
         jdbcTemplate.execute("""
             INSERT INTO app_user (id, username, password_hash, full_name, role, is_active)

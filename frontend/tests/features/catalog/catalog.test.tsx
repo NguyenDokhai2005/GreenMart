@@ -103,6 +103,21 @@ afterEach(() => {
 });
 
 describe('catalog #72', () => {
+  it('renders category markup as text in the product table and category filter (#430)', async () => {
+    const name = '<img src=x onerror="alert(430)">';
+    handler = async (url) => {
+      if (url.pathname.endsWith('/auth/me')) return json(currentSession.user);
+      if (url.pathname.endsWith('/categories')) return json([{ id: 1, name }]);
+      if (url.pathname.endsWith('/products'))
+        return json(page([{ ...product, categoryName: name }]));
+      throw new Error(`Unexpected URL: ${url.pathname}`);
+    };
+    await mount('/pos/products');
+    expect(await screen.findByRole('cell', { name })).toBeTruthy();
+    expect(await screen.findByRole('option', { name })).toBeTruthy();
+    expect(document.querySelector('img[onerror]')).toBeNull();
+  });
+
   it.each(['OWNER', 'BRANCH_MANAGER', 'STOREKEEPER'] as Role[])(
     'Given %s in Operations, Then the catalog menu opens real product and customer pages',
     async (role) => {

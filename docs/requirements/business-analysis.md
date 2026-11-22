@@ -194,6 +194,13 @@ Hàng trên là luồng thành công; ba trạng thái hàng dưới là điểm
 | E3  | Kênh không nhận được cập nhật                    | Thử lại 5 lần (1, 2, 4, 8, 16 giây), sau đó vào hàng đợi lỗi, Admin gửi lại thủ công |
 | E4  | Giá trên đơn kênh khác giá nội bộ                | Ghi nhận giá của kênh (khách đã trả giá đó), đánh dấu chênh lệch để Owner xem        |
 
+### 4.1 Chuẩn hóa SKU kênh và danh mục (#430)
+
+- SKU bên ngoài của WEB/MARKET demo có 1–60 ký tự sau trim Unicode whitespace ở ngoài; mẫu `[A-Za-z0-9][A-Za-z0-9._:-]{0,59}`, giữ hoa/thường, không khoảng trắng bên trong hoặc `<>`. Lưu mapping, nhận đơn và lookup dùng cùng chuẩn; không đổi quy tắc SKU nội bộ. Chữ ký webhook luôn được kiểm trên nguyên byte body trước khi chuẩn hóa giá trị đã parse.
+- Tên danh mục chuẩn hóa Unicode NFC, trim/gộp Unicode whitespace thành một dấu cách, dài 1–120 ký tự sau chuẩn hóa. So tên không phân biệt hoa/thường nhưng giữ dấu tiếng Việt; chỉ duy nhất trong cùng parentId, kể cả root; khác parent được trùng.
+- Tạo/sửa/chuyển cấp phải kiểm trùng, trả 409 CONFLICT; không tự gộp danh mục. Khóa cây hiện có và unique index PostgreSQL bảo vệ thao tác đồng thời, vẫn giữ kiểm tra vòng lặp và điều kiện xóa hiện hành.
+- Trước ràng buộc mới, đối soát danh mục trùng/rỗng sau chuẩn hóa và SKU lịch sử không đúng chuẩn. Migration dừng khi vi phạm, không tự đổi mã ngoài hoặc tên lịch sử. Frontend phải render tên như text an toàn; regex SKU không thay thế cơ chế chống XSS.
+
 ## 5. Hủy đơn và trả hàng – UC-03, UC-04
 
 Hủy chỉ áp dụng cho đơn chưa giao (nhả giữ chỗ); trả hàng áp dụng cho đơn đã COMPLETED trong 7 ngày và cộng lại tồn của chi nhánh nhận trả.
