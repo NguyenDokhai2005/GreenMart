@@ -9,6 +9,7 @@ import {
 } from '../../api/client';
 import { AsyncBlock, Button, EmptyState, Input, Skeleton, Toast } from '../../components/ui';
 import { useActiveBranch } from '../auth/useActiveBranch';
+import { useAuth } from '../auth/useAuth';
 import { mapErrorToState } from '../../lib/errors';
 import type { PosPageProps } from '../../layouts/pos/PosPlaceholderPage';
 import type { Customer } from '../catalog/catalogApi';
@@ -40,6 +41,25 @@ function isEditable(target: EventTarget | null) {
 export default function PosSalePage({ item }: PosPageProps) {
   const branch = useActiveBranch();
   const branchId = branch.state.status === 'active' ? branch.state.branch.id : 0;
+  const auth = useAuth();
+  const canDiscount =
+    auth.state.status === 'authenticated' && auth.state.user.role === 'BRANCH_MANAGER';
+  const [manualAmount, setManualAmount] = useState('');
+  const [manualReason, setManualReason] = useState('');
+  const discountAmount = manualAmount === '' ? 0 : Number(manualAmount);
+  const manualInvalid =
+    manualAmount !== '' &&
+    (!/^\d+$/.test(manualAmount) ||
+      !Number.isSafeInteger(discountAmount) ||
+      discountAmount < 0 ||
+      (discountAmount > 0 && !manualReason.trim()));
+  const manualDiscount = useMemo(
+    () =>
+      canDiscount && discountAmount > 0 && !manualInvalid
+        ? { amount: discountAmount, reason: manualReason.trim() }
+        : undefined,
+    [canDiscount, discountAmount, manualInvalid, manualReason],
+  );
   const [lines, dispatch] = useReducer(cartReducer, []);
   const [quantityDrafts, setQuantityDrafts] = useState<Record<number, string>>({});
   const invalidQuantity = Object.values(quantityDrafts).some(
@@ -63,8 +83,9 @@ export default function PosSalePage({ item }: PosPageProps) {
   const [notice, setNotice] = useState<string | undefined>();
   const scanner = useRef({ value: '', at: 0 });
   const currentCartKey = useMemo(
-    () => `${cartKey(branchId, lines)}:${customerId ?? 'walk-in'}`,
-    [branchId, lines, customerId],
+    () =>
+      `${cartKey(branchId, lines)}:${customerId ?? 'walk-in'}:${manualAmount}:${manualReason.trim()}`,
+    [branchId, lines, customerId, manualAmount, manualReason],
   );
 
   useEffect(() => {
@@ -92,7 +113,7 @@ export default function PosSalePage({ item }: PosPageProps) {
   }, [normalizedQuery, searchRetry]);
 
   useEffect(() => {
-    if (lines.length === 0 || invalidQuantity) return;
+    if (lines.length === 0 || invalidQuantity || manualInvalid) return;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       setQuoteState({ status: 'loading', key: currentCartKey });
@@ -100,6 +121,7 @@ export default function PosSalePage({ item }: PosPageProps) {
         {
           branchId,
           ...(customerId === undefined ? {} : { customerId }),
+          ...(manualDiscount ? { manualDiscount } : {}),
           items: lines.map(({ product, quantity }) => ({ productId: product.id, quantity })),
         },
         controller.signal,
@@ -118,7 +140,16 @@ export default function PosSalePage({ item }: PosPageProps) {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [branchId, customerId, currentCartKey, lines, quoteRetry, invalidQuantity]);
+  }, [
+    branchId,
+    customerId,
+    currentCartKey,
+    lines,
+    quoteRetry,
+    invalidQuantity,
+    manualInvalid,
+    manualDiscount,
+  ]);
 
   const addByCode = useCallback(
     async (code: string) => {
@@ -230,7 +261,12 @@ export default function PosSalePage({ item }: PosPageProps) {
   const activeConflict = lines.filter((line) => stockFor(line).conflict);
   const shortage = lines.some((line) => !stockFor(line).sufficient);
   const canCheckout =
-    !invalidQuantity && lines.length > 0 && !quoteLoading && !!quote?.canComplete && !shortage;
+    !invalidQuantity &&
+    !manualInvalid &&
+    lines.length > 0 &&
+    !quoteLoading &&
+    !!quote?.canComplete &&
+    !shortage;
   const quotedMoney = (amount: number | undefined) =>
     quote ? money(amount ?? 0) : lines.length === 0 ? money(0) : '—';
   const quotedDiscount = (amount: number | undefined) =>
@@ -501,6 +537,30 @@ export default function PosSalePage({ item }: PosPageProps) {
             </div>
           )}
           <div className="pos-sale__summary">
+            {canDiscount && (
+              <div className="pos-sale__manual-discount">
+                <Input
+                  label="Giảm giá thủ công (VND)"
+                  inputMode="numeric"
+                  value={manualAmount}
+                  onChange={(event) => setManualAmount(event.target.value)}
+                  error={
+                    manualAmount &&
+                    (!/^\d+$/.test(manualAmount) || !Number.isSafeInteger(discountAmount))
+                      ? 'Nhập số tiền nguyên không âm.'
+                      : undefined
+                  }
+                />
+                <Input
+                  label="Lý do giảm giá"
+                  value={manualReason}
+                  onChange={(event) => setManualReason(event.target.value)}
+                  error={
+                    discountAmount > 0 && !manualReason.trim() ? 'Nhập lý do giảm giá.' : undefined
+                  }
+                />
+              </div>
+            )}
             <AsyncBlock
               key={`${currentCartKey}:${quoteRetry}`}
               isLoading={quoteLoading}
@@ -532,6 +592,10 @@ export default function PosSalePage({ item }: PosPageProps) {
                       )}
                     </span>
                     <span>{quotedDiscount(quote?.orderDiscount)}</span>
+                  </div>
+                  <div>
+                    <span>Giảm giá thủ công</span>
+                    <span>{quotedDiscount(quote?.manualDiscount)}</span>
                   </div>
                   <div>
                     <span>Tổng giảm giá</span>
@@ -586,10 +650,13 @@ export default function PosSalePage({ item }: PosPageProps) {
           customerId={customerId}
           lines={lines}
           quote={checkoutQuote}
+          manualDiscount={manualDiscount}
           onClose={() => setCheckoutQuote(null)}
           onCompleted={() => {
             dispatch({ type: 'clear' });
             setCustomer(null);
+            setManualAmount('');
+            setManualReason('');
             setStockConflict(null);
           }}
           onRequote={() => setQuoteRetry((value) => value + 1)}

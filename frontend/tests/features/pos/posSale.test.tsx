@@ -5,11 +5,12 @@ import PosSalePage from '../../../src/features/pos/PosSalePage';
 import { cartReducer, stockForLine } from '../../../src/features/pos/posCart';
 import { POS_NAVIGATION } from '../../../src/layouts/pos/posNavigation';
 
-const { searchProducts, lookupProduct, quoteOrder, customers } = vi.hoisted(() => ({
+const { searchProducts, lookupProduct, quoteOrder, customers, roleRef } = vi.hoisted(() => ({
   searchProducts: vi.fn(),
   lookupProduct: vi.fn(),
   quoteOrder: vi.fn(),
   customers: vi.fn(),
+  roleRef: { current: 'CASHIER' as string },
 }));
 
 vi.mock('../../../src/api/client', () => ({ searchProducts, lookupProduct, quoteOrder }));
@@ -20,6 +21,9 @@ vi.mock('../../../src/features/auth/useActiveBranch', () => ({
   useActiveBranch: () => ({
     state: { status: 'active', branch: { id: 1, code: 'GM-001', name: 'Quận 1' } },
   }),
+}));
+vi.mock('../../../src/features/auth/useAuth', () => ({
+  useAuth: () => ({ state: { status: 'authenticated', user: { id: 7, role: roleRef.current } } }),
 }));
 
 const product: Product = {
@@ -62,6 +66,7 @@ function quote(quantity: number): Quote {
 }
 
 beforeEach(() => {
+  roleRef.current = 'CASHIER';
   searchProducts.mockReset().mockResolvedValue({ content: [product] });
   lookupProduct.mockReset().mockResolvedValue({ product, branchId: 1, available: 1 });
   customers.mockReset().mockResolvedValue({

@@ -4,15 +4,15 @@ import type { Product, Quote } from '../../../src/api/client';
 import PosSalePage from '../../../src/features/pos/PosSalePage';
 import { POS_NAVIGATION } from '../../../src/layouts/pos/posNavigation';
 
-const { searchProducts, lookupProduct, quoteOrder, completePosOrder, customers } = vi.hoisted(
-  () => ({
+const { searchProducts, lookupProduct, quoteOrder, completePosOrder, customers, roleRef } =
+  vi.hoisted(() => ({
     searchProducts: vi.fn(),
     lookupProduct: vi.fn(),
     quoteOrder: vi.fn(),
     completePosOrder: vi.fn(),
     customers: vi.fn(),
-  }),
-);
+    roleRef: { current: 'CASHIER' as string },
+  }));
 
 vi.mock('../../../src/api/client', () => ({
   searchProducts,
@@ -25,6 +25,9 @@ vi.mock('../../../src/features/auth/useActiveBranch', () => ({
   useActiveBranch: () => ({
     state: { status: 'active', branch: { id: 1, code: 'GM-001', name: 'Quận 1' } },
   }),
+}));
+vi.mock('../../../src/features/auth/useAuth', () => ({
+  useAuth: () => ({ state: { status: 'authenticated', user: { id: 7, role: roleRef.current } } }),
 }));
 
 const product: Product = {
@@ -90,6 +93,7 @@ async function openCheckout() {
 }
 
 beforeEach(() => {
+  roleRef.current = 'CASHIER';
   searchProducts.mockReset().mockResolvedValue({ content: [product] });
   lookupProduct.mockReset().mockResolvedValue({ product, branchId: 1, available: 5 });
   quoteOrder.mockReset().mockResolvedValue(quote);
@@ -103,6 +107,43 @@ afterEach(() => {
 });
 
 describe('POS checkout', () => {
+  it('quotes and completes a manager manual discount with its reason', async () => {
+    roleRef.current = 'BRANCH_MANAGER';
+    completePosOrder.mockResolvedValue(paidOrder);
+    render(<PosSalePage item={POS_NAVIGATION[0]} />);
+    const search = screen.getByLabelText('Quét mã vạch hoặc tìm theo tên / SKU');
+    fireEvent.change(search, { target: { value: product.sku } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    await screen.findByText(product.name);
+    fireEvent.change(screen.getByLabelText('Giảm giá thủ công (VND)'), {
+      target: { value: '2000' },
+    });
+    expect(
+      (screen.getByRole('button', { name: 'Thanh toán · F4' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    fireEvent.change(screen.getByLabelText('Lý do giảm giá'), {
+      target: { value: 'Khách thân thiết' },
+    });
+    await waitFor(() =>
+      expect(quoteOrder).toHaveBeenLastCalledWith(
+        expect.objectContaining({ manualDiscount: { amount: 2000, reason: 'Khách thân thiết' } }),
+        expect.any(AbortSignal),
+      ),
+    );
+    const checkout = screen.getByRole('button', { name: 'Thanh toán · F4' });
+    await waitFor(() => expect((checkout as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(checkout);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Tiền khách đưa (VND)' }), {
+      target: { value: '40000' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
+    await waitFor(() =>
+      expect(completePosOrder).toHaveBeenCalledWith(
+        expect.objectContaining({ manualDiscount: { amount: 2000, reason: 'Khách thân thiết' } }),
+        expect.any(String),
+      ),
+    );
+  });
   it('shows item and order discounts from the completed API order in the printable receipt', async () => {
     completePosOrder.mockResolvedValue({
       ...paidOrder,
