@@ -3,6 +3,7 @@ package vn.greenmart.catalog.service;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -26,6 +27,7 @@ import vn.greenmart.common.security.SecurityUtils;
 import vn.greenmart.inventory.service.InventoryService;
 
 import java.util.ArrayDeque;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -50,14 +52,21 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public PageResponse<ProductResponse> listProducts(String q, Long categoryId, Boolean active, Integer page, Integer size, HttpServletRequest request) {
         String[] sortParams = (request != null) ? request.getParameterValues("sort") : null;
-        Pageable pageable = PageUtils.createPageable(page, size, sortParams, Sort.by(Sort.Direction.ASC, "id"), ALLOWED_SORT_FIELDS);
+        Pageable rawPageable = PageUtils.createPageable(page, size, sortParams, Sort.by(Sort.Direction.ASC, "id"), ALLOWED_SORT_FIELDS);
+        Sort nativeSort = Sort.by(rawPageable.getSort().stream()
+                .map(order -> new Sort.Order(order.getDirection(), toSnakeCaseColumn(order.getProperty())))
+                .toList());
+        Pageable pageable = PageRequest.of(rawPageable.getPageNumber(), rawPageable.getPageSize(), nativeSort);
 
-        Set<Long> categoryIds = null;
+        boolean hasCategoryIds = false;
+        Collection<Long> categoryIds = List.of(-1L);
         if (categoryId != null) {
-            categoryIds = getAllSubCategoryIds(categoryId);
+            Set<Long> resolvedIds = getAllSubCategoryIds(categoryId);
+            hasCategoryIds = true;
+            categoryIds = resolvedIds.isEmpty() ? List.of(-1L) : resolvedIds;
         }
 
-        Page<Product> productPage = productRepository.searchProducts(categoryIds, active, q, pageable);
+        Page<Product> productPage = productRepository.searchProducts(hasCategoryIds, categoryIds, active, q, pageable);
         boolean canViewCost = SecurityUtils.canViewCostPrice();
 
         Set<Long> catIds = productPage.getContent().stream()
@@ -72,6 +81,15 @@ public class ProductServiceImpl implements ProductService {
                 .toList();
 
         return PageResponse.of(dtos, productPage);
+    }
+
+    private String toSnakeCaseColumn(String property) {
+        return switch (property) {
+            case "salePrice" -> "sale_price";
+            case "costPrice" -> "cost_price";
+            case "active" -> "is_active";
+            default -> property;
+        };
     }
 
     @Override
