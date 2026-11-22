@@ -5,20 +5,24 @@ import PosSalePage from '../../../src/features/pos/PosSalePage';
 import { cartReducer, stockForLine } from '../../../src/features/pos/posCart';
 import { POS_NAVIGATION } from '../../../src/layouts/pos/posNavigation';
 
-const { searchProducts, lookupProduct, quoteOrder, customers, listInventory, getInventoryItem } = vi.hoisted(() => ({
-  searchProducts: vi.fn(),
-  lookupProduct: vi.fn(),
-  quoteOrder: vi.fn(),
-  customers: vi.fn(),
-  listInventory: vi.fn(),
-  getInventoryItem: vi.fn(),
-}));
+const { searchProducts, lookupProduct, quoteOrder, customers, listInventory, getInventoryItem } =
+  vi.hoisted(() => ({
+    searchProducts: vi.fn(),
+    lookupProduct: vi.fn(),
+    quoteOrder: vi.fn(),
+    customers: vi.fn(),
+    listInventory: vi.fn(),
+    getInventoryItem: vi.fn(),
+  }));
 
 vi.mock('../../../src/api/client', () => ({ searchProducts, lookupProduct, quoteOrder }));
 vi.mock('../../../src/features/catalog/catalogApi', () => ({
   catalogApi: { customers },
 }));
-vi.mock('../../../src/features/inventory/inventoryApi', () => ({ listInventory, getInventoryItem }));
+vi.mock('../../../src/features/inventory/inventoryApi', () => ({
+  listInventory,
+  getInventoryItem,
+}));
 vi.mock('../../../src/features/auth/useActiveBranch', () => ({
   useActiveBranch: () => ({
     state: { status: 'active', branch: { id: 1, code: 'GM-001', name: 'Quận 1' } },
