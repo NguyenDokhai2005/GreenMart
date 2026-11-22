@@ -203,7 +203,8 @@ function PosSaleContent({
       }
       if (event.key === 'F4') {
         event.preventDefault();
-        document.getElementById('pos-checkout')?.focus();
+        const checkout = document.getElementById('pos-checkout') as HTMLButtonElement | null;
+        if (checkout && !checkout.disabled) checkout.click();
         return;
       }
       if (event.key === 'Escape') {

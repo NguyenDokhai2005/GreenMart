@@ -92,6 +92,20 @@ async function openCheckout() {
   expect(screen.getByRole('dialog', { name: 'Thanh toán đơn hàng' })).toBeTruthy();
 }
 
+it('opens checkout with F4 from the search field without completing an order', async () => {
+  render(<PosSalePage item={POS_NAVIGATION[0]} />);
+  const search = screen.getByLabelText('Quét mã vạch hoặc tìm theo tên / SKU');
+  fireEvent.keyDown(search, { key: 'F4' });
+  expect(screen.queryByRole('dialog', { name: 'Thanh toán đơn hàng' })).toBeNull();
+  fireEvent.change(search, { target: { value: product.sku } });
+  fireEvent.keyDown(search, { key: 'Enter' });
+  const checkout = screen.getByRole('button', { name: 'Thanh toán · F4' });
+  await waitFor(() => expect((checkout as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.keyDown(search, { key: 'F4' });
+  expect(screen.getByRole('dialog', { name: 'Thanh toán đơn hàng' })).toBeTruthy();
+  expect(completePosOrder).not.toHaveBeenCalled();
+});
+
 beforeEach(() => {
   sessionStorage.clear();
   searchProducts.mockReset().mockResolvedValue({ content: [product] });
