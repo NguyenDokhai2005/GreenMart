@@ -34,6 +34,7 @@ export default function LoginPage() {
   const location = useLocation();
   const logoutWarning = useSyncExternalStore(onLogoutWarning, hasLogoutWarning, () => false);
   const [username, setUsername] = useState('');
+  const normalizedUsername = username.trim();
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({});
@@ -42,10 +43,10 @@ export default function LoginPage() {
   const [now, setNow] = useState(Date.now);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLockRef = useRef(false);
-  const currentLockout = lockouts.find((item) => item.username === username);
-  const loginControls = getLoginControlState(username, isSubmitting, lockouts, now);
+  const currentLockout = lockouts.find((item) => item.username === normalizedUsername);
+  const loginControls = getLoginControlState(normalizedUsername, isSubmitting, lockouts, now);
   const isLocked = loginControls.isLocked;
-  const visibleNotice = getVisibleLoginNotice(username, notice, lockouts, now);
+  const visibleNotice = getVisibleLoginNotice(normalizedUsername, notice, lockouts, now);
 
   useEffect(() => {
     clearLegacyLoginLockDeadline();
@@ -75,7 +76,7 @@ export default function LoginPage() {
     event.preventDefault();
     if (submitLockRef.current || loginControls.submitDisabled) return;
 
-    const validationErrors = validateLoginRequest(username, password);
+    const validationErrors = validateLoginRequest(normalizedUsername, password);
     setFieldErrors(validationErrors);
     setNotice(null);
 
@@ -94,7 +95,7 @@ export default function LoginPage() {
     );
 
     try {
-      await signIn(username, password, controller.signal);
+      await signIn(normalizedUsername, password, controller.signal);
       setFieldErrors({});
       setNotice(null);
       setLockouts([]);
@@ -102,13 +103,14 @@ export default function LoginPage() {
       const nextNotice = getLoginNotice(error);
       const serverFieldErrors = getLoginFieldErrors(error);
       setFieldErrors(serverFieldErrors);
-      setNotice({ username, value: nextNotice });
+      setNotice({ username: normalizedUsername, value: nextNotice });
 
-      const nextLockout = getAccountLockout(error, username);
+      const nextLockout = getAccountLockout(error, normalizedUsername);
       if (nextLockout !== undefined) {
         setLockouts((current) => [
           ...current.filter(
-            (lockout) => lockout.username !== username && lockout.lockedUntil > Date.now(),
+            (lockout) =>
+              lockout.username !== normalizedUsername && lockout.lockedUntil > Date.now(),
           ),
           ...(nextLockout === null ? [] : [nextLockout]),
         ]);
@@ -209,7 +211,9 @@ export default function LoginPage() {
                   const nextUsername = event.target.value;
                   setUsername(nextUsername);
                   setFieldErrors({});
-                  setNotice((current) => (current?.username === nextUsername ? current : null));
+                  setNotice((current) =>
+                    current?.username === nextUsername.trim() ? current : null,
+                  );
                 }}
                 error={fieldErrors.username}
                 disabled={loginControls.usernameDisabled}
@@ -228,7 +232,9 @@ export default function LoginPage() {
                 onChange={(event) => {
                   setPassword(event.target.value);
                   setFieldErrors((current) => ({ ...current, password: undefined }));
-                  setNotice((current) => (current?.username === username ? null : current));
+                  setNotice((current) =>
+                    current?.username === normalizedUsername ? null : current,
+                  );
                 }}
                 error={fieldErrors.password}
                 disabled={loginControls.passwordDisabled}
