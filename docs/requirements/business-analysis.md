@@ -295,9 +295,9 @@ Hệ thống áp khuyến mại cấp sản phẩm trước, rồi áp đúng m�
 
 | Thuộc tính    | Giá trị                                                  | Ghi chú                            |
 |---------------|----------------------------------------------------------|------------------------------------|
-| Cấp áp dụng   | ORDER (cả đơn) hoặc ITEM (sản phẩm/danh mục)             |                                    |
+| Cấp áp dụng   | ORDER (cả đơn) hoặc ITEM (sản phẩm)                      | Theo danh mục để v2                |
 | Kiểu giảm     | PERCENT hoặc AMOUNT                                      | PERCENT có thể kèm mức giảm tối đa |
-| Điều kiện     | Giá trị đơn tối thiểu (ORDER), số lượng tối thiểu (ITEM) |                                    |
+| Điều kiện     | Giá trị đơn tối thiểu (ORDER), số lượng tối thiểu (ITEM) | ITEM: xét trên một dòng, mặc định 1 |
 | Hiệu lực      | Từ – đến (giờ Việt Nam)                                  | Ngoài khoảng → không áp            |
 | Phạm vi       | Danh sách chi nhánh, danh sách kênh                      | Trống = tất cả                     |
 | Giới hạn lượt | Tổng lượt dùng tối đa                                    | Trừ nguyên tử khi hoàn tất đơn     |
@@ -313,6 +313,9 @@ Trước khi hoàn tất đơn phải kiểm lại thời hạn và lượt dùn
 Seed lịch sử tính giá tại thời điểm đơn, rồi chuẩn hóa trạng thái hết hạn tại lúc nạp; không đổi tiền/lượt dùng hay hóa đơn cũ.
 
 1.  Với mỗi dòng: lấy các KM cấp ITEM hợp lệ, chọn KM giảm nhiều nhất cho dòng đó (mỗi dòng tối đa 1 KM). Giảm dòng không vượt thành tiền dòng.
+    - KM chỉ hợp lệ khi SL của dòng ≥ số lượng tối thiểu. Ngưỡng xét trên một dòng SKU, không gộp SKU khác.
+    - AMOUNT giảm theo từng đơn vị: giảm dòng = min(giá trị × SL, thành tiền dòng).
+    - PERCENT: giảm dòng = floor(thành tiền dòng × % / 100), rồi chặn bởi mức tối đa. Mức tối đa áp cho cả dòng, không nhân với SL.
 
 2.  Tổng sau giảm dòng = Σ(thành tiền − giảm dòng).
 
@@ -321,6 +324,20 @@ Seed lịch sử tính giá tại thời điểm đơn, rồi chuẩn hóa trạ
 4.  Tổng phải trả = tổng bước 2 − giảm cấp đơn. Số tiền làm tròn xuống đến đồng.
 
 5.  Ghi mã KM và số giảm vào từng dòng và vào đơn để báo cáo hiệu quả.
+
+Lượt dùng (BR-08): mỗi đơn hoàn tất tăng 1 lượt cho mỗi chương trình được áp, không tính theo số lượng hay số dòng.
+
+**Ví dụ KM cấp sản phẩm (#425)**
+
+Ví dụ riêng, không thuộc hóa đơn mục 3. Rau cải 500g giá 18.000 đ. KM-RAU giảm 5.000 đ/đơn vị, số lượng tối thiểu 3. KM-RAU15 giảm 15%, tối đa 6.000 đ, không có số lượng tối thiểu.
+
+| SL | Thành tiền | KM-RAU giảm            | KM-RAU15 giảm          | Hệ thống chọn     |
+|----|------------|------------------------|------------------------|-------------------|
+| 1  | 18.000 đ   | Không đủ điều kiện     | 2.700 đ                | KM-RAU15, 2.700 đ |
+| 2  | 36.000 đ   | Không đủ điều kiện     | 5.400 đ                | KM-RAU15, 5.400 đ |
+| 3  | 54.000 đ   | 3 × 5.000 = 15.000 đ   | 6.000 đ (chạm tối đa)  | KM-RAU, 15.000 đ  |
+
+Quy tắc này có hiệu lực từ contract mới, không tính lại hóa đơn đã bán (BR-12). Trước #425, AMOUNT cấp sản phẩm giảm một lần cho cả dòng; đó không phải lỗi so với đặc tả cũ.
 
 **Ví dụ chọn KM cấp đơn**
 
