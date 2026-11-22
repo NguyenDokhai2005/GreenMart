@@ -129,6 +129,7 @@ export default function PosReturnsPage() {
       return;
     }
     if (
+      order.branch.id === branchId &&
       selected.some(
         (item) =>
           item.quantity >
@@ -208,6 +209,7 @@ export default function PosReturnsPage() {
     );
   const mayApprove = user?.role === 'BRANCH_MANAGER' || user?.role === 'OWNER';
   const returnable = order?.status === 'COMPLETED';
+  const crossBranchOrder = order?.branch.id !== branchId;
 
   return (
     <section className="pos-returns">
@@ -270,6 +272,12 @@ export default function PosReturnsPage() {
               <p>
                 Số tiền hoàn chính xác được hệ thống tính khi tạo phiếu, sau khi phân bổ khuyến mại.
               </p>
+              {crossBranchOrder && (
+                <p>
+                  Đơn thuộc chi nhánh khác. Số lượng còn có thể trả sẽ được máy chủ xác nhận khi tạo
+                  phiếu.
+                </p>
+              )}
               <table>
                 <thead>
                   <tr>
@@ -287,13 +295,15 @@ export default function PosReturnsPage() {
                         {item.name} · {item.sku}
                       </td>
                       <td>{item.quantity}</td>
-                      <td>{available(item.id, item.quantity)}</td>
+                      <td>
+                        {crossBranchOrder ? 'Xác nhận khi gửi' : available(item.id, item.quantity)}
+                      </td>
                       <td>
                         <input
                           aria-label={`Số lượng trả ${item.name}`}
                           type="number"
                           min="0"
-                          max={available(item.id, item.quantity)}
+                          max={crossBranchOrder ? item.quantity : available(item.id, item.quantity)}
                           step="1"
                           value={items[item.id]?.quantity ?? 0}
                           onChange={(event) =>

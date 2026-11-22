@@ -144,6 +144,18 @@ describe('POS returns', () => {
     expect(screen.getByRole('cell', { name: '1' })).toBeTruthy();
     expect((screen.getByLabelText('Số lượng trả Sữa') as HTMLInputElement).max).toBe('1');
   });
+  it('asks the server to confirm remaining quantity for an order from another branch', async () => {
+    getOrder.mockResolvedValue({ ...order, branch: { id: 2, code: 'GM-002', name: 'Quận 2' } });
+    render(<PosReturnsPage />);
+    fireEvent.change(screen.getByLabelText('Mã đơn hoặc số điện thoại'), {
+      target: { value: order.code },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Tìm đơn' }));
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(order.code) }));
+    await screen.findByText('Đơn ' + order.code);
+    expect(screen.getByText('Xác nhận khi gửi')).toBeTruthy();
+    expect((screen.getByLabelText('Số lượng trả Sữa') as HTMLInputElement).max).toBe('2');
+  });
   it('shows reason validation beside the field without sending a request', async () => {
     render(<PosReturnsPage />);
     fireEvent.change(screen.getByLabelText('Mã đơn hoặc số điện thoại'), {
