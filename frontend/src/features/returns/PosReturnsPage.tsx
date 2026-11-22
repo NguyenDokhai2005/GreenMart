@@ -44,9 +44,9 @@ export default function PosReturnsPage() {
   const requestKey = `${branchId}:${query}:${revision}`;
 
   useEffect(() => {
-    if (!branchId || !query) return;
+    if (!query) return;
     const controller = new AbortController();
-    void listOrders({ branchId, q: query, page: 0, size: 20 }, controller.signal).then(
+    void listOrders({ q: query, page: 0, size: 20 }, controller.signal).then(
       (page) => {
         if (!controller.signal.aborted) {
           setOrders(page.content);
@@ -106,8 +106,12 @@ export default function PosReturnsPage() {
   async function saveDraft() {
     if (!order || !branchId) return;
     const selected = Object.values(items).filter((item) => item.quantity > 0);
-    if (!reason.trim() || selected.length === 0) {
-      setFormError('Nhập lý do và chọn ít nhất một sản phẩm với số lượng trả lớn hơn 0.');
+    if (reason.trim().length < 3 || reason.trim().length > 255) {
+      setFormError('Lý do trả hàng phải dài từ 3 đến 255 ký tự.');
+      return;
+    }
+    if (selected.length === 0) {
+      setFormError('Chọn ít nhất một sản phẩm với số lượng trả lớn hơn 0.');
       return;
     }
     if (selected.some((item) => !Number.isInteger(item.quantity) || item.quantity < 1)) {
@@ -174,12 +178,12 @@ export default function PosReturnsPage() {
       0,
       purchased -
         returns
-          .filter((document) => document.status === 'APPROVED')
+          .filter((document) => document.status === 'DRAFT' || document.status === 'APPROVED')
           .flatMap((document) => document.items)
           .filter((item) => item.orderItemId === id)
           .reduce((sum, item) => sum + item.quantity, 0),
     );
-  const mayApprove = user?.role === 'BRANCH_MANAGER';
+  const mayApprove = user?.role === 'BRANCH_MANAGER' || user?.role === 'OWNER';
   const returnable = order?.status === 'COMPLETED';
 
   return (

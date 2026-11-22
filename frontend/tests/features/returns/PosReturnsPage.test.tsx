@@ -90,7 +90,7 @@ describe('POS returns', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Tìm đơn' }));
     await screen.findByText(new RegExp(order.code));
     expect(listOrders).toHaveBeenCalledWith(
-      { branchId: 1, q: order.code, page: 0, size: 20 },
+      { q: order.code, page: 0, size: 20 },
       expect.any(AbortSignal),
     );
     fireEvent.click(screen.getByRole('button', { name: new RegExp(order.code) }));
@@ -111,7 +111,11 @@ describe('POS returns', () => {
   });
   it('ignores an old order response after a new search', async () => {
     let resolveOrder!: (value: typeof order) => void;
-    getOrder.mockReturnValue(new Promise((resolve) => { resolveOrder = resolve; }));
+    getOrder.mockReturnValue(
+      new Promise((resolve) => {
+        resolveOrder = resolve;
+      }),
+    );
     render(<PosReturnsPage />);
     const search = screen.getByLabelText('Mã đơn hoặc số điện thoại');
     fireEvent.change(search, { target: { value: order.code } });
@@ -120,9 +124,24 @@ describe('POS returns', () => {
     fireEvent.change(search, { target: { value: 'KHAC' } });
     fireEvent.click(screen.getByRole('button', { name: 'Tìm đơn' }));
     resolveOrder(order);
-    await waitFor(() => expect(listOrders).toHaveBeenCalledWith(
-      { branchId: 1, q: 'KHAC', page: 0, size: 20 }, expect.any(AbortSignal),
-    ));
+    await waitFor(() =>
+      expect(listOrders).toHaveBeenCalledWith(
+        { q: 'KHAC', page: 0, size: 20 },
+        expect.any(AbortSignal),
+      ),
+    );
     expect(screen.queryByText('Đơn ' + order.code)).toBeNull();
+  });
+  it('reserves quantities already requested on draft returns', async () => {
+    listReturnsByOrder.mockResolvedValue([document]);
+    render(<PosReturnsPage />);
+    fireEvent.change(screen.getByLabelText('Mã đơn hoặc số điện thoại'), {
+      target: { value: order.code },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Tìm đơn' }));
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(order.code) }));
+    await screen.findByText('Đơn ' + order.code);
+    expect(screen.getByRole('cell', { name: '1' })).toBeTruthy();
+    expect((screen.getByLabelText('Số lượng trả Sữa') as HTMLInputElement).max).toBe('1');
   });
 });
