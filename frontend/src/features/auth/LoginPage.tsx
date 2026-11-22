@@ -22,11 +22,13 @@ function formatCountdown(milliseconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  const twoDigits = (value: number) => String(value).padStart(2, '0');
-
-  return hours > 0
-    ? `${hours}:${twoDigits(minutes)}:${twoDigits(seconds)}`
-    : `${twoDigits(minutes)}:${twoDigits(seconds)}`;
+  return [
+    hours > 0 ? `${hours} giờ` : '',
+    minutes > 0 ? `${minutes} phút` : '',
+    seconds > 0 || (hours === 0 && minutes === 0) ? `${seconds} giây` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 export default function LoginPage() {
@@ -127,13 +129,6 @@ export default function LoginPage() {
     }
   }
 
-  const lockedDescription =
-    isLocked && currentLockout
-      ? `${visibleNotice?.description ?? 'Tài khoản tạm khóa.'} Thử lại sau ${formatCountdown(
-          currentLockout.lockedUntil - now,
-        )}.`
-      : visibleNotice?.description;
-
   return (
     <div className="login-page">
       <header className="login-page__topbar">
@@ -175,9 +170,14 @@ export default function LoginPage() {
           <Toast
             variant="error"
             title={visibleNotice.title}
-            description={lockedDescription}
+            description={visibleNotice.description}
             className="login-page__notice"
           />
+        )}
+        {isLocked && currentLockout && (
+          <p className="login-page__lockout-countdown" aria-live="off">
+            Thử lại sau {formatCountdown(currentLockout.lockedUntil - now)}.
+          </p>
         )}
 
         <div className="login-page__columns">
