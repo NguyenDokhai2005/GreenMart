@@ -1607,7 +1607,7 @@ paths:
     post:
       tags: [Promotions]
       summary: Tạo chương trình (Nháp)
-      description: Tạo ở DRAFT (PRM-01). `productIds` bắt buộc với `level = ITEM`. `branchIds`, `channels` rỗng = áp mọi chi nhánh/kênh.
+      description: Tạo ở DRAFT (PRM-01). `productIds` bắt buộc với `level = ITEM`; `minQuantity` chỉ dùng với ITEM, bỏ trống = 1. `branchIds`, `channels` rỗng = áp mọi chi nhánh/kênh.
       operationId: createPromotion
       x-roles: [OWNER]
       requestBody:
@@ -3240,16 +3240,21 @@ components:
           type: integer
           format: int64
           minimum: 1
-          description: 'PERCENT: 1–100 (%); AMOUNT: số tiền VND'
-        maxDiscount: { type: integer, format: int64, minimum: 1, nullable: true, description: 'Mức giảm tối đa, chỉ với PERCENT' }
+          description: 'PERCENT: 1–100 (%); AMOUNT: số tiền VND. ITEM-AMOUNT giảm trên mỗi đơn vị: giảm dòng = min(value × quantity, unitPrice × quantity). ORDER-AMOUNT giảm một lần mỗi đơn (#425).'
+        maxDiscount: { type: integer, format: int64, minimum: 1, nullable: true, description: 'Mức giảm tối đa, chỉ với PERCENT. Với ITEM là trần cho cả dòng, không nhân với số lượng: giảm dòng = min(floor(lineTotal × value / 100), maxDiscount).' }
         minOrder: { type: integer, format: int64, minimum: 0, nullable: true, description: 'Tổng sau giảm dòng tối thiểu, chỉ với ORDER' }
+        minQuantity:
+          type: integer
+          minimum: 1
+          nullable: true
+          description: 'Số lượng tối thiểu trên một dòng SKU, chỉ với ITEM; bỏ trống = 1. Không gộp số lượng của SKU khác để đủ ngưỡng. Gửi kèm level = ORDER trả 400 VALIDATION_ERROR (#425).'
         startAt: { type: string, format: date-time }
         endAt: { type: string, format: date-time, description: 'Phải sau startAt và ở tương lai khi tạo/sửa qua API thông thường; sai trả 400 VALIDATION_ERROR. Thời điểm kết thúc không còn được áp dụng.' }
         usageLimit: { type: integer, minimum: 1, nullable: true, description: Tổng lượt dùng tối đa (BR-08); null = không giới hạn }
         productIds:
           type: array
           items: { type: integer, format: int64 }
-          description: Bắt buộc, ít nhất 1 với ITEM; bỏ trống với ORDER
+          description: Bắt buộc, ít nhất 1 với ITEM; bỏ trống với ORDER. Phạm vi theo danh mục (categoryIds) chưa hỗ trợ ở v1.
         branchIds:
           type: array
           items: { type: integer, format: int64 }
@@ -3269,6 +3274,7 @@ components:
         value: { type: integer, format: int64 }
         maxDiscount: { type: integer, format: int64, nullable: true }
         minOrder: { type: integer, format: int64, nullable: true }
+        minQuantity: { type: integer, minimum: 1, nullable: true, description: 'ITEM: số lượng tối thiểu trên một dòng (mặc định 1); ORDER: null' }
         startAt: { type: string, format: date-time }
         endAt: { type: string, format: date-time }
         usageLimit: { type: integer, nullable: true }
