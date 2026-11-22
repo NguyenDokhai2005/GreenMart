@@ -5,6 +5,7 @@ import { Dialog, Input, Toast } from '../../components/ui';
 import { mapErrorToState, type UiErrorState } from '../../lib/errors';
 import type { CartLine } from './posCart';
 import { readChangedQuote, readStockShortages, type StockShortage } from './posErrorDetails';
+import { discountMoney, money } from './posMoney';
 import './posCheckout.css';
 
 type PosOrderRequest = components['schemas']['PosOrderRequest'];
@@ -38,7 +39,6 @@ const methods: { id: PaymentMethod; label: string }[] = [
   { id: 'CARD', label: 'Thẻ' },
   { id: 'QR', label: 'QR' },
 ];
-const money = (amount: number) => `${new Intl.NumberFormat('vi-VN').format(amount)} đ`;
 
 function cashValue(input: string): number | null {
   if (!/^\d+$/.test(input)) return null;
@@ -244,11 +244,11 @@ export default function PosCheckoutDialog({
             </div>
             <div>
               <dt>Giảm giá đơn hàng</dt>
-              <dd>−{money(state.order.orderDiscount)}</dd>
+              <dd>{discountMoney(state.order.orderDiscount)}</dd>
             </div>
             <div>
               <dt>Tổng giảm giá</dt>
-              <dd>{money(state.order.discount)}</dd>
+              <dd>{discountMoney(state.order.discount)}</dd>
             </div>
             <div className="pos-checkout__receipt-total">
               <dt>Tổng thanh toán</dt>
@@ -290,11 +290,11 @@ export default function PosCheckoutDialog({
             </div>
             <div>
               <dt>Giảm giá đơn hàng</dt>
-              <dd>{money(quote.orderDiscount)}</dd>
+              <dd>{discountMoney(quote.orderDiscount)}</dd>
             </div>
             <div>
               <dt>Tổng giảm giá</dt>
-              <dd>{money(quote.discount)}</dd>
+              <dd>{discountMoney(quote.discount)}</dd>
             </div>
             <div className="pos-checkout__total">
               <dt>Tổng thanh toán</dt>

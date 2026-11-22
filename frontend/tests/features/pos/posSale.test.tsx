@@ -215,9 +215,9 @@ describe('POS cart', () => {
     const input = screen.getByLabelText('Quét mã vạch hoặc tìm theo tên / SKU');
     fireEvent.change(input, { target: { value: product.sku } });
     fireEvent.keyDown(input, { key: 'Enter' });
-    await waitFor(() => expect(screen.getByText('27.000 đ')).toBeTruthy());
-    expect(screen.getAllByText('−5.000 đ')).toHaveLength(2);
-    expect(screen.getAllByText('32.000 đ').length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getByText('27.000 ₫')).toBeTruthy());
+    expect(screen.getAllByText('−5.000 ₫')).toHaveLength(2);
+    expect(screen.getAllByText('32.000 ₫').length).toBeGreaterThan(0);
   });
 
   it('shows line and order promotions from the quote without changing the quoted total', async () => {
@@ -243,10 +243,10 @@ describe('POS cart', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
     await waitFor(() => expect(screen.getByText('KM Sữa tươi · KM-SUA')).toBeTruthy());
     expect(screen.getByText('DON-8K')).toBeTruthy();
-    expect(screen.getAllByText('−12.000 đ').length).toBeGreaterThan(0);
-    expect(screen.getByText('−8.000 đ')).toBeTruthy();
-    expect(screen.getByText('−20.000 đ')).toBeTruthy();
-    expect(screen.getByText('12.000 đ')).toBeTruthy();
+    expect(screen.getAllByText('−12.000 ₫').length).toBeGreaterThan(0);
+    expect(screen.getByText('−8.000 ₫')).toBeTruthy();
+    expect(screen.getByText('−20.000 ₫')).toBeTruthy();
+    expect(screen.getByText('12.000 ₫')).toBeTruthy();
   });
 
   it('shows the promotion code alone when its name is missing and hides order code after a requote', async () => {
@@ -275,7 +275,7 @@ describe('POS cart', () => {
 
     fireEvent.click(screen.getByRole('button', { name: `Tăng số lượng ${product.name}` }));
     await waitFor(() => expect(quoteOrder).toHaveBeenCalledTimes(2));
-    await screen.findAllByText('64.000 đ');
+    await screen.findAllByText('64.000 ₫');
     expect(screen.queryByText('ITEM-2K')).toBeNull();
     expect(screen.queryByText('ORDER-1K')).toBeNull();
   });
