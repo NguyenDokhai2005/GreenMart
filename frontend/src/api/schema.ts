@@ -701,11 +701,22 @@ export interface paths {
     put?: never;
     /**
      * Kênh báo thanh toán hoặc hủy đơn
-     * @description Ký HMAC giống webhook đơn mới.
+     * @description Chữ ký sự kiện v1 (khác chữ ký body của webhook đơn mới/callback): HMAC-SHA256 hex trên chuỗi UTF-8
+     *     gồm 6 dòng, ngăn bằng LF, không LF cuối: `GREENMART-EVENT-V1`, HTTP method `POST`, raw path đầy đủ
+     *     `/api/v1/integrations/{channelCode}/orders/{externalOrderId}/events` (giữ nguyên percent-encoding),
+     *     `X-Event-ID`, `X-Event-Timestamp`, SHA-256 hex chữ thường của nguyên byte body.
+     *     Dùng secret riêng của kênh. Timestamp là epoch giây lúc gửi, chấp nhận lệch tối đa ±300 giây;
+     *     không dùng occurredAt nghiệp vụ để chặn PAID đến muộn. Thiếu/sai header, chữ ký hoặc timestamp → 401 INVALID_SIGNATURE.
+     *     Retry giữ eventId/path/body nguyên byte, cập nhật transport timestamp và ký lại. EventId UUID duy nhất trong kênh;
+     *     cùng eventId nhưng đổi target/nội dung → 409 CONFLICT. Receipt giữ tối thiểu 7 ngày, hiện chưa tự xóa;
+     *     retry đúng trả acknowledgement đầu tiên (có thể khác trạng thái đơn hiện tại), không áp dụng lại sự kiện.
      *     - `PAID`: RESERVED → CONFIRMED, ghi payment PAID. Nếu đơn đã EXPIRED (BA E2): thử giữ chỗ lại; đủ → CONFIRMED,
      *       không đủ → CANCELLED và hoàn tiền giả lập.
      *     - `CANCELLED`: RESERVED/CONFIRMED → CANCELLED, nhả giữ chỗ, hoàn tiền nếu đã trả (lý do `CHANNEL_CANCELLED`).
-     *     Gửi lại cùng sự kiện cho đơn đã ở trạng thái đích → 200, không làm gì thêm.
+     *     PAID bắt buộc có providerRef không rỗng, tối đa 60 ký tự. Mã là chuỗi opaque phân biệt hoa/thường,
+     *     duy nhất theo gateway/merchant do server cấu hình payment_provider_scope; WEB/MARKET mặc định cùng MOCK:GREENMART.
+     *     Một mã không gắn hai đơn, một đơn không thay sang mã khác; xung đột → 409 CONFLICT. Binding giữ cả sau refund.
+     *     Mã mới cho đơn đã CONFIRMED/COMPLETED chỉ được xác nhận idempotent khi khớp giao dịch PAID/REFUNDED đã có.
      */
     post: operations['receiveChannelOrderEvent'];
     delete?: never;
@@ -3852,8 +3863,11 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description HMAC-SHA256 của nguyên body (byte gốc, UTF-8) với `webhook_secret` của kênh, dạng hex chữ thường */
-        'X-Signature': components['parameters']['Signature'];
+        /** @description HMAC-SHA256 hex trên envelope GREENMART-EVENT-V1 mô tả ở operation này; không dùng chữ ký body cũ. */
+        'X-Signature': string;
+        'X-Event-ID': string;
+        /** @description Epoch giây tại lúc gửi; retry ký lại timestamp mới cùng eventId và body. */
+        'X-Event-Timestamp': string;
       };
       path: {
         /** @description Chỉ kênh online */
@@ -3887,7 +3901,7 @@ export interface operations {
       400: components['responses']['BadRequest'];
       401: components['responses']['InvalidSignature'];
       404: components['responses']['NotFound'];
-      409: components['responses']['InvalidStatus'];
+      409: components['responses']['Conflict'];
     };
   };
   pushChannelStock: {

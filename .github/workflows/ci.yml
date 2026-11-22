@@ -64,7 +64,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-      - run: node --test mock-connector/test/connector.test.js
+      - run: npm test --prefix mock-connector
       - run: docker build -t greenmart-mock-connector:ci mock-connector
   docker-build:
     runs-on: ubuntu-latest
