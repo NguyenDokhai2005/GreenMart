@@ -974,6 +974,9 @@ export interface paths {
     /**
      * Đổi trạng thái chương trình
      * @description DRAFT → ACTIVE; ACTIVE ⇄ PAUSED; ACTIVE/PAUSED → ENDED (không quay lại). Chỉ ACTIVE trong thời gian hiệu lực mới được áp (BR-07).
+     *     Có thể bật chương trình trước startAt; chỉ áp dụng khi startAt ≤ thời điểm tính < endAt.
+     *     Bật lại chương trình đã hết hạn (endAt ≤ thời điểm xử lý) trả 409 INVALID_STATUS.
+     *     Job kết thúc DRAFT/ACTIVE/PAUSED hết hạn theo lịch mỗi phút; việc tính giá và ghi lượt dùng luôn kiểm thời hạn trực tiếp, không chờ job.
      *     Đơn đang mở báo giá với KM vừa tạm dừng sẽ nhận 422 `TOTAL_CHANGED` khi hoàn tất.
      */
     post: operations['changePromotionStatus'];
@@ -2254,7 +2257,7 @@ export interface components {
       startAt: string;
       /**
        * Format: date-time
-       * @description Phải sau startAt
+       * @description Phải sau startAt và ở tương lai khi tạo/sửa qua API thông thường; sai trả 400 VALIDATION_ERROR. Thời điểm kết thúc không còn được áp dụng.
        */
       endAt: string;
       /** @description Tổng lượt dùng tối đa (BR-08); null = không giới hạn */
@@ -4342,7 +4345,7 @@ export interface operations {
       query?: {
         status?: components['schemas']['PromotionStatus'][];
         level?: components['schemas']['PromotionLevel'];
-        /** @description Chỉ lấy chương trình hiệu lực tại thời điểm này */
+        /** @description Lọc khoảng startAt ≤ activeAt < endAt; kết hợp status để lọc trạng thái chương trình. */
         activeAt?: string;
         branchId?: components['parameters']['BranchIdQuery'];
         channel?: components['schemas']['ChannelCode'];

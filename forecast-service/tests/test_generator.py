@@ -1019,7 +1019,7 @@ class TestGeneratorStage4(unittest.TestCase):
         sql_bytes = buf_sql.getvalue().encode("utf-8")
         actual_sql_sha = hashlib.sha256(sql_bytes).hexdigest()
 
-        GOLDEN_SQL_SHA256 = "beaea9a74a8d2fe9f62ed2413e6f48398ce6da49e166a97523f7e521941bbf5d"
+        GOLDEN_SQL_SHA256 = "87d220916a2d80a05100f10db7363b217077f87743ba9e38ddcf65fc3cd3c67d"
         GOLDEN_JSON_SHA256 = "d0226a3d258fa87649db164118a5d600052de8f422e94e5beecb8a3e05d1dc91"
 
         self.assertEqual(actual_sql_sha, GOLDEN_SQL_SHA256, "Mã SHA-256 in-memory của SQL không được thay đổi")

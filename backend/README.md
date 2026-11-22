@@ -11,6 +11,24 @@ Kiến trúc modular monolith: mỗi module là một package trong `vn.greenmar
 
 Khung dự án (pom.xml, Application.java) do SV07 khởi tạo trong tuần 1.
 
+## Thời hạn khuyến mại (#426)
+
+Tạo/sửa thông thường yêu cầu endAt > startAt và endAt > thời điểm xử lý.
+Có thể bật khuyến mại tương lai; chỉ ACTIVE trong startAt ≤ now < endAt mới được tính.
+Bật khuyến mại đã hết hạn trả 409 INVALID_STATUS. Báo giá và hoàn tất đều kiểm tra thời hạn,
+ghi lượt kiểm tra lại sau khi lấy khóa dòng; thay đổi sau báo giá trả 422 TOTAL_CHANGED.
+
+PromotionExpiryScheduler chạy mỗi phút qua `greenmart.promotion.expiry.cron`
+(mặc định `0 * * * * *`, đặt `-` để tắt trong kiểm thử). DRAFT/ACTIVE/PAUSED
+quá hạn chuyển ENDED và ghi audit hệ thống cùng transaction; không sửa used_count
+hay hóa đơn. Job bỏ qua dòng đang khóa để thử lại ở tick sau, không chặn giao dịch bán.
+60 giây là chu kỳ mục tiêu, không phải cam kết thời gian khi DB/task scheduler bị chậm;
+tính tiền luôn kiểm thời hạn trực tiếp kể cả job tắt/chưa chạy.
+
+Seed tính các đơn tại thời điểm lịch sử, sau đó SQL nạp chuyển chương trình đã hết hạn
+sang ENDED theo CURRENT_TIMESTAMP của transaction import. File SQL vẫn deterministic;
+không lấy ngày sinh file để đổi kết quả hoặc tính lại tiền/counter lịch sử.
+
 ## Migration V4 — thời gian phiếu (#215)
 
 - `return_document.created_at`: lúc lập phiếu; `approved_at`: lúc duyệt trả,

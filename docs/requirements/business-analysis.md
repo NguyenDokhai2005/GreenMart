@@ -303,6 +303,13 @@ Hệ thống áp khuyến mại cấp sản phẩm trước, rồi áp đúng m�
 
 **Thứ tự tính**
 
+Quản lý thời hạn (#426): khoảng áp dụng là `startAt ≤ now < endAt`, kể cả khi job chưa đổi trạng thái.
+API tạo/sửa thông thường yêu cầu `endAt > startAt` và `endAt > now`; không dùng API này để nhập lịch sử đã hết hạn.
+Có thể bật chương trình trước giờ bắt đầu, nhưng chưa áp dụng trước `startAt`; bật khi đã hết hạn bị từ chối.
+Job mỗi phút đưa DRAFT/ACTIVE/PAUSED đã hết hạn sang ENDED và ghi audit cùng transaction.
+Trước khi hoàn tất đơn phải kiểm lại thời hạn và lượt dùng; nếu báo giá cũ không còn đúng, trả TOTAL_CHANGED để xác nhận lại.
+Seed lịch sử tính giá tại thời điểm đơn, rồi chuẩn hóa trạng thái hết hạn tại lúc nạp; không đổi tiền/lượt dùng hay hóa đơn cũ.
+
 1.  Với mỗi dòng: lấy các KM cấp ITEM hợp lệ, chọn KM giảm nhiều nhất cho dòng đó (mỗi dòng tối đa 1 KM). Giảm dòng không vượt thành tiền dòng.
 
 2.  Tổng sau giảm dòng = Σ(thành tiền − giảm dòng).
