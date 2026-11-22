@@ -38,8 +38,8 @@ import vn.greenmart.sales.service.PosIdempotencyService;
 @SpringBootTest(
     properties = {
         "spring.autoconfigure.exclude=" +
-            "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration," +
-            "org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration",
+            "org.springframework.boot.data.redis.autoconfigure.RedisAutoConfiguration," +
+            "org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration",
         // Tắt health group dùng redis/readiness vì Redis bị excluded trong test này
         "management.endpoint.health.group.readiness.include=readinessState,db",
         "management.endpoint.health.group.liveness.include=livenessState",
@@ -204,6 +204,44 @@ class InventoryServiceTransactionTest {
     void reserve_withoutTransaction_throwsIllegalTransactionState() {
         assertThatThrownBy(() -> inventoryService.reserve(BRANCH_ID, PRODUCT_ID, 1, 999L))
                 .isInstanceOf(IllegalTransactionStateException.class);
+    }
+
+    @Test
+    void batchReservationRequiresTheCallersTransaction() {
+        assertThatThrownBy(() -> inventoryService.tryReserveAll(BRANCH_ID, java.util.Map.of(PRODUCT_ID, 1), 999L))
+                .isInstanceOf(IllegalTransactionStateException.class);
+    }
+
+    @Test
+    @Transactional
+    void batchShortageDoesNotPoisonTheCallersTransactionOrWritePartialStock() {
+        insertFixtures(PRODUCT_ID, 5, 0);
+        insertFixtures(PRODUCT_ID_2, 1, 0);
+        assertThat(inventoryService.tryReserveAll(BRANCH_ID, java.util.Map.of(PRODUCT_ID, 2, PRODUCT_ID_2, 2), 999L))
+                .isFalse();
+        assertThat(jdbc.queryForList("SELECT reserved FROM inventory WHERE branch_id=? ORDER BY product_id", Integer.class, BRANCH_ID))
+                .containsExactly(0, 0);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_transaction", Integer.class)).isZero();
+        assertThat(stockEvents()).isEmpty();
+        assertThat(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()).isTrue();
+        // A valid retry in this same transaction remains possible after the expected shortage.
+        assertThat(inventoryService.tryReserveAll(BRANCH_ID, java.util.Map.of(PRODUCT_ID, 2, PRODUCT_ID_2, 1), 999L))
+                .isTrue();
+        assertThat(jdbc.queryForList("SELECT reserved FROM inventory WHERE branch_id=? ORDER BY product_id", Integer.class, BRANCH_ID))
+                .containsExactly(2, 1);
+    }
+
+    @Test
+    @Transactional
+    void missingStockRowMakesTheWholeBatchUnavailable() {
+        insertFixtures(PRODUCT_ID, 5, 0);
+        insertFixtures(PRODUCT_ID_2, 5, 0);
+        jdbc.update("DELETE FROM inventory WHERE branch_id=? AND product_id=?", BRANCH_ID, PRODUCT_ID_2);
+        assertThat(inventoryService.tryReserveAll(BRANCH_ID, java.util.Map.of(PRODUCT_ID, 2, PRODUCT_ID_2, 1), 999L))
+                .isFalse();
+        assertThat(inventoryService.getAvailable(BRANCH_ID, PRODUCT_ID)).isEqualTo(5);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM inventory_transaction", Integer.class)).isZero();
+        assertThat(stockEvents()).isEmpty();
     }
 
     @Test

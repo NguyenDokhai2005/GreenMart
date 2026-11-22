@@ -161,6 +161,32 @@ describe('catalog #72', () => {
       expect(screen.getByTestId('location').textContent).toContain('page=0');
     },
   );
+  it('trims product searches from input and URL before requesting the API', async () => {
+    await mount('/pos/products?q=%20%20GM001%20%20&page=2');
+    await screen.findByText(product.name);
+    const productCalls = fetchMock.mock.calls.filter(([url]) =>
+      urlOf(url).pathname.endsWith('/products'),
+    );
+    expect(productCalls.every(([url]) => urlOf(url).searchParams.get('q') === 'GM001')).toBe(true);
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toContain('q=GM001'));
+    fireEvent.change(screen.getByLabelText('Tìm sản phẩm'), {
+      target: { value: '  Gạo  ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }));
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([url]) =>
+            urlOf(url).searchParams.get('q') === 'Gạo' &&
+            urlOf(url).searchParams.get('page') === '0',
+        ),
+      ).toBe(true),
+    );
+    fireEvent.change(screen.getByLabelText('Tìm sản phẩm'), { target: { value: '   ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }));
+    await waitFor(() => expect(screen.getByTestId('location').textContent).not.toContain('q='));
+    expect(screen.getByTestId('location').textContent).toContain('page=0');
+  });
   it('Given page/filter URL, When refreshed directly, Then preserves valid filters', async () => {
     await mount('/pos/products?q=GM001&categoryId=1&active=false&page=1&size=10');
     await screen.findByText(product.name);

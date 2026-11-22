@@ -86,6 +86,7 @@ public class PosOrderServiceImpl implements PosOrderService {
             throw AppException.branchForbidden(request.branchId(), "Bạn không có quyền thao tác trên chi nhánh này");
         }
 
+        customerService.lockActivePosCustomer(request.customerId());
         // Tính lại Báo giá & Kiểm tra expectedTotal
         QuoteRequest quoteRequest = new QuoteRequest(
                 request.branchId(),
@@ -120,7 +121,7 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         if (!promoSuccess) {
             Quote updatedQuote = quoteService.calculateQuote(quoteRequest);
-            throw new AppException(ErrorCode.TOTAL_CHANGED, "Khuyến mại đã hết lượt sử dụng, tổng tiền đã thay đổi", Map.of("quote", updatedQuote));
+            throw new AppException(ErrorCode.TOTAL_CHANGED, "Khuyến mại không còn áp dụng, tổng tiền đã thay đổi", Map.of("quote", updatedQuote));
         }
 
         // Kiểm tra xem có sản phẩm ngưng kinh doanh không

@@ -6,7 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -40,8 +40,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration",
+        "spring.autoconfigure.exclude=org.springframework.boot.data.redis.autoconfigure.RedisAutoConfiguration,"
+                + "org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration",
         "management.endpoint.health.group.readiness.include=readinessState,db",
         "management.health.redis.enabled=false"
 })
@@ -49,6 +49,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Testcontainers
 @DisplayName("Issue #259 & #333: [ORD-06/ORD-07] GET /orders và GET /orders/{orderId}")
 class OrderDetailIntegrationTest {
+    // Business-module tests isolate the session registry; auth tests exercise real Redis.
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    vn.greenmart.identity.repository.RefreshTokenStore authSessions;
+
 
     @Container
     static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(PostgresTestImage.IMAGE);
@@ -92,6 +96,8 @@ class OrderDetailIntegrationTest {
 
     @BeforeEach
     void setupFixtures() {
+        org.mockito.Mockito.when(authSessions.isSessionActive(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+
         cleanTestData();
 
         // Chi nhánh

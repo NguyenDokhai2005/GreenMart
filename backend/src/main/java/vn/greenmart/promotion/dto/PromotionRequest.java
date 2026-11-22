@@ -42,7 +42,7 @@ public record PromotionRequest(
     @Min(value = 1, message = "Giới hạn lượt dùng phải lớn hơn hoặc bằng 1")
     Integer usageLimit,
 
-    List<Long> productIds,
-    List<Long> branchIds,
-    List<String> channels
+    List<@NotNull(message = "Phần tử trong productIds không được null") Long> productIds,
+    List<@NotNull(message = "Phần tử trong branchIds không được null") Long> branchIds,
+    List<@NotBlank(message = "Phần tử trong channels không được null hoặc rỗng") String> channels
 ) {}

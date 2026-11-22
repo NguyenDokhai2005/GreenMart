@@ -10,9 +10,8 @@ import org.springframework.web.bind.annotation.*;
 import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
 import vn.greenmart.common.exception.ValidationErrorDetail;
-import vn.greenmart.integration.channel.ChannelSignatures;
+import vn.greenmart.integration.channel.ChannelEventSignatures;
 import vn.greenmart.sales.dto.ChannelOrderEventRequest;
-import vn.greenmart.sales.service.OnlineOrderService;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -24,8 +23,8 @@ public class ChannelOrderEventController {
 
     private static final int MAX_BODY = 1024 * 1024;
 
-    private final ChannelSignatures signatures;
-    private final OnlineOrderService onlineOrderService;
+    private final ChannelEventSignatures signatures;
+    private final ChannelEventProcessor processor;
     private final ObjectMapper mapper;
     private final Validator validator;
 
@@ -34,15 +33,16 @@ public class ChannelOrderEventController {
             @PathVariable("channelCode") String channelCode,
             @PathVariable("externalOrderId") String externalOrderId,
             HttpServletRequest request,
-            @RequestHeader(value = "X-Signature", required = false) String signature
+            @RequestHeader(value = "X-Signature", required = false) String signature,
+            @RequestHeader(value = "X-Event-ID", required = false) String eventId,
+            @RequestHeader(value = "X-Event-Timestamp", required = false) String timestamp
     ) throws IOException {
         byte[] raw = request.getInputStream().readNBytes(MAX_BODY + 1);
         if (raw.length > MAX_BODY) {
             throw new AppException(ErrorCode.VALIDATION_ERROR, "Body vượt 1 MB");
         }
-        if (!signatures.valid(channelCode, raw, signature)) {
-            throw new AppException(ErrorCode.INVALID_SIGNATURE);
-        }
+        var verified = signatures.verify(channelCode, request.getMethod(), request.getRequestURI(), raw,
+                eventId, timestamp, signature);
 
         ChannelOrderEventRequest eventRequest;
         try {
@@ -65,7 +65,7 @@ public class ChannelOrderEventController {
             throw new AppException(ErrorCode.VALIDATION_ERROR, ErrorCode.VALIDATION_ERROR.getDefaultMessage(), errors);
         }
 
-        ChannelOrderIntake.Ack ack = onlineOrderService.handleChannelEvent(channelCode, externalOrderId, eventRequest);
+        ChannelOrderIntake.Ack ack = processor.receive(channelCode, externalOrderId, eventRequest, verified);
         return ResponseEntity.ok(ack);
     }
 }
