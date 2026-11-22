@@ -25,6 +25,7 @@ import {
 import type { StockShortage } from './posErrorDetails';
 import PosCheckoutDialog from './PosCheckoutDialog';
 import PosCustomerPanel from './PosCustomerPanel';
+import { discountMoney, money } from './posMoney';
 import './posSale.css';
 
 type SearchState =
@@ -36,8 +37,6 @@ type QuoteState =
   | { status: 'loading'; key: string }
   | { status: 'ready'; key: string; quote: Quote }
   | { status: 'error'; key: string; error: unknown };
-
-const money = (amount: number) => `${new Intl.NumberFormat('vi-VN').format(amount)} đ`;
 
 function isEditable(target: EventTarget | null) {
   return (
@@ -300,7 +299,7 @@ function PosSaleContent({
   const quotedMoney = (amount: number | undefined) =>
     quote ? money(amount ?? 0) : lines.length === 0 ? money(0) : '—';
   const quotedDiscount = (amount: number | undefined) =>
-    quote ? (amount ? `−${money(amount)}` : money(0)) : lines.length === 0 ? money(0) : '—';
+    quote ? discountMoney(amount ?? 0) : lines.length === 0 ? money(0) : '—';
 
   function onSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'Escape') {
@@ -541,7 +540,7 @@ function PosSaleContent({
                       {money(quotedLine?.unitPrice ?? line.product.salePrice)}
                     </span>
                     <span className="pos-sale__amount pos-sale__discount" data-label="Giảm">
-                      {quotedLine?.discount ? `−${money(quotedLine.discount)}` : '—'}
+                      {quotedLine?.discount ? discountMoney(quotedLine.discount) : '—'}
                     </span>
                     <strong className="pos-sale__amount" data-label="Thành tiền">
                       {money(quotedLine?.lineTotal ?? line.product.salePrice * line.quantity)}
