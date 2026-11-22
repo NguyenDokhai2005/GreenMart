@@ -39,6 +39,8 @@ export default function PosReturnsPage() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [formError, setFormError] = useState('');
+  const [reasonError, setReasonError] = useState('');
+  const [itemErrors, setItemErrors] = useState<Record<number, string>>({});
   const [revision, setRevision] = useState(0);
   const detailRequest = useRef(0);
   const requestKey = `${branchId}:${query}:${revision}`;
@@ -101,13 +103,21 @@ export default function PosReturnsPage() {
     condition: ReturnItemRequest['condition'],
   ) {
     setItems((current) => ({ ...current, [orderItemId]: { orderItemId, quantity, condition } }));
+    setItemErrors((current) => {
+      const next = { ...current };
+      delete next[orderItemId];
+      return next;
+    });
   }
 
   async function saveDraft() {
     if (!order || !branchId) return;
     const selected = Object.values(items).filter((item) => item.quantity > 0);
+    setReasonError('');
+    setItemErrors({});
+    setFormError('');
     if (reason.trim().length < 3 || reason.trim().length > 255) {
-      setFormError('Lý do trả hàng phải dài từ 3 đến 255 ký tự.');
+      setReasonError('Lý do trả hàng phải dài từ 3 đến 255 ký tự.');
       return;
     }
     if (selected.length === 0) {
@@ -145,7 +155,20 @@ export default function PosReturnsPage() {
       setReason('');
       setNotice(`Đã tạo phiếu nháp ${created.code}. Quản lý chi nhánh cần duyệt.`);
     } catch (error) {
-      setFormError(mapErrorToState(error).message ?? 'Không thể tạo phiếu trả hàng.');
+      const state = mapErrorToState(error);
+      if (state.kind === 'form') {
+        setReasonError(state.fieldErrors.reason ?? '');
+        const nextItemErrors: Record<number, string> = {};
+        selected.forEach((item, index) => {
+          const message = state.fieldErrors[`items[${index}].quantity`];
+          if (message) nextItemErrors[item.orderItemId] = message;
+        });
+        setItemErrors(nextItemErrors);
+        if (!state.fieldErrors.reason && Object.keys(nextItemErrors).length === 0)
+          setFormError(state.message);
+      } else {
+        setFormError(state.message ?? 'Không thể tạo phiếu trả hàng.');
+      }
     } finally {
       setBusy(false);
     }
@@ -280,7 +303,9 @@ export default function PosReturnsPage() {
                               items[item.id]?.condition ?? 'RESELLABLE',
                             )
                           }
+                          aria-invalid={itemErrors[item.id] ? true : undefined}
                         />
+                        {itemErrors[item.id] && <small role="alert">{itemErrors[item.id]}</small>}
                       </td>
                       <td>
                         <select
@@ -305,7 +330,11 @@ export default function PosReturnsPage() {
               <Input
                 label="Lý do trả hàng"
                 value={reason}
-                onChange={(event) => setReason(event.target.value)}
+                onChange={(event) => {
+                  setReason(event.target.value);
+                  setReasonError('');
+                }}
+                error={reasonError}
               />
               <Button disabled={busy} onClick={() => void saveDraft()}>
                 Tạo phiếu trả hàng

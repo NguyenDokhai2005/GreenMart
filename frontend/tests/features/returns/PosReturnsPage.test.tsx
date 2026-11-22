@@ -144,4 +144,18 @@ describe('POS returns', () => {
     expect(screen.getByRole('cell', { name: '1' })).toBeTruthy();
     expect((screen.getByLabelText('Số lượng trả Sữa') as HTMLInputElement).max).toBe('1');
   });
+  it('shows reason validation beside the field without sending a request', async () => {
+    render(<PosReturnsPage />);
+    fireEvent.change(screen.getByLabelText('Mã đơn hoặc số điện thoại'), {
+      target: { value: order.code },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Tìm đơn' }));
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(order.code) }));
+    await screen.findByText('Đơn ' + order.code);
+    fireEvent.change(screen.getByLabelText('Số lượng trả Sữa'), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText('Lý do trả hàng'), { target: { value: 'x' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo phiếu trả hàng' }));
+    expect(screen.getByText('Lý do trả hàng phải dài từ 3 đến 255 ký tự.')).toBeTruthy();
+    expect(createReturn).not.toHaveBeenCalled();
+  });
 });
