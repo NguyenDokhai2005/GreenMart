@@ -139,7 +139,10 @@ describe('POS checkout', () => {
     fireEvent.change(cash, { target: { value: '20000' } });
     expect(screen.getByText('Tiền khách đưa nhỏ hơn tổng thanh toán.')).toBeTruthy();
     expect((confirm as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.change(cash, { target: { value: '40000' } });
+    fireEvent.change(cash, { target: { value: '40,000' } });
+    expect((confirm as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(cash, { target: { value: '40.000' } });
+    expect(screen.getByText('Số tiền ghi nhận: 40.000 đ')).toBeTruthy();
     expect(screen.getByText('8.000 đ')).toBeTruthy();
     fireEvent.click(confirm);
     await waitFor(() => expect(completePosOrder).toHaveBeenCalledTimes(1));
