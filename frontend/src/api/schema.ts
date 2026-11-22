@@ -945,7 +945,7 @@ export interface paths {
     put?: never;
     /**
      * Tạo chương trình (Nháp)
-     * @description Tạo ở DRAFT (PRM-01). `productIds` bắt buộc với `level = ITEM`. `branchIds`, `channels` rỗng = áp mọi chi nhánh/kênh.
+     * @description Tạo ở DRAFT (PRM-01). `productIds` bắt buộc với `level = ITEM`; `minQuantity` chỉ dùng với ITEM, bỏ trống = 1. `branchIds`, `channels` rỗng = áp mọi chi nhánh/kênh.
      */
     post: operations['createPromotion'];
     delete?: never;
@@ -2253,12 +2253,12 @@ export interface components {
       level: components['schemas']['PromotionLevel'];
       /**
        * Format: int64
-       * @description PERCENT: 1–100 (%); AMOUNT: số tiền VND
+       * @description PERCENT: 1–100 (%); AMOUNT: số tiền VND. ITEM-AMOUNT giảm trên mỗi đơn vị: giảm dòng = min(value × quantity, unitPrice × quantity). ORDER-AMOUNT giảm một lần mỗi đơn (#425).
        */
       value: number;
       /**
        * Format: int64
-       * @description Mức giảm tối đa, chỉ với PERCENT
+       * @description Mức giảm tối đa, chỉ với PERCENT. Với ITEM là trần cho cả dòng, không nhân với số lượng: giảm dòng = min(floor(lineTotal × value / 100), maxDiscount).
        */
       maxDiscount?: number | null;
       /**
@@ -2266,6 +2266,8 @@ export interface components {
        * @description Tổng sau giảm dòng tối thiểu, chỉ với ORDER
        */
       minOrder?: number | null;
+      /** @description Số lượng tối thiểu trên một dòng SKU, chỉ với ITEM; bỏ trống = 1. Không gộp số lượng của SKU khác để đủ ngưỡng. Gửi kèm level = ORDER trả 400 VALIDATION_ERROR (#425). */
+      minQuantity?: number | null;
       /** Format: date-time */
       startAt: string;
       /**
@@ -2275,7 +2277,7 @@ export interface components {
       endAt: string;
       /** @description Tổng lượt dùng tối đa (BR-08); null = không giới hạn */
       usageLimit?: number | null;
-      /** @description Bắt buộc, ít nhất 1 với ITEM; bỏ trống với ORDER */
+      /** @description Bắt buộc, ít nhất 1 với ITEM; bỏ trống với ORDER. Phạm vi theo danh mục (categoryIds) chưa hỗ trợ ở v1. */
       productIds?: number[];
       /** @description Rỗng = mọi chi nhánh */
       branchIds?: number[];
@@ -2294,6 +2296,8 @@ export interface components {
       maxDiscount?: number | null;
       /** Format: int64 */
       minOrder?: number | null;
+      /** @description ITEM: số lượng tối thiểu trên một dòng (mặc định 1); ORDER: null */
+      minQuantity?: number | null;
       /** Format: date-time */
       startAt: string;
       /** Format: date-time */
