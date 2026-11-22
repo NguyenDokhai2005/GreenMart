@@ -367,8 +367,8 @@ class PromotionIntegrationTest {
               "type": "PERCENT",
               "level": "ITEM",
               "value": 10,
-              "startAt": "2026-11-19T00:00:00Z",
-              "endAt": "2026-11-20T00:00:00Z",
+              "startAt": "2030-11-19T00:00:00Z",
+              "endAt": "2030-11-20T00:00:00Z",
               "productIds": [701],
               "branchIds": [701],
               "channels": ["POS"]
@@ -390,8 +390,8 @@ class PromotionIntegrationTest {
                       "type": "PERCENT",
                       "level": "ITEM",
                       "value": 10,
-                      "startAt": "2026-11-19T00:00:00Z",
-                      "endAt": "2026-11-20T00:00:00Z",
+                      "startAt": "2030-11-19T00:00:00Z",
+                      "endAt": "2030-11-20T00:00:00Z",
                       "productIds": [701],
                       "branchIds": [701],
                       "channels": [null]
@@ -403,8 +403,8 @@ class PromotionIntegrationTest {
                       "type": "PERCENT",
                       "level": "ITEM",
                       "value": 10,
-                      "startAt": "2026-11-19T00:00:00Z",
-                      "endAt": "2026-11-20T00:00:00Z",
+                      "startAt": "2030-11-19T00:00:00Z",
+                      "endAt": "2030-11-20T00:00:00Z",
                       "productIds": [null],
                       "branchIds": [701],
                       "channels": ["POS"]
@@ -416,8 +416,8 @@ class PromotionIntegrationTest {
                       "type": "PERCENT",
                       "level": "ITEM",
                       "value": 10,
-                      "startAt": "2026-11-19T00:00:00Z",
-                      "endAt": "2026-11-20T00:00:00Z",
+                      "startAt": "2030-11-19T00:00:00Z",
+                      "endAt": "2030-11-20T00:00:00Z",
                       "productIds": [701],
                       "branchIds": [null],
                       "channels": ["POS"]
@@ -468,8 +468,8 @@ class PromotionIntegrationTest {
               "type": "PERCENT",
               "level": "ORDER",
               "value": 10,
-              "startAt": "2026-11-19T00:00:00Z",
-              "endAt": "2026-11-20T00:00:00Z",
+              "startAt": "2030-11-19T00:00:00Z",
+              "endAt": "2030-11-20T00:00:00Z",
               "usageLimit": 10
             }
         """;
@@ -487,8 +487,8 @@ class PromotionIntegrationTest {
               "type": "PERCENT",
               "level": "ORDER",
               "value": 101,
-              "startAt": "2026-11-19T00:00:00Z",
-              "endAt": "2026-11-20T00:00:00Z"
+              "startAt": "2030-11-19T00:00:00Z",
+              "endAt": "2030-11-20T00:00:00Z"
             }
         """;
         // 2. AMOUNT kèm maxDiscount -> field: maxDiscount
@@ -499,8 +499,8 @@ class PromotionIntegrationTest {
               "level": "ORDER",
               "value": 10000,
               "maxDiscount": 1000,
-              "startAt": "2026-11-19T00:00:00Z",
-              "endAt": "2026-11-20T00:00:00Z"
+              "startAt": "2030-11-19T00:00:00Z",
+              "endAt": "2030-11-20T00:00:00Z"
             }
         """;
         // 3a. endAt == startAt -> field: endAt
@@ -510,8 +510,8 @@ class PromotionIntegrationTest {
               "type": "AMOUNT",
               "level": "ORDER",
               "value": 10000,
-              "startAt": "2026-11-19T00:00:00Z",
-              "endAt": "2026-11-19T00:00:00Z"
+              "startAt": "2030-11-19T00:00:00Z",
+              "endAt": "2030-11-19T00:00:00Z"
             }
         """;
         // 3b. endAt < startAt -> field: endAt
@@ -521,8 +521,8 @@ class PromotionIntegrationTest {
               "type": "AMOUNT",
               "level": "ORDER",
               "value": 10000,
-              "startAt": "2026-11-20T00:00:00Z",
-              "endAt": "2026-11-19T00:00:00Z"
+              "startAt": "2030-11-20T00:00:00Z",
+              "endAt": "2030-11-19T00:00:00Z"
             }
         """;
 
@@ -562,8 +562,8 @@ class PromotionIntegrationTest {
               "type": "PERCENT",
               "level": "ORDER",
               "value": 10,
-              "startAt": "2026-11-19T00:00:00Z",
-              "endAt": "2026-11-20T00:00:00Z",
+              "startAt": "2030-11-19T00:00:00Z",
+              "endAt": "2030-11-20T00:00:00Z",
               "usageLimit": 4
             }
         """;
@@ -585,8 +585,8 @@ class PromotionIntegrationTest {
               "type": "PERCENT",
               "level": "ORDER",
               "value": 100,
-              "startAt": "2026-11-19T00:00:00Z",
-              "endAt": "2026-11-20T00:00:00Z",
+              "startAt": "2030-11-19T00:00:00Z",
+              "endAt": "2030-11-20T00:00:00Z",
               "usageLimit": 5
             }
         """;
