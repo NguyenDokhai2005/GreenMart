@@ -111,3 +111,20 @@ it('loads another page of receipts using the API page parameter', async () => {
   );
   expect(await screen.findByText('Trang 2/3')).toBeTruthy();
 });
+
+it('searches receipts on the server by order code or customer phone', async () => {
+  listOrders.mockResolvedValue({ content: [order], totalPages: 3 });
+  renderPage();
+  fireEvent.click(await screen.findByRole('button', { name: 'Sau' }));
+  await screen.findByText('Trang 2/3');
+  fireEvent.change(screen.getByRole('textbox', { name: 'Tìm hóa đơn' }), {
+    target: { value: '  0900000000  ' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }));
+  await waitFor(() =>
+    expect(listOrders).toHaveBeenLastCalledWith(
+      { branchId: 1, channel: 'POS', q: '0900000000', page: 0, size: 20 },
+      expect.any(AbortSignal),
+    ),
+  );
+});
