@@ -161,7 +161,10 @@ export interface paths {
      */
     get: operations['listCategories'];
     put?: never;
-    /** Tạo danh mục */
+    /**
+     * Tạo danh mục
+     * @description Tên chuẩn hóa NFC, trim/gộp Unicode whitespace. Không trùng tên khi bỏ phân biệt hoa/thường trong cùng parentId, kể cả danh mục gốc; giữ dấu tiếng Việt. Trùng trả 409 CONFLICT.
+     */
     post: operations['createCategory'];
     delete?: never;
     options?: never;
@@ -179,7 +182,10 @@ export interface paths {
       cookie?: never;
     };
     get?: never;
-    /** Sửa danh mục */
+    /**
+     * Sửa danh mục
+     * @description Cùng quy tắc chuẩn hóa và duy nhất như tạo; đổi parentId cũng kiểm trùng tại cấp đích, không tự gộp danh mục.
+     */
     put: operations['updateCategory'];
     post?: never;
     /**
@@ -1393,10 +1399,13 @@ export interface components {
       parentId?: number | null;
     };
     CategoryRequest: {
+      /** @description Chuẩn hóa NFC, trim và gộp Unicode whitespace trước validation. Duy nhất không phân biệt hoa/thường trong cùng parentId (gồm root), giữ dấu; khác parent được trùng. */
       name: string;
       /** Format: int64 */
       parentId?: number | null;
     };
+    /** @description SKU kênh demo WEB/MARKET: trim Unicode whitespace ở ngoài trước validation; giữ case, không khoảng trắng trong hoặc <>. Mapping và lookup dùng cùng quy tắc; không thay quy tắc SKU sản phẩm nội bộ. */
+    ExternalSku: string;
     Product: {
       /**
        * Format: int64
@@ -2006,7 +2015,7 @@ export interface components {
         phone: components['schemas']['Phone'];
       };
       items: {
-        externalSku: string;
+        externalSku: components['schemas']['ExternalSku'];
         quantity: number;
         unitPrice: components['schemas']['Money'];
       }[];
@@ -2043,7 +2052,7 @@ export interface components {
     };
     ChannelStockUpdate: {
       items: {
-        externalSku: string;
+        externalSku: components['schemas']['ExternalSku'];
         /** @description Σ khả dụng các CN phục vụ kênh − safety_stock, không âm (BR-15) */
         available: number;
         /**
@@ -2880,6 +2889,7 @@ export interface operations {
       401: components['responses']['Unauthorized'];
       403: components['responses']['Forbidden'];
       404: components['responses']['NotFound'];
+      409: components['responses']['Conflict'];
     };
   };
   updateCategory: {
@@ -2910,6 +2920,7 @@ export interface operations {
       401: components['responses']['Unauthorized'];
       403: components['responses']['Forbidden'];
       404: components['responses']['NotFound'];
+      409: components['responses']['Conflict'];
       422: components['responses']['BusinessRule'];
     };
   };
@@ -3803,7 +3814,7 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': {
-          externalSku: string;
+          externalSku: components['schemas']['ExternalSku'];
         };
       };
     };

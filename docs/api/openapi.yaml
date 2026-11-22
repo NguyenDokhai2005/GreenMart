@@ -325,6 +325,7 @@ paths:
     post:
       tags: [Categories]
       summary: Tạo danh mục
+      description: Tên chuẩn hóa NFC, trim/gộp Unicode whitespace. Không trùng tên khi bỏ phân biệt hoa/thường trong cùng parentId, kể cả danh mục gốc; giữ dấu tiếng Việt. Trùng trả 409 CONFLICT.
       operationId: createCategory
       x-roles: [OWNER]
       requestBody:
@@ -342,12 +343,14 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /categories/{categoryId}:
     parameters:
       - $ref: '#/components/parameters/CategoryId'
     put:
       tags: [Categories]
       summary: Sửa danh mục
+      description: Cùng quy tắc chuẩn hóa và duy nhất như tạo; đổi parentId cũng kiểm trùng tại cấp đích, không tự gộp danh mục.
       operationId: updateCategory
       x-roles: [OWNER]
       requestBody:
@@ -365,6 +368,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/BusinessRule' }
     delete:
       tags: [Categories]
@@ -1102,7 +1106,7 @@ paths:
               type: object
               required: [externalSku]
               properties:
-                externalSku: { type: string, minLength: 1, maxLength: 60 }
+                externalSku: { $ref: '#/components/schemas/ExternalSku' }
       responses:
         '204': { description: Đã lưu ánh xạ }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -2387,8 +2391,15 @@ components:
       type: object
       required: [name]
       properties:
-        name: { type: string, minLength: 1, maxLength: 120 }
+        name: { type: string, minLength: 1, maxLength: 120, description: 'Chuẩn hóa NFC, trim và gộp Unicode whitespace trước validation. Duy nhất không phân biệt hoa/thường trong cùng parentId (gồm root), giữ dấu; khác parent được trùng.' }
         parentId: { type: integer, format: int64, nullable: true }
+
+    ExternalSku:
+      type: string
+      minLength: 1
+      maxLength: 60
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,59}$'
+      description: 'SKU kênh demo WEB/MARKET: trim Unicode whitespace ở ngoài trước validation; giữ case, không khoảng trắng trong hoặc <>. Mapping và lookup dùng cùng quy tắc; không thay quy tắc SKU sản phẩm nội bộ.'
 
     # ---------- Product
     Product:
@@ -2963,7 +2974,7 @@ components:
             type: object
             required: [externalSku, quantity, unitPrice]
             properties:
-              externalSku: { type: string, maxLength: 60 }
+              externalSku: { $ref: '#/components/schemas/ExternalSku' }
               quantity: { type: integer, minimum: 1, maximum: 9999 }
               unitPrice: { $ref: '#/components/schemas/Money' }
         shippingFee: { allOf: [{ $ref: '#/components/schemas/Money' }], description: 'Chỉ để đối chiếu, không lưu' }
@@ -3004,7 +3015,7 @@ components:
             type: object
             required: [externalSku, available, version]
             properties:
-              externalSku: { type: string }
+              externalSku: { $ref: '#/components/schemas/ExternalSku' }
               available: { type: integer, minimum: 0, description: 'Σ khả dụng các CN phục vụ kênh − safety_stock, không âm (BR-15)' }
               version: { type: integer, format: int64, description: Kênh bỏ qua bản có version cũ hơn }
     ChannelOrderStatusUpdate:

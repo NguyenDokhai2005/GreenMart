@@ -13,6 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -26,11 +27,14 @@ import vn.greenmart.sales.dto.OrderLineRequest;
 import vn.greenmart.sales.dto.QuoteRequest;
 
 import java.time.Instant;
+import java.time.Clock;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.when;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -66,8 +70,13 @@ class PromotionIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @MockitoBean
+    private Clock clock;
+
     @BeforeEach
     void setUp() {
+        when(clock.instant()).thenAnswer(invocation -> Instant.now());
+        when(clock.getZone()).thenReturn(ZoneOffset.UTC);
         cleanData();
         jdbcTemplate.execute("""
             INSERT INTO sales_channel (code, name, safety_stock)
@@ -361,6 +370,8 @@ class PromotionIntegrationTest {
     @WithMockUser(username = "701", roles = "OWNER")
     @DisplayName("Issue #406 Regression: Phần tử null trong channels, productIds, branchIds khi POST/PUT trả 400 VALIDATION_ERROR và không đổi DB")
     void testIssue406_NullElementsInScopeLists_PostAndPut_Return400ValidationError() throws Exception {
+        // Historical fixture dates remain valid independently of the day this regression is run.
+        when(clock.instant()).thenReturn(Instant.parse("2026-11-19T12:00:00Z"));
         String validDraftBody = """
             {
               "code": "QA-NULL-CONTROL",
@@ -459,6 +470,7 @@ class PromotionIntegrationTest {
     @WithMockUser(username = "701", roles = "OWNER")
     @DisplayName("Regression 4 quy tắc nghiệp vụ: PERCENT>100, AMOUNT+maxDiscount, endAt<=startAt, usageLimit<usedCount -> 400 VALIDATION_ERROR đúng field & giữ nguyên DB/audit")
     void testBusinessRulesRegression_400WithExactField_AndValidBoundaryValues_Return200() throws Exception {
+        when(clock.instant()).thenReturn(Instant.parse("2026-11-19T12:00:00Z"));
         record RuleCase(String expectedField, String body) {}
 
         // Tạo 1 KM DRAFT làm control cho PUT

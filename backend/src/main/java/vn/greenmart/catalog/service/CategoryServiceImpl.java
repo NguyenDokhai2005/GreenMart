@@ -6,6 +6,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.greenmart.catalog.domain.Category;
+import vn.greenmart.catalog.domain.CategoryNames;
 import vn.greenmart.catalog.dto.CategoryRequest;
 import vn.greenmart.catalog.dto.CategoryResponse;
 import vn.greenmart.catalog.repository.CategoryRepository;
@@ -41,13 +42,16 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional
     public CategoryResponse createCategory(CategoryRequest request) {
         SecurityUtils.requireRole("OWNER");
+        acquireCategoryTreeLock();
+        String name = validatedName(request.name());
 
         if (request.parentId() != null && !categoryRepository.existsById(request.parentId())) {
             throw new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy danh mục cha với id: " + request.parentId());
         }
 
         Category category = new Category();
-        category.setName(request.name().trim());
+        ensureUniqueName(name, request.parentId(), null);
+        category.setName(name);
         category.setParentId(request.parentId());
 
         return CategoryResponse.from(categoryRepository.save(category));
@@ -59,10 +63,8 @@ public class CategoryServiceImpl implements CategoryService {
         SecurityUtils.requireRole("OWNER");
 
         Long newParentId = request.parentId();
-        if (newParentId != null && !newParentId.equals(id)) {
-            // Khóa tuần tự theo transaction khi thay đổi quan hệ cha-con để ngăn race condition tạo vòng lặp
-            acquireCategoryTreeLock();
-        }
+        // Serialize all tree/name changes, including moves to the root.
+        acquireCategoryTreeLock();
 
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy danh mục với id: " + id));
@@ -77,7 +79,9 @@ public class CategoryServiceImpl implements CategoryService {
             checkCycle(id, newParentId);
         }
 
-        category.setName(request.name().trim());
+        String name = validatedName(request.name());
+        ensureUniqueName(name, newParentId, id);
+        category.setName(name);
         category.setParentId(newParentId);
 
         return CategoryResponse.from(categoryRepository.save(category));
@@ -87,6 +91,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional
     public void deleteCategory(Long id) {
         SecurityUtils.requireRole("OWNER");
+        acquireCategoryTreeLock();
 
         if (!categoryRepository.existsById(id)) {
             throw new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy danh mục với id: " + id);
@@ -101,6 +106,20 @@ public class CategoryServiceImpl implements CategoryService {
         }
 
         categoryRepository.deleteById(id);
+    }
+
+    private String validatedName(String name) {
+        String normalized = CategoryNames.normalize(name);
+        if (normalized == null || normalized.isEmpty() || normalized.length() > 120) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Tên danh mục phải có 1–120 ký tự sau chuẩn hóa");
+        }
+        return normalized;
+    }
+
+    private void ensureUniqueName(String name, Long parentId, Long excludedId) {
+        if (categoryRepository.existsByNormalizedName(name, parentId, excludedId)) {
+            throw new AppException(ErrorCode.CONFLICT, "Tên danh mục đã tồn tại trong cùng danh mục cha");
+        }
     }
 
     private void acquireCategoryTreeLock() {
