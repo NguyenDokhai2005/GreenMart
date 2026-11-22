@@ -26,6 +26,7 @@ interface PosCheckoutDialogProps {
   customerId?: number;
   lines: CartLine[];
   quote: Quote;
+  manualDiscount?: components['schemas']['ManualDiscount'];
   onClose: () => void;
   onCompleted: () => void;
   onRequote: () => void;
@@ -65,6 +66,7 @@ export default function PosCheckoutDialog({
   customerId,
   lines,
   quote,
+  manualDiscount,
   onClose,
   onCompleted,
   onRequote,
@@ -118,6 +120,7 @@ export default function PosCheckoutDialog({
           branchId,
           ...(customerId === undefined ? {} : { customerId }),
           items: lines.map(({ product, quantity }) => ({ productId: product.id, quantity })),
+          ...(manualDiscount ? { manualDiscount } : {}),
           payment: method === 'CASH' ? { method, cashReceived: received! } : { method },
           expectedTotal: quote.total,
         },
