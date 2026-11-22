@@ -3,6 +3,7 @@ package vn.greenmart.catalog.service;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -25,16 +26,14 @@ import vn.greenmart.common.pagination.PageUtils;
 import vn.greenmart.common.security.SecurityUtils;
 import vn.greenmart.inventory.service.InventoryService;
 
-import java.text.Normalizer;
 import java.util.ArrayDeque;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -42,7 +41,6 @@ import java.util.stream.Collectors;
 public class ProductServiceImpl implements ProductService {
 
     private static final Set<String> ALLOWED_SORT_FIELDS = Set.of("id", "sku", "name", "salePrice", "costPrice", "active");
-    private static final Pattern DIACRITICS_PATTERN = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
@@ -54,17 +52,21 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public PageResponse<ProductResponse> listProducts(String q, Long categoryId, Boolean active, Integer page, Integer size, HttpServletRequest request) {
         String[] sortParams = (request != null) ? request.getParameterValues("sort") : null;
-        Pageable pageable = PageUtils.createPageable(page, size, sortParams, Sort.by(Sort.Direction.ASC, "id"), ALLOWED_SORT_FIELDS);
+        Pageable rawPageable = PageUtils.createPageable(page, size, sortParams, Sort.by(Sort.Direction.ASC, "id"), ALLOWED_SORT_FIELDS);
+        Sort nativeSort = Sort.by(rawPageable.getSort().stream()
+                .map(order -> new Sort.Order(order.getDirection(), toSnakeCaseColumn(order.getProperty())))
+                .toList());
+        Pageable pageable = PageRequest.of(rawPageable.getPageNumber(), rawPageable.getPageSize(), nativeSort);
 
-        Set<Long> categoryIds = null;
+        boolean hasCategoryIds = false;
+        Collection<Long> categoryIds = List.of(-1L);
         if (categoryId != null) {
-            categoryIds = getAllSubCategoryIds(categoryId);
+            Set<Long> resolvedIds = getAllSubCategoryIds(categoryId);
+            hasCategoryIds = true;
+            categoryIds = resolvedIds.isEmpty() ? List.of(-1L) : resolvedIds;
         }
 
-        String nfcQuery = normalizeUnicodeNfc(q);
-        String normalizedQuery = normalizeVietnameseSearch(nfcQuery);
-
-        Page<Product> productPage = productRepository.searchProducts(categoryIds, active, nfcQuery, normalizedQuery, pageable);
+        Page<Product> productPage = productRepository.searchProducts(hasCategoryIds, categoryIds, active, q, pageable);
         boolean canViewCost = SecurityUtils.canViewCostPrice();
 
         Set<Long> catIds = productPage.getContent().stream()
@@ -79,6 +81,15 @@ public class ProductServiceImpl implements ProductService {
                 .toList();
 
         return PageResponse.of(dtos, productPage);
+    }
+
+    private String toSnakeCaseColumn(String property) {
+        return switch (property) {
+            case "salePrice" -> "sale_price";
+            case "costPrice" -> "cost_price";
+            case "active" -> "is_active";
+            default -> property;
+        };
     }
 
     @Override
@@ -102,7 +113,7 @@ public class ProductServiceImpl implements ProductService {
         Product p = new Product();
         p.setSku(sku);
         p.setBarcode(barcode);
-        p.setName(normalizeUnicodeNfc(request.name().trim()));
+        p.setName(request.name().trim());
         p.setUnit(request.unit().trim());
         p.setCategoryId(category.getId());
         p.setSalePrice(request.salePrice());
@@ -156,7 +167,7 @@ public class ProductServiceImpl implements ProductService {
 
         p.setSku(sku);
         p.setBarcode(barcode);
-        p.setName(normalizeUnicodeNfc(request.name().trim()));
+        p.setName(request.name().trim());
         p.setUnit(request.unit().trim());
         p.setCategoryId(category.getId());
         p.setSalePrice(request.salePrice());
@@ -193,25 +204,6 @@ public class ProductServiceImpl implements ProductService {
         String categoryName = categoryRepository.findById(p.getCategoryId()).map(Category::getName).orElse("");
         ProductResponse productDto = ProductResponse.of(p, categoryName, SecurityUtils.canViewCostPrice());
         return new ProductLookupResponse(productDto, branchId, available);
-    }
-
-    private static String normalizeUnicodeNfc(String input) {
-        if (input == null) {
-            return null;
-        }
-        return Normalizer.normalize(input, Normalizer.Form.NFC);
-    }
-
-    private static String normalizeVietnameseSearch(String input) {
-        if (input == null || input.isEmpty()) {
-            return input;
-        }
-        String decomposed = Normalizer.normalize(input, Normalizer.Form.NFD);
-        String withoutMarks = DIACRITICS_PATTERN.matcher(decomposed).replaceAll("");
-        return withoutMarks
-                .replace('đ', 'd')
-                .replace('Đ', 'D')
-                .toLowerCase(Locale.ROOT);
     }
 
     private Set<Long> getAllSubCategoryIds(Long rootCategoryId) {

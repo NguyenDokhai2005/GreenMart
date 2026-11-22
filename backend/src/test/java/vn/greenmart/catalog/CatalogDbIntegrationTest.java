@@ -458,52 +458,94 @@ class CatalogDbIntegrationTest {
 
     @Test
     @WithMockUser(username = "2", roles = "CASHIER")
-    void testIssue442_SearchProducts_VietnameseAccentInsensitiveAndUnicodeAndSku_PreservesPagination() {
-        Product p1 = new Product();
-        p1.setSku("TRA-XANH-001");
-        p1.setBarcode("8934588012228");
-        p1.setName("Trà xanh 0 Độ 455ml");
-        p1.setUnit("chai");
-        p1.setCategoryId(catChild.getId());
-        p1.setSalePrice(12000L);
-        p1.setCostPrice(9000L);
-        productRepository.save(p1);
+    void testIssue442_SearchProducts_DbStoredNfdAndNfcAndVietnameseDiacritics_PreservesPaginationAndSecurity() {
+        // Lưu trực tiếp tên dạng tổ hợp NFD (Tra\u0300 xanh) với SKU không chứa từ khóa
+        Product nfdProduct = new Product();
+        nfdProduct.setSku("SKU-BEV-9001");
+        nfdProduct.setBarcode("8934588012228");
+        nfdProduct.setName("Tra\u0300 xanh 0 Độ 455ml");
+        nfdProduct.setUnit("chai");
+        nfdProduct.setCategoryId(catChild.getId());
+        nfdProduct.setSalePrice(12000L);
+        nfdProduct.setCostPrice(9000L);
+        nfdProduct.setActive(true);
+        nfdProduct = productRepository.save(nfdProduct);
 
-        Product p2 = new Product();
-        p2.setSku("DUONG-PHEN-500G");
-        p2.setBarcode("8934588099991");
-        p2.setName("Đường phèn Biên Hòa 500g");
-        p2.setUnit("gói");
-        p2.setCategoryId(catChild.getId());
-        p2.setSalePrice(25000L);
-        p2.setCostPrice(19000L);
-        productRepository.save(p2);
+        // Lưu sản phẩm chứa đ/Đ (cả dạng NFD cho Đường phèn)
+        Product dProduct = new Product();
+        dProduct.setSku("SKU-SUG-9002");
+        dProduct.setBarcode("8934588099991");
+        dProduct.setName(java.text.Normalizer.normalize("Đường phèn Biên Hòa 500g", java.text.Normalizer.Form.NFD));
+        dProduct.setUnit("gói");
+        dProduct.setCategoryId(catChild.getId());
+        dProduct.setSalePrice(25000L);
+        dProduct.setCostPrice(19000L);
+        dProduct.setActive(true);
+        dProduct = productRepository.save(dProduct);
 
-        // 1. Không dấu chữ thường "tra xanh" và có dấu "Trà xanh" và chữ HOA "TRA XANH" trả cùng tập kết quả
-        PageResponse<ProductResponse> noAccent = productService.listProducts("tra xanh", null, null, 0, 20, null);
-        PageResponse<ProductResponse> withAccent = productService.listProducts("Trà xanh", null, null, 0, 20, null);
-        PageResponse<ProductResponse> upperNoAccent = productService.listProducts("TRA XANH", null, null, 0, 20, null);
-
-        assertEquals(1, noAccent.totalElements());
-        assertEquals(1, withAccent.totalElements());
-        assertEquals(1, upperNoAccent.totalElements());
-        assertEquals("TRA-XANH-001", noAccent.content().get(0).sku());
-        assertNull(noAccent.content().get(0).costPrice(), "CASHIER vẫn bị ẩn costPrice");
-
-        // 2. Chữ đ/Đ: "duong phen" và "Đường phèn" và "DUONG PHEN" đều khớp
-        PageResponse<ProductResponse> dLower = productService.listProducts("duong phen", null, null, 0, 20, null);
-        PageResponse<ProductResponse> dUpper = productService.listProducts("Đường phèn", null, null, 0, 20, null);
-        assertEquals(1, dLower.totalElements());
-        assertEquals(1, dUpper.totalElements());
-        assertEquals("DUONG-PHEN-500G", dLower.content().get(0).sku());
-
-        // 3. Tổ hợp Unicode NFD (a + dấu huyền tách rời) vẫn khớp sản phẩm lưu dạng NFC
+        // Đối chiếu 2 chiều Unicode (DB NFD) với "tra xanh", "Trà xanh" (NFC), query NFD và chữ HOA "TRA XANH"
+        String nfcQuery = java.text.Normalizer.normalize("Trà xanh", java.text.Normalizer.Form.NFC);
         String nfdQuery = java.text.Normalizer.normalize("Trà xanh", java.text.Normalizer.Form.NFD);
-        PageResponse<ProductResponse> nfdRes = productService.listProducts(nfdQuery, null, null, 0, 20, null);
-        assertEquals(1, nfdRes.totalElements());
 
-        // 4. Tìm theo SKU & barcode và bộ lọc danh mục vẫn hoạt động bình thường
-        assertEquals(1, productService.listProducts("8934588099991", catRoot.getId(), true, 0, 20, null).totalElements());
-        assertEquals(0, productService.listProducts("tra xanh", 999999L, true, 0, 20, null).totalElements());
+        PageResponse<ProductResponse> resNoAccent = productService.listProducts("tra xanh", catRoot.getId(), true, 0, 10, null);
+        PageResponse<ProductResponse> resNfc = productService.listProducts(nfcQuery, catRoot.getId(), true, 0, 10, null);
+        PageResponse<ProductResponse> resNfd = productService.listProducts(nfdQuery, catRoot.getId(), true, 0, 10, null);
+        PageResponse<ProductResponse> resUpper = productService.listProducts("TRA XANH", catRoot.getId(), true, 0, 10, null);
+
+        assertEquals(1, resNoAccent.totalElements());
+        assertEquals(1, resNfc.totalElements());
+        assertEquals(1, resNfd.totalElements());
+        assertEquals(1, resUpper.totalElements());
+
+        assertEquals(nfdProduct.getId(), resNoAccent.content().get(0).id());
+        assertEquals(nfdProduct.getId(), resNfc.content().get(0).id());
+        assertEquals(nfdProduct.getId(), resNfd.content().get(0).id());
+        assertEquals(nfdProduct.getId(), resUpper.content().get(0).id());
+        assertNull(resNoAccent.content().get(0).costPrice(), "CASHIER không được lộ costPrice");
+
+        // Kiểm tra đ/Đ: "duong phen", "Đường phèn", "DUONG PHEN"
+        assertEquals(dProduct.getId(), productService.listProducts("duong phen", catRoot.getId(), true, 0, 10, null).content().get(0).id());
+        assertEquals(dProduct.getId(), productService.listProducts("Đường phèn", catRoot.getId(), true, 0, 10, null).content().get(0).id());
+        assertEquals(dProduct.getId(), productService.listProducts("DUONG PHEN", catRoot.getId(), true, 0, 10, null).content().get(0).id());
+
+        // Kiểm tra filter active/category và phân trang
+        assertEquals(0, productService.listProducts("tra xanh", catRoot.getId(), false, 0, 10, null).totalElements());
+        assertEquals(0, productService.listProducts("tra xanh", 999999L, true, 0, 10, null).totalElements());
+
+        PageResponse<ProductResponse> page0 = productService.listProducts(null, catRoot.getId(), true, 0, 1, null);
+        PageResponse<ProductResponse> page1 = productService.listProducts("", catRoot.getId(), true, 1, 1, null);
+        assertEquals(2, page0.totalElements());
+        assertEquals(2, page0.totalPages());
+        assertEquals(1, page0.content().size());
+        assertEquals(1, page1.content().size());
+    }
+
+    @Test
+    @WithMockUser(username = "2", roles = "CASHIER")
+    void testIssue442_QueryWithOnlyCombiningMarks_ReturnsZeroResultsInsteadOfAllProducts() {
+        Product p = new Product();
+        p.setSku("SKU-PURE-001");
+        p.setBarcode("8930000001112");
+        p.setName("Sữa tươi nguyên chất");
+        p.setUnit("hộp");
+        p.setCategoryId(catChild.getId());
+        p.setSalePrice(30000L);
+        p.setCostPrice(24000L);
+        productRepository.save(p);
+
+        // q chỉ có 1 combining mark (U+0301) hoặc nhiều combining marks (U+0301 U+0300 U+0303) -> phải trả 0 kết quả
+        PageResponse<ProductResponse> singleMarkRes = productService.listProducts("\u0301", null, null, 0, 20, null);
+        PageResponse<ProductResponse> multiMarkRes = productService.listProducts("\u0301\u0300\u0303", null, null, 0, 20, null);
+
+        assertEquals(0, singleMarkRes.totalElements());
+        assertEquals(0, multiMarkRes.totalElements());
+
+        // Trong khi q null hoặc khoảng trắng vẫn giữ behavior list tất cả sản phẩm
+        assertEquals(1, productService.listProducts(null, null, null, 0, 20, null).totalElements());
+        assertEquals(1, productService.listProducts("   ", null, null, 0, 20, null).totalElements());
+
+        // Tìm theo SKU và barcode vẫn hoạt động bình thường
+        assertEquals(1, productService.listProducts("SKU-PURE-001", null, null, 0, 20, null).totalElements());
+        assertEquals(1, productService.listProducts("8930000001112", null, null, 0, 20, null).totalElements());
     }
 }

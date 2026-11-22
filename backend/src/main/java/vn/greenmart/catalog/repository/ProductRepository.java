@@ -22,25 +22,44 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     Optional<Product> findByBarcode(String barcode);
     Optional<Product> findBySku(String sku);
 
-    @Query("""
-        SELECT p FROM Product p
-        WHERE (:categoryIds IS NULL OR p.categoryId IN :categoryIds)
-          AND (:active IS NULL OR p.active = :active)
-          AND (:q IS NULL OR :q = '' OR (
-              LOWER(p.name) LIKE LOWER(CONCAT('%', :q, '%'))
-              OR CAST(FUNCTION('translate', LOWER(p.name),
-                  'àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ',
-                  'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd') AS String)
-                 LIKE CONCAT('%', :normalizedQ, '%')
-              OR LOWER(p.sku) LIKE LOWER(CONCAT('%', :q, '%'))
-              OR LOWER(COALESCE(p.barcode, '')) LIKE LOWER(CONCAT('%', :q, '%'))
-          ))
-    """)
+    @Query(
+        value = """
+            SELECT p.* FROM product p
+            WHERE (:hasCategoryIds = false OR p.category_id IN (:categoryIds))
+              AND (CAST(:active AS boolean) IS NULL OR p.is_active = CAST(:active AS boolean))
+              AND (
+                  CAST(:q AS text) IS NULL
+                  OR btrim(CAST(:q AS text)) = ''
+                  OR strpos(
+                      regexp_replace(translate(lower(normalize(p.name, NFD)), 'đ', 'd'), U&'[\\0300-\\036f]', '', 'g'),
+                      NULLIF(regexp_replace(translate(lower(normalize(btrim(CAST(:q AS text)), NFD)), 'đ', 'd'), U&'[\\0300-\\036f]', '', 'g'), '')
+                  ) > 0
+                  OR strpos(lower(p.sku), lower(btrim(CAST(:q AS text)))) > 0
+                  OR strpos(lower(COALESCE(p.barcode, '')), lower(btrim(CAST(:q AS text)))) > 0
+              )
+        """,
+        countQuery = """
+            SELECT COUNT(*) FROM product p
+            WHERE (:hasCategoryIds = false OR p.category_id IN (:categoryIds))
+              AND (CAST(:active AS boolean) IS NULL OR p.is_active = CAST(:active AS boolean))
+              AND (
+                  CAST(:q AS text) IS NULL
+                  OR btrim(CAST(:q AS text)) = ''
+                  OR strpos(
+                      regexp_replace(translate(lower(normalize(p.name, NFD)), 'đ', 'd'), U&'[\\0300-\\036f]', '', 'g'),
+                      NULLIF(regexp_replace(translate(lower(normalize(btrim(CAST(:q AS text)), NFD)), 'đ', 'd'), U&'[\\0300-\\036f]', '', 'g'), '')
+                  ) > 0
+                  OR strpos(lower(p.sku), lower(btrim(CAST(:q AS text)))) > 0
+                  OR strpos(lower(COALESCE(p.barcode, '')), lower(btrim(CAST(:q AS text)))) > 0
+              )
+        """,
+        nativeQuery = true
+    )
     Page<Product> searchProducts(
+        @Param("hasCategoryIds") boolean hasCategoryIds,
         @Param("categoryIds") Collection<Long> categoryIds,
         @Param("active") Boolean active,
         @Param("q") String q,
-        @Param("normalizedQ") String normalizedQ,
         Pageable pageable
     );
 }
