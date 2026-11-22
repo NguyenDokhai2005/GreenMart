@@ -71,6 +71,25 @@ function PosSaleContent({
 }: PosPageProps & { branchId: number; branchCode: string; draftKey: string }) {
   const [lines, dispatch] = useReducer(cartReducer, draftKey, readPosCartDraft);
   useEffect(() => writePosCartDraft(draftKey, lines), [draftKey, lines]);
+  const auth = useAuth();
+  const canDiscount =
+    auth.state.status === 'authenticated' && auth.state.user.role === 'BRANCH_MANAGER';
+  const [manualAmount, setManualAmount] = useState('');
+  const [manualReason, setManualReason] = useState('');
+  const discountAmount = manualAmount === '' ? 0 : Number(manualAmount);
+  const manualInvalid =
+    manualAmount !== '' &&
+    (!/^\d+$/.test(manualAmount) ||
+      !Number.isSafeInteger(discountAmount) ||
+      discountAmount < 0 ||
+      (discountAmount > 0 && !manualReason.trim()));
+  const manualDiscount = useMemo(
+    () =>
+      canDiscount && discountAmount > 0 && !manualInvalid
+        ? { amount: discountAmount, reason: manualReason.trim() }
+        : undefined,
+    [canDiscount, discountAmount, manualInvalid, manualReason],
+  );
   const [quantityDrafts, setQuantityDrafts] = useState<Record<number, string>>({});
   const invalidQuantity = Object.values(quantityDrafts).some(
     (value) => !/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 9999,
@@ -93,8 +112,9 @@ function PosSaleContent({
   const [notice, setNotice] = useState<string | undefined>();
   const scanner = useRef({ value: '', at: 0 });
   const currentCartKey = useMemo(
-    () => `${cartKey(branchId, lines)}:${customerId ?? 'walk-in'}`,
-    [branchId, lines, customerId],
+    () =>
+      `${cartKey(branchId, lines)}:${customerId ?? 'walk-in'}:${manualAmount}:${manualReason.trim()}`,
+    [branchId, lines, customerId, manualAmount, manualReason],
   );
 
   useEffect(() => {
@@ -122,7 +142,7 @@ function PosSaleContent({
   }, [normalizedQuery, searchRetry]);
 
   useEffect(() => {
-    if (lines.length === 0 || invalidQuantity) return;
+    if (lines.length === 0 || invalidQuantity || manualInvalid) return;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       setQuoteState({ status: 'loading', key: currentCartKey });
@@ -130,6 +150,7 @@ function PosSaleContent({
         {
           branchId,
           ...(customerId === undefined ? {} : { customerId }),
+          ...(manualDiscount ? { manualDiscount } : {}),
           items: lines.map(({ product, quantity }) => ({ productId: product.id, quantity })),
         },
         controller.signal,
@@ -148,7 +169,16 @@ function PosSaleContent({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [branchId, customerId, currentCartKey, lines, quoteRetry, invalidQuantity]);
+  }, [
+    branchId,
+    customerId,
+    currentCartKey,
+    lines,
+    quoteRetry,
+    invalidQuantity,
+    manualInvalid,
+    manualDiscount,
+  ]);
 
   const addByCode = useCallback(
     async (code: string) => {
@@ -261,7 +291,12 @@ function PosSaleContent({
   const activeConflict = lines.filter((line) => stockFor(line).conflict);
   const shortage = lines.some((line) => !stockFor(line).sufficient);
   const canCheckout =
-    !invalidQuantity && lines.length > 0 && !quoteLoading && !!quote?.canComplete && !shortage;
+    !invalidQuantity &&
+    !manualInvalid &&
+    lines.length > 0 &&
+    !quoteLoading &&
+    !!quote?.canComplete &&
+    !shortage;
   const quotedMoney = (amount: number | undefined) =>
     quote ? money(amount ?? 0) : lines.length === 0 ? money(0) : '—';
   const quotedDiscount = (amount: number | undefined) =>
@@ -532,6 +567,30 @@ function PosSaleContent({
             </div>
           )}
           <div className="pos-sale__summary">
+            {canDiscount && (
+              <div className="pos-sale__manual-discount">
+                <Input
+                  label="Giảm giá thủ công (VND)"
+                  inputMode="numeric"
+                  value={manualAmount}
+                  onChange={(event) => setManualAmount(event.target.value)}
+                  error={
+                    manualAmount &&
+                    (!/^\d+$/.test(manualAmount) || !Number.isSafeInteger(discountAmount))
+                      ? 'Nhập số tiền nguyên không âm.'
+                      : undefined
+                  }
+                />
+                <Input
+                  label="Lý do giảm giá"
+                  value={manualReason}
+                  onChange={(event) => setManualReason(event.target.value)}
+                  error={
+                    discountAmount > 0 && !manualReason.trim() ? 'Nhập lý do giảm giá.' : undefined
+                  }
+                />
+              </div>
+            )}
             <AsyncBlock
               key={`${currentCartKey}:${quoteRetry}`}
               isLoading={quoteLoading}
@@ -563,6 +622,10 @@ function PosSaleContent({
                       )}
                     </span>
                     <span>{quotedDiscount(quote?.orderDiscount)}</span>
+                  </div>
+                  <div>
+                    <span>Giảm giá thủ công</span>
+                    <span>{quotedDiscount(quote?.manualDiscount)}</span>
                   </div>
                   <div>
                     <span>Tổng giảm giá</span>
@@ -617,10 +680,13 @@ function PosSaleContent({
           customerId={customerId}
           lines={lines}
           quote={checkoutQuote}
+          manualDiscount={manualDiscount}
           onClose={() => setCheckoutQuote(null)}
           onCompleted={() => {
             dispatch({ type: 'clear' });
             setCustomer(null);
+            setManualAmount('');
+            setManualReason('');
             setStockConflict(null);
           }}
           onRequote={() => setQuoteRetry((value) => value + 1)}
