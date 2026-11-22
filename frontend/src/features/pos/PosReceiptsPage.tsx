@@ -6,6 +6,7 @@ import { AsyncBlock, Button, EmptyState, ErrorState, Input, Skeleton } from '../
 import { useActiveBranch } from '../auth/useActiveBranch';
 import type { PosPageProps } from '../../layouts/pos/PosPlaceholderPage';
 import { PosPageError } from '../../layouts/pos/PosRouteContent';
+import { discountMoney, money } from './posMoney';
 import './posReceipts.css';
 
 type SummaryPage = components['schemas']['OrderSummaryPage'];
@@ -14,7 +15,6 @@ type LoadState<T> =
   | { status: 'ready'; key: string; data: T }
   | { status: 'error'; key: string; error: unknown };
 
-const money = (amount: number) => `${new Intl.NumberFormat('vi-VN').format(amount)} ₫`;
 const dateTime = (value: string) =>
   new Intl.DateTimeFormat('vi-VN', {
     timeZone: 'Asia/Ho_Chi_Minh',
@@ -95,11 +95,11 @@ function Receipt({ order, onBack }: { order: PosOrder; onBack: () => void }) {
           </div>
           <div>
             <dt>Giảm theo dòng</dt>
-            <dd>−{money(order.itemDiscount)}</dd>
+            <dd>{discountMoney(order.itemDiscount)}</dd>
           </div>
           <div>
             <dt>Giảm giá đơn hàng{order.orderPromotion && ` · ${order.orderPromotion.code}`}</dt>
-            <dd>−{money(order.orderDiscount)}</dd>
+            <dd>{discountMoney(order.orderDiscount)}</dd>
           </div>
           {order.manualDiscount > 0 && (
             <div>
@@ -109,7 +109,7 @@ function Receipt({ order, onBack }: { order: PosOrder; onBack: () => void }) {
           )}
           <div>
             <dt>Tổng giảm giá</dt>
-            <dd>−{money(order.discount)}</dd>
+            <dd>{discountMoney(order.discount)}</dd>
           </div>
           <div className="pos-receipts__total">
             <dt>Tổng thanh toán</dt>

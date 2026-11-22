@@ -180,10 +180,10 @@ describe('POS checkout', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Thẻ' }));
     fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
     const receipt = await screen.findByRole('dialog', { name: 'Thanh toán thành công' });
-    expect(receipt.textContent).toContain('KM-SUA 4.000 đ');
-    expect(receipt.textContent).toContain('Giảm giá đơn hàng−3.000 đ');
-    expect(receipt.textContent).toContain('Tổng giảm giá7.000 đ');
-    expect(receipt.textContent).toContain('Tổng thanh toán25.000 đ');
+    expect(receipt.textContent).toContain('KM-SUA 4.000 ₫');
+    expect(receipt.textContent).toContain('Giảm giá đơn hàng−3.000 ₫');
+    expect(receipt.textContent).toContain('Tổng giảm giá−7.000 ₫');
+    expect(receipt.textContent).toContain('Tổng thanh toán25.000 ₫');
   });
 
   it('shows cash change and blocks completion below the quoted total', async () => {
@@ -198,8 +198,8 @@ describe('POS checkout', () => {
     fireEvent.change(cash, { target: { value: '40,000' } });
     expect((confirm as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(cash, { target: { value: '40.000' } });
-    expect(screen.getByText('Số tiền ghi nhận: 40.000 đ')).toBeTruthy();
-    expect(screen.getByText('8.000 đ')).toBeTruthy();
+    expect(screen.getByText('Số tiền ghi nhận: 40.000 ₫')).toBeTruthy();
+    expect(screen.getByText('8.000 ₫')).toBeTruthy();
     fireEvent.click(confirm);
     await waitFor(() => expect(completePosOrder).toHaveBeenCalledTimes(1));
     expect(completePosOrder.mock.calls[0][0]).toEqual({
@@ -215,7 +215,7 @@ describe('POS checkout', () => {
     expect(receipt.textContent).toContain(paidOrder.code);
     expect(receipt.textContent).toContain('Nguyễn An');
     expect(receipt.textContent).toContain('Lê Hoàng Mai');
-    expect(receipt.textContent).toContain('Tiền thừa 8.000 đ');
+    expect(receipt.textContent).toContain('Tiền thừa 8.000 ₫');
     const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
     fireEvent.click(screen.getByRole('button', { name: 'In hóa đơn' }));
     expect(print).toHaveBeenCalledOnce();
@@ -328,12 +328,12 @@ describe('POS checkout', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Thẻ' }));
     fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
     expect(await screen.findByText('Tổng tiền đã thay đổi')).toBeTruthy();
-    expect(screen.getByText('Tổng mới: 30.000 đ')).toBeTruthy();
+    expect(screen.getByText('Tổng mới: 30.000 ₫')).toBeTruthy();
     expect((screen.getByRole('button', { name: 'QR' }) as HTMLButtonElement).disabled).toBe(true);
     expect(completePosOrder).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'Xác nhận tổng mới' }));
     expect(screen.getByRole('dialog', { name: 'Thanh toán đơn hàng' })).toBeTruthy();
-    expect(screen.getAllByText('30.000 đ').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('30.000 ₫').length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
     await waitFor(() => expect(completePosOrder).toHaveBeenCalledTimes(2));
     expect(completePosOrder.mock.calls[1][0].expectedTotal).toBe(30000);
@@ -358,7 +358,7 @@ describe('POS checkout', () => {
     const cash = screen.getByRole('textbox', { name: 'Tiền khách đưa (VND)' });
     fireEvent.change(cash, { target: { value: '40000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
-    expect(await screen.findByText('Tổng mới: 42.000 đ')).toBeTruthy();
+    expect(await screen.findByText('Tổng mới: 42.000 ₫')).toBeTruthy();
     expect((cash as HTMLInputElement).disabled).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Xác nhận tổng mới' }));
     expect((cash as HTMLInputElement).disabled).toBe(false);
