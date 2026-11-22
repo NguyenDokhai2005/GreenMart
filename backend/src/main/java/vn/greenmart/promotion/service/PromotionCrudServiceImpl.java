@@ -139,6 +139,7 @@ public class PromotionCrudServiceImpl implements PromotionCrudService {
         promotion.setValue(request.value());
         promotion.setMaxDiscount(request.maxDiscount());
         promotion.setMinOrder(request.minOrder());
+        promotion.setMinQuantity(effectiveMinQuantity(request));
         promotion.setStartAt(request.startAt());
         promotion.setEndAt(request.endAt());
         promotion.setUsageLimit(request.usageLimit());
@@ -181,6 +182,7 @@ public class PromotionCrudServiceImpl implements PromotionCrudService {
         promotion.setValue(request.value());
         promotion.setMaxDiscount(request.maxDiscount());
         promotion.setMinOrder(request.minOrder());
+        promotion.setMinQuantity(effectiveMinQuantity(request));
         promotion.setStartAt(request.startAt());
         promotion.setEndAt(request.endAt());
         promotion.setUsageLimit(request.usageLimit());
@@ -228,8 +230,17 @@ public class PromotionCrudServiceImpl implements PromotionCrudService {
         return toResponse(updated);
     }
 
+    private Integer effectiveMinQuantity(PromotionRequest request) {
+        return request.level() == PromotionLevel.ITEM
+                ? (request.minQuantity() == null ? 1 : request.minQuantity()) : null;
+    }
+
     private ScopeData validatePromotionBusinessRules(PromotionRequest request, Integer currentUsedCount) {
         List<ValidationErrorDetail> errors = new ArrayList<>();
+
+        if (request.minQuantity() != null && (request.level() != PromotionLevel.ITEM || request.minQuantity() < 1)) {
+            errors.add(new ValidationErrorDetail("minQuantity", "Số lượng tối thiểu phải ≥ 1 và chỉ dùng với ITEM"));
+        }
 
         // 4 quy tắc nghiệp vụ gốc của khuyến mại
         if (request.type() == PromotionType.PERCENT && request.value() > 100) {

@@ -17,6 +17,11 @@ public class PromotionService {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public boolean recordUsage(Long promotionId) {
+        return recordUsage(promotionId, 1);
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean recordUsage(Long promotionId, int smallestAppliedLineQuantity) {
         if (promotionId == null) {
             return true;
         }
@@ -28,8 +33,9 @@ public class PromotionService {
         int rows = jdbcTemplate.update("""
                 UPDATE promotion SET used_count = used_count + 1 WHERE id = ?
                 AND status='ACTIVE' AND start_at<=? AND end_at>?
+                AND (level='ORDER' OR COALESCE(min_quantity,1)<=?)
                 AND (usage_limit IS NULL OR used_count < usage_limit)
-                """, promotionId, now, now);
+                """, promotionId, now, now, smallestAppliedLineQuantity);
         return rows > 0;
     }
 
