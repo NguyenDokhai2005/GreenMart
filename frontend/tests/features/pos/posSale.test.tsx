@@ -332,7 +332,7 @@ describe('POS cart', () => {
     await waitFor(() => expect(quoteOrder).toHaveBeenCalledTimes(1));
 
     fireEvent.change(screen.getByLabelText('Số điện thoại'), {
-      target: { value: '0912345678' },
+      target: { value: '091 234 5678' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Tìm khách' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Gắn khách' }));

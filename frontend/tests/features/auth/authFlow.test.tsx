@@ -101,6 +101,19 @@ async function enterCredentials() {
 }
 
 describe('rendered authentication flow', () => {
+  it('trims the username before login while preserving the password', async () => {
+    fetchMock.mockResolvedValueOnce(json(session()));
+    await render();
+    await fill('username', '  test-user  ');
+    await fill('password', ' test-password ');
+    await submit();
+    const request = fetchMock.mock.calls.find(([url]) => String(url).includes('/auth/login'));
+    expect(request).toBeTruthy();
+    expect(JSON.parse(String((request?.[1] as RequestInit).body))).toMatchObject({
+      username: 'test-user',
+      password: ' test-password ',
+    });
+  });
   it('keeps the Login form mounted during a delayed rejection and displays remaining attempts', async () => {
     let reply!: (response: Response) => void;
     fetchMock.mockImplementation(
