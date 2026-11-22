@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocation } from 'react-router';
 import { Button, Checkbox, Input, Toast } from '../../components/ui';
+import { hasLogoutWarning, onLogoutWarning } from '../../api/client';
 import { useAuth } from './useAuth';
 import {
   getLoginFieldErrors,
@@ -21,17 +22,21 @@ function formatCountdown(milliseconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  const twoDigits = (value: number) => String(value).padStart(2, '0');
-
-  return hours > 0
-    ? `${hours}:${twoDigits(minutes)}:${twoDigits(seconds)}`
-    : `${twoDigits(minutes)}:${twoDigits(seconds)}`;
+  return [
+    hours > 0 ? `${hours} giờ` : '',
+    minutes > 0 ? `${minutes} phút` : '',
+    seconds > 0 || (hours === 0 && minutes === 0) ? `${seconds} giây` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 export default function LoginPage() {
   const { signIn } = useAuth();
   const location = useLocation();
+  const logoutWarning = useSyncExternalStore(onLogoutWarning, hasLogoutWarning, () => false);
   const [username, setUsername] = useState('');
+  const normalizedUsername = username.trim();
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({});
@@ -40,10 +45,10 @@ export default function LoginPage() {
   const [now, setNow] = useState(Date.now);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLockRef = useRef(false);
-  const currentLockout = lockouts.find((item) => item.username === username);
-  const loginControls = getLoginControlState(username, isSubmitting, lockouts, now);
+  const currentLockout = lockouts.find((item) => item.username === normalizedUsername);
+  const loginControls = getLoginControlState(normalizedUsername, isSubmitting, lockouts, now);
   const isLocked = loginControls.isLocked;
-  const visibleNotice = getVisibleLoginNotice(username, notice, lockouts, now);
+  const visibleNotice = getVisibleLoginNotice(normalizedUsername, notice, lockouts, now);
 
   useEffect(() => {
     clearLegacyLoginLockDeadline();
@@ -73,7 +78,7 @@ export default function LoginPage() {
     event.preventDefault();
     if (submitLockRef.current || loginControls.submitDisabled) return;
 
-    const validationErrors = validateLoginRequest(username, password);
+    const validationErrors = validateLoginRequest(normalizedUsername, password);
     setFieldErrors(validationErrors);
     setNotice(null);
 
@@ -92,7 +97,7 @@ export default function LoginPage() {
     );
 
     try {
-      await signIn(username, password, controller.signal);
+      await signIn(normalizedUsername, password, controller.signal);
       setFieldErrors({});
       setNotice(null);
       setLockouts([]);
@@ -100,13 +105,14 @@ export default function LoginPage() {
       const nextNotice = getLoginNotice(error);
       const serverFieldErrors = getLoginFieldErrors(error);
       setFieldErrors(serverFieldErrors);
-      setNotice({ username, value: nextNotice });
+      setNotice({ username: normalizedUsername, value: nextNotice });
 
-      const nextLockout = getAccountLockout(error, username);
+      const nextLockout = getAccountLockout(error, normalizedUsername);
       if (nextLockout !== undefined) {
         setLockouts((current) => [
           ...current.filter(
-            (lockout) => lockout.username !== username && lockout.lockedUntil > Date.now(),
+            (lockout) =>
+              lockout.username !== normalizedUsername && lockout.lockedUntil > Date.now(),
           ),
           ...(nextLockout === null ? [] : [nextLockout]),
         ]);
@@ -124,13 +130,6 @@ export default function LoginPage() {
       setIsSubmitting(false);
     }
   }
-
-  const lockedDescription =
-    isLocked && currentLockout
-      ? `${visibleNotice?.description ?? 'Tài khoản tạm khóa.'} Thử lại sau ${formatCountdown(
-          currentLockout.lockedUntil - now,
-        )}.`
-      : visibleNotice?.description;
 
   return (
     <div className="login-page">
@@ -156,25 +155,31 @@ export default function LoginPage() {
             />
           )}
 
-        {typeof location.state === 'object' &&
-          location.state !== null &&
-          'logoutWarning' in location.state &&
-          location.state.logoutWarning === true && (
-            <Toast
-              variant="warning"
-              title="Đã đăng xuất khỏi thiết bị này"
-              description="Máy chủ chưa xác nhận thu hồi phiên."
-              className="login-page__notice"
-            />
-          )}
+        {(logoutWarning ||
+          (typeof location.state === 'object' &&
+            location.state !== null &&
+            'logoutWarning' in location.state &&
+            location.state.logoutWarning === true)) && (
+          <Toast
+            variant="warning"
+            title="Đã đăng xuất khỏi thiết bị này"
+            description="Máy chủ chưa xác nhận thu hồi phiên."
+            className="login-page__notice"
+          />
+        )}
 
         {visibleNotice && (
           <Toast
             variant="error"
             title={visibleNotice.title}
-            description={lockedDescription}
+            description={visibleNotice.description}
             className="login-page__notice"
           />
+        )}
+        {isLocked && currentLockout && (
+          <p className="login-page__lockout-countdown" aria-live="off">
+            Thử lại sau {formatCountdown(currentLockout.lockedUntil - now)}.
+          </p>
         )}
 
         <div className="login-page__columns">
@@ -206,7 +211,9 @@ export default function LoginPage() {
                   const nextUsername = event.target.value;
                   setUsername(nextUsername);
                   setFieldErrors({});
-                  setNotice((current) => (current?.username === nextUsername ? current : null));
+                  setNotice((current) =>
+                    current?.username === nextUsername.trim() ? current : null,
+                  );
                 }}
                 error={fieldErrors.username}
                 disabled={loginControls.usernameDisabled}
@@ -225,7 +232,9 @@ export default function LoginPage() {
                 onChange={(event) => {
                   setPassword(event.target.value);
                   setFieldErrors((current) => ({ ...current, password: undefined }));
-                  setNotice((current) => (current?.username === username ? null : current));
+                  setNotice((current) =>
+                    current?.username === normalizedUsername ? null : current,
+                  );
                 }}
                 error={fieldErrors.password}
                 disabled={loginControls.passwordDisabled}

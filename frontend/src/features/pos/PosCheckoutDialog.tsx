@@ -4,6 +4,8 @@ import type { components } from '../../api/schema';
 import { Dialog, Input, Toast } from '../../components/ui';
 import { mapErrorToState, type UiErrorState } from '../../lib/errors';
 import type { CartLine } from './posCart';
+import { readChangedQuote, readStockShortages, type StockShortage } from './posErrorDetails';
+import { discountMoney, money } from './posMoney';
 import './posCheckout.css';
 
 type PosOrderRequest = components['schemas']['PosOrderRequest'];
@@ -11,7 +13,13 @@ type Attempt = { key: string; request: PosOrderRequest };
 type CheckoutState =
   | { status: 'editing' }
   | { status: 'submitting' }
-  | { status: 'error'; error: UiErrorState; uncertain: boolean; code?: string }
+  | {
+      status: 'error';
+      error: UiErrorState;
+      uncertain: boolean;
+      code?: string;
+      changedQuote?: Quote;
+    }
   | { status: 'success'; order: PosOrder };
 
 interface PosCheckoutDialogProps {
@@ -19,9 +27,12 @@ interface PosCheckoutDialogProps {
   customerId?: number;
   lines: CartLine[];
   quote: Quote;
+  manualDiscount?: components['schemas']['ManualDiscount'];
   onClose: () => void;
   onCompleted: () => void;
   onRequote: () => void;
+  onQuoteChanged: (quote: Quote) => void;
+  onStockConflict: (shortages: StockShortage[], message: string) => void;
 }
 
 const methods: { id: PaymentMethod; label: string }[] = [
@@ -29,11 +40,11 @@ const methods: { id: PaymentMethod; label: string }[] = [
   { id: 'CARD', label: 'Thẻ' },
   { id: 'QR', label: 'QR' },
 ];
-const money = (amount: number) => `${new Intl.NumberFormat('vi-VN').format(amount)} đ`;
 
 function cashValue(input: string): number | null {
-  if (!/^\d+$/.test(input)) return null;
-  const value = Number(input);
+  const normalized = input.trim();
+  if (!/^\d+$/.test(normalized) && !/^\d{1,3}(\.\d{3})+$/.test(normalized)) return null;
+  const value = Number(normalized.replaceAll('.', ''));
   return Number.isSafeInteger(value) ? value : null;
 }
 
@@ -55,9 +66,12 @@ export default function PosCheckoutDialog({
   customerId,
   lines,
   quote,
+  manualDiscount,
   onClose,
   onCompleted,
   onRequote,
+  onQuoteChanged,
+  onStockConflict,
 }: PosCheckoutDialogProps) {
   const [method, setMethod] = useState<PaymentMethod>('CASH');
   const [cashReceived, setCashReceived] = useState('');
@@ -79,7 +93,11 @@ export default function PosCheckoutDialog({
       : undefined;
   const busy = state.status === 'submitting';
   const uncertain = state.status === 'error' && state.uncertain;
-  const locked = busy || uncertain || state.status === 'success';
+  const locked =
+    busy ||
+    uncertain ||
+    state.status === 'success' ||
+    (state.status === 'error' && state.code === 'TOTAL_CHANGED');
   const validCash = method !== 'CASH' || (received !== null && received >= quote.total);
   const requoteOnClose =
     state.status === 'error' &&
@@ -102,6 +120,7 @@ export default function PosCheckoutDialog({
           branchId,
           ...(customerId === undefined ? {} : { customerId }),
           items: lines.map(({ product, quantity }) => ({ productId: product.id, quantity })),
+          ...(manualDiscount ? { manualDiscount } : {}),
           payment: method === 'CASH' ? { method, cashReceived: received! } : { method },
           expectedTotal: quote.total,
         },
@@ -117,21 +136,57 @@ export default function PosCheckoutDialog({
     } catch (error) {
       const code = responseCode(error);
       const uncertain = isUncertain(error);
-      if (!uncertain) attemptRef.current = null;
-      setState({ status: 'error', error: mapErrorToState(error, 'block'), uncertain, code });
+      const mapped = mapErrorToState(error, 'block');
+      const details = mapped.kind === 'dialog' ? mapped.details : undefined;
+      if (code === 'INSUFFICIENT_STOCK') {
+        attemptRef.current = null;
+        onStockConflict(
+          readStockShortages(details, lines),
+          mapped.message ?? 'Không đủ tồn kho khả dụng.',
+        );
+        return;
+      }
+      if (!uncertain && code !== 'PAYMENT_FAILED' && code !== 'PAYMENT_TIMEOUT') {
+        attemptRef.current = null;
+      }
+      setState({
+        status: 'error',
+        error: mapped,
+        uncertain,
+        code,
+        changedQuote:
+          code === 'TOTAL_CHANGED'
+            ? (readChangedQuote(details, branchId, lines) ?? undefined)
+            : undefined,
+      });
     } finally {
       inFlightRef.current = false;
     }
   }
 
   function selectMethod(next: PaymentMethod) {
-    if (locked) return;
+    if (locked || next === method) return;
+    attemptRef.current = null;
     setMethod(next);
     setState({ status: 'editing' });
   }
 
+  function acceptChangedQuote() {
+    if (state.status !== 'error' || state.code !== 'TOTAL_CHANGED') return;
+    if (!state.changedQuote) {
+      handleClose();
+      return;
+    }
+    onQuoteChanged(state.changedQuote);
+    setState({ status: 'editing' });
+    if (!state.changedQuote.canComplete) onClose();
+  }
+
   const error = state.status === 'error' ? state.error : null;
   const errorCode = state.status === 'error' ? state.code : undefined;
+  const changedQuote = state.status === 'error' ? state.changedQuote : undefined;
+  const needsQuoteConfirmation = errorCode === 'TOTAL_CHANGED';
+  const paymentFailed = errorCode === 'PAYMENT_FAILED' || errorCode === 'PAYMENT_TIMEOUT';
   const errorMessage = error?.message ?? 'Thanh toán chưa hoàn tất.';
   const itemCount = lines.reduce((sum, line) => sum + line.quantity, 0);
   const paid =
@@ -144,13 +199,29 @@ export default function PosCheckoutDialog({
       open
       title={state.status === 'success' ? 'Thanh toán thành công' : 'Thanh toán đơn hàng'}
       onClose={handleClose}
-      onConfirm={state.status === 'success' ? handleClose : () => void handleConfirm()}
+      onConfirm={
+        state.status === 'success'
+          ? handleClose
+          : needsQuoteConfirmation
+            ? acceptChangedQuote
+            : () => void handleConfirm()
+      }
       onCancel={state.status === 'success' ? () => window.print() : undefined}
-      confirmText={state.status === 'success' ? 'Đơn hàng mới' : uncertain ? 'Thử lại' : 'Hoàn tất'}
+      confirmText={
+        state.status === 'success'
+          ? 'Đơn hàng mới'
+          : needsQuoteConfirmation
+            ? changedQuote
+              ? 'Xác nhận tổng mới'
+              : 'Xem lại báo giá'
+            : uncertain || paymentFailed
+              ? 'Thử lại'
+              : 'Hoàn tất'
+      }
       cancelText={state.status === 'success' ? 'In hóa đơn' : 'Quay lại'}
       busy={busy}
       closeDisabled={uncertain}
-      confirmDisabled={!validCash}
+      confirmDisabled={!needsQuoteConfirmation && !validCash}
     >
       {state.status === 'success' ? (
         <div className="pos-checkout__success" role="status">
@@ -177,11 +248,11 @@ export default function PosCheckoutDialog({
             </div>
             <div>
               <dt>Giảm giá đơn hàng</dt>
-              <dd>−{money(state.order.orderDiscount)}</dd>
+              <dd>{discountMoney(state.order.orderDiscount)}</dd>
             </div>
             <div>
               <dt>Tổng giảm giá</dt>
-              <dd>{money(state.order.discount)}</dd>
+              <dd>{discountMoney(state.order.discount)}</dd>
             </div>
             <div className="pos-checkout__receipt-total">
               <dt>Tổng thanh toán</dt>
@@ -223,11 +294,11 @@ export default function PosCheckoutDialog({
             </div>
             <div>
               <dt>Giảm giá đơn hàng</dt>
-              <dd>{money(quote.orderDiscount)}</dd>
+              <dd>{discountMoney(quote.orderDiscount)}</dd>
             </div>
             <div>
               <dt>Tổng giảm giá</dt>
-              <dd>{money(quote.discount)}</dd>
+              <dd>{discountMoney(quote.discount)}</dd>
             </div>
             <div className="pos-checkout__total">
               <dt>Tổng thanh toán</dt>
@@ -240,9 +311,15 @@ export default function PosCheckoutDialog({
                 label="Tiền khách đưa (VND)"
                 value={cashReceived}
                 inputMode="numeric"
+                helperText={
+                  received === null
+                    ? 'Ví dụ: 62000 hoặc 62.000'
+                    : `Số tiền ghi nhận: ${money(received)}`
+                }
                 autoComplete="off"
                 disabled={locked}
                 onChange={(event) => {
+                  attemptRef.current = null;
                   setCashReceived(event.target.value);
                   setState({ status: 'editing' });
                 }}
@@ -275,13 +352,21 @@ export default function PosCheckoutDialog({
               description={
                 uncertain
                   ? 'Chưa xác định được kết quả. Thử lại với cùng yêu cầu để tránh tạo đơn trùng.'
-                  : errorCode === 'PAYMENT_FAILED' || errorCode === 'PAYMENT_TIMEOUT'
-                    ? 'Giỏ hàng vẫn được giữ nguyên. Bạn có thể chọn phương thức khác và thử lại.'
-                    : requoteOnClose
-                      ? 'Quay lại giỏ hàng để cập nhật báo giá.'
-                      : 'Giỏ hàng vẫn được giữ nguyên.'
+                  : paymentFailed
+                    ? 'Giỏ hàng vẫn được giữ nguyên. Thử lại hoặc chọn phương thức khác.'
+                    : needsQuoteConfirmation
+                      ? 'Xác nhận tổng mới trước khi thử thanh toán lại. Giỏ hàng vẫn được giữ nguyên.'
+                      : requoteOnClose
+                        ? 'Quay lại giỏ hàng để cập nhật báo giá.'
+                        : 'Giỏ hàng vẫn được giữ nguyên.'
               }
             />
+          )}
+          {changedQuote && (
+            <div className="pos-checkout__changed-total" role="status">
+              <span>Tổng trước: {money(quote.total)}</span>
+              <strong>Tổng mới: {money(changedQuote.total)}</strong>
+            </div>
           )}
         </div>
       )}

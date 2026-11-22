@@ -6,6 +6,55 @@ export interface CartLine {
   available: number;
 }
 
+const DRAFT_VERSION = 1;
+
+export function posCartDraftKey(userId: number, branchId: number): string {
+  return `greenmart:pos-cart:v${DRAFT_VERSION}:${userId}:${branchId}`;
+}
+
+export function readPosCartDraft(key: string): CartLine[] {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length > 100) return [];
+    const ids = new Set<number>();
+    return parsed.filter((line): line is CartLine => {
+      if (!line || typeof line !== 'object') return false;
+      const candidate = line as Partial<CartLine>;
+      const product = candidate.product;
+      if (
+        !product ||
+        !Number.isSafeInteger(product.id) ||
+        typeof product.sku !== 'string' ||
+        typeof product.name !== 'string' ||
+        typeof product.unit !== 'string' ||
+        !Number.isSafeInteger(product.salePrice) ||
+        typeof product.active !== 'boolean' ||
+        !Number.isSafeInteger(candidate.quantity) ||
+        candidate.quantity! < 1 ||
+        candidate.quantity! > 9999 ||
+        !Number.isSafeInteger(candidate.available) ||
+        ids.has(product.id!)
+      )
+        return false;
+      ids.add(product.id!);
+      return true;
+    });
+  } catch {
+    return [];
+  }
+}
+
+export function writePosCartDraft(key: string, lines: CartLine[]): void {
+  try {
+    if (lines.length) sessionStorage.setItem(key, JSON.stringify(lines));
+    else sessionStorage.removeItem(key);
+  } catch {
+    // Storage may be unavailable; the in-memory cart remains usable.
+  }
+}
+
 export type CartAction =
   | { type: 'add'; product: Product; available: number }
   | { type: 'quantity'; productId: number; quantity: number }

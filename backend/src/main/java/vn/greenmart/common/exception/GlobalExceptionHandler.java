@@ -6,7 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.mapping.PropertyReferenceException;
+import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -201,7 +201,11 @@ public class GlobalExceptionHandler {
             ex.getDetails(),
             traceId
         );
-        return ResponseEntity.status(ex.getStatus()).body(response);
+        var result = ResponseEntity.status(ex.getStatus());
+        if (ex instanceof RateLimitException limit) {
+            result.header("Retry-After", Long.toString(limit.getRetryAfterSeconds()));
+        }
+        return result.body(response);
     }
     // Lỗi hệ thống không mong muốn
     @ExceptionHandler(Exception.class)

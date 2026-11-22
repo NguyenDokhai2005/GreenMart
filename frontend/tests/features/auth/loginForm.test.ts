@@ -65,6 +65,7 @@ describe('login error details', () => {
 
     expect(getLockedUntil(locked)).toBe(lockedUntil);
     expect(getLoginNotice(locked).description).toContain(formatLockedUntil(lockedUntil));
+    expect(getLoginNotice(locked).description).toContain('Tài khoản tạm khóa đến');
   });
 
   it('blocks only the username associated with a future server lockout', () => {

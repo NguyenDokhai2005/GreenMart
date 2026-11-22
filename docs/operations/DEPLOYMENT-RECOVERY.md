@@ -31,12 +31,33 @@ Kiểm tra frontend, health/readiness, đăng nhập bằng tài khoản của m
 | Cổng bị chiếm | Xem netstat, đổi cổng host trong override; nội bộ giữ nguyên |
 | Backend không sẵn sàng | `docker compose logs --tail 100 backend postgres redis`, kiểm tra kết nối và kết quả Flyway |
 | RabbitMQ ngừng | Xem log broker, khởi động lại `docker compose up -d rabbitmq`, theo dõi outbox gửi bù. Kịch bản thực nghiệm ở RABBITMQ-OUTAGE-DEMO.md |
+| Redis ngừng hoặc không truy cập được | JWT cần registry phiên: API có JWT, gồm POS, trả 503 AUTH_UNAVAILABLE; login có thể trả 503 LOGIN_UNAVAILABLE. Kiểm tra `docker compose ps redis` và log backend/redis đã che secrets, khởi động lại bằng `docker compose up -d redis`, kiểm tra readiness rồi đăng nhập và gọi API có JWT. Không đổi lỗi thành 401 hay bỏ kiểm tra phiên để tiếp tục bán hàng. |
 | Callback FAILED | Sửa nguyên nhân ở kênh, Admin gửi lại qua API, theo dõi SUCCESS/FAILED |
 | Forecast trả 503 | Kiểm tra service/healthz, URL nội bộ và token cả hai bên bằng cấu hình quản lý secrets. Không in giá trị ra màn hình |
 | Mất hoặc hỏng dữ liệu | Dừng ghi, giữ bản DB lỗi để chẩn đoán, phục hồi vào DB mới bằng BACKUP-RESTORE.md, đối chiếu số dòng và quyền, rồi đổi kết nối |
 | Bản mới lỗi | Chuyển IMAGE_TAG về bản đã kiểm chứng rồi `docker compose up -d --no-build --wait`. Chỉ làm nếu schema tương thích. Với migration không tương thích, phục hồi snapshot vào DB riêng trước |
 
 Không chạy `down -v` trên môi trường đang sử dụng. Rollback dữ liệu có thể làm mất giao dịch sau thời điểm backup, nên ghi lại mốc backup và dừng ghi trước khi chuyển DB. Ghi sự cố, thời điểm, commit, hành động và kết quả kiểm chứng vào biên bản vận hành.
+
+## Diễn tập Redis mất kết nối (#155, review PR #434)
+
+Chỉ diễn tập trong stack/container QA riêng, không dừng Redis đang dùng chung.
+Chuẩn bị một phiên đăng nhập hợp lệ, xác nhận `/auth/me` hoạt động, rồi dừng Redis.
+API có JWT và POS phải trả `503 AUTH_UNAVAILABLE` trước khi xử lý nghiệp vụ;
+liveness còn 200 nhưng readiness phải 503. Không coi đó là sai mật khẩu và không
+ghi nhận một giao dịch POS thành công. Client không được bỏ kiểm tra phiên hoặc
+coi logout đã thu hồi thành công nếu Redis lỗi.
+
+`RedisOutageApiTest` thực hiện kịch bản này bằng PostgreSQL/Redis Testcontainers
+riêng: đăng nhập thật, dừng đúng container Redis của test, kiểm tra `/auth/me`,
+POS quote và health. Chạy `mvn -B -ntp -Dtest=RedisOutageApiTest test` trong backend.
+Test không dừng Compose và không dùng token/secret của môi trường thật.
+
+Sau khôi phục, kiểm tra lại readiness, login và một API có JWT. Nếu dữ liệu phiên
+Redis bị mất thì access/refresh cũ bị từ chối, người dùng phải đăng nhập lại;
+không tự phục hồi phiên từ JWT. Bài test tự động trên kiểm tra lúc Redis dừng,
+không thay thế nghiệm thu phục hồi của cấu hình triển khai thực tế. Ghi lại
+thời điểm gián đoạn, commit, lỗi503 và kết quả phục hồi mà không lưu nguyên token.
 
 ## Bằng chứng nghiệm thu
 

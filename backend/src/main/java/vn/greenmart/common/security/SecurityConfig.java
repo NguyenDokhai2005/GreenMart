@@ -37,9 +37,12 @@ public class SecurityConfig {
                     .requestMatchers(HttpMethod.GET, "/api/v1/integrations/sync-logs").hasAnyRole("ADMIN", "OWNER")
                     .requestMatchers(HttpMethod.POST, "/api/v1/integrations/sync-logs/*/retry").hasRole("ADMIN")
                     .requestMatchers(HttpMethod.PUT, "/api/v1/integrations/*/products/*").hasRole("ADMIN")
-                    .requestMatchers("/api/v1/auth/login","/api/v1/auth/refresh","/actuator/health","/actuator/health/**").permitAll()
+                    .requestMatchers("/api/v1/auth/login","/api/v1/auth/refresh","/api/v1/auth/logout","/actuator/health","/actuator/health/**").permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/v1/forecasts/runs").hasAnyRole("ADMIN", "OWNER")
+                    .requestMatchers(HttpMethod.GET, "/api/v1/forecasts/runs/*").hasAnyRole("ADMIN", "OWNER")
                     .requestMatchers("/api/v1/reports/**").hasAnyRole("OWNER", "BRANCH_MANAGER")
                     .requestMatchers("/api/v1/inventory/transactions").hasAnyRole("OWNER", "BRANCH_MANAGER", "STOREKEEPER")
+                    .requestMatchers("/api/v1/users", "/api/v1/users/**").hasRole("ADMIN")
                     .anyRequest().authenticated())
             .addFilterBefore(new JwtAuthenticationFilter(tokens,service,mapper),UsernamePasswordAuthenticationFilter.class);
         return http.build();

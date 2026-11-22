@@ -57,7 +57,12 @@ public class InventoryQueryRepository {
             params.addValue("categoryId", categoryId);
         }
         if (q != null && !q.isBlank()) {
-            predicates.add("(strpos(lower(p.name),:q)>0 OR strpos(lower(p.sku),:q)>0 OR strpos(lower(p.barcode),:q)>0)");
+            // Normalize only names. SKU/barcode retain their existing literal matching semantics.
+            String name = normalizedName("p.name");
+            String queryName = normalizedName("CAST(:q AS text)");
+            // A query consisting only of combining marks must not match every product.
+            predicates.add("(strpos(" + name + ",NULLIF(" + queryName + ",''))>0"
+                    + " OR strpos(lower(p.sku),:q)>0 OR strpos(lower(p.barcode),:q)>0)");
             params.addValue("q", q.trim().toLowerCase(Locale.ROOT));
         }
         if (stockStatus != null) {
@@ -89,5 +94,11 @@ public class InventoryQueryRepository {
                         rs.getObject("effective_reorder_point", Integer.class), StockStatus.valueOf(rs.getString("stock_status")),
                         rs.getLong("version"), rs.getObject("updated_at", OffsetDateTime.class)));
         return new PageImpl<>(content, pageable, total);
+    }
+
+    /** Only constant SQL expressions belong here; user input remains a bound parameter. */
+    private static String normalizedName(String expression) {
+        return "regexp_replace(translate(lower(normalize(" + expression
+                + ", NFD)), 'đ', 'd'), U&'[\\0300-\\036f]', '', 'g')";
     }
 }
