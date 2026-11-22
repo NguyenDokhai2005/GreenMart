@@ -31,6 +31,7 @@ public enum ErrorCode {
     DUPLICATE_SKU(HttpStatus.CONFLICT, "Mã SKU đã tồn tại"),
     DUPLICATE_BARCODE(HttpStatus.CONFLICT, "Mã vạch barcode đã tồn tại"),
     DUPLICATE_PHONE(HttpStatus.CONFLICT, "Số điện thoại đã thuộc khách hàng khác"),
+    DUPLICATE_USERNAME(HttpStatus.CONFLICT, "Tên đăng nhập đã tồn tại"),
     DUPLICATE_PROMOTION_CODE(HttpStatus.CONFLICT, "Mã khuyến mại đã tồn tại"),
     INSUFFICIENT_STOCK(HttpStatus.CONFLICT, "Số lượng tồn kho không đủ"),
     IDEMPOTENCY_CONFLICT(HttpStatus.CONFLICT, "Yêu cầu đang được xử lý hoặc trùng lặp với nội dung khác"),
@@ -38,6 +39,7 @@ public enum ErrorCode {
 
     // 422
     CUSTOMER_INACTIVE(HttpStatus.UNPROCESSABLE_ENTITY, "Khách hàng đã ngừng hoạt động"),
+    SELF_ACTION_FORBIDDEN(HttpStatus.UNPROCESSABLE_ENTITY, "Admin không được tự khóa hoặc tự đổi vai trò"),
     SELF_APPROVAL_FORBIDDEN(HttpStatus.UNPROCESSABLE_ENTITY, "Người lập không được tự duyệt phiếu"),
     COUNTED_QUANTITY_REQUIRED(HttpStatus.UNPROCESSABLE_ENTITY, "Phải nhập số đếm cho từng dòng kiểm kê trước khi duyệt"),
     RECEIVED_QUANTITY_EXCEEDED(HttpStatus.UNPROCESSABLE_ENTITY, "Số lượng nhận vượt số lượng đã chuyển"),

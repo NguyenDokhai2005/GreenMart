@@ -41,8 +41,9 @@ const methods: { id: PaymentMethod; label: string }[] = [
 const money = (amount: number) => `${new Intl.NumberFormat('vi-VN').format(amount)} đ`;
 
 function cashValue(input: string): number | null {
-  if (!/^\d+$/.test(input)) return null;
-  const value = Number(input);
+  const normalized = input.trim();
+  if (!/^\d+$/.test(normalized) && !/^\d{1,3}(\.\d{3})+$/.test(normalized)) return null;
+  const value = Number(normalized.replaceAll('.', ''));
   return Number.isSafeInteger(value) ? value : null;
 }
 
@@ -307,6 +308,11 @@ export default function PosCheckoutDialog({
                 label="Tiền khách đưa (VND)"
                 value={cashReceived}
                 inputMode="numeric"
+                helperText={
+                  received === null
+                    ? 'Ví dụ: 62000 hoặc 62.000'
+                    : `Số tiền ghi nhận: ${money(received)}`
+                }
                 autoComplete="off"
                 disabled={locked}
                 onChange={(event) => {

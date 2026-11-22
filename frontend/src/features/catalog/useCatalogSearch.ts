@@ -5,22 +5,24 @@ export function useCatalogSearch() {
   const [params, setParams] = useSearchParams();
   const location = useLocation();
   const navigationType = useNavigationType();
-  const q = params.get('q') ?? '';
-  const [searchText, setSearchText] = useState(q);
+  const rawQ = params.get('q') ?? '';
+  const q = rawQ.trim();
+  const [searchText, setSearchText] = useState(rawQ);
   const [locationKey, setLocationKey] = useState(location.key);
   if (locationKey !== location.key) {
     setLocationKey(location.key);
-    if (navigationType === 'POP') setSearchText(q);
+    if (navigationType === 'POP') setSearchText(rawQ);
   }
   useEffect(() => {
     if (params.get('mode') === 'phone') return;
-    if (searchText === q) return;
+    const normalized = searchText.trim();
+    if (normalized === q && rawQ === q) return;
     const timer = setTimeout(
       () =>
         setParams(
           (previous) => {
             const next = new URLSearchParams(previous);
-            if (searchText) next.set('q', searchText);
+            if (normalized) next.set('q', normalized);
             else next.delete('q');
             next.set('page', '0');
             return next;
@@ -30,7 +32,7 @@ export function useCatalogSearch() {
       300,
     );
     return () => clearTimeout(timer);
-  }, [searchText, q, params, setParams]);
+  }, [searchText, q, rawQ, params, setParams]);
   const rawPage = Number(params.get('page') ?? 0);
   const rawSize = Number(params.get('size') ?? 10);
   return {
@@ -40,13 +42,14 @@ export function useCatalogSearch() {
     page: Number.isSafeInteger(rawPage) && rawPage >= 0 ? rawPage : 0,
     size: [3, 10, 20, 50].includes(rawSize) ? rawSize : 10,
     change: (changes: Record<string, string | null>) => {
-      if ('q' in changes) setSearchText(changes.q ?? '');
+      if ('q' in changes) setSearchText((changes.q ?? '').trim());
       setParams(
         (previous) => {
           const next = new URLSearchParams(previous);
           for (const [key, value] of Object.entries(changes)) {
-            if (value === null || value === '') next.delete(key);
-            else next.set(key, value);
+            const normalized = value === null ? null : key === 'q' ? value.trim() : value;
+            if (normalized === null || normalized === '') next.delete(key);
+            else next.set(key, normalized);
           }
           return next;
         },

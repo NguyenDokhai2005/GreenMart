@@ -285,6 +285,8 @@ Ví dụ: CN1 chuyển 50 chai nước mắm sang CN2. Sau xuất: CN1 giảm 50
 
 3.  Duyệt → ghi ADJUST bằng đúng chênh lệch (không ghi đè trực tiếp, để không làm mất các giao dịch phát sinh trong lúc đếm).
 
+4.  Nếu tồn hiện tại cộng chênh lệch nhỏ hơn lượng đang giữ chỗ (#421), giữ phiếu DRAFT, số đếm và audit nhập số đếm; không bỏ ràng buộc `0 ≤ reserved ≤ on_hand`. Đối soát cho biết tồn dự kiến, phần thiếu và tham chiếu đơn giữ hàng. Quản lý quyết định nhập thêm hàng thực hoặc xử lý đơn qua luồng hủy/hoàn tiền được phép, rồi đối soát và duyệt lại; không tự hủy đơn đã trả tiền hoặc sửa reserved bằng SQL. Duyệt khóa hàng theo thứ tự nhất quán và kiểm lại trong transaction, nên reservation mới có thể làm lần duyệt sau bị chặn. Không tự khóa giữ mới trên toàn hệ thống hoặc tạo trạng thái tạm mới trong quy trình này.
+
 ## 7. Khuyến mại – UC-09
 
 Hệ thống áp khuyến mại cấp sản phẩm trước, rồi áp đúng một khuyến mại cấp đơn có lợi nhất cho khách; thu ngân không chọn tay.
@@ -302,6 +304,13 @@ Hệ thống áp khuyến mại cấp sản phẩm trước, rồi áp đúng m�
 | Trạng thái    | DRAFT → ACTIVE ⇄ PAUSED → ENDED                          | Chỉ ACTIVE mới được áp             |
 
 **Thứ tự tính**
+
+Quản lý thời hạn (#426): khoảng áp dụng là `startAt ≤ now < endAt`, kể cả khi job chưa đổi trạng thái.
+API tạo/sửa thông thường yêu cầu `endAt > startAt` và `endAt > now`; không dùng API này để nhập lịch sử đã hết hạn.
+Có thể bật chương trình trước giờ bắt đầu, nhưng chưa áp dụng trước `startAt`; bật khi đã hết hạn bị từ chối.
+Job mỗi phút đưa DRAFT/ACTIVE/PAUSED đã hết hạn sang ENDED và ghi audit cùng transaction.
+Trước khi hoàn tất đơn phải kiểm lại thời hạn và lượt dùng; nếu báo giá cũ không còn đúng, trả TOTAL_CHANGED để xác nhận lại.
+Seed lịch sử tính giá tại thời điểm đơn, rồi chuẩn hóa trạng thái hết hạn tại lúc nạp; không đổi tiền/lượt dùng hay hóa đơn cũ.
 
 1.  Với mỗi dòng: lấy các KM cấp ITEM hợp lệ, chọn KM giảm nhiều nhất cho dòng đó (mỗi dòng tối đa 1 KM). Giảm dòng không vượt thành tiền dòng.
 

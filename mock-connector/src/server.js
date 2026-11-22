@@ -3,6 +3,7 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { readFileSync, writeFileSync, mkdirSync, renameSync, existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { eventHeaders } from './event-signature.js';
 
 const channels = ['WEB', 'MARKET'];
 const statuses = ['NEW', 'RESERVED', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'EXPIRED', 'REJECTED', 'RETURNED'];
@@ -74,6 +75,30 @@ export function createConnector({ backendUrl, secrets, stateFile, fetchImpl = fe
         return response.end(readFileSync(new URL('../public/index.html', import.meta.url)));
       }
       if (request.method === 'GET' && path === '/mock/state') return respond(response, 200, state, traceId);
+      const eventRoute = /^\/demo\/(WEB|MARKET)\/orders\/([^/]+)\/events$/.exec(path);
+      if (request.method === 'POST' && eventRoute) {
+        const channel = eventRoute[1];
+        let externalId; try { externalId = decodeURIComponent(eventRoute[2]); } catch { fail(400, 'Mã đơn không hợp lệ'); }
+        requireValid(text(externalId, 60), 'Mã đơn không hợp lệ');
+        const raw = await readBody(request);
+        let event; try { event = JSON.parse(raw); } catch { fail(400, 'JSON không hợp lệ'); }
+        requireValid(event && ['PAID', 'CANCELLED'].includes(event.type) && validTime(event.occurredAt));
+        if (event.type === 'PAID') requireValid(text(event.providerRef, 60), 'PAID cần providerRef');
+        const target = `/api/v1/integrations/${channel}/orders/${encodeURIComponent(externalId)}/events`;
+        const suppliedId = request.headers['x-event-id'];
+        requireValid(suppliedId === undefined || (typeof suppliedId === 'string'
+          && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(suppliedId)), 'X-Event-ID không hợp lệ');
+        const signed = eventHeaders({ path: target, body: raw, secret: secrets[channel], eventId: suppliedId });
+        response.setHeader('X-Event-ID', signed['X-Event-ID']);
+        let upstream;
+        try {
+          upstream = await fetchImpl(new URL(target, base), { method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Correlation-ID': traceId, ...signed },
+            body: raw, signal: AbortSignal.timeout(10000), redirect: 'error' });
+        } catch { fail(502, 'Không kết nối được backend; gửi lại cùng X-Event-ID và body'); }
+        let result; try { result = await upstream.json(); } catch { fail(502, 'Backend trả dữ liệu không hợp lệ'); }
+        return respond(response, upstream.status, result, traceId);
+      }
       const demo = /^\/demo\/(WEB|MARKET)\/orders$/.exec(path);
       if (request.method === 'POST' && demo) {
         const channel = demo[1]; const raw = await readBody(request);
