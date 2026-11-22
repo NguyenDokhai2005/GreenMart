@@ -6,6 +6,21 @@
   margin: 0 0 var(--gm-space-6);
   font-size: 24px;
 }
+.pos-receipts__search {
+  display: flex;
+  align-items: end;
+  gap: var(--gm-space-3);
+  margin-bottom: var(--gm-space-5);
+}
+.pos-receipts__search > :first-child {
+  flex: 1;
+}
+@media (max-width: 600px) {
+  .pos-receipts__search {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
 .pos-receipts__actions {
   display: flex;
   justify-content: flex-end;

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "reportDate": "2026-11-21",
+  "testedCommit": "4e45b443fb25424554aae68df9a58102335d8f67",
+  "remoteDevelopAtReview": "310c55b02ba522f71dcf46e9e8bfb71eeca27e03",
+  "githubCheckedAt": "2026-11-21T12:33:27+07:00",
+  "decision": "QA recommends NO-GO only for tested snapshot",
+  "executionRecords": 1862,
+  "counts": {"PASS": 1786, "BLOCKED": 24, "FAIL": 45, "NOT RUN": 7},
+  "countUnit": "mixed execution records, not independent business cases or unique defects",
+  "countsByLevel": {"AI_ASSERTION": {"PASS": 7}, "API_CHECK": {"PASS": 528, "BLOCKED": 15, "FAIL": 20}, "JAVA_TEST_CASE": {"PASS": 583}, "NEWMAN_ASSERTION": {"PASS": 41}, "PLANNED_GAP": {"NOT RUN": 7, "BLOCKED": 2}, "PYTEST_RECORD": {"PASS": 214, "BLOCKED": 1}, "REGRESSION_CHECK": {"PASS": 13}, "RUNNER_CHECK": {"PASS": 13}, "UI_SCENARIO": {"PASS": 8, "FAIL": 25, "BLOCKED": 6}, "VITEST_CASE": {"PASS": 379}},
+  "selectedFacts": {"paymentReplay": {"issue": 416, "sameSignedBodyDifferentOrders": 2, "http": [200, 200], "result": "CONFIRMED on both; QA only"}, "recovery": {"issue": 384, "outageSeconds": 301.6, "outboxSentWithin90s": false, "channelsReceivedWithin60s": false, "dataLossProven": false}, "promotion": {"issue": 406, "nullElementVariants": 6, "http": 500}, "search": {"issues": [442, 443], "accentCount": 4, "noAccentCount": 0, "note": "enhancement expectation; #443 now closed, fix retest not run"}, "uiPayment": {"total": 38000, "received": 50000, "change": 12000, "databaseCheck": "COMPLETED; one payment and item; stock23 to22"}, "uiSession": {"elapsedSeconds": 1061, "protectedReadAfterWait": "PASS", "logoutGuard": "PASS", "refreshNetworkCaptured": false}},
+  "ci": "Only Secrets success verified for tested SHA; not all jobs",
+  "evidencePolicy": "No env, credentials, tokens, hashes, raw logs, DB backup or personal journal included"
+}
