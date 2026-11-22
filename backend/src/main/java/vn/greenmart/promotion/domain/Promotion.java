@@ -38,6 +38,9 @@ public class Promotion {
     @Column(name = "min_order")
     private Long minOrder;
 
+    @Column(name = "min_quantity")
+    private Integer minQuantity;
+
     @Column(name = "start_at", nullable = false)
     private Instant startAt;
 

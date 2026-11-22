@@ -90,7 +90,7 @@ class PosOrderServiceTest {
                 .thenReturn(new BranchSaleInfo(1L, "GM-001", "Chi nhánh 1"));
         lenient().when(authService.getFullName(anyLong()))
                 .thenReturn("Thu Ngân");
-        lenient().when(promotionService.recordUsage(any())).thenReturn(true);
+        lenient().when(promotionService.recordUsage(any(), anyInt())).thenReturn(true);
     }
 
     @AfterEach
@@ -440,7 +440,7 @@ class PosOrderServiceTest {
                 .thenReturn(initialQuote)
                 .thenReturn(quoteWithoutPromo);
 
-        when(promotionService.recordUsage(88L)).thenReturn(false);
+        when(promotionService.recordUsage(88L, 1)).thenReturn(false);
 
         PosOrderRequest request = new PosOrderRequest(
                 1L, null,
@@ -518,6 +518,6 @@ class PosOrderServiceTest {
         OrderResponse res = posOrderService.createPosOrder(request, UUID.randomUUID().toString());
 
         assertThat(res.id()).isEqualTo(505L);
-        verify(promotionService, times(1)).recordUsage(99L);
+        verify(promotionService, times(1)).recordUsage(99L, 1);
     }
 }
