@@ -5,6 +5,7 @@ import { Dialog, Input, Toast } from '../../components/ui';
 import { mapErrorToState, type UiErrorState } from '../../lib/errors';
 import type { CartLine } from './posCart';
 import { readChangedQuote, readStockShortages, type StockShortage } from './posErrorDetails';
+import { discountMoney, money } from './posMoney';
 import './posCheckout.css';
 
 type PosOrderRequest = components['schemas']['PosOrderRequest'];
@@ -26,6 +27,7 @@ interface PosCheckoutDialogProps {
   customerId?: number;
   lines: CartLine[];
   quote: Quote;
+  manualDiscount?: components['schemas']['ManualDiscount'];
   onClose: () => void;
   onCompleted: () => void;
   onRequote: () => void;
@@ -38,11 +40,11 @@ const methods: { id: PaymentMethod; label: string }[] = [
   { id: 'CARD', label: 'Thẻ' },
   { id: 'QR', label: 'QR' },
 ];
-const money = (amount: number) => `${new Intl.NumberFormat('vi-VN').format(amount)} đ`;
 
 function cashValue(input: string): number | null {
-  if (!/^\d+$/.test(input)) return null;
-  const value = Number(input);
+  const normalized = input.trim();
+  if (!/^\d+$/.test(normalized) && !/^\d{1,3}(\.\d{3})+$/.test(normalized)) return null;
+  const value = Number(normalized.replaceAll('.', ''));
   return Number.isSafeInteger(value) ? value : null;
 }
 
@@ -64,6 +66,7 @@ export default function PosCheckoutDialog({
   customerId,
   lines,
   quote,
+  manualDiscount,
   onClose,
   onCompleted,
   onRequote,
@@ -117,6 +120,7 @@ export default function PosCheckoutDialog({
           branchId,
           ...(customerId === undefined ? {} : { customerId }),
           items: lines.map(({ product, quantity }) => ({ productId: product.id, quantity })),
+          ...(manualDiscount ? { manualDiscount } : {}),
           payment: method === 'CASH' ? { method, cashReceived: received! } : { method },
           expectedTotal: quote.total,
         },
@@ -244,11 +248,11 @@ export default function PosCheckoutDialog({
             </div>
             <div>
               <dt>Giảm giá đơn hàng</dt>
-              <dd>−{money(state.order.orderDiscount)}</dd>
+              <dd>{discountMoney(state.order.orderDiscount)}</dd>
             </div>
             <div>
               <dt>Tổng giảm giá</dt>
-              <dd>{money(state.order.discount)}</dd>
+              <dd>{discountMoney(state.order.discount)}</dd>
             </div>
             <div className="pos-checkout__receipt-total">
               <dt>Tổng thanh toán</dt>
@@ -290,11 +294,11 @@ export default function PosCheckoutDialog({
             </div>
             <div>
               <dt>Giảm giá đơn hàng</dt>
-              <dd>{money(quote.orderDiscount)}</dd>
+              <dd>{discountMoney(quote.orderDiscount)}</dd>
             </div>
             <div>
               <dt>Tổng giảm giá</dt>
-              <dd>{money(quote.discount)}</dd>
+              <dd>{discountMoney(quote.discount)}</dd>
             </div>
             <div className="pos-checkout__total">
               <dt>Tổng thanh toán</dt>
@@ -307,6 +311,11 @@ export default function PosCheckoutDialog({
                 label="Tiền khách đưa (VND)"
                 value={cashReceived}
                 inputMode="numeric"
+                helperText={
+                  received === null
+                    ? 'Ví dụ: 62000 hoặc 62.000'
+                    : `Số tiền ghi nhận: ${money(received)}`
+                }
                 autoComplete="off"
                 disabled={locked}
                 onChange={(event) => {

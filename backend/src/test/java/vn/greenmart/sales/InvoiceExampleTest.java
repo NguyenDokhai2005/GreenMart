@@ -76,7 +76,6 @@ class InvoiceExampleTest {
         ProductSaleInfo rau = new ProductSaleInfo(206L, "RAU-CAI-500G", "Rau cải 500g", "bó", 18000L, true);
         ProductSaleInfo gao = new ProductSaleInfo(101L, "GAO-ST25-5KG", "Gạo ST25 5kg", "túi", 120000L, true);
 
-        when(customerService.exists(125L)).thenReturn(true);
         when(productService.getSaleInfo(205L)).thenReturn(sua);
         when(productService.getSaleInfo(206L)).thenReturn(rau);
         when(productService.getSaleInfo(101L)).thenReturn(gao);

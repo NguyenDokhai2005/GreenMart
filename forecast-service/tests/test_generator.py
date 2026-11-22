@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date, datetime, timedelta
+from dataclasses import replace
 import hashlib
 import io
 import json
 import math
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -20,6 +22,64 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from scripts import config, generate_data
+
+
+class TestPromotionUsageValidation(unittest.TestCase):
+    def setUp(self):
+        self.campaign = generate_data.Promotion(
+            id=1, code="CHECK-422", name="Usage", type="AMOUNT", level="ITEM", value=1,
+            max_discount=None, min_order=None, start_at=config.START_DATE,
+            end_at=config.END_DATE, usage_limit=2, used_count=2,
+        )
+        self.order = generate_data.SalesOrder(
+            id=1, code="ORDER-422", channel_id=1, channel_code="POS", external_order_id=None,
+            branch_id=1, branch_code="GM-001", customer_id=None, promotion_id=1,
+            status="COMPLETED", subtotal=800, discount=8, total=792, created_by=1,
+            created_at=config.START_DATE, completed_at=config.START_DATE,
+            items=[generate_data.OrderItem(1, 1, 1, 5, 100, 5, 495, 1),
+                   generate_data.OrderItem(2, 1, 2, 3, 100, 3, 297, 1)],
+        )
+        self.orders = [self.order, replace(self.order, id=2, status="RETURNED")]
+
+    def test_counts_campaign_order_once_and_keeps_returns(self):
+        failed = [replace(self.order, id=n, status=status)
+                  for n, status in enumerate(("CANCELLED", "EXPIRED", "REJECTED"), start=3)]
+        generate_data.validate_promotion_usage([self.campaign], self.orders + failed)
+        self.assertEqual(self.campaign.used_count, 2)
+
+    def test_wrong_counters_and_limit_are_rejected_without_repair(self):
+        for counter, limit in ((-1, 2), (1, 2), (3, 3), (2, 1)):
+            with self.subTest(counter=counter, limit=limit):
+                campaign = replace(self.campaign, used_count=counter, usage_limit=limit)
+                with self.assertRaisesRegex(ValueError, r"\[#422\]"):
+                    generate_data.validate_promotion_usage([campaign], self.orders)
+                self.assertEqual(campaign.used_count, counter)
+
+    def test_unused_and_unknown_campaigns(self):
+        generate_data.validate_promotion_usage([replace(self.campaign, used_count=0)], [])
+        with self.assertRaisesRegex(ValueError, "distinct eligible orders"):
+            generate_data.validate_promotion_usage([self.campaign], [])
+        with self.assertRaisesRegex(ValueError, "Unknown campaign"):
+            generate_data.validate_promotion_usage([], self.orders)
+
+    def test_live_or_unknown_states_are_not_historical_seed(self):
+        for status in ("NEW", "RESERVED", "CONFIRMED", "UNKNOWN"):
+            with self.subTest(status=status), self.assertRaisesRegex(ValueError, "seed-only"):
+                generate_data.validate_promotion_usage([self.campaign], [replace(self.order, status=status)])
+
+    def test_export_rejects_invalid_data_before_touching_stream_or_file(self):
+        arguments = dict(branches=[], categories=[], products=[], users=[], customers=[],
+                         promotions=[self.campaign], orders=[], returns=[], audit_logs=[])
+        stream = io.StringIO("previous export")
+        with self.assertRaisesRegex(ValueError, r"\[#422\]"):
+            generate_data.export_to_sql(**arguments, stream=stream)
+        self.assertEqual(stream.getvalue(), "previous export")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "seed.sql"
+            path.write_text("previous export", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, r"\[#422\]"):
+                generate_data.export_to_sql(**arguments, filepath=path)
+            self.assertEqual(path.read_text(encoding="utf-8"), "previous export")
 
 
 class TestGeneratorStage1(unittest.TestCase):
@@ -331,6 +391,7 @@ class TestGeneratorStage2(unittest.TestCase):
 
         for o in self.orders:
             # 1. Tối đa 1 KM cấp dòng trên mỗi order_item
+            used_item_campaigns = set()
             for it in o.items:
                 if it.promotion_id:
                     self.assertIn(it.promotion_id, promo_map)
@@ -339,7 +400,10 @@ class TestGeneratorStage2(unittest.TestCase):
                     self.assertIn(it.product_id, p.product_ids)
                     self.assertIn(o.branch_id, p.branch_ids)
                     self.assertIn(o.channel_code, p.channel_codes)
-                    item_promo_usage[p.id] = item_promo_usage.get(p.id, 0) + 1
+                    used_item_campaigns.add(p.id)
+
+            for campaign_id in used_item_campaigns:
+                item_promo_usage[campaign_id] = item_promo_usage.get(campaign_id, 0) + 1
 
             # 2. Tối đa 1 KM cấp đơn trên sales_order
             if o.promotion_id:
@@ -361,10 +425,32 @@ class TestGeneratorStage2(unittest.TestCase):
                         expected_disc = min(expected_disc, p.max_discount)
                     self.assertEqual(order_disc, expected_disc)
 
-        # 3. used_count khớp đúng số lần dùng
+        # The fixture must actually exercise one campaign on multiple lines of an order.
+        self.assertTrue(any(
+            len([it for it in order.items if it.promotion_id])
+            > len({it.promotion_id for it in order.items if it.promotion_id})
+            for order in self.orders
+        ))
+        # 3. used_count khớp số đơn, không phải số dòng hoặc số lượng sản phẩm.
         for p in self.promotions:
             actual_used = item_promo_usage.get(p.id, 0) if p.level == "ITEM" else order_promo_usage.get(p.id, 0)
             self.assertEqual(p.used_count, actual_used, f"used_count của KM {p.code} ({p.used_count}) không khớp thực tế ({actual_used})")
+
+    def test_last_item_campaign_slot_applies_to_all_lines_but_only_one_order(self):
+        campaign = generate_data.Promotion(
+            id=422, code="LIMIT-422", name="One remaining usage", type="AMOUNT", level="ITEM", value=1,
+            max_discount=None, min_order=None, start_at=config.START_DATE, end_at=config.END_DATE,
+            usage_limit=1, product_ids=[product.id for product in self.products],
+            branch_ids=[1, 2, 3], channel_codes=["POS", "WEB", "MARKET"],
+        )
+        orders = generate_data.generate_orders_and_items(
+            self.products, self.top_sku_ids, self.customers, [campaign], self.stockout_schedule,
+        )
+        applied = [order for order in orders if any(item.promotion_id == campaign.id for item in order.items)]
+        self.assertEqual(len(applied), 1)
+        self.assertEqual(campaign.used_count, 1)
+        self.assertGreater(sum(item.promotion_id == campaign.id for item in applied[0].items), 1)
+        self.assertGreater(sum(item.quantity for item in applied[0].items), 1)
 
     def test_pareto_by_quantity_sold(self):
         """Kiểm tra quy luật Pareto: 200 SKU top chiếm xấp xỉ 80% tổng sản lượng bán (79%–81%)."""
@@ -1019,7 +1105,8 @@ class TestGeneratorStage4(unittest.TestCase):
         sql_bytes = buf_sql.getvalue().encode("utf-8")
         actual_sql_sha = hashlib.sha256(sql_bytes).hexdigest()
 
-        GOLDEN_SQL_SHA256 = "beaea9a74a8d2fe9f62ed2413e6f48398ce6da49e166a97523f7e521941bbf5d"
+        # #422 intentionally changes only ITEM campaign usage counters in the SQL export.
+        GOLDEN_SQL_SHA256 = "1cf75e9def010855661279a02ea160be49c33168aec6a8fac614fd5eab24fcf3"
         GOLDEN_JSON_SHA256 = "d0226a3d258fa87649db164118a5d600052de8f422e94e5beecb8a3e05d1dc91"
 
         self.assertEqual(actual_sql_sha, GOLDEN_SQL_SHA256, "Mã SHA-256 in-memory của SQL không được thay đổi")

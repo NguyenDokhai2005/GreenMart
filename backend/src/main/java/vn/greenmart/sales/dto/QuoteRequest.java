@@ -1,16 +1,19 @@
 package vn.greenmart.sales.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-
 import java.util.List;
+import vn.greenmart.common.json.StrictLongDeserializer;
 
 public record QuoteRequest(
     @NotNull(message = "Mã chi nhánh không được để trống")
+    @JsonDeserialize(using = StrictLongDeserializer.class)
     Long branchId,
 
+    @JsonDeserialize(using = StrictLongDeserializer.class)
     Long customerId,
 
     @NotEmpty(message = "Danh sách sản phẩm không được rỗng")

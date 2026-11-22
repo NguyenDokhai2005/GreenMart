@@ -2,10 +2,12 @@ package vn.greenmart.inventory.service;
 
 import vn.greenmart.inventory.dto.StockDocumentRequests;
 import vn.greenmart.inventory.dto.StockDocumentResponse;
+import vn.greenmart.inventory.dto.StocktakeReconciliation;
 
 public interface StockDocumentService {
     StockDocumentResponse create(StockDocumentRequests.Create request);
     StockDocumentResponse get(Long id);
+    StocktakeReconciliation reconciliation(Long id);
     StockDocumentResponse update(Long id, StockDocumentRequests.Update request);
     StockDocumentResponse cancel(Long id, StockDocumentRequests.Cancel request);
     StockDocumentResponse approve(Long id);

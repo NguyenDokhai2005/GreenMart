@@ -163,7 +163,7 @@ và cảnh báo seed không phát sự kiện nghiệp vụ.
    - Khi khách thanh toán thành công trong vòng 15 phút (hoặc đơn COD được xác nhận), đơn chuyển sang `CONFIRMED`.
    - Khi đơn được giao hoàn tất cho khách, đơn chuyển sang `COMPLETED`. Trong transaction này:
      - Giảm đồng thời cả `on_hand` và `reserved` (giao dịch `SALE`).
-     - Tăng số lượt sử dụng khuyến mại (`used_count`) nếu đơn có áp dụng mã giảm giá.
+     - Tăng `used_count` đúng một lần/campaign/đơn, dù nhiều dòng cùng áp dụng. Seed lịch sử tính cả COMPLETED và RETURNED; trả hàng không hoàn lượt. CANCELLED/EXPIRED/REJECTED không tính. Không dùng truy vấn kiểm đếm seed này để reset dữ liệu runtime đang có đơn giữ chỗ.
 3. **Các trường hợp thất bại và cơ chế nhả kho (`RELEASE`)**:
    - **Đơn hết hạn (`EXPIRED`)**: Sau 15 phút khách không hoàn tất thanh toán trực tuyến, job nền tự động quét và chuyển đơn sang `EXPIRED`. Hệ thống nhả toàn bộ lượng giữ chỗ (`reserved` giảm, giao dịch `RELEASE`) để trả lại tồn khả dụng cho kênh bán (BR-03, BR-04).
    - **Đơn bị hủy (`CANCELLED`)**: Khách hàng hoặc quản trị viên chủ động hủy đơn khi ở trạng thái `RESERVED` hoặc `CONFIRMED`. Hệ thống thực hiện `RELEASE` tồn giữ chỗ và hoàn lại lượt dùng khuyến mại nếu có (BR-04).
@@ -268,7 +268,7 @@ Tùy theo môi trường, bạn có thể thực thi từ thư mục gốc của
 ### 4.4 Các bước thực hiện nội bộ của `seed.py`
 1. **Kiểm tra Docker**: Xác nhận Docker daemon đang chạy và container `postgres` đang ở trạng thái `running`.
 2. **Kiểm tra Flyway (V1 - V4)**: Kiểm tra bảng `flyway_schema_history` phải có đủ 4 bản ghi thành công (`success = true`).
-3. **Sinh dữ liệu mẫu**: Kích hoạt `generate_data.py` xuất `seed_data.sql` (5.69 MB) và `stockout_schedule.json`. Script tự động sinh ánh xạ toàn bộ 1.000 SKU sản phẩm sang 2 kênh online WEB (tiền tố `W-`) và MARKET (tiền tố `M-`) tạo 2.000 dòng `channel_product` (Issue #307 / #327), phục vụ đồng bộ tồn kho và tiếp nhận đơn online.
+3. **Sinh dữ liệu mẫu**: Trước khi ghi SQL/JSON, đối chiếu `used_count` với số đơn hợp lệ phân biệt/campaign và giới hạn lượt; sai lệch làm dừng xuất, không sửa bộ đếm tự động. Kích hoạt `generate_data.py` xuất `seed_data.sql` (5.69 MB) và `stockout_schedule.json`. Script tự động sinh ánh xạ toàn bộ 1.000 SKU sản phẩm sang 2 kênh online WEB (tiền tố `W-`) và MARKET (tiền tố `M-`) tạo 2.000 dòng `channel_product` (Issue #307 / #327), phục vụ đồng bộ tồn kho và tiếp nhận đơn online.
 4. **Quản lý Checksum (`SHA256SUMS`)**: Băm SHA-256, so sánh với bản lưu trước đó (in `KHỚP 100%` hoặc `KHÁC BIỆT`), ghi đè file `forecast-service/data/SHA256SUMS`.
 5. **Cảnh báo an toàn dữ liệu**: Đếm số dòng trong `sales_order`. Nếu $> 0$, hiển thị cảnh báo sắp TRUNCATE và yêu cầu gõ `y/N` (bỏ qua nếu có `--yes`).
 6. **Nạp SQL vào PostgreSQL**: Mở file ở chế độ nhị phân (`open(..., "rb")`) truyền trực tiếp vào `psql -v ON_ERROR_STOP=1` thông qua stdin, quản lý transaction bằng `BEGIN; ... COMMIT;` trong file.
@@ -276,8 +276,9 @@ Tùy theo môi trường, bạn có thể thực thi từ thư mục gốc của
 8. **Mã vân tay cơ sở dữ liệu (Database Fingerprint)**: Lặp qua 23 bảng, tính `count(*)` và `md5(string_agg(t::text, '|' ORDER BY t::text))` và in bảng đối chiếu.
 
 ### 4.5 Ý nghĩa SHA256SUMS và Database Fingerprint
+- Vòng đời khuyến mại (#426): SQL xuất ra chuẩn hóa các chương trình `DRAFT`/`ACTIVE`/`PAUSED` đã đến `end_at` sang `ENDED` tại thời điểm nạp (`CURRENT_TIMESTAMP`). Câu lệnh này không đổi ngày lịch sử, tiền hóa đơn hoặc `used_count`. File SQL vẫn tái lập được; trạng thái trong database phản ánh thời điểm thực tế nạp dữ liệu. Job backend tiếp tục xử lý các chương trình hết hạn về sau.
 - **File SHA256SUMS**: Bảo chứng tính xác định (deterministic) ở tầng tệp văn bản. Cùng một seed ngẫu nhiên sẽ luôn tạo ra 2 file SQL và JSON có mã băm SHA-256 giống hệt nhau:
-  - `seed_data.sql`: `beaea9a74a8d2fe9f62ed2413e6f48398ce6da49e166a97523f7e521941bbf5d`
+  - `seed_data.sql`: `1cf75e9def010855661279a02ea160be49c33168aec6a8fac614fd5eab24fcf3`
   - `stockout_schedule.json`: `d0226a3d258fa87649db164118a5d600052de8f422e94e5beecb8a3e05d1dc91`
 - **Database Fingerprint**: Bảo chứng tính tái lập (idempotent) ở tầng cơ sở dữ liệu. Sau khi seed 2 lần liên tiếp, mã MD5 trên toàn bộ dữ liệu của từng bảng phải trùng khớp 100%.
 

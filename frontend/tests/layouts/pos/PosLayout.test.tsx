@@ -151,6 +151,13 @@ describe('Given authenticated POS staff, When opening the workspace', () => {
 });
 
 describe('Given POS shortcuts, When using keyboard navigation', () => {
+  it('changes menus while the POS product search keeps focus', async () => {
+    renderApp();
+    await screen.findByRole('heading', { name: 'Bán hàng tại quầy' });
+    const search = screen.getByLabelText('Quét mã vạch hoặc tìm theo tên / SKU');
+    expect(fireEvent.keyDown(search, { code: 'Digit2', ctrlKey: true, altKey: true })).toBe(false);
+    await screen.findByRole('heading', { name: 'Hóa đơn' });
+  });
   it('Then Ctrl+Alt+1–5 changes menus, including macOS Option-modified key values', async () => {
     renderApp();
     await screen.findByRole('heading', { name: 'Bán hàng tại quầy' });
