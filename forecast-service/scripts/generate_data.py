@@ -8,6 +8,7 @@ Chặng 4: Xuất file SQL hoàn chỉnh (idempotent, setval, update channels) v
 
 from __future__ import annotations
 
+import argparse
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
@@ -2498,10 +2499,65 @@ def export_to_sql(
 # ==============================================================================
 
 
-def main() -> None:
+def resolve_generator_end_date(
+    end_date_arg: Optional[str] = None,
+    demo_flag: bool = False,
+) -> Optional[datetime]:
+    """Xác định ngày kết thúc sinh dữ liệu từ đối số CLI hoặc biến môi trường (Issue #417).
+
+    - Mặc định: Trả về None (giữ nguyên config.END_DATE = 2026-10-31 23:59:59 cho golden test).
+    - Nếu demo_flag=True hoặc SEED_END_DATE/DEMO_MODE='yesterday'/'demo': Dùng hôm qua theo giờ VN (T - 1).
+    - Nếu truyền chuỗi ngày YYYY-MM-DD: Phân tích thành mốc 23:59:59 theo múi giờ config.TIMEZONE.
+    """
+    raw_val = end_date_arg or os.environ.get("SEED_END_DATE")
+    if not raw_val and (demo_flag or os.environ.get("DEMO_MODE", "").lower() in ("1", "true", "yes")):
+        raw_val = "yesterday"
+
+    if not raw_val:
+        return None
+
+    raw_lower = raw_val.strip().lower()
+    if raw_lower in ("yesterday", "demo", "t-1", "today-1"):
+        now_vn = datetime.now(config.TIMEZONE)
+        target_d = now_vn.date() - timedelta(days=1)
+        return datetime(target_d.year, target_d.month, target_d.day, 23, 59, 59, tzinfo=config.TIMEZONE)
+
+    try:
+        d = date.fromisoformat(raw_val.strip())
+        return datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=config.TIMEZONE)
+    except ValueError:
+        return None
+
+
+def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
+    """Phân tích tham số dòng lệnh cho generate_data.py (Issue #417)."""
+    parser = argparse.ArgumentParser(description="GreenMart Demo Data Generator (Issue #106, #417)")
+    parser.add_argument(
+        "--end-date",
+        type=str,
+        default=None,
+        help="Ngày kết thúc dữ liệu (định dạng YYYY-MM-DD hoặc 'yesterday').",
+    )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Chế độ demo: kéo dữ liệu tới hôm qua theo giờ VN (T - 1) để tránh làm dự báo tụt về 0.",
+    )
+    return parser.parse_args(args)
+
+
+def main(args: Optional[List[str]] = None) -> None:
     """Hàm chạy toàn bộ luồng sinh dữ liệu và xuất file SQL + JSON."""
+    parsed = parse_args(args)
+    custom_end = resolve_generator_end_date(end_date_arg=parsed.end_date, demo_flag=parsed.demo)
+    if custom_end is not None:
+        config.END_DATE = custom_end
+        config.MAX_EVENT_DATETIME = custom_end
+
     print("=" * 70)
     print("GreenMart Demo Data Generator (Issue #106 / AI-01)")
+    if custom_end is not None:
+        print(f"[*] Chế độ tùy chỉnh ngày: Kéo dữ liệu seed tới {config.END_DATE.strftime('%Y-%m-%d')} (Issue #417)")
     print("=" * 70)
 
     # Chặng 1
