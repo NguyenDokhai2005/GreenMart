@@ -25,6 +25,7 @@ from app.pipelines.forecast_service import (
     ActiveRunConflictError,
     DEFAULT_MODEL_VERSION,
     EmptyDailySalesError,
+    StaleDailySalesError,
     execute_background_forecast,
     get_forecast_run_detail,
     start_forecast_run,
@@ -118,8 +119,8 @@ def create_forecast_router(
                 status_code=status.HTTP_409_CONFLICT,
                 content={"code": "CONFLICT", "message": str(err)},
             )
-        except EmptyDailySalesError as err:
-            logger.warning("Bảng daily_sales trống: %s", err)
+        except (EmptyDailySalesError, StaleDailySalesError) as err:
+            logger.warning("Bảng daily_sales trống hoặc chưa được cập nhật dữ liệu mới: %s", err)
             return JSONResponse(
                 status_code=status.HTTP_409_CONFLICT,
                 content={"code": "EMPTY_DAILY_SALES", "message": str(err)},

@@ -12,6 +12,7 @@ from app.api.router import create_forecast_router, register_auth_exception_handl
 from app.pipelines.forecast_service import (
     ActiveRunConflictError,
     EmptyDailySalesError,
+    StaleDailySalesError,
 )
 
 
@@ -208,6 +209,25 @@ def test_post_forecast_run_empty_daily_sales_409(test_setup, auth_headers, monke
     data = response.json()
     assert data["code"] == "EMPTY_DAILY_SALES"
     assert "daily_sales" in data["message"]
+    bg_runner.assert_not_called()
+
+
+def test_post_forecast_run_stale_daily_sales_409(test_setup, auth_headers, monkeypatch):
+    """Issue #417: Khi dữ liệu daily_sales bị cũ, API trả 409 EMPTY_DAILY_SALES để backend client ánh xạ chuẩn."""
+    def raise_stale(conn, model_version):
+        raise StaleDailySalesError("Dữ liệu daily_sales chỉ mới tới 2026-11-20, chưa đủ mới tới cutoff 2026-11-22.")
+
+    monkeypatch.setattr("app.api.router.start_forecast_run", raise_stale)
+
+    client = test_setup["client"]
+    bg_runner = test_setup["bg_runner"]
+
+    response = client.post("/forecast/run", headers=auth_headers)
+
+    assert response.status_code == 409
+    data = response.json()
+    assert data["code"] == "EMPTY_DAILY_SALES"
+    assert "2026-11-20" in data["message"]
     bg_runner.assert_not_called()
 
 

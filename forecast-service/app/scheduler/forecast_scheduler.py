@@ -12,7 +12,7 @@ Thiết kế:
 
 from __future__ import annotations
 
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 import logging
 import os
 import threading
@@ -27,6 +27,8 @@ from app.pipelines.forecast_service import (
     ActiveRunConflictError,
     DEFAULT_MODEL_VERSION,
     EmptyDailySalesError,
+    StaleDailySalesError,
+    ensure_fresh_daily_sales,
     execute_background_forecast,
     start_forecast_run,
 )
@@ -47,12 +49,14 @@ def has_run_executed_today(
     conn: Any,
     target_date: Optional[date] = None,
     min_hour: int = 2,
+    expected_cutoff_date: Optional[date] = None,
 ) -> bool:
     """Kiểm tra xem ngày target_date (mặc định hôm nay theo giờ VN) đã có forecast_run hợp lệ chưa.
 
     Một lượt chạy được coi là hợp lệ nếu:
     - Trạng thái là DONE hoặc đang RUNNING.
     - Thời gian started_at (chuyển sang múi giờ Asia/Ho_Chi_Minh) cùng ngày và bắt đầu từ min_hour trở đi.
+    - Nếu expected_cutoff_date được truyền vào: lượt DONE phải có target_date > expected_cutoff_date.
     """
     check_date = target_date or get_current_vn_time().date()
     sql = """
@@ -69,12 +73,32 @@ def has_run_executed_today(
             cur.execute(sql, (check_date, min_hour))
             row = cur.fetchone()
             if row:
+                run_id = row[0]
+                status = row[1]
+                started_at = row[2]
+                if expected_cutoff_date is not None and status == "DONE":
+                    try:
+                        cur.execute(
+                            "SELECT 1 FROM forecast_result WHERE run_id = %s AND target_date > %s LIMIT 1;",
+                            (run_id, expected_cutoff_date),
+                        )
+                        fresh_row = cur.fetchone()
+                        if not fresh_row:
+                            logger.info(
+                                "Bản ghi forecast_run id=%d đã DONE nhưng kết quả không đạt cutoff %s. Coi như chưa có run hợp lệ.",
+                                run_id,
+                                expected_cutoff_date,
+                            )
+                            return False
+                    except Exception:
+                        pass
+
                 logger.info(
                     "Đã tìm thấy forecast_run hợp lệ cho ngày %s: run_id=%d, status=%s, started_at=%s",
                     check_date,
-                    row[0],
-                    row[1],
-                    row[2],
+                    run_id,
+                    status,
+                    started_at,
                 )
                 return True
         except Exception as exc:
@@ -89,19 +113,28 @@ def run_nightly_forecast_job(
     connection_factory: Callable[[], Any] = get_db_connection,
     runner_fn: Callable[..., Any] = execute_background_forecast,
     now_dt: Optional[datetime] = None,
+    run_etl: bool = True,
+    etl_pipeline_fn: Optional[Callable[..., Any]] = None,
 ) -> Optional[int]:
     """Hàm thực thi công việc dự báo đêm theo lịch (02:00 Asia/Ho_Chi_Minh).
 
     Quy trình:
-    1. Kiểm tra idempotency: Nếu hôm nay đã có run hoàn tất hoặc đang chạy, bỏ qua.
-    2. Khởi tạo forecast_run mới qua start_forecast_run() với advisory lock.
-    3. Thực thi pipeline dự báo nền qua runner_fn(run_id).
-    4. Trả về run_id nếu kích hoạt thành công, None nếu bị bỏ qua hoặc lỗi nghiệp vụ nhẹ.
+    1. Xác định ngày vận hành T và cutoff mục tiêu T - 1 (hết ngày hôm qua).
+    2. Kiểm tra idempotency: Nếu hôm nay đã có run hoàn tất hoặc đang chạy, bỏ qua.
+    3. Thực thi DailySalesPipeline nạp/cập nhật dữ liệu daily_sales tới hết ngày T - 1 (Issue #417).
+    4. Kiểm tra độ mới (freshness check) và tạo forecast_run mới với advisory lock.
+    5. Thực thi pipeline dự báo nền qua runner_fn(run_id).
+    6. Trả về run_id nếu kích hoạt thành công, None nếu bị bỏ qua hoặc lỗi nghiệp vụ nhẹ.
     """
     current_time = now_dt or get_current_vn_time()
     today_vn = current_time.date()
+    expected_cutoff = today_vn - timedelta(days=1)
 
-    logger.info("Bắt đầu job dự báo đêm lịch 02:00 (thời gian hệ thống VN: %s)", current_time.isoformat())
+    logger.info(
+        "Bắt đầu job dự báo đêm lịch 02:00 (thời gian hệ thống VN: %s, cutoff mục tiêu: %s)",
+        current_time.isoformat(),
+        expected_cutoff,
+    )
 
     try:
         with connection_factory() as conn:
@@ -113,10 +146,26 @@ def run_nightly_forecast_job(
                 )
                 return None
 
-            # 2. Tạo bản ghi forecast_run mới (có advisory lock)
+            # 2. Chạy ETL nạp daily_sales tới T - 1 và kiểm tra độ mới (Issue #417)
+            if run_etl:
+                try:
+                    ensure_fresh_daily_sales(
+                        conn,
+                        expected_cutoff_date=expected_cutoff,
+                        pipeline_fn=etl_pipeline_fn,
+                    )
+                except (EmptyDailySalesError, StaleDailySalesError) as etl_err:
+                    logger.error("Chặn job dự báo đêm do ETL lỗi hoặc dữ liệu không đạt độ mới: %s", etl_err)
+                    return None
+                except Exception as etl_exc:
+                    logger.exception("Lỗi khi thực thi ETL trong job dự báo đêm: %s", etl_exc)
+                    return None
+
+            # 3. Tạo bản ghi forecast_run mới (có advisory lock)
             run_id, started_at = start_forecast_run(
                 conn,
                 model_version=DEFAULT_MODEL_VERSION,
+                expected_cutoff_date=expected_cutoff,
             )
             logger.info("Đã tạo forecast_run thành công cho lịch đêm: run_id=%d, started_at=%s", run_id, started_at)
 
@@ -126,13 +175,25 @@ def run_nightly_forecast_job(
     except EmptyDailySalesError as err:
         logger.warning("Bỏ qua lịch 02:00 do bảng daily_sales trống: %s", err)
         return None
+    except StaleDailySalesError as err:
+        logger.warning("Bỏ qua lịch 02:00 do dữ liệu daily_sales bị cũ: %s", err)
+        return None
     except Exception as exc:
         logger.exception("Lỗi bất ngờ khi khởi tạo forecast_run cho lịch đêm: %s", exc)
         return None
 
-    # 3. Thực thi pipeline dự báo nền
+    # 4. Thực thi pipeline dự báo nền
     try:
-        runner_fn(run_id=run_id)
+        try:
+            import inspect
+            sig = inspect.signature(runner_fn)
+            if "expected_cutoff_date" in sig.parameters:
+                runner_fn(run_id=run_id, expected_cutoff_date=expected_cutoff)
+            else:
+                runner_fn(run_id=run_id)
+        except (ValueError, TypeError):
+            runner_fn(run_id=run_id)
+
         logger.info("Hoàn tất thực thi pipeline dự báo đêm cho run_id=%d", run_id)
         return run_id
     except Exception as exc:
@@ -146,10 +207,10 @@ def check_and_run_missed_forecast(
     now_dt: Optional[datetime] = None,
     scheduler: Optional[BackgroundScheduler] = None,
 ) -> Optional[Any]:
-    """Kiểm tra và chạy bù dự báo nếu bị lỡ lịch 02:00 khi khởi động container.
+    """Kiểm tra và chạy bù dự báo nếu bị lỡ lịch 02:00 khi khởi động container (Issue #417).
 
-    Khung giờ chạy bù được thống nhất: từ 02:00 đến 06:00 sáng (Asia/Ho_Chi_Minh).
-    Nếu khởi động sau 06:00 sáng, không chạy bù để tránh gây quá tải hệ thống giờ cao điểm bán hàng.
+    Khởi động container sau 02:00 sáng mà hôm nay chưa có lượt chạy dự báo hợp lệ sẽ kích hoạt chạy bù.
+    Không giới hạn cứng trong khung 02:00 - 06:00 (đáp ứng tiêu chí Issue #417).
     Chạy bù được đẩy vào nền (qua APScheduler hoặc daemon thread) để không chặn tiến trình
     khởi động FastAPI (lifespan) và không gây timeout cho các probe /healthz, /livez.
     """
@@ -157,11 +218,12 @@ def check_and_run_missed_forecast(
     current_hour = current_time.hour
     today_vn = current_time.date()
 
-    if not (CATCHUP_WINDOW_START_HOUR <= current_hour < CATCHUP_WINDOW_END_HOUR):
+    if current_hour < CATCHUP_WINDOW_START_HOUR:
         logger.info(
-            "Khởi động lúc %02d:%02d: Nằm ngoài khung giờ chạy bù (02:00 - 06:00), bỏ qua startup recovery.",
+            "Khởi động lúc %02d:%02d: Trước giờ chạy định kỳ (%02d:00), chờ cron định kỳ kích hoạt.",
             current_hour,
             current_time.minute,
+            CATCHUP_WINDOW_START_HOUR,
         )
         return None
 
@@ -172,10 +234,16 @@ def check_and_run_missed_forecast(
         today_vn,
     )
 
+    expected_cutoff = today_vn - timedelta(days=1)
     try:
         with connection_factory() as conn:
-            if has_run_executed_today(conn, target_date=today_vn, min_hour=CATCHUP_WINDOW_START_HOUR):
-                logger.info("Hôm nay (%s) đã có lượt chạy dự báo, không cần chạy bù.", today_vn)
+            if has_run_executed_today(
+                conn,
+                target_date=today_vn,
+                min_hour=CATCHUP_WINDOW_START_HOUR,
+                expected_cutoff_date=expected_cutoff,
+            ):
+                logger.info("Hôm nay (%s) đã có lượt chạy dự báo hợp lệ (cutoff >= %s), không cần chạy bù.", today_vn, expected_cutoff)
                 return None
     except Exception as exc:
         logger.warning("Không thể kiểm tra trạng thái lượt chạy khi khởi động: %s", exc)

@@ -9,6 +9,7 @@ import pytest
 from app.pipelines.forecast_service import (
     ActiveRunConflictError,
     EmptyDailySalesError,
+    StaleDailySalesError,
 )
 from app.scheduler.forecast_scheduler import (
     CATCHUP_WINDOW_END_HOUR,
@@ -150,7 +151,12 @@ def test_tc_sched_05_startup_recovery_triggers_in_catchup_window_with_scheduler(
     )
 
     assert result == "catchup_job_instance"
-    mock_has_run.assert_called_once_with(mock_db["conn"], target_date=startup_time.date(), min_hour=2)
+    mock_has_run.assert_called_once_with(
+        mock_db["conn"],
+        target_date=startup_time.date(),
+        min_hour=2,
+        expected_cutoff_date=date(2026, 11, 17),
+    )
     mock_scheduler.add_job.assert_called_once()
     job_kwargs = mock_scheduler.add_job.call_args[1]
     assert job_kwargs["trigger"] == "date"
@@ -198,18 +204,45 @@ def test_tc_sched_05_startup_recovery_skips_before_0200(mock_run_job, mock_db):
     mock_run_job.assert_not_called()
 
 
-@patch("app.scheduler.forecast_scheduler.run_nightly_forecast_job")
-def test_tc_sched_05_startup_recovery_skips_after_0600(mock_run_job, mock_db):
-    """TC-SCHED-05: Khởi động lúc 07:30 sáng (sau 06:00) -> không chạy bù để tránh quá tải giờ cao điểm."""
+@patch("app.scheduler.forecast_scheduler.has_run_executed_today")
+def test_tc_sched_05_startup_recovery_triggers_after_0600_when_no_run_today(mock_has_run, mock_db):
+    """TC-SCHED-05 (Issue #417): Khởi động lúc 07:30 sáng (sau 06:00) chưa có run -> vẫn kích hoạt chạy bù."""
+    mock_has_run.return_value = False
+    mock_scheduler = MagicMock()
+    mock_scheduler.add_job.return_value = "catchup_job_after_0600"
     startup_time = datetime(2026, 11, 18, 7, 30, tzinfo=VN_TZ)
 
     result = check_and_run_missed_forecast(
         connection_factory=mock_db["factory"],
         now_dt=startup_time,
+        scheduler=mock_scheduler,
     )
 
-    assert result is None
-    mock_run_job.assert_not_called()
+    assert result == "catchup_job_after_0600"
+    mock_has_run.assert_called_once_with(
+        mock_db["conn"],
+        target_date=startup_time.date(),
+        min_hour=2,
+        expected_cutoff_date=date(2026, 11, 17),
+    )
+
+
+@patch("app.scheduler.forecast_scheduler.ensure_fresh_daily_sales")
+@patch("app.scheduler.forecast_scheduler.has_run_executed_today")
+def test_tc_sched_07_run_nightly_job_aborts_when_etl_stale(mock_has_run, mock_ensure_fresh, mock_db):
+    """TC-SCHED-07 (Issue #417): Job đêm dừng lại và không tạo run khi ETL báo dữ liệu cũ (StaleDailySalesError)."""
+    mock_has_run.return_value = False
+    mock_ensure_fresh.side_effect = StaleDailySalesError("Dữ liệu daily_sales chỉ tới 2026-11-15, cũ hơn cutoff 2026-11-17")
+    mock_runner = MagicMock()
+
+    run_id = run_nightly_forecast_job(
+        connection_factory=mock_db["factory"],
+        runner_fn=mock_runner,
+        now_dt=datetime(2026, 11, 18, 2, 0, 0, tzinfo=VN_TZ),
+    )
+
+    assert run_id is None
+    mock_runner.assert_not_called()
 
 
 @patch("app.scheduler.forecast_scheduler.run_nightly_forecast_job")

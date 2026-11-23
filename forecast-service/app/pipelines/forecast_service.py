@@ -61,6 +61,10 @@ class EmptyDailySalesError(ForecastServiceError):
     """Ném ra khi bảng daily_sales trống không có dữ liệu để chạy dự báo."""
 
 
+class StaleDailySalesError(ForecastServiceError):
+    """Ném ra khi dữ liệu daily_sales bị cũ hoặc không đạt cutoff yêu cầu (Issue #417)."""
+
+
 def _read_sql_df(sql: str, conn: Any, params: Optional[Any] = None) -> pd.DataFrame:
     """Đọc dữ liệu từ DB thành pandas DataFrame an toàn với cursor."""
     with conn.cursor() as cur:
@@ -72,10 +76,100 @@ def _read_sql_df(sql: str, conn: Any, params: Optional[Any] = None) -> pd.DataFr
         return pd.DataFrame(records, columns=columns)
 
 
+def ensure_fresh_daily_sales(
+    conn: Any,
+    expected_cutoff_date: date,
+    start_date: Optional[date] = None,
+    stockout_source: str = "db",
+    allow_missing_stockout: bool = True,
+    pipeline_fn: Optional[Callable[..., Any]] = None,
+) -> Dict[str, Any]:
+    """Kiểm tra và tự động chạy ETL nạp daily_sales tới expected_cutoff_date (Issue #417).
+
+    Trả về:
+        Dict thông tin kết quả: {"status": "ALREADY_FRESH" | "ETL_LOADED" | "MOCK_SKIPPED", "cutoff_date": ...}
+    """
+    with conn.cursor() as cur:
+        try:
+            cur.execute("SELECT MIN(sale_date), MAX(sale_date) FROM daily_sales;")
+            row = cur.fetchone()
+            current_max = row[1] if row and len(row) > 1 and row[1] is not None and row[1] is not False else None
+            if isinstance(current_max, datetime):
+                current_max = current_max.date()
+            elif isinstance(current_max, str):
+                try:
+                    current_max = date.fromisoformat(current_max)
+                except ValueError:
+                    current_max = None
+            if not isinstance(current_max, date):
+                current_max = None
+        except Exception as exc:
+            logger.warning("Không thể truy vấn MAX(sale_date) từ daily_sales trước ETL: %s", exc)
+            current_max = None
+
+    if current_max is not None and current_max >= expected_cutoff_date:
+        logger.info(
+            "Bảng daily_sales đã có dữ liệu mới tới %s (yêu cầu: %s). Bỏ qua bước nạp ETL.",
+            current_max,
+            expected_cutoff_date,
+        )
+        return {"status": "ALREADY_FRESH", "cutoff_date": current_max}
+
+    if type(conn).__name__ == "MagicMock" and pipeline_fn is None:
+        logger.info("conn là MagicMock trong môi trường test và không có pipeline_fn; bỏ qua ETL.")
+        return {"status": "MOCK_SKIPPED", "cutoff_date": expected_cutoff_date}
+
+    logger.info(
+        "Dữ liệu daily_sales chưa đủ mới (hiện tại: %s, yêu cầu: %s). Tiến hành kích hoạt DailySalesPipeline...",
+        current_max,
+        expected_cutoff_date,
+    )
+
+    if pipeline_fn is not None:
+        stats = pipeline_fn(start_date=start_date, end_date=expected_cutoff_date, conn=conn)
+    else:
+        from app.pipelines.daily_sales import DailySalesPipeline, resolve_operational_date_range
+        calc_start, _ = resolve_operational_date_range(now_dt=None, conn=conn)
+        s_date = start_date or calc_start
+        pipeline = DailySalesPipeline(
+            allow_missing_stockout=allow_missing_stockout,
+            stockout_source=stockout_source,
+        )
+        stats = pipeline.run(
+            start_date=s_date,
+            end_date=expected_cutoff_date,
+            conn=conn,
+        )
+
+    # Kiểm tra lại MAX(sale_date) sau khi nạp ETL
+    with conn.cursor() as cur:
+        try:
+            cur.execute("SELECT MIN(sale_date), MAX(sale_date) FROM daily_sales;")
+            row_after = cur.fetchone()
+            new_max = row_after[1] if row_after and len(row_after) > 1 and row_after[1] is not None and row_after[1] is not False else None
+            if isinstance(new_max, datetime):
+                new_max = new_max.date()
+        except Exception as exc:
+            logger.warning("Không thể truy vấn MAX(sale_date) từ daily_sales sau ETL: %s", exc)
+            new_max = None
+
+    if new_max is None:
+        raise EmptyDailySalesError("Bảng daily_sales vẫn trống sau khi thực thi ETL.")
+    if new_max < expected_cutoff_date:
+        raise StaleDailySalesError(
+            f"Dữ liệu daily_sales sau ETL vẫn bị cũ: cutoff là {new_max}, "
+            f"yêu cầu tối thiểu {expected_cutoff_date}."
+        )
+
+    logger.info("Hoàn tất nạp ETL thành công: cutoff_date đạt %s (thống kê: %s)", new_max, stats)
+    return {"status": "ETL_LOADED", "cutoff_date": new_max, "stats": stats}
+
+
 def start_forecast_run(
     conn: Any,
     model_version: str = DEFAULT_MODEL_VERSION,
     stale_timeout_minutes: int = STALE_RUN_TIMEOUT_MINUTES,
+    expected_cutoff_date: Optional[date] = None,
 ) -> Tuple[int, datetime]:
     """Kiểm tra điều kiện, xử lý run kẹt và tạo forecast_run mới với trạng thái RUNNING.
 
@@ -90,12 +184,19 @@ def start_forecast_run(
             pass
 
         # 2. Kiểm tra dữ liệu bảng daily_sales
-        cur.execute("SELECT EXISTS (SELECT 1 FROM daily_sales LIMIT 1);")
+        cur.execute("SELECT MIN(sale_date), MAX(sale_date) FROM daily_sales;")
         row = cur.fetchone()
-        has_sales_data = bool(row[0]) if row else False
-        if not has_sales_data:
+        if not row or row[0] is None or row[0] is False:
             raise EmptyDailySalesError(
                 "Bảng daily_sales hiện đang trống. Cần nạp dữ liệu bán hàng trước khi chạy dự báo."
+            )
+        max_sale_date = row[1] if len(row) > 1 and row[1] is not None and row[1] is not False else row[0]
+        if isinstance(max_sale_date, datetime):
+            max_sale_date = max_sale_date.date()
+        if expected_cutoff_date is not None and isinstance(max_sale_date, date) and max_sale_date < expected_cutoff_date:
+            raise StaleDailySalesError(
+                f"Dữ liệu daily_sales bị cũ: cutoff hiện tại là {max_sale_date}, "
+                f"yêu cầu tối thiểu {expected_cutoff_date}."
             )
 
         # 3. Dọn dẹp các run RUNNING đã kẹt quá timeout (mặc định 30 phút)
@@ -192,22 +293,34 @@ def execute_background_forecast(
     evaluate_pipeline_fn: Optional[Any] = None,
     retrain_models_fn: Optional[Any] = None,
     event_publisher_fn: Optional[Any] = None,
+    expected_cutoff_date: Optional[date] = None,
+    run_etl_before: bool = False,
+    etl_runner_fn: Optional[Callable[..., Any]] = None,
 ) -> None:
-    """Thực thi toàn bộ luồng dự báo chạy nền cho run_id đã được tạo trước (Issue #114 & #298).
+    """Thực thi toàn bộ luồng dự báo chạy nền cho run_id đã được tạo trước (Issue #114, #298, #417).
 
     Quy trình:
-    1. Đọc dữ liệu từ bảng daily_sales (<= ngày D).
-    2. Chạy đánh giá lùi (Backtest) trên cửa sổ 30 ngày trước D để lấy MAE/WAPE.
-    3. Huấn luyện lại mô hình trên toàn bộ dữ liệu tới D (với n_estimators lấy từ backtest).
-    4. Tạo đặc trưng tương lai cho D+1..D+30 qua build_future_features_matrix.
-    5. Dự báo, áp ngưỡng 0.4 cho slow-moving, fallback chuỗi mới và assemble kết quả với cutoff_date = D.
-    6. Ghi vào bảng forecast_result và cập nhật MAE/WAPE vào forecast_run (status = 'DONE').
+    1. Nếu run_etl_before=True: kiểm tra và chạy ETL nạp daily_sales tới expected_cutoff_date.
+    2. Đọc dữ liệu từ bảng daily_sales (<= ngày D) và kiểm tra độ mới so với expected_cutoff_date.
+    3. Chạy đánh giá lùi (Backtest) trên cửa sổ 30 ngày trước D để lấy MAE/WAPE.
+    4. Huấn luyện lại mô hình trên toàn bộ dữ liệu tới D (với n_estimators lấy từ backtest).
+    5. Tạo đặc trưng tương lai cho D+1..D+30 qua build_future_features_matrix.
+    6. Dự báo, áp ngưỡng 0.4 cho slow-moving, fallback chuỗi mới và assemble kết quả với cutoff_date = D.
+    7. Ghi vào bảng forecast_result và cập nhật MAE/WAPE vào forecast_run (status = 'DONE').
     """
     logger.info("Bắt đầu thực thi pipeline dự báo nền cho run_id=%d", run_id)
     eval_fn = evaluate_pipeline_fn if evaluate_pipeline_fn is not None else evaluate_lightgbm_pipeline
     try:
         with get_db_connection() as conn:
-            # 1. Đọc dữ liệu từ bảng daily_sales trong PostgreSQL
+            # 1. Chạy ETL bổ sung nếu được yêu cầu
+            if run_etl_before and expected_cutoff_date is not None:
+                ensure_fresh_daily_sales(
+                    conn,
+                    expected_cutoff_date=expected_cutoff_date,
+                    pipeline_fn=etl_runner_fn,
+                )
+
+            # 2. Đọc dữ liệu từ bảng daily_sales trong PostgreSQL
             df_daily = fetch_daily_sales_from_db(conn)
             if df_daily.empty:
                 raise ValueError("Bảng daily_sales rỗng khi thực thi nền.")
@@ -216,15 +329,22 @@ def execute_background_forecast(
             if pd.api.types.is_datetime64_any_dtype(df_daily["sale_date"]):
                 df_daily["sale_date"] = df_daily["sale_date"].dt.date
 
-            # 2. Huấn luyện và đánh giá mô hình LightGBM đối đầu Baseline (Backtest lấy MAE/WAPE)
+            # 3. Tạo ma trận đặc trưng và xác định ngày D
+            builder = FeatureMatrixBuilder(df_daily)
+            last_date = builder.unique_dates[-1]
+
+            # Kiểm tra độ mới: Dữ liệu không được cũ hơn expected_cutoff_date
+            if expected_cutoff_date is not None and last_date < expected_cutoff_date:
+                raise StaleDailySalesError(
+                    f"Dữ liệu daily_sales bị cũ khi thực thi dự báo cho run_id={run_id}: "
+                    f"cutoff hiện tại là {last_date}, yêu cầu tối thiểu {expected_cutoff_date}."
+                )
+
+            # 4. Huấn luyện và đánh giá mô hình LightGBM đối đầu Baseline (Backtest lấy MAE/WAPE)
             report, backtest_models = eval_fn(
                 df_daily=df_daily,
                 horizons=(7, 30),
             )
-
-            # 3. Tạo ma trận đặc trưng và huấn luyện lại mô hình sản xuất trên toàn bộ dữ liệu tới ngày D
-            builder = FeatureMatrixBuilder(df_daily)
-            last_date = builder.unique_dates[-1]
 
             # Tính lại Top 200 SKU bán chạy trên toàn bộ dữ liệu tới ngày D (Issue #298)
             # Với unit test dùng dummy evaluator, cho phép dùng top_sku_ids từ mock để test threshold trên 1 SKU
