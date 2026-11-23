@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import vn.greenmart.common.json.StrictIntegerDeserializer;
 import vn.greenmart.promotion.domain.PromotionLevel;
 import vn.greenmart.promotion.domain.PromotionType;
 
@@ -42,7 +44,19 @@ public record PromotionRequest(
     @Min(value = 1, message = "Giới hạn lượt dùng phải lớn hơn hoặc bằng 1")
     Integer usageLimit,
 
-    List<Long> productIds,
-    List<Long> branchIds,
-    List<String> channels
-) {}
+    List<@NotNull(message = "Phần tử trong productIds không được null") Long> productIds,
+    List<@NotNull(message = "Phần tử trong branchIds không được null") Long> branchIds,
+    List<@NotBlank(message = "Phần tử trong channels không được null hoặc rỗng") String> channels,
+
+    @JsonDeserialize(using = StrictIntegerDeserializer.class)
+    @Min(value = 1, message = "Số lượng tối thiểu phải lớn hơn hoặc bằng 1")
+    Integer minQuantity
+) {
+    /** Existing internal callers omit the newly optional field, as older JSON clients do. */
+    public PromotionRequest(String code, PromotionType type, PromotionLevel level, Long value,
+            Long maxDiscount, Long minOrder, Instant startAt, Instant endAt, Integer usageLimit,
+            List<Long> productIds, List<Long> branchIds, List<String> channels) {
+        this(code, type, level, value, maxDiscount, minOrder, startAt, endAt, usageLimit,
+                productIds, branchIds, channels, null);
+    }
+}

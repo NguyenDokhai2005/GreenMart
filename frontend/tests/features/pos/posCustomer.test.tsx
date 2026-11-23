@@ -36,6 +36,21 @@ afterEach(() => {
 });
 
 describe('POS customer', () => {
+  it('shows inactive-customer guidance without offering create or attach', async () => {
+    const message =
+      'Khách hàng đã ngừng hoạt động. Liên hệ Quản lý hoặc Chủ cửa hàng để kích hoạt lại.';
+    customers.mockRejectedValue({ status: 422, code: 'CUSTOMER_INACTIVE', message });
+    const onChange = vi.fn();
+    render(<PosCustomerPanel customer={null} onChange={onChange} />);
+    search(customer.phone);
+    expect(await screen.findByText(message)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Tạo nhanh khách' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Gắn khách' })).toBeNull();
+    expect((screen.getByLabelText('Số điện thoại') as HTMLInputElement).value).toBe(customer.phone);
+    expect(saveCustomer).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it.each(['0', '-1', 'abc', '1234567890'])('rejects invalid phone %s before requests', (phone) => {
     render(<PosCustomerPanel customer={null} onChange={vi.fn()} />);
     fireEvent.change(screen.getByLabelText('Số điện thoại'), { target: { value: phone } });

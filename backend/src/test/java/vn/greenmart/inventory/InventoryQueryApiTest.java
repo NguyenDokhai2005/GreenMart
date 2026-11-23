@@ -6,7 +6,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -24,8 +24,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest(properties = {
-        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration",
+        "spring.autoconfigure.exclude=org.springframework.boot.data.redis.autoconfigure.RedisAutoConfiguration,"
+                + "org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration",
         "management.endpoint.health.group.readiness.include=readinessState,db"
 })
 @AutoConfigureMockMvc
@@ -140,7 +140,7 @@ class InventoryQueryApiTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"sữa", "sku-71", "BAR71"})
+    @ValueSource(strings = {"sữa", "sua", "SỮA", "su\u031b\u0303a", "sku-71", "BAR71"})
     void searchesNameSkuAndBarcode(String q) throws Exception {
         mvc.perform(get("/api/v1/inventory").with(user("700").roles("CASHIER")).param("q", q))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
@@ -152,6 +152,55 @@ class InventoryQueryApiTest {
         mvc.perform(get("/api/v1/inventory").with(user("700").roles("CASHIER"))
                         .param("categoryId", "92").param("productId", "71"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.content").isEmpty());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"dau", "ĐẬU", "đa\u0323\u0302u"})
+    void accentSearchPreservesFiltersPagingAndBranchScope(String q) throws Exception {
+        jdbc.update("UPDATE product SET name=? WHERE id IN (71,73)", "Đậu xanh");
+        mvc.perform(get("/api/v1/inventory").with(user("700").roles("CASHIER"))
+                        .param("q", q).param("page", "1").param("size", "1").param("sort", "productId,asc"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.content[0].productId").value(73))
+                .andExpect(jsonPath("$.content[0].branch.id").value(71));
+        mvc.perform(get("/api/v1/inventory").with(user("700").roles("CASHIER"))
+                        .param("q", q).param("categoryId", "91").param("stockStatus", "LOW"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].productId").value(71));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"tra xanh", "Trà xanh", "TRÀ XANH", "Tra\u0300 xanh", "  tra xanh  "})
+    void accentedAndUnaccentedNamesReturnTheSameFourProducts(String q) throws Exception {
+        jdbc.update("UPDATE product SET name='Trà xanh ' || id WHERE id BETWEEN 71 AND 74");
+        jdbc.update("UPDATE product SET name=? WHERE id=73", "Tra\u0300 xanh 73");
+        for (int page = 0; page < 2; page++) {
+            mvc.perform(get("/api/v1/inventory").with(user("700").roles("CASHIER"))
+                            .param("q", q).param("branchId", "71").param("page", Integer.toString(page))
+                            .param("size", "2").param("sort", "productId,asc"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(4))
+                    .andExpect(jsonPath("$.totalPages").value(2))
+                    .andExpect(jsonPath("$.content[0].productId").value(71 + page * 2))
+                    .andExpect(jsonPath("$.content[1].productId").value(72 + page * 2))
+                    .andExpect(jsonPath("$.content[*].branch.id", everyItem(is(71))));
+        }
+        mvc.perform(get("/api/v1/inventory").with(user("700").roles("CASHIER"))
+                        .param("q", q).param("branchId", "72"))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
+    }
+
+    @Test
+    void accentFoldingDoesNotApplyToSkuOrBarcode() throws Exception {
+        jdbc.update("UPDATE product SET sku='MÃ-ĐỎ',barcode='MÃ-VẠCH' WHERE id=74");
+        for (String q : new String[]{"ma-do", "ma-vach", "\u0301"}) {
+            mvc.perform(get("/api/v1/inventory").with(user("700").roles("CASHIER")).param("q", q))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(0));
+        }
+        for (String q : new String[]{"mã-đỏ", "MÃ-VẠCH"}) {
+            mvc.perform(get("/api/v1/inventory").with(user("700").roles("CASHIER")).param("q", q))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1))
+                    .andExpect(jsonPath("$.content[0].productId").value(74));
+        }
     }
 
     @ParameterizedTest

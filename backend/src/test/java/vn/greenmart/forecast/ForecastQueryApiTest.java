@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -36,13 +36,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration",
+        "spring.autoconfigure.exclude=org.springframework.boot.data.redis.autoconfigure.RedisAutoConfiguration,"
+                + "org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration",
         "management.endpoint.health.group.readiness.include=readinessState,db"
 })
 @AutoConfigureMockMvc
 @Testcontainers
 class ForecastQueryApiTest {
+    // Business-module tests isolate the session registry; auth tests exercise real Redis.
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    vn.greenmart.identity.repository.RefreshTokenStore authSessions;
+
     private static final String ENDPOINT = "/api/v1/forecasts";
     private static final LocalDate CUTOFF = LocalDate.of(2026, 11, 18);
 
@@ -66,6 +70,8 @@ class ForecastQueryApiTest {
 
     @BeforeEach
     void fixtures() {
+        org.mockito.Mockito.when(authSessions.isSessionActive(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+
         jdbc.execute("TRUNCATE branch, category, app_user, forecast_run CASCADE");
         jdbc.update("INSERT INTO branch(id,code,name) VALUES(11,'B11','Branch 11'),(12,'B12','Branch 12')");
         jdbc.update("INSERT INTO category(id,name) VALUES(21,'Milk')");

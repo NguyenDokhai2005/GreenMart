@@ -10,6 +10,37 @@
 
 \set ON_ERROR_STOP on
 
+-- BEGIN ISSUE 422 PROMOTION USAGE CHECK
+-- Read-only verifier for the historical seed, not a runtime counter repair.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM sales_order WHERE status IN ('NEW','RESERVED','CONFIRMED')) THEN
+        RAISE EXCEPTION 'THẤT BẠI [#422]: seed-only check cannot validate live reservations';
+    END IF;
+    -- Seed contains historical COMPLETED/RETURNED orders. Returns do not restore usage.
+    -- UNION removes repeated item rows and any duplicate campaign/order association.
+    IF EXISTS (
+        WITH usage AS (
+            SELECT o.promotion_id, o.id AS order_id FROM sales_order o
+            WHERE o.status IN ('COMPLETED', 'RETURNED') AND o.promotion_id IS NOT NULL
+            UNION
+            SELECT oi.promotion_id, o.id FROM sales_order o JOIN order_item oi ON oi.order_id=o.id
+            WHERE o.status IN ('COMPLETED', 'RETURNED') AND oi.promotion_id IS NOT NULL
+        )
+        SELECT 1 FROM promotion p LEFT JOIN (
+            SELECT promotion_id, count(*) AS used_count FROM usage GROUP BY promotion_id
+        ) u ON u.promotion_id=p.id
+        WHERE p.used_count <> coalesce(u.used_count, 0)
+    ) THEN
+        RAISE EXCEPTION 'THẤT BẠI [#422]: used_count phải bằng số đơn hợp lệ phân biệt/campaign';
+    END IF;
+    IF EXISTS (SELECT 1 FROM promotion WHERE used_count<0
+               OR (usage_limit IS NOT NULL AND used_count>usage_limit)) THEN
+        RAISE EXCEPTION 'THẤT BẠI [#422]: used_count vượt giới hạn lượt hợp lệ';
+    END IF;
+END $$;
+-- END ISSUE 422 PROMOTION USAGE CHECK
+
 DO $$
 DECLARE
     -- 1. Biến kiểm tra cứng

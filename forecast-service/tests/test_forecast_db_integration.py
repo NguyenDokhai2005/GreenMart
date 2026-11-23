@@ -44,6 +44,17 @@ def _check_docker() -> bool:
 HAS_DOCKER = _check_docker()
 
 
+@pytest.fixture(autouse=True)
+def mock_integration_test_time(monkeypatch):
+    """Cố định thời gian giả lập cho test tích hợp CSDL tại 2026-11-01 (cutoff 2026-10-31) (Issue #417)."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    simulated_now = datetime(2026, 11, 1, 8, 0, 0, tzinfo=ZoneInfo("Asia/Ho_Chi_Minh"))
+    monkeypatch.setattr("app.api.router.get_current_vn_time", lambda: simulated_now)
+    monkeypatch.setattr("app.scheduler.forecast_scheduler.get_current_vn_time", lambda: simulated_now)
+
+
 @pytest.fixture(scope="module")
 def postgres_container() -> Generator[Any, None, None]:
     """Khởi tạo container PostgreSQL 16 và áp dụng các migration V1-V5."""

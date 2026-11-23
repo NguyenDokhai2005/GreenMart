@@ -653,19 +653,20 @@ class DailySalesPipeline:
         dry_run: bool = False,
         allow_missing_stockout: Optional[bool] = None,
         stockout_source: Optional[str] = None,
+        conn: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """Thực thi toàn bộ quy trình tổng hợp."""
         t_start = time_mod.time()
         allow_missing = self.allow_missing_stockout if allow_missing_stockout is None else allow_missing_stockout
         src = self.stockout_source if stockout_source is None else stockout_source
 
-        with get_db_connection() as conn:
+        def _execute_with_conn(active_conn: Any) -> Dict[str, Any]:
             # 1. Trích xuất dữ liệu thô
-            raw_data = self.fetch_raw_data_from_db(conn, start_date, end_date)
+            raw_data = self.fetch_raw_data_from_db(active_conn, start_date, end_date)
 
             # 2. Đọc lịch stockout
             if src == "db":
-                stockout_schedule = InventoryTransactionStockoutProvider.load_schedule_from_db(conn, start_date, end_date)
+                stockout_schedule = InventoryTransactionStockoutProvider.load_schedule_from_db(active_conn, start_date, end_date)
             elif hasattr(self.stockout_provider, "load_schedule"):
                 import inspect
                 sig = inspect.signature(self.stockout_provider.load_schedule)
@@ -707,7 +708,7 @@ class DailySalesPipeline:
 
             # 4. Ghi vào CSDL (nếu không dry-run)
             if not dry_run:
-                self.load_dataframe_to_db(conn, df_result)
+                self.load_dataframe_to_db(active_conn, df_result)
                 stats["status"] = "LOADED"
             else:
                 stats["status"] = "DRY_RUN"
@@ -715,26 +716,89 @@ class DailySalesPipeline:
             stats["elapsed_seconds"] = round(time_mod.time() - t_start, 2)
             return stats
 
+        if conn is not None:
+            return _execute_with_conn(conn)
+        with get_db_connection() as c:
+            return _execute_with_conn(c)
+
 
 # ==============================================================================
 # 4. CẦU NỐI DÒNG LỆNH (CLI INTERFACE)
 # ==============================================================================
 
 
-def parse_args() -> argparse.Namespace:
-    """Phân tích đối số dòng lệnh CLI."""
-    parser = argparse.ArgumentParser(description="Pipeline tổng hợp bảng daily_sales (Issue #109)")
+def resolve_operational_date_range(
+    now_dt: Optional[datetime] = None,
+    conn: Optional[Any] = None,
+) -> Tuple[date, date]:
+    """Tính toán khoảng ngày vận hành động (Operational Date Range) theo múi giờ Asia/Ho_Chi_Minh (Issue #417).
+
+    Quy ước:
+    - end_date mặc định là hết ngày T - 1 (hôm qua theo giờ VN).
+    - start_date:
+      + Nếu có conn và bảng daily_sales đã có dữ liệu (MAX(sale_date) = max_d):
+        start_date = max(config.START_DATE.date(), max_d - timedelta(days=7))
+        để chạy cập nhật gia tăng (incremental) bao phủ cửa sổ trả hàng 7 ngày.
+      + Nếu daily_sales trống hoặc không có conn:
+        start_date = min(config.START_DATE.date(), end_date - timedelta(days=364))
+        để đảm bảo đủ dữ liệu lịch sử huấn luyện tới ngày T - 1.
+      + Đảm bảo start_date <= end_date.
+    """
+    current_time = now_dt or datetime.now(TIMEZONE_VN)
+    today_vn = current_time.date()
+    end_date = today_vn - timedelta(days=1)
+
+    start_date: Optional[date] = None
+    if conn is not None:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT MIN(sale_date), MAX(sale_date) FROM daily_sales;")
+                row = cur.fetchone()
+                if row and len(row) > 1 and row[1] is not None:
+                    max_d = row[1]
+                    if isinstance(max_d, datetime):
+                        max_d = max_d.date()
+                    elif isinstance(max_d, str):
+                        try:
+                            max_d = date.fromisoformat(max_d)
+                        except ValueError:
+                            max_d = None
+                    if isinstance(max_d, date):
+                        start_date = max_d - timedelta(days=7)
+        except Exception:
+            start_date = None
+
+    if start_date is None or not isinstance(start_date, date):
+        hist_start = config.START_DATE.date()
+        start_date = min(hist_start, end_date - timedelta(days=364))
+
+    if start_date > end_date:
+        start_date = end_date
+
+    return start_date, end_date
+
+
+def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
+    """Phân tích đối số dòng lệnh CLI (Issue #109, cập nhật động Issue #417)."""
+    parser = argparse.ArgumentParser(description="Pipeline tổng hợp bảng daily_sales (Issue #109, #417)")
     parser.add_argument(
         "--start-date",
         type=lambda s: date.fromisoformat(s),
-        default=config.START_DATE.date(),
-        help="Ngày bắt đầu (YYYY-MM-DD), mặc định: config.START_DATE",
+        default=None,
+        help="Ngày bắt đầu (YYYY-MM-DD), mặc định: tự động tính theo lịch sử/vận hành",
     )
     parser.add_argument(
         "--end-date",
         type=lambda s: date.fromisoformat(s),
-        default=config.END_DATE.date(),
-        help="Ngày kết thúc (YYYY-MM-DD), mặc định: config.END_DATE",
+        default=None,
+        help="Ngày kết thúc (YYYY-MM-DD), mặc định: T - 1 (hết hôm qua theo giờ VN)",
+    )
+    parser.add_argument(
+        "--historical-seed",
+        "--backtest",
+        action="store_true",
+        dest="historical_seed",
+        help="Sử dụng khoảng ngày lịch sử cố định (01/11/2025 -> 31/10/2026) cho backtest/seed",
     )
     parser.add_argument(
         "--dry-run",
@@ -752,7 +816,26 @@ def parse_args() -> argparse.Namespace:
         default="json",
         help="Nguồn xác định stockout: 'json' (file demo) hoặc 'db' (bảng inventory_transaction). Mặc định: json",
     )
-    return parser.parse_args()
+    parsed = parser.parse_args(args)
+
+    if parsed.historical_seed:
+        if parsed.start_date is None:
+            parsed.start_date = config.START_DATE.date()
+        if parsed.end_date is None:
+            parsed.end_date = config.END_DATE.date()
+    else:
+        if parsed.end_date is None:
+            default_start, default_end = resolve_operational_date_range()
+            parsed.end_date = default_end
+            if parsed.start_date is None:
+                parsed.start_date = default_start
+        elif parsed.start_date is None:
+            parsed.start_date = min(config.START_DATE.date(), parsed.end_date - timedelta(days=364))
+
+    if parsed.start_date > parsed.end_date:
+        parsed.start_date = parsed.end_date
+
+    return parsed
 
 
 def main():

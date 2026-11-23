@@ -265,8 +265,8 @@ def check_flyway_migration(service_name: str) -> None:
     print(f"  [OK] Đã hoàn tất đủ {count_val} migration Flyway (V1 - V4) và migration V12 (stock_alert) hợp lệ.")
 
 
-def execute_data_generator() -> None:
-    """Kích hoạt script generate_data.py để sinh dữ liệu mẫu."""
+def execute_data_generator(end_date: Optional[str] = None, demo: bool = False) -> None:
+    """Kích hoạt script generate_data.py để sinh dữ liệu mẫu (Issue #106, #417)."""
     if not GENERATOR_SCRIPT.is_file():
         raise SeedError(
             f"Không tìm thấy script sinh dữ liệu: {GENERATOR_SCRIPT}",
@@ -274,7 +274,12 @@ def execute_data_generator() -> None:
         )
 
     cmd = [sys.executable, str(GENERATOR_SCRIPT)]
-    print(f"  Đang thực thi: {cmd[0]} {GENERATOR_SCRIPT.name} ...")
+    if demo:
+        cmd.append("--demo")
+    elif end_date:
+        cmd.extend(["--end-date", end_date])
+
+    print(f"  Đang thực thi: {cmd[0]} {' '.join(cmd[1:])} ...")
     res = subprocess.run(cmd, cwd=REPO_ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     if res.returncode != 0:
@@ -515,6 +520,17 @@ def parse_arguments(args: Optional[List[str]] = None) -> argparse.Namespace:
         help="Tên dịch vụ container Postgres trong Docker Compose (Mặc định: 'postgres').",
     )
     parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Chế độ demo: kéo dữ liệu tới hôm qua theo giờ VN (T - 1) để tránh làm dự báo tụt về 0 (Issue #417).",
+    )
+    parser.add_argument(
+        "--end-date",
+        type=str,
+        default=None,
+        help="Ngày kết thúc dữ liệu (định dạng YYYY-MM-DD hoặc 'yesterday') cho dữ liệu seed (Issue #417).",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         help="Hiển thị chi tiết dấu vết lỗi (stack trace) khi xảy ra sự cố ngoại lệ.",
@@ -555,7 +571,7 @@ def main() -> None:
         # 2. Chế độ CHỈ SINH DỮ LIỆU (--generate-only)
         if args.generate_only:
             log_step(1, 2, "Sinh dữ liệu mẫu (generate_data.py)")
-            execute_data_generator()
+            execute_data_generator(end_date=args.end_date, demo=args.demo)
 
             log_step(2, 2, "Cập nhật và đối chiếu SHA256SUMS")
             manage_sha256sums(check_golden=args.check_golden)
@@ -581,7 +597,7 @@ def main() -> None:
         if not args.load_only:
             log_step(cur_step, total_steps, "Sinh dữ liệu mẫu (generate_data.py)")
             cur_step += 1
-            execute_data_generator()
+            execute_data_generator(end_date=args.end_date, demo=args.demo)
 
             log_step(cur_step, total_steps, "Cập nhật và đối chiếu SHA256SUMS")
             cur_step += 1

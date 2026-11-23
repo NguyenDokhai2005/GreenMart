@@ -25,16 +25,21 @@ public enum ErrorCode {
 
     // 409
     CONFLICT(HttpStatus.CONFLICT, "Dữ liệu bị xung đột hoặc đã bị thay đổi bởi giao dịch khác"),
+    FORECAST_RUNNING(HttpStatus.CONFLICT, "Đang có lượt dự báo chạy"),
+    FORECAST_NO_DATA(HttpStatus.CONFLICT, "Chưa có dữ liệu bán hàng để chạy dự báo"),
     INVALID_STATUS(HttpStatus.CONFLICT, "Thao tác không hợp lệ với trạng thái hiện tại"),
     DUPLICATE_SKU(HttpStatus.CONFLICT, "Mã SKU đã tồn tại"),
     DUPLICATE_BARCODE(HttpStatus.CONFLICT, "Mã vạch barcode đã tồn tại"),
     DUPLICATE_PHONE(HttpStatus.CONFLICT, "Số điện thoại đã thuộc khách hàng khác"),
+    DUPLICATE_USERNAME(HttpStatus.CONFLICT, "Tên đăng nhập đã tồn tại"),
     DUPLICATE_PROMOTION_CODE(HttpStatus.CONFLICT, "Mã khuyến mại đã tồn tại"),
     INSUFFICIENT_STOCK(HttpStatus.CONFLICT, "Số lượng tồn kho không đủ"),
     IDEMPOTENCY_CONFLICT(HttpStatus.CONFLICT, "Yêu cầu đang được xử lý hoặc trùng lặp với nội dung khác"),
     CATEGORY_IN_USE(HttpStatus.CONFLICT, "Danh mục đang có sản phẩm hoặc danh mục con"),
 
     // 422
+    CUSTOMER_INACTIVE(HttpStatus.UNPROCESSABLE_ENTITY, "Khách hàng đã ngừng hoạt động"),
+    SELF_ACTION_FORBIDDEN(HttpStatus.UNPROCESSABLE_ENTITY, "Admin không được tự khóa hoặc tự đổi vai trò"),
     SELF_APPROVAL_FORBIDDEN(HttpStatus.UNPROCESSABLE_ENTITY, "Người lập không được tự duyệt phiếu"),
     COUNTED_QUANTITY_REQUIRED(HttpStatus.UNPROCESSABLE_ENTITY, "Phải nhập số đếm cho từng dòng kiểm kê trước khi duyệt"),
     RECEIVED_QUANTITY_EXCEEDED(HttpStatus.UNPROCESSABLE_ENTITY, "Số lượng nhận vượt số lượng đã chuyển"),
@@ -47,6 +52,19 @@ public enum ErrorCode {
     CATEGORY_CYCLE(HttpStatus.UNPROCESSABLE_ENTITY, "Danh mục cha tạo vòng lặp không hợp lệ"),
     WRONG_PASSWORD(HttpStatus.UNPROCESSABLE_ENTITY, "Mật khẩu hiện tại không chính xác"),
     UNMAPPED_SKU(HttpStatus.UNPROCESSABLE_ENTITY, "Mã hàng của kênh chưa được ánh xạ"),
+    RETURN_WINDOW_EXPIRED(HttpStatus.UNPROCESSABLE_ENTITY, "Đơn hàng đã quá thời hạn trả hàng 7 ngày"),
+    RETURN_QUANTITY_EXCEEDED(HttpStatus.UNPROCESSABLE_ENTITY, "Số lượng trả vượt quá số lượng còn lại có thể trả"),
+
+    // 429
+    LOGIN_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Quá nhiều lần đăng nhập. Vui lòng thử lại sau."),
+    REFRESH_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Quá nhiều lần làm mới phiên. Vui lòng thử lại sau."),
+    PASSWORD_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Quá nhiều lần xác minh mật khẩu. Vui lòng thử lại sau."),
+
+    // 503
+    LOGIN_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Dịch vụ đăng nhập tạm thời không khả dụng. Vui lòng thử lại sau."),
+    AUTH_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Dịch vụ xác thực tạm thời không khả dụng. Vui lòng thử lại sau."),
+
+    FORECAST_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Dịch vụ dự báo tạm thời không phản hồi"),
 
     // 500
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Đã có lỗi hệ thống xảy ra, vui lòng thử lại sau");

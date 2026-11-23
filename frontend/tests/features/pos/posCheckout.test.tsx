@@ -4,15 +4,23 @@ import type { Product, Quote } from '../../../src/api/client';
 import PosSalePage from '../../../src/features/pos/PosSalePage';
 import { POS_NAVIGATION } from '../../../src/layouts/pos/posNavigation';
 
-const { searchProducts, lookupProduct, quoteOrder, completePosOrder, customers } = vi.hoisted(
-  () => ({
-    searchProducts: vi.fn(),
-    lookupProduct: vi.fn(),
-    quoteOrder: vi.fn(),
-    completePosOrder: vi.fn(),
-    customers: vi.fn(),
-  }),
-);
+const {
+  searchProducts,
+  lookupProduct,
+  quoteOrder,
+  completePosOrder,
+  customers,
+  listInventory,
+  roleRef,
+} = vi.hoisted(() => ({
+  searchProducts: vi.fn(),
+  lookupProduct: vi.fn(),
+  quoteOrder: vi.fn(),
+  completePosOrder: vi.fn(),
+  customers: vi.fn(),
+  listInventory: vi.fn(),
+  roleRef: { current: 'CASHIER' as string },
+}));
 
 vi.mock('../../../src/api/client', () => ({
   searchProducts,
@@ -21,10 +29,14 @@ vi.mock('../../../src/api/client', () => ({
   completePosOrder,
 }));
 vi.mock('../../../src/features/catalog/catalogApi', () => ({ catalogApi: { customers } }));
+vi.mock('../../../src/features/inventory/inventoryApi', () => ({ listInventory }));
 vi.mock('../../../src/features/auth/useActiveBranch', () => ({
   useActiveBranch: () => ({
     state: { status: 'active', branch: { id: 1, code: 'GM-001', name: 'Quận 1' } },
   }),
+}));
+vi.mock('../../../src/features/auth/useAuth', () => ({
+  useAuth: () => ({ state: { status: 'authenticated', user: { id: 7, role: roleRef.current } } }),
 }));
 
 const product: Product = {
@@ -89,7 +101,26 @@ async function openCheckout() {
   expect(screen.getByRole('dialog', { name: 'Thanh toán đơn hàng' })).toBeTruthy();
 }
 
+it('opens checkout with F4 from the search field without completing an order', async () => {
+  render(<PosSalePage item={POS_NAVIGATION[0]} />);
+  const search = screen.getByLabelText('Quét mã vạch hoặc tìm theo tên / SKU');
+  fireEvent.keyDown(search, { key: 'F4' });
+  expect(screen.queryByRole('dialog', { name: 'Thanh toán đơn hàng' })).toBeNull();
+  fireEvent.change(search, { target: { value: product.sku } });
+  fireEvent.keyDown(search, { key: 'Enter' });
+  const checkout = screen.getByRole('button', { name: 'Thanh toán · F4' });
+  await waitFor(() => expect((checkout as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.keyDown(search, { key: 'F4' });
+  expect(screen.getByRole('dialog', { name: 'Thanh toán đơn hàng' })).toBeTruthy();
+  expect(completePosOrder).not.toHaveBeenCalled();
+});
+
 beforeEach(() => {
+  listInventory
+    .mockReset()
+    .mockResolvedValue({ content: [{ productId: product.id, available: 5 }] });
+  roleRef.current = 'CASHIER';
+  sessionStorage.clear();
   searchProducts.mockReset().mockResolvedValue({ content: [product] });
   lookupProduct.mockReset().mockResolvedValue({ product, branchId: 1, available: 5 });
   quoteOrder.mockReset().mockResolvedValue(quote);
@@ -103,6 +134,43 @@ afterEach(() => {
 });
 
 describe('POS checkout', () => {
+  it('quotes and completes a manager manual discount with its reason', async () => {
+    roleRef.current = 'BRANCH_MANAGER';
+    completePosOrder.mockResolvedValue(paidOrder);
+    render(<PosSalePage item={POS_NAVIGATION[0]} />);
+    const search = screen.getByLabelText('Quét mã vạch hoặc tìm theo tên / SKU');
+    fireEvent.change(search, { target: { value: product.sku } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    await screen.findByText(product.name);
+    fireEvent.change(screen.getByLabelText('Giảm giá thủ công (VND)'), {
+      target: { value: '2000' },
+    });
+    expect(
+      (screen.getByRole('button', { name: 'Thanh toán · F4' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    fireEvent.change(screen.getByLabelText('Lý do giảm giá'), {
+      target: { value: 'Khách thân thiết' },
+    });
+    await waitFor(() =>
+      expect(quoteOrder).toHaveBeenLastCalledWith(
+        expect.objectContaining({ manualDiscount: { amount: 2000, reason: 'Khách thân thiết' } }),
+        expect.any(AbortSignal),
+      ),
+    );
+    const checkout = screen.getByRole('button', { name: 'Thanh toán · F4' });
+    await waitFor(() => expect((checkout as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(checkout);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Tiền khách đưa (VND)' }), {
+      target: { value: '40000' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
+    await waitFor(() =>
+      expect(completePosOrder).toHaveBeenCalledWith(
+        expect.objectContaining({ manualDiscount: { amount: 2000, reason: 'Khách thân thiết' } }),
+        expect.any(String),
+      ),
+    );
+  });
   it('shows item and order discounts from the completed API order in the printable receipt', async () => {
     completePosOrder.mockResolvedValue({
       ...paidOrder,
@@ -124,10 +192,10 @@ describe('POS checkout', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Thẻ' }));
     fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
     const receipt = await screen.findByRole('dialog', { name: 'Thanh toán thành công' });
-    expect(receipt.textContent).toContain('KM-SUA 4.000 đ');
-    expect(receipt.textContent).toContain('Giảm giá đơn hàng−3.000 đ');
-    expect(receipt.textContent).toContain('Tổng giảm giá7.000 đ');
-    expect(receipt.textContent).toContain('Tổng thanh toán25.000 đ');
+    expect(receipt.textContent).toContain('KM-SUA 4.000 ₫');
+    expect(receipt.textContent).toContain('Giảm giá đơn hàng−3.000 ₫');
+    expect(receipt.textContent).toContain('Tổng giảm giá−7.000 ₫');
+    expect(receipt.textContent).toContain('Tổng thanh toán25.000 ₫');
   });
 
   it('shows cash change and blocks completion below the quoted total', async () => {
@@ -139,8 +207,11 @@ describe('POS checkout', () => {
     fireEvent.change(cash, { target: { value: '20000' } });
     expect(screen.getByText('Tiền khách đưa nhỏ hơn tổng thanh toán.')).toBeTruthy();
     expect((confirm as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.change(cash, { target: { value: '40000' } });
-    expect(screen.getByText('8.000 đ')).toBeTruthy();
+    fireEvent.change(cash, { target: { value: '40,000' } });
+    expect((confirm as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(cash, { target: { value: '40.000' } });
+    expect(screen.getByText('Số tiền ghi nhận: 40.000 ₫')).toBeTruthy();
+    expect(screen.getByText('8.000 ₫')).toBeTruthy();
     fireEvent.click(confirm);
     await waitFor(() => expect(completePosOrder).toHaveBeenCalledTimes(1));
     expect(completePosOrder.mock.calls[0][0]).toEqual({
@@ -156,7 +227,7 @@ describe('POS checkout', () => {
     expect(receipt.textContent).toContain(paidOrder.code);
     expect(receipt.textContent).toContain('Nguyễn An');
     expect(receipt.textContent).toContain('Lê Hoàng Mai');
-    expect(receipt.textContent).toContain('Tiền thừa 8.000 đ');
+    expect(receipt.textContent).toContain('Tiền thừa 8.000 ₫');
     const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
     fireEvent.click(screen.getByRole('button', { name: 'In hóa đơn' }));
     expect(print).toHaveBeenCalledOnce();
@@ -198,7 +269,7 @@ describe('POS checkout', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Thẻ' }));
       fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
       expect(await screen.findByText('Thẻ thất bại')).toBeTruthy();
-      expect(screen.getByText(/Bạn có thể chọn phương thức khác/)).toBeTruthy();
+      expect(screen.getByText(/Thử lại hoặc chọn phương thức khác/)).toBeTruthy();
       expect(screen.getByRole('spinbutton', { name: `Số lượng ${product.name}` })).toBeTruthy();
       fireEvent.click(screen.getByRole('button', { name: 'QR' }));
       fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
@@ -210,18 +281,120 @@ describe('POS checkout', () => {
     },
   );
 
-  it('requotes an unchanged cart after a TOTAL_CHANGED response', async () => {
+  it('retries a known payment failure with the same key and unchanged request', async () => {
+    completePosOrder
+      .mockRejectedValueOnce({
+        status: 422,
+        code: 'PAYMENT_FAILED',
+        message: 'Thanh toán thất bại',
+      })
+      .mockResolvedValueOnce(paidOrder);
+    await openCheckout();
+    fireEvent.click(screen.getByRole('button', { name: 'Thẻ' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
+    expect(await screen.findByText('Thanh toán thất bại')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
+    await waitFor(() => expect(completePosOrder).toHaveBeenCalledTimes(2));
+    expect(completePosOrder.mock.calls[1]).toEqual(completePosOrder.mock.calls[0]);
+  });
+
+  it('marks the stock line red with the available quantity after a checkout conflict', async () => {
+    completePosOrder.mockRejectedValueOnce({
+      status: 409,
+      code: 'INSUFFICIENT_STOCK',
+      message: 'Không đủ tồn kho khả dụng',
+      details: { lines: [{ productId: 205, sku: product.sku, requested: 1, available: 0 }] },
+    });
+    await openCheckout();
+    fireEvent.click(screen.getByRole('button', { name: 'Thẻ' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.getByText('Thiếu hàng · chỉ còn 0')).toBeTruthy();
+    const quantity = screen.getByRole('spinbutton', { name: `Số lượng ${product.name}` });
+    expect(quantity.closest('.pos-sale__cart-line--conflict')).toBeTruthy();
+    expect((quantity as HTMLInputElement).value).toBe('1');
+    expect(
+      (screen.getByRole('button', { name: 'Thanh toán · F4' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Kiểm tra giỏ hàng' }));
+    expect(document.activeElement).toBe(quantity);
+  });
+
+  it('shows details.quote and requires confirmation before retrying TOTAL_CHANGED', async () => {
+    const changedQuote: Quote = {
+      ...quote,
+      lines: [{ ...quote.lines[0], discount: 2000, lineTotal: 30000 }],
+      itemDiscount: 2000,
+      discount: 2000,
+      total: 30000,
+    };
+    completePosOrder
+      .mockRejectedValueOnce({
+        status: 422,
+        code: 'TOTAL_CHANGED',
+        message: 'Tổng tiền đã thay đổi',
+        details: { quote: changedQuote },
+      })
+      .mockResolvedValueOnce({ ...paidOrder, total: 30000 });
+    await openCheckout();
+    fireEvent.click(screen.getByRole('button', { name: 'Thẻ' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
+    expect(await screen.findByText('Tổng tiền đã thay đổi')).toBeTruthy();
+    expect(screen.getByText('Tổng mới: 30.000 ₫')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'QR' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(completePosOrder).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận tổng mới' }));
+    expect(screen.getByRole('dialog', { name: 'Thanh toán đơn hàng' })).toBeTruthy();
+    expect(screen.getAllByText('30.000 ₫').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
+    await waitFor(() => expect(completePosOrder).toHaveBeenCalledTimes(2));
+    expect(completePosOrder.mock.calls[1][0].expectedTotal).toBe(30000);
+    expect(completePosOrder.mock.calls[1][1]).not.toBe(completePosOrder.mock.calls[0][1]);
+    expect(quoteOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires more cash before retrying when the confirmed total increases', async () => {
+    const changedQuote: Quote = {
+      ...quote,
+      lines: [{ ...quote.lines[0], unitPrice: 42000, lineTotal: 42000 }],
+      subtotal: 42000,
+      total: 42000,
+    };
     completePosOrder.mockRejectedValueOnce({
       status: 422,
       code: 'TOTAL_CHANGED',
       message: 'Tổng tiền đã thay đổi',
+      details: { quote: changedQuote },
+    });
+    await openCheckout();
+    const cash = screen.getByRole('textbox', { name: 'Tiền khách đưa (VND)' });
+    fireEvent.change(cash, { target: { value: '40000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
+    expect(await screen.findByText('Tổng mới: 42.000 ₫')).toBeTruthy();
+    expect((cash as HTMLInputElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận tổng mới' }));
+    expect((cash as HTMLInputElement).disabled).toBe(false);
+    expect(screen.getByText('Tiền khách đưa nhỏ hơn tổng thanh toán.')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Hoàn tất' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    expect(completePosOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it('requotes without resubmitting when TOTAL_CHANGED details are incomplete', async () => {
+    completePosOrder.mockRejectedValueOnce({
+      status: 422,
+      code: 'TOTAL_CHANGED',
+      message: 'Tổng tiền đã thay đổi',
+      details: { quote: { total: 30000 } },
     });
     await openCheckout();
     fireEvent.click(screen.getByRole('button', { name: 'Thẻ' }));
     fireEvent.click(screen.getByRole('button', { name: 'Hoàn tất' }));
     expect(await screen.findByText('Tổng tiền đã thay đổi')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Quay lại' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Xem lại báo giá' }));
     await waitFor(() => expect(quoteOrder).toHaveBeenCalledTimes(2));
     expect(screen.getByRole('spinbutton', { name: `Số lượng ${product.name}` })).toBeTruthy();
+    expect(completePosOrder).toHaveBeenCalledTimes(1);
   });
 });

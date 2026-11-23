@@ -8,7 +8,7 @@ import org.springframework.amqp.rabbit.listener.api.ChannelAwareMessageListener;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.boot.autoconfigure.amqp.RabbitTemplateCustomizer;
+import org.springframework.boot.amqp.autoconfigure.RabbitTemplateCustomizer;
 
 @Configuration
 public class RabbitCorrelationConfiguration {

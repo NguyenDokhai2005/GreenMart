@@ -773,6 +773,44 @@ class TestDailySalesPureLogic(unittest.TestCase):
             self.assertEqual(params["user"], "ro_user")
             self.assertEqual(params["password"], "ro_password")
 
+    def test_resolve_operational_date_range_dynamic_t_minus_1(self):
+        """TC-26 (Issue #417): Ngày kết thúc mặc định là T - 1 theo múi giờ VN."""
+        from app.pipelines.daily_sales import resolve_operational_date_range
+        test_now = datetime(2026, 11, 23, 9, 0, 0, tzinfo=TIMEZONE_VN)
+        s_date, e_date = resolve_operational_date_range(now_dt=test_now, conn=None)
+        self.assertEqual(e_date, date(2026, 11, 22))
+        self.assertLessEqual(s_date, e_date)
+
+    def test_resolve_operational_date_range_incremental_with_db(self):
+        """TC-27 (Issue #417): Khi đã có MAX(sale_date), tính start_date lùi 7 ngày đệm."""
+        from unittest.mock import MagicMock
+        from app.pipelines.daily_sales import resolve_operational_date_range
+
+        mock_conn = MagicMock()
+        mock_cur = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+        mock_cur.fetchone.return_value = (date(2025, 11, 1), date(2026, 11, 20))
+
+        test_now = datetime(2026, 11, 23, 9, 0, 0, tzinfo=TIMEZONE_VN)
+        s_date, e_date = resolve_operational_date_range(now_dt=test_now, conn=mock_conn)
+        self.assertEqual(e_date, date(2026, 11, 22))
+        self.assertEqual(s_date, date(2026, 11, 13))
+
+    def test_parse_args_historical_seed_and_defaults(self):
+        """TC-28 (Issue #417): parse_args mặc định T - 1 động; flag --historical-seed giữ dải 2025-11-01 -> 2026-10-31."""
+        from app.pipelines.daily_sales import parse_args
+        args_seed = parse_args(["--historical-seed"])
+        self.assertEqual(args_seed.start_date, date(2025, 11, 1))
+        self.assertEqual(args_seed.end_date, date(2026, 10, 31))
+
+        args_backtest = parse_args(["--backtest"])
+        self.assertEqual(args_backtest.start_date, date(2025, 11, 1))
+        self.assertEqual(args_backtest.end_date, date(2026, 10, 31))
+
+        args_default = parse_args([])
+        today_vn = datetime.now(TIMEZONE_VN).date()
+        self.assertEqual(args_default.end_date, today_vn - timedelta(days=1))
+
 
 @pytest.mark.integration
 def test_upsert_integration_idempotent():

@@ -15,7 +15,16 @@ export interface paths {
     put?: never;
     /**
      * Đăng nhập
-     * @description Sai 5 lần liên tiếp thì khóa tài khoản 15 phút; mỗi lần sai được ghi nhật ký (AUTH-03).
+     * @description Mỗi IP được thử tối đa 20 lần trong 60 giây gần nhất, tính cả đúng, sai và dữ liệu không hợp lệ.
+     *     Request thứ 21 vượt ngưỡng bắt đầu chặn IP trong 60 giây, trả 429 và Retry-After là số giây còn chờ.
+     *     Request trong lúc chặn không kéo dài thời gian chặn. Hết cooldown thì bắt đầu bộ đếm mới.
+     *     Kiểm tra IP chạy trước khi đọc tài khoản từ PostgreSQL. Qua proxy chỉ tin X-Real-IP từ proxy được cấu hình tin cậy.
+     *     Khi kho giới hạn tạm thời không khả dụng, trả 503 trước bước đọc tài khoản.
+     *     Sai mật khẩu 5 lần liên tiếp khóa tài khoản 15 phút; mỗi lần sai được ghi nhật ký (AUTH-03).
+     *     Tài khoản không tồn tại hoặc bị vô hiệu hóa trả 401 INVALID_CREDENTIALS với cùng thông báo sai thông tin.
+     *     Sai mật khẩu trước ngưỡng khóa trả INVALID_CREDENTIALS kèm details.remainingAttempts.
+     *     Lần sai thứ 5 và mọi lần thử trong thời gian khóa (kể cả đúng mật khẩu) trả 401 ACCOUNT_LOCKED
+     *     kèm details.lockedUntil (ISO 8601). Thử lại trong lúc khóa không kéo dài mốc khóa.
      */
     post: operations['login'];
     delete?: never;
@@ -35,7 +44,11 @@ export interface paths {
     put?: never;
     /**
      * Làm mới access token
-     * @description Trả cặp token mới; refresh token cũ bị thu hồi (xoay vòng).
+     * @description Trả cặp token mới; refresh token cũ bị thu hồi (xoay vòng), giữ cùng phiên sid.
+     *     Refresh token được xác minh trong Redis trước khi truy vấn tài khoản, rồi kiểm tra/tiêu thụ nguyên tử lại khi xoay.
+     *     Access mới có hạn 15 phút, refresh mới 7 ngày tính từ lúc cấp; không có hạn tổng tuổi phiên.
+     *     Tối đa 60 request/IP trong 60 giây gần nhất; request thứ 61 bắt đầu chặn 60 giây.
+     *     Request lúc chặn không kéo dài cooldown. Tính cả token giả và body không hợp lệ.
      */
     post: operations['refreshToken'];
     delete?: never;
@@ -55,7 +68,11 @@ export interface paths {
     put?: never;
     /**
      * Đăng xuất
-     * @description Thu hồi refresh token. Access token hết hạn tự nhiên sau tối đa 15 phút.
+     * @description Dùng refresh token trong body làm bằng chứng để thu hồi đúng phiên, không cần access token.
+     *     Hoạt động cả khi access hết hạn, tài khoản bị khóa/vô hiệu hóa hoặc token đã xoay vòng trong vòng 7 ngày.
+     *     Access token của phiên mất hiệu lực ngay cho request xác thực tiếp theo; các phiên khác giữ nguyên.
+     *     Token đúng định dạng nhưng đã hết hạn/thu hồi/không tồn tại vẫn trả 204, không tiết lộ trạng thái.
+     *     Không cấp token mới để logout. Redis không khả dụng trả 503; không báo đã thu hồi thành công.
      */
     post: operations['logout'];
     delete?: never;
@@ -95,7 +112,12 @@ export interface paths {
     put?: never;
     /**
      * Đổi mật khẩu
-     * @description Mật khẩu mới tối thiểu 8 ký tự, có chữ và số. Đổi xong thu hồi mọi refresh token của người dùng.
+     * @description Mật khẩu mới tối thiểu 8 ký tự, có chữ và số, tối đa 72 byte UTF-8 cho BCrypt.
+     *     Đổi xong thu hồi mọi phiên, gồm access và refresh token; cần đăng nhập lại.
+     *     Tối đa 5 lần xác minh mật khẩu hiện tại/tài khoản trong 15 phút, gồm cả thành công và thất bại.
+     *     Lần thứ 6 bắt đầu chặn 15 phút; không kéo dài khi thử thêm. Sai mật khẩu được ghi audit.
+     *     Đồng thời giới hạn 20 request/IP trong 60 giây, tính cả body không hợp lệ; vượt ngưỡng chặn 60 giây.
+     *     Hạn mức tài khoản không bị xóa bởi đăng nhập mới, refresh hoặc đổi IP.
      */
     post: operations['changePassword'];
     delete?: never;
@@ -139,7 +161,10 @@ export interface paths {
      */
     get: operations['listCategories'];
     put?: never;
-    /** Tạo danh mục */
+    /**
+     * Tạo danh mục
+     * @description Tên chuẩn hóa NFC, trim/gộp Unicode whitespace. Không trùng tên khi bỏ phân biệt hoa/thường trong cùng parentId, kể cả danh mục gốc; giữ dấu tiếng Việt. Trùng trả 409 CONFLICT.
+     */
     post: operations['createCategory'];
     delete?: never;
     options?: never;
@@ -157,7 +182,10 @@ export interface paths {
       cookie?: never;
     };
     get?: never;
-    /** Sửa danh mục */
+    /**
+     * Sửa danh mục
+     * @description Cùng quy tắc chuẩn hóa và duy nhất như tạo; đổi parentId cũng kiểm trùng tại cấp đích, không tự gộp danh mục.
+     */
     put: operations['updateCategory'];
     post?: never;
     /**
@@ -241,12 +269,20 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Tìm khách hàng */
+    /**
+     * Tìm khách hàng
+     * @description Tìm kiếm mặc định chỉ trả khách active. Khi có phone khớp chính xác khách inactive và active không được gửi
+     *     hoặc là true, trả 422 CUSTOMER_INACTIVE kèm hướng dẫn liên hệ Quản lý/Chủ cửa hàng để kích hoạt lại;
+     *     không trả hồ sơ khách trong lỗi. Phone chưa tồn tại trả 200 với content rỗng.
+     *     OWNER/BRANCH_MANAGER gửi active=false để xem khách inactive; CASHIER không có quyền này.
+     */
     get: operations['listCustomers'];
     put?: never;
     /**
      * Tạo khách hàng
      * @description Thu ngân tạo nhanh tại POS khi số điện thoại chưa có (UC-01 bước 2).
+     *     Số điện thoại đã tồn tại vẫn trả 409 DUPLICATE_PHONE; nếu thuộc khách inactive, message hướng dẫn
+     *     liên hệ Quản lý/Chủ cửa hàng kích hoạt lại, không tạo khách trùng hoặc tự kích hoạt.
      */
     post: operations['createCustomer'];
     delete?: never;
@@ -333,6 +369,8 @@ export interface paths {
      * Tính tiền giỏ hàng
      * @description Tính tạm tính, khuyến mại có lợi nhất (BR-07) và tổng. Không ghi gì vào CSDL, không giữ tồn.
      *     POS gọi sau mỗi thay đổi giỏ hàng (UC-01 bước 3).
+     *     customerId phải tồn tại và active; inactive trả 422 CUSTOMER_INACTIVE, không tồn tại trả 404.
+     *     Không gắn customerId vẫn được bán cho khách lẻ.
      */
     post: operations['quoteOrder'];
     delete?: never;
@@ -360,6 +398,9 @@ export interface paths {
      *     - Tổng tính lại khác `expectedTotal` → 422 `TOTAL_CHANGED`, không tạo đơn (UC-01 5b).
      *     - Thiếu tồn lúc hoàn tất → 409 `INSUFFICIENT_STOCK`, không tạo đơn, giỏ hàng giữ nguyên (5a).
      *     - Thanh toán thẻ/QR thất bại hoặc quá 60 giây → 422, không tạo đơn (4a).
+     *     - Khách bị ngừng hoạt động (kể cả sau báo giá) → 422 CUSTOMER_INACTIVE, không tạo đơn/payment hoặc trừ tồn.
+     *       Kiểm tra và khóa trạng thái khách trong transaction hoàn tất; chỉ OWNER/BRANCH_MANAGER kích hoạt lại bằng API có sẵn.
+     *       Retry cùng key/body của đơn đã thành công vẫn trả đơn cũ, không tạo đơn mới dù khách sau đó ngừng hoạt động.
      */
     post: operations['createPosOrder'];
     delete?: never;
@@ -402,6 +443,90 @@ export interface paths {
     get: operations['getOrder'];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/returns': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Danh sách phiếu trả hàng của một đơn */
+    get: operations['listReturnsByOrder'];
+    put?: never;
+    /**
+     * Tạo phiếu trả hàng (Nháp)
+     * @description Lập phiếu trả toàn bộ hoặc một phần cho đơn COMPLETED trong vòng 7 ngày kể từ completedAt (BR-10).
+     *     Tiền hoàn phân bổ khuyến mại cấp đơn theo tỷ lệ giá trị dòng và làm tròn xuống đến đồng VND.
+     */
+    post: operations['createReturn'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/returns/{returnId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        returnId: components['parameters']['ReturnId'];
+      };
+      cookie?: never;
+    };
+    /** Chi tiết phiếu trả hàng */
+    get: operations['getReturn'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/returns/{returnId}/approve': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        returnId: components['parameters']['ReturnId'];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Duyệt phiếu trả hàng
+     * @description Người duyệt phải khác người lập (BR-13, 422 SELF_APPROVAL_FORBIDDEN).
+     *     Hàng RESELLABLE cộng tồn chi nhánh nhận trả và ghi RETURN; hàng DAMAGED ghi RETURN và EXPORT hủy ngay.
+     *     Trả hết 100% đơn thì cập nhật trạng thái đơn sang RETURNED.
+     */
+    post: operations['approveReturn'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/returns/{returnId}/cancel': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        returnId: components['parameters']['ReturnId'];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Hủy phiếu trả hàng nháp */
+    post: operations['cancelReturn'];
     delete?: never;
     options?: never;
     head?: never;
@@ -595,11 +720,22 @@ export interface paths {
     put?: never;
     /**
      * Kênh báo thanh toán hoặc hủy đơn
-     * @description Ký HMAC giống webhook đơn mới.
+     * @description Chữ ký sự kiện v1 (khác chữ ký body của webhook đơn mới/callback): HMAC-SHA256 hex trên chuỗi UTF-8
+     *     gồm 6 dòng, ngăn bằng LF, không LF cuối: `GREENMART-EVENT-V1`, HTTP method `POST`, raw path đầy đủ
+     *     `/api/v1/integrations/{channelCode}/orders/{externalOrderId}/events` (giữ nguyên percent-encoding),
+     *     `X-Event-ID`, `X-Event-Timestamp`, SHA-256 hex chữ thường của nguyên byte body.
+     *     Dùng secret riêng của kênh. Timestamp là epoch giây lúc gửi, chấp nhận lệch tối đa ±300 giây;
+     *     không dùng occurredAt nghiệp vụ để chặn PAID đến muộn. Thiếu/sai header, chữ ký hoặc timestamp → 401 INVALID_SIGNATURE.
+     *     Retry giữ eventId/path/body nguyên byte, cập nhật transport timestamp và ký lại. EventId UUID duy nhất trong kênh;
+     *     cùng eventId nhưng đổi target/nội dung → 409 CONFLICT. Receipt giữ tối thiểu 7 ngày, hiện chưa tự xóa;
+     *     retry đúng trả acknowledgement đầu tiên (có thể khác trạng thái đơn hiện tại), không áp dụng lại sự kiện.
      *     - `PAID`: RESERVED → CONFIRMED, ghi payment PAID. Nếu đơn đã EXPIRED (BA E2): thử giữ chỗ lại; đủ → CONFIRMED,
      *       không đủ → CANCELLED và hoàn tiền giả lập.
      *     - `CANCELLED`: RESERVED/CONFIRMED → CANCELLED, nhả giữ chỗ, hoàn tiền nếu đã trả (lý do `CHANNEL_CANCELLED`).
-     *     Gửi lại cùng sự kiện cho đơn đã ở trạng thái đích → 200, không làm gì thêm.
+     *     PAID bắt buộc có providerRef không rỗng, tối đa 60 ký tự. Mã là chuỗi opaque phân biệt hoa/thường,
+     *     duy nhất theo gateway/merchant do server cấu hình payment_provider_scope; WEB/MARKET mặc định cùng MOCK:GREENMART.
+     *     Một mã không gắn hai đơn, một đơn không thay sang mã khác; xung đột → 409 CONFLICT. Binding giữ cả sau refund.
+     *     Mã mới cho đơn đã CONFIRMED/COMPLETED chỉ được xác nhận idempotent khi khớp giao dịch PAID/REFUNDED đã có.
      */
     post: operations['receiveChannelOrderEvent'];
     delete?: never;
@@ -691,9 +827,39 @@ export interface paths {
     get: operations['getStockDocument'];
     /**
      * Sửa phiếu nháp
-     * @description Chỉ phiếu DRAFT. Không đổi được `type`, `branchId`. Với ADJUST, dùng để nhập `countedQuantity`.
+     * @description Chỉ phiếu DRAFT. Không đổi được type, branchId. Với ADJUST, dùng để nhập countedQuantity.
+     *     Số đếm/chênh lệch được giữ trên phiếu và ghi audit RECORD_STOCK_COUNT cùng transaction,
+     *     kể cả khi lần duyệt sau bị chặn do reservation. Không tự thay đổi tồn hoặc đơn hàng khi nhập số đếm.
      */
     put: operations['updateStockDocument'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/stock-documents/{documentId}/reconciliation': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Đối soát tồn và đơn giữ chỗ trước khi duyệt kiểm kê
+     * @description Chỉ ADJUST/DRAFT, cùng quyền và phạm vi chi nhánh như xem phiếu. Đọc snapshot nhất quán;
+     *     không sửa tồn, hủy đơn hoặc ghi audit khi đọc. projectedOnHand = onHand + countedQuantity - snapshotQuantity.
+     *     shortfall = max(0, reserved - projectedOnHand). Nhập thêm hàng hoặc xử lý đơn qua luồng được phép,
+     *     rồi đọc lại và thử duyệt; hàng phát sinh sau snapshot không bị mất.
+     *     inventoryReady chỉ phản ánh điều kiện tồn/số đếm, không thay kiểm tra quyền hoặc BR-13/BR-17.
+     *     Mỗi SKU trả tối đa 20 đơn RESERVED/CONFIRMED theo id; reservationOrderCount và reservationGap
+     *     tính trên toàn bộ đơn đang giữ chỗ, không chỉ 20 dòng. Gap khác 0 cần đối soát dữ liệu,
+     *     không sửa reserved bằng SQL. Không trả hồ sơ khách, payment hoặc tự chọn đơn để hủy.
+     *     Kết quả có thể cũ sau response; approve kiểm lại với khóa hàng trong transaction.
+     */
+    get: operations['reconcileStocktake'];
+    put?: never;
     post?: never;
     delete?: never;
     options?: never;
@@ -717,6 +883,10 @@ export interface paths {
      *     - `EXPORT`: DRAFT → APPROVED, on_hand giảm (EXPORT); không vượt khả dụng → 409 `INSUFFICIENT_STOCK`.
      *     - `TRANSFER`: DRAFT → **IN_TRANSIT** (duyệt kèm xác nhận xuất, BA 6.3), on_hand CN nguồn giảm (TRANSFER_OUT).
      *     - `ADJUST`: DRAFT → APPROVED, ghi ADJUST bằng chênh lệch `countedQuantity − quantity` (BR-17); mọi dòng phải có `countedQuantity`.
+     *       Kiểm tra mọi dòng dưới khóa product→inventory theo productId tăng dần trước ghi tồn.
+     *       Nếu tồn dự kiến nhỏ hơn reserved, trả 409 INSUFFICIENT_STOCK; details có documentId,
+     *       reconciliationPath và lines theo StocktakeReconciliationLine. Giữ số đếm/audit đã lưu ở transaction trước.
+     *       Không tự hủy đơn/hoàn tiền hoặc sửa reserved; xử lý bằng nhập kho/luồng đơn hợp lệ rồi duyệt lại.
      *
      *     Ghi `audit_log` (AUTH-03), outbox `stock.changed`.
      */
@@ -781,7 +951,7 @@ export interface paths {
     put?: never;
     /**
      * Tạo chương trình (Nháp)
-     * @description Tạo ở DRAFT (PRM-01). `productIds` bắt buộc với `level = ITEM`. `branchIds`, `channels` rỗng = áp mọi chi nhánh/kênh.
+     * @description Tạo ở DRAFT (PRM-01). `productIds` bắt buộc với `level = ITEM`; `minQuantity` chỉ dùng với ITEM, bỏ trống = 1. `branchIds`, `channels` rỗng = áp mọi chi nhánh/kênh.
      */
     post: operations['createPromotion'];
     delete?: never;
@@ -823,6 +993,9 @@ export interface paths {
     /**
      * Đổi trạng thái chương trình
      * @description DRAFT → ACTIVE; ACTIVE ⇄ PAUSED; ACTIVE/PAUSED → ENDED (không quay lại). Chỉ ACTIVE trong thời gian hiệu lực mới được áp (BR-07).
+     *     Có thể bật chương trình trước startAt; chỉ áp dụng khi startAt ≤ thời điểm tính < endAt.
+     *     Bật lại chương trình đã hết hạn (endAt ≤ thời điểm xử lý) trả 409 INVALID_STATUS.
+     *     Job kết thúc DRAFT/ACTIVE/PAUSED hết hạn theo lịch mỗi phút; việc tính giá và ghi lượt dùng luôn kiểm thời hạn trực tiếp, không chờ job.
      *     Đơn đang mở báo giá với KM vừa tạm dừng sẽ nhận 422 `TOTAL_CHANGED` khi hoàn tất.
      */
     post: operations['changePromotionStatus'];
@@ -1239,10 +1412,13 @@ export interface components {
       parentId?: number | null;
     };
     CategoryRequest: {
+      /** @description Chuẩn hóa NFC, trim và gộp Unicode whitespace trước validation. Duy nhất không phân biệt hoa/thường trong cùng parentId (gồm root), giữ dấu; khác parent được trùng. */
       name: string;
       /** Format: int64 */
       parentId?: number | null;
     };
+    /** @description SKU kênh demo WEB/MARKET: trim Unicode whitespace ở ngoài trước validation; giữ case, không khoảng trắng trong hoặc <>. Mapping và lookup dùng cùng quy tắc; không thay quy tắc SKU sản phẩm nội bộ. */
+    ExternalSku: string;
     Product: {
       /**
        * Format: int64
@@ -1553,6 +1729,58 @@ export interface components {
     OrderSummaryPage: components['schemas']['PageMeta'] & {
       content: components['schemas']['OrderSummary'][];
     };
+    /** @enum {string} */
+    ReturnStatus: 'DRAFT' | 'APPROVED' | 'CANCELLED';
+    /** @enum {string} */
+    ReturnItemCondition: 'RESELLABLE' | 'DAMAGED';
+    ReturnItemRequest: {
+      /** Format: int64 */
+      orderItemId: number;
+      quantity: number;
+      condition: components['schemas']['ReturnItemCondition'];
+    };
+    CreateReturnRequest: {
+      /** Format: int64 */
+      orderId: number;
+      /** Format: int64 */
+      branchId: number;
+      reason: string;
+      items: components['schemas']['ReturnItemRequest'][];
+    };
+    ReturnItem: {
+      /** Format: int64 */
+      id: number;
+      /** Format: int64 */
+      orderItemId: number;
+      /** Format: int64 */
+      productId: number | null;
+      sku: string;
+      name: string;
+      unit: string;
+      quantity: number;
+      condition: components['schemas']['ReturnItemCondition'];
+      refundAmount: components['schemas']['Money'];
+    };
+    ReturnDocument: {
+      /** Format: int64 */
+      id: number;
+      /** @example RET-GM001-20261118-0001 */
+      code: string;
+      /** Format: int64 */
+      orderId: number;
+      orderCode: string;
+      branch: components['schemas']['BranchRef'];
+      reason: string;
+      refundAmount: components['schemas']['Money'];
+      status: components['schemas']['ReturnStatus'];
+      createdBy: components['schemas']['UserRef'];
+      approvedBy?: components['schemas']['UserRef'] | null;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      approvedAt?: string | null;
+      items: components['schemas']['ReturnItem'][];
+    };
     StockAlert: {
       /** Format: int64 */
       id: number;
@@ -1800,7 +2028,7 @@ export interface components {
         phone: components['schemas']['Phone'];
       };
       items: {
-        externalSku: string;
+        externalSku: components['schemas']['ExternalSku'];
         quantity: number;
         unitPrice: components['schemas']['Money'];
       }[];
@@ -1837,7 +2065,7 @@ export interface components {
     };
     ChannelStockUpdate: {
       items: {
-        externalSku: string;
+        externalSku: components['schemas']['ExternalSku'];
         /** @description Σ khả dụng các CN phục vụ kênh − safety_stock, không âm (BR-15) */
         available: number;
         /**
@@ -1925,6 +2153,44 @@ export interface components {
         receivedQuantity: number;
       }[];
     };
+    StocktakeReconciliation: {
+      /** Format: int64 */
+      documentId: number;
+      /** Format: int64 */
+      branchId: number;
+      inventoryReady: boolean;
+      lines: components['schemas']['StocktakeReconciliationLine'][];
+    };
+    StocktakeReconciliationLine: {
+      /** Format: int64 */
+      productId: number;
+      sku: string;
+      snapshotQuantity: number;
+      countedQuantity: number | null;
+      difference: number | null;
+      onHand: number;
+      reserved: number;
+      /** Format: int64 */
+      projectedOnHand: number | null;
+      /** Format: int64 */
+      shortfall: number;
+      /**
+       * Format: int64
+       * @description reserved trừ tổng lượng của mọi đơn RESERVED/CONFIRMED; dương là chưa quy được cho đơn, âm là đơn giữ vượt tổng reserved
+       */
+      reservationGap: number;
+      /** Format: int64 */
+      reservationOrderCount: number;
+      reservationOrders: {
+        /** Format: int64 */
+        orderId: number;
+        code: string;
+        /** @enum {string} */
+        status: 'RESERVED' | 'CONFIRMED';
+        /** Format: int64 */
+        quantity: number;
+      }[];
+    };
     StockDocumentItem: {
       /** Format: int64 */
       id: number;
@@ -1996,12 +2262,12 @@ export interface components {
       level: components['schemas']['PromotionLevel'];
       /**
        * Format: int64
-       * @description PERCENT: 1–100 (%); AMOUNT: số tiền VND
+       * @description PERCENT: 1–100 (%); AMOUNT: số tiền VND. ITEM-AMOUNT giảm trên mỗi đơn vị: giảm dòng = min(value × quantity, unitPrice × quantity). ORDER-AMOUNT giảm một lần mỗi đơn (#425).
        */
       value: number;
       /**
        * Format: int64
-       * @description Mức giảm tối đa, chỉ với PERCENT
+       * @description Mức giảm tối đa, chỉ với PERCENT. Với ITEM là trần cho cả dòng, không nhân với số lượng: giảm dòng = min(floor(lineTotal × value / 100), maxDiscount).
        */
       maxDiscount?: number | null;
       /**
@@ -2009,16 +2275,18 @@ export interface components {
        * @description Tổng sau giảm dòng tối thiểu, chỉ với ORDER
        */
       minOrder?: number | null;
+      /** @description Số lượng tối thiểu trên một dòng SKU, chỉ với ITEM; bỏ trống = 1. Không gộp số lượng của SKU khác để đủ ngưỡng. Gửi kèm level = ORDER trả 400 VALIDATION_ERROR (#425). */
+      minQuantity?: number | null;
       /** Format: date-time */
       startAt: string;
       /**
        * Format: date-time
-       * @description Phải sau startAt
+       * @description Phải sau startAt và ở tương lai khi tạo/sửa qua API thông thường; sai trả 400 VALIDATION_ERROR. Thời điểm kết thúc không còn được áp dụng.
        */
       endAt: string;
       /** @description Tổng lượt dùng tối đa (BR-08); null = không giới hạn */
       usageLimit?: number | null;
-      /** @description Bắt buộc, ít nhất 1 với ITEM; bỏ trống với ORDER */
+      /** @description Bắt buộc, ít nhất 1 với ITEM; bỏ trống với ORDER. Phạm vi theo danh mục (categoryIds) chưa hỗ trợ ở v1. */
       productIds?: number[];
       /** @description Rỗng = mọi chi nhánh */
       branchIds?: number[];
@@ -2037,6 +2305,8 @@ export interface components {
       maxDiscount?: number | null;
       /** Format: int64 */
       minOrder?: number | null;
+      /** @description ITEM: số lượng tối thiểu trên một dòng (mặc định 1); ORDER: null */
+      minQuantity?: number | null;
       /** Format: date-time */
       startAt: string;
       /** Format: date-time */
@@ -2339,6 +2609,7 @@ export interface components {
     ProductId: number;
     CustomerId: number;
     OrderId: number;
+    ReturnId: number;
     /** @description UUID do client sinh mỗi lần bấm Hoàn tất mới; bấm lại sau lỗi mạng thì dùng lại key cũ. Lưu 24 giờ. */
     IdempotencyKey: string;
     /** @description Chỉ kênh online */
@@ -2393,6 +2664,33 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
+      /** @description LOGIN_RATE_LIMITED */
+      429: {
+        headers: {
+          /** @description Số giây còn phải chờ trước khi thử lại */
+          'Retry-After'?: number;
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "code": "LOGIN_RATE_LIMITED",
+           *       "message": "Quá nhiều lần đăng nhập. Vui lòng thử lại sau.",
+           *       "traceId": "7f3c2a93"
+           *     }
+           */
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description LOGIN_UNAVAILABLE khi bộ giới hạn lỗi; AUTH_UNAVAILABLE khi không tạo được phiên */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
     };
   };
   refreshToken: {
@@ -2417,7 +2715,27 @@ export interface operations {
           'application/json': components['schemas']['TokenResponse'];
         };
       };
+      400: components['responses']['BadRequest'];
       401: components['responses']['Unauthorized'];
+      /** @description REFRESH_RATE_LIMITED; chờ Retry-After giây */
+      429: {
+        headers: {
+          'Retry-After'?: number;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description AUTH_UNAVAILABLE */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
     };
   };
   logout: {
@@ -2440,7 +2758,17 @@ export interface operations {
         };
         content?: never;
       };
+      400: components['responses']['BadRequest'];
       401: components['responses']['Unauthorized'];
+      /** @description AUTH_UNAVAILABLE */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
     };
   };
   getCurrentUser: {
@@ -2487,6 +2815,25 @@ export interface operations {
       400: components['responses']['BadRequest'];
       401: components['responses']['Unauthorized'];
       422: components['responses']['BusinessRule'];
+      /** @description PASSWORD_RATE_LIMITED; chờ Retry-After giây */
+      429: {
+        headers: {
+          'Retry-After'?: number;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description AUTH_UNAVAILABLE */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
     };
   };
   listBranches: {
@@ -2559,6 +2906,7 @@ export interface operations {
       401: components['responses']['Unauthorized'];
       403: components['responses']['Forbidden'];
       404: components['responses']['NotFound'];
+      409: components['responses']['Conflict'];
     };
   };
   updateCategory: {
@@ -2589,6 +2937,7 @@ export interface operations {
       401: components['responses']['Unauthorized'];
       403: components['responses']['Forbidden'];
       404: components['responses']['NotFound'];
+      409: components['responses']['Conflict'];
       422: components['responses']['BusinessRule'];
     };
   };
@@ -2789,6 +3138,8 @@ export interface operations {
         };
       };
       401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      422: components['responses']['BusinessRule'];
     };
   };
   createCustomer: {
@@ -3040,7 +3391,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
-      /** @description TOTAL_CHANGED, CASH_INSUFFICIENT, PAYMENT_FAILED, PAYMENT_TIMEOUT, PRODUCT_INACTIVE, MANUAL_DISCOUNT_FORBIDDEN */
+      /** @description TOTAL_CHANGED, CASH_INSUFFICIENT, PAYMENT_FAILED, PAYMENT_TIMEOUT, PRODUCT_INACTIVE, CUSTOMER_INACTIVE, MANUAL_DISCOUNT_FORBIDDEN */
       422: {
         headers: {
           [name: string]: unknown;
@@ -3116,13 +3467,146 @@ export interface operations {
       404: components['responses']['NotFound'];
     };
   };
+  listReturnsByOrder: {
+    parameters: {
+      query: {
+        orderId: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Danh sách phiếu trả hàng của đơn */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReturnDocument'][];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      404: components['responses']['NotFound'];
+    };
+  };
+  createReturn: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateReturnRequest'];
+      };
+    };
+    responses: {
+      /** @description Phiếu trả hàng đã tạo ở trạng thái DRAFT */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReturnDocument'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['InvalidStatus'];
+      422: components['responses']['BusinessRule'];
+    };
+  };
+  getReturn: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        returnId: components['parameters']['ReturnId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Phiếu trả hàng */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReturnDocument'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+    };
+  };
+  approveReturn: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        returnId: components['parameters']['ReturnId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Phiếu trả hàng đã duyệt */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReturnDocument'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['InvalidStatus'];
+      422: components['responses']['BusinessRule'];
+    };
+  };
+  cancelReturn: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        returnId: components['parameters']['ReturnId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Phiếu trả hàng đã hủy */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReturnDocument'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['InvalidStatus'];
+    };
+  };
   listInventory: {
     parameters: {
       query?: {
         branchId?: components['parameters']['BranchIdQuery'];
         productId?: number;
         categoryId?: number;
-        /** @description Tìm theo tên, SKU hoặc barcode */
+        /** @description Tìm chuỗi con theo tên, SKU hoặc barcode, không phân biệt hoa thường. Riêng tên sản phẩm không phân biệt dấu tiếng Việt (đ/Đ tương đương d; Unicode dạng tổ hợp và dựng sẵn tương đương). SKU/barcode giữ cách đối chiếu ký tự hiện có, không bỏ dấu. */
         q?: string;
         stockStatus?: components['schemas']['StockStatus'];
         /** @description Số trang, bắt đầu từ 0 */
@@ -3349,7 +3833,7 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': {
-          externalSku: string;
+          externalSku: components['schemas']['ExternalSku'];
         };
       };
     };
@@ -3484,8 +3968,11 @@ export interface operations {
     parameters: {
       query?: never;
       header: {
-        /** @description HMAC-SHA256 của nguyên body (byte gốc, UTF-8) với `webhook_secret` của kênh, dạng hex chữ thường */
-        'X-Signature': components['parameters']['Signature'];
+        /** @description HMAC-SHA256 hex trên envelope GREENMART-EVENT-V1 mô tả ở operation này; không dùng chữ ký body cũ. */
+        'X-Signature': string;
+        'X-Event-ID': string;
+        /** @description Epoch giây tại lúc gửi; retry ký lại timestamp mới cùng eventId và body. */
+        'X-Event-Timestamp': string;
       };
       path: {
         /** @description Chỉ kênh online */
@@ -3519,7 +4006,7 @@ export interface operations {
       400: components['responses']['BadRequest'];
       401: components['responses']['InvalidSignature'];
       404: components['responses']['NotFound'];
-      409: components['responses']['InvalidStatus'];
+      409: components['responses']['Conflict'];
     };
   };
   pushChannelStock: {
@@ -3748,6 +4235,32 @@ export interface operations {
       409: components['responses']['InvalidStatus'];
     };
   };
+  reconcileStocktake: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        documentId: components['parameters']['DocumentId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Thông tin đối soát, gồm cả trường hợp chưa đủ điều kiện tồn để duyệt */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StocktakeReconciliation'];
+        };
+      };
+      401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['InvalidStatus'];
+    };
+  };
   approveStockDocument: {
     parameters: {
       query?: never;
@@ -3768,6 +4281,7 @@ export interface operations {
           'application/json': components['schemas']['StockDocument'];
         };
       };
+      400: components['responses']['BadRequest'];
       401: components['responses']['Unauthorized'];
       403: components['responses']['Forbidden'];
       404: components['responses']['NotFound'];
@@ -3861,7 +4375,7 @@ export interface operations {
       query?: {
         status?: components['schemas']['PromotionStatus'][];
         level?: components['schemas']['PromotionLevel'];
-        /** @description Chỉ lấy chương trình hiệu lực tại thời điểm này */
+        /** @description Lọc khoảng startAt ≤ activeAt < endAt; kết hợp status để lọc trạng thái chương trình. */
         activeAt?: string;
         branchId?: components['parameters']['BranchIdQuery'];
         channel?: components['schemas']['ChannelCode'];

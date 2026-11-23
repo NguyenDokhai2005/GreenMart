@@ -53,7 +53,7 @@ Phối hợp SV03/SV07 để cập nhật role/mật khẩu có kiểm soát; kh
 - **Lập lịch tự động (APScheduler)**:
   - Mặc định chạy lúc 02:00 (Asia/Ho_Chi_Minh) hằng ngày với `max_instances=1`, `coalesce=True`, bảo vệ tranh chấp bằng Postgres advisory lock (`1142026`) trong `start_forecast_run`.
   - Có thể vô hiệu hóa bằng biến môi trường `FORECAST_SCHEDULER_ENABLED=false`.
-  - **Khởi động chạy bù (Startup Catch-up)**: Nếu container khởi động trong khung 02:00–06:00 (Asia/Ho_Chi_Minh) mà hôm nay chưa có lượt chạy hợp lệ, hệ thống sẽ đẩy công việc chạy bù vào nền qua APScheduler (`id="catchup_forecast"`), không chặn tiến trình khởi động (`lifespan`) của FastAPI. Nhờ đó, `/healthz` và `/livez` luôn phản hồi ngay lập tức, không gây timeout cho orchestrator hay backend.
+  - **Khởi động chạy bù (Startup Catch-up)**: Nếu container khởi động bất cứ lúc nào sau 02:00 (Asia/Ho_Chi_Minh) mà hôm nay chưa có lượt chạy hợp lệ, hệ thống sẽ đẩy công việc chạy bù vào nền qua APScheduler (`id="catchup_forecast"`), không chặn tiến trình khởi động (`lifespan`) của FastAPI. Nhờ đó, `/healthz` và `/livez` luôn phản hồi ngay lập tức, không gây timeout cho orchestrator hay backend.
 
 - **Hạn chế đã biết về phát sự kiện RabbitMQ (`forecast.completed`)**:
   - Khi hoàn thành lượt chạy (`forecast_run` đạt `DONE`), service phát sự kiện `forecast.completed` lên topic exchange `greenmart.events` (persistent message, routing key `forecast.completed`).

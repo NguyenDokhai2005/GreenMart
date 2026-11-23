@@ -5,8 +5,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -32,8 +34,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration",
+        "spring.autoconfigure.exclude=org.springframework.boot.data.redis.autoconfigure.RedisAutoConfiguration,"
+                + "org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration",
         "management.endpoint.health.group.readiness.include=readinessState,db",
         "management.health.redis.enabled=false",
         "CHANNEL_WEB_SECRET=test-web-secret-key-123456"
@@ -42,6 +44,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Testcontainers
 @DisplayName("Issue #320 (#40, #41, #42): Vòng đời đơn online & 4 đường nhả giữ chỗ")
 class OnlineOrderLifecycleIntegrationTest {
+    // Business-module tests isolate the session registry; auth tests exercise real Redis.
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    vn.greenmart.identity.repository.RefreshTokenStore authSessions;
+
 
     @Container
     static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(PostgresTestImage.IMAGE);
@@ -85,6 +91,8 @@ class OnlineOrderLifecycleIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.when(authSessions.isSessionActive(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+
         cleanTestData();
 
         jdbc.execute("""
@@ -140,6 +148,8 @@ class OnlineOrderLifecycleIntegrationTest {
         jdbc.execute("TRUNCATE TABLE audit_log CASCADE");
         jdbc.execute("TRUNCATE TABLE inventory_transaction CASCADE");
         jdbc.execute("DELETE FROM outbox_event");
+        jdbc.execute("DELETE FROM channel_event_receipt");
+        jdbc.execute("DELETE FROM channel_payment_reference");
         jdbc.execute("DELETE FROM payment");
         jdbc.execute("DELETE FROM order_item");
         jdbc.execute("DELETE FROM sales_order");
@@ -199,7 +209,9 @@ class OnlineOrderLifecycleIntegrationTest {
                         .header("Authorization", "Bearer " + tokens.issue(STOREKEEPER_CN1_ID, "STOREKEEPER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(orderId))
-                .andExpect(jsonPath("$.status").value("COMPLETED"));
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.items[0].promotion").doesNotExist())
+                .andExpect(jsonPath("$.orderPromotion").doesNotExist());
 
         var inv = jdbc.queryForMap("SELECT on_hand, reserved FROM inventory WHERE branch_id = ? AND product_id = ?", branch1Id, productId);
         assertThat(((Number) inv.get("on_hand")).intValue()).isEqualTo(7);
@@ -226,7 +238,9 @@ class OnlineOrderLifecycleIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CANCELLED"))
                 .andExpect(jsonPath("$.statusReason").value("CUSTOMER_REQUEST"))
-                .andExpect(jsonPath("$.payments[0].status").value("REFUNDED"));
+                .andExpect(jsonPath("$.payments[0].status").value("REFUNDED"))
+                .andExpect(jsonPath("$.items[0].promotion").doesNotExist())
+                .andExpect(jsonPath("$.orderPromotion").doesNotExist());
 
         Integer reserved = jdbc.queryForObject(
                 "SELECT reserved FROM inventory WHERE branch_id = ? AND product_id = ?", Integer.class, branch1Id, productId);
@@ -236,6 +250,47 @@ class OnlineOrderLifecycleIntegrationTest {
                 "SELECT COUNT(*) FROM audit_log WHERE entity = 'order' AND entity_id = ? AND action = 'CANCEL_ORDER'",
                 Integer.class, orderId.toString());
         assertThat(auditCount).isEqualTo(1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"complete", "cancel"})
+    @DisplayName("#427: Hoàn tất/hủy online trả mã khuyến mại thật cho cả dòng hàng và đơn")
+    void onlineMutationReturnsRealPromotionCodes(String action) throws Exception {
+        Long orderId = insertOnlineOrder("WEB-PROMO-" + action, "EXT-PROMO-" + action, "CONFIRMED", 3, "NULL");
+        Long itemPromotion = insertPromotion("REAL-ITEM-" + action, "ITEM", 10000);
+        Long orderPromotion = insertPromotion("REAL-ORDER-" + action, "ORDER", 5000);
+        jdbc.update("UPDATE order_item SET promotion_id=?, discount=10000, line_total=140000 WHERE order_id=?", itemPromotion, orderId);
+        jdbc.update("UPDATE sales_order SET promotion_id=?, discount=15000, total=135000 WHERE id=?", orderPromotion, orderId);
+        jdbc.update("INSERT INTO payment(order_id,method,amount,status,paid_at) VALUES(?,'QR',135000,'PAID',NOW())", orderId);
+
+        var request = post("/api/v1/orders/" + orderId + "/" + action);
+        if ("complete".equals(action)) {
+            request.header("Authorization", "Bearer " + tokens.issue(STOREKEEPER_CN1_ID, "STOREKEEPER"));
+        } else {
+            request.header("Authorization", "Bearer " + tokens.issue(MANAGER_CN1_ID, "BRANCH_MANAGER"))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(new CancelOrderRequest(CancelReason.CUSTOMER_REQUEST, null)));
+        }
+        mvc.perform(request)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("complete".equals(action) ? "COMPLETED" : "CANCELLED"))
+                .andExpect(jsonPath("$.items[0].promotion.id").value(itemPromotion))
+                .andExpect(jsonPath("$.items[0].promotion.code").value("REAL-ITEM-" + action))
+                .andExpect(jsonPath("$.items[0].promotion.name").doesNotExist())
+                .andExpect(jsonPath("$.items[0].promotion.discount").value(10000))
+                .andExpect(jsonPath("$.orderPromotion.id").value(orderPromotion))
+                .andExpect(jsonPath("$.orderPromotion.code").value("REAL-ORDER-" + action))
+                .andExpect(jsonPath("$.orderPromotion.name").doesNotExist())
+                .andExpect(jsonPath("$.orderPromotion.discount").value(5000));
+        assertThat(jdbc.queryForObject("SELECT status FROM sales_order WHERE id=?", String.class, orderId))
+                .isEqualTo("complete".equals(action) ? "COMPLETED" : "CANCELLED");
+    }
+
+    private Long insertPromotion(String code, String level, long value) {
+        return jdbc.queryForObject("""
+                INSERT INTO promotion(code,type,level,value,start_at,end_at,status)
+                VALUES(?,'AMOUNT',?,?,NOW()-INTERVAL '1 day',NOW()+INTERVAL '1 day','ACTIVE') RETURNING id
+                """, Long.class, code, level, value);
     }
 
     @Test
@@ -248,10 +303,13 @@ class OnlineOrderLifecycleIntegrationTest {
                 "occurredAt", "2026-11-13T10:00:00+07:00",
                 "providerRef", "VNP-999"
         ));
-        String validSig = signatures.sign("WEB", paidBody.getBytes(StandardCharsets.UTF_8));
+        var paidHeaders = vn.greenmart.integration.SignedChannelEvents.headers(signatures, "WEB",
+                "/api/v1/integrations/WEB/orders/EXT-EVT-001/events", paidBody);
 
         // Sai chữ ký -> 401
         mvc.perform(post("/api/v1/integrations/WEB/orders/EXT-EVT-001/events")
+                        .header("X-Event-ID", paidHeaders.getFirst("X-Event-ID"))
+                        .header("X-Event-Timestamp", paidHeaders.getFirst("X-Event-Timestamp"))
                         .header("X-Signature", "0000000000000000000000000000000000000000000000000000000000000000")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(paidBody))
@@ -260,7 +318,7 @@ class OnlineOrderLifecycleIntegrationTest {
 
         // Đúng chữ ký -> 200 CONFIRMED
         mvc.perform(post("/api/v1/integrations/WEB/orders/EXT-EVT-001/events")
-                        .header("X-Signature", validSig)
+                        .headers(paidHeaders)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(paidBody))
                 .andExpect(status().isOk())
@@ -270,10 +328,14 @@ class OnlineOrderLifecycleIntegrationTest {
         jdbc.update("UPDATE inventory SET on_hand = 3, reserved = 3 WHERE branch_id = ? AND product_id = ?", branch1Id, productId);
         Long expOrderId = insertOnlineOrder("WEB-EVT-002", "EXT-EVT-002", "EXPIRED", 2, "NOW() - INTERVAL '5 minutes'");
 
+        // Another order must use its own transaction reference and a signature bound to its own path.
+        String lateBody = objectMapper.writeValueAsString(Map.of("type", "PAID",
+                "occurredAt", "2026-11-13T10:00:00+07:00", "providerRef", "VNP-1000"));
         mvc.perform(post("/api/v1/integrations/WEB/orders/EXT-EVT-002/events")
-                        .header("X-Signature", validSig)
+                        .headers(vn.greenmart.integration.SignedChannelEvents.headers(signatures, "WEB",
+                                "/api/v1/integrations/WEB/orders/EXT-EVT-002/events", lateBody))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(paidBody))
+                        .content(lateBody))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CANCELLED"))
                 .andExpect(jsonPath("$.rejectReason").value("OUT_OF_STOCK"));
@@ -291,7 +353,8 @@ class OnlineOrderLifecycleIntegrationTest {
                 "occurredAt", "2026-11-14T10:00:00+07:00",
                 "providerRef", "VNP-RACE-1"
         ));
-        String validSig = signatures.sign("WEB", paidBody.getBytes(StandardCharsets.UTF_8));
+        var paidHeaders = vn.greenmart.integration.SignedChannelEvents.headers(signatures, "WEB",
+                "/api/v1/integrations/WEB/orders/EXT-RACE-001/events", paidBody);
 
         var executor = java.util.concurrent.Executors.newFixedThreadPool(2);
         var barrier = new java.util.concurrent.CyclicBarrier(2);
@@ -304,7 +367,7 @@ class OnlineOrderLifecycleIntegrationTest {
             var paidFuture = executor.submit(() -> {
                 barrier.await(5, java.util.concurrent.TimeUnit.SECONDS);
                 return mvc.perform(post("/api/v1/integrations/WEB/orders/EXT-RACE-001/events")
-                                .header("X-Signature", validSig)
+                                .headers(paidHeaders)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(paidBody))
                         .andReturn().getResponse().getStatus();

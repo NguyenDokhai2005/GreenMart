@@ -21,6 +21,13 @@ public interface InventoryRepository extends JpaRepository<Inventory, Inventory.
     @Query(value = "SELECT sku FROM product WHERE id = :productId", nativeQuery = true)
     java.util.Optional<String> findProductSku(@Param("productId") Long productId);
 
+    @Query(value = """
+            SELECT on_hand - reserved FROM inventory
+            WHERE branch_id = :branchId AND product_id = :productId
+            FOR NO KEY UPDATE
+            """, nativeQuery = true)
+    java.util.Optional<Integer> lockAvailable(@Param("branchId") Long branchId, @Param("productId") Long productId);
+
     /**
      * Giữ chỗ: tăng reserved khi available = (on_hand − reserved) >= qty.
      * on_hand không đổi.

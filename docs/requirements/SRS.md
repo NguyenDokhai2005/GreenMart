@@ -350,8 +350,8 @@ Hệ thống có 10 use case chính; 3 use case quan trọng nhất được đ�
 | BR-04 | Bán hàng | Hủy, hết hạn hoặc bị từ chối → nhả toàn bộ giữ chỗ của đơn; hoàn lượt dùng khuyến mại |
 | BR-05 | Tích hợp | Mỗi đơn từ kênh là duy nhất theo cặp (kênh, mã đơn của kênh); gửi lại trả về đơn cũ |
 | BR-06 | Tồn kho | Sổ giao dịch kho chỉ ghi thêm, không sửa, không xóa; sai sót sửa bằng phiếu điều chỉnh |
-| BR-07 | Khuyến mại | Mỗi dòng áp tối đa 1 KM cấp sản phẩm; mỗi đơn áp tối đa 1 KM cấp đơn, tính trên tổng sau giảm dòng; chọn cái giảm nhiều nhất, hòa thì chọn cái hết hạn sớm hơn; số tiền giảm làm tròn xuống đến đồng |
-| BR-08 | Khuyến mại | Lượt dùng khuyến mại có giới hạn được trừ nguyên tử như tồn kho |
+| BR-07 | Khuyến mại | Mỗi dòng áp tối đa 1 KM cấp sản phẩm; mỗi đơn áp tối đa 1 KM cấp đơn, tính trên tổng sau giảm dòng; chọn cái giảm nhiều nhất, hòa thì chọn cái hết hạn sớm hơn; số tiền giảm làm tròn xuống đến đồng. KM cấp sản phẩm chỉ áp khi số lượng của dòng ≥ số lượng tối thiểu (mặc định 1, không gộp SKU khác); AMOUNT giảm theo từng đơn vị, giảm dòng = min(giá trị × SL, thành tiền dòng); PERCENT tính trên thành tiền dòng, mức tối đa áp cho cả dòng. KM cấp đơn AMOUNT giảm một lần mỗi đơn. Không tính lại đơn đã bán (BR-12, #425) |
+| BR-08 | Khuyến mại | Lượt dùng khuyến mại có giới hạn được trừ nguyên tử như tồn kho; mỗi đơn dùng 1 lượt cho mỗi chương trình, không tính theo số lượng hay số dòng |
 | BR-09 | Cảnh báo | Hết hàng khi khả dụng = 0; tồn thấp khi 0 < khả dụng ≤ ROP. Mỗi sản phẩm × chi nhánh có tối đa 1 cảnh báo mở, tự đóng khi khả dụng > ROP |
 | BR-10 | Trả hàng | Trả trong 7 ngày kể từ khi hoàn tất; hàng tươi sống chỉ nhận trả khi lỗi chất lượng. Tiền hoàn theo giá thực trả của dòng, KM cấp đơn phân bổ theo tỷ lệ giá trị dòng. Hàng bán lại được thì cộng tồn chi nhánh nhận trả |
 | BR-11 | Phân quyền | Người dùng chỉ thao tác dữ liệu của chi nhánh được gán, trừ Admin và Chủ chuỗi |

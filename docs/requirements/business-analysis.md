@@ -85,6 +85,8 @@ Người lập phiếu không được tự duyệt phiếu của mình (tách n
 
 3.  Thu ngân nhập số điện thoại khách (tùy chọn). Có trong hệ thống thì gắn khách; chưa có thì tạo nhanh với tên + số điện thoại.
 
+    Khách đã ngừng hoạt động không được gắn vào báo giá hoặc đơn POS mới (#418). Tra đúng số điện thoại của khách này báo `422 CUSTOMER_INACTIVE` và hướng dẫn liên hệ Quản lý chi nhánh/Chủ cửa hàng; không coi là chưa tồn tại để tạo lại. Tìm kiếm thông thường vẫn ẩn khách inactive; quản lý/chủ cửa hàng có thể xem bằng bộ lọc và kích hoạt lại qua API sửa khách hiện có, thu ngân không tự kích hoạt. Hoàn tất kiểm tra lại trạng thái khách và khóa dòng trong cùng transaction với đơn, thanh toán và tồn; nếu bị chặn thì không có tác động bán hàng. Gửi lại yêu cầu đã thành công chỉ trả đơn cũ. Lịch sử đơn vẫn giữ liên kết khách. Ngoại lệ đơn kênh online #306 tiếp tục nhận theo số điện thoại và không tự tái kích hoạt khách.
+
 4.  Sau mỗi thay đổi giỏ hàng, hệ thống tính lại tạm tính, khuyến mại và tổng tiền (xem mục 7).
 
 5.  Thu ngân chọn phương thức: tiền mặt, thẻ hoặc QR.
@@ -192,6 +194,13 @@ Hàng trên là luồng thành công; ba trạng thái hàng dưới là điểm
 | E3  | Kênh không nhận được cập nhật                    | Thử lại 5 lần (1, 2, 4, 8, 16 giây), sau đó vào hàng đợi lỗi, Admin gửi lại thủ công |
 | E4  | Giá trên đơn kênh khác giá nội bộ                | Ghi nhận giá của kênh (khách đã trả giá đó), đánh dấu chênh lệch để Owner xem        |
 
+### 4.1 Chuẩn hóa SKU kênh và danh mục (#430)
+
+- SKU bên ngoài của WEB/MARKET demo có 1–60 ký tự sau trim Unicode whitespace ở ngoài; mẫu `[A-Za-z0-9][A-Za-z0-9._:-]{0,59}`, giữ hoa/thường, không khoảng trắng bên trong hoặc `<>`. Lưu mapping, nhận đơn và lookup dùng cùng chuẩn; không đổi quy tắc SKU nội bộ. Chữ ký webhook luôn được kiểm trên nguyên byte body trước khi chuẩn hóa giá trị đã parse.
+- Tên danh mục chuẩn hóa Unicode NFC, trim/gộp Unicode whitespace thành một dấu cách, dài 1–120 ký tự sau chuẩn hóa. So tên không phân biệt hoa/thường nhưng giữ dấu tiếng Việt; chỉ duy nhất trong cùng parentId, kể cả root; khác parent được trùng.
+- Tạo/sửa/chuyển cấp phải kiểm trùng, trả 409 CONFLICT; không tự gộp danh mục. Khóa cây hiện có và unique index PostgreSQL bảo vệ thao tác đồng thời, vẫn giữ kiểm tra vòng lặp và điều kiện xóa hiện hành.
+- Trước ràng buộc mới, đối soát danh mục trùng/rỗng sau chuẩn hóa và SKU lịch sử không đúng chuẩn. Migration dừng khi vi phạm, không tự đổi mã ngoài hoặc tên lịch sử. Frontend phải render tên như text an toàn; regex SKU không thay thế cơ chế chống XSS.
+
 ## 5. Hủy đơn và trả hàng – UC-03, UC-04
 
 Hủy chỉ áp dụng cho đơn chưa giao (nhả giữ chỗ); trả hàng áp dụng cho đơn đã COMPLETED trong 7 ngày và cộng lại tồn của chi nhánh nhận trả.
@@ -283,6 +292,8 @@ Ví dụ: CN1 chuyển 50 chai nước mắm sang CN2. Sau xuất: CN1 giảm 50
 
 3.  Duyệt → ghi ADJUST bằng đúng chênh lệch (không ghi đè trực tiếp, để không làm mất các giao dịch phát sinh trong lúc đếm).
 
+4.  Nếu tồn hiện tại cộng chênh lệch nhỏ hơn lượng đang giữ chỗ (#421), giữ phiếu DRAFT, số đếm và audit nhập số đếm; không bỏ ràng buộc `0 ≤ reserved ≤ on_hand`. Đối soát cho biết tồn dự kiến, phần thiếu và tham chiếu đơn giữ hàng. Quản lý quyết định nhập thêm hàng thực hoặc xử lý đơn qua luồng hủy/hoàn tiền được phép, rồi đối soát và duyệt lại; không tự hủy đơn đã trả tiền hoặc sửa reserved bằng SQL. Duyệt khóa hàng theo thứ tự nhất quán và kiểm lại trong transaction, nên reservation mới có thể làm lần duyệt sau bị chặn. Không tự khóa giữ mới trên toàn hệ thống hoặc tạo trạng thái tạm mới trong quy trình này.
+
 ## 7. Khuyến mại – UC-09
 
 Hệ thống áp khuyến mại cấp sản phẩm trước, rồi áp đúng một khuyến mại cấp đơn có lợi nhất cho khách; thu ngân không chọn tay.
@@ -291,9 +302,9 @@ Hệ thống áp khuyến mại cấp sản phẩm trước, rồi áp đúng m�
 
 | Thuộc tính    | Giá trị                                                  | Ghi chú                            |
 |---------------|----------------------------------------------------------|------------------------------------|
-| Cấp áp dụng   | ORDER (cả đơn) hoặc ITEM (sản phẩm/danh mục)             |                                    |
+| Cấp áp dụng   | ORDER (cả đơn) hoặc ITEM (sản phẩm)                      | Theo danh mục để v2                |
 | Kiểu giảm     | PERCENT hoặc AMOUNT                                      | PERCENT có thể kèm mức giảm tối đa |
-| Điều kiện     | Giá trị đơn tối thiểu (ORDER), số lượng tối thiểu (ITEM) |                                    |
+| Điều kiện     | Giá trị đơn tối thiểu (ORDER), số lượng tối thiểu (ITEM) | ITEM: xét trên một dòng, mặc định 1 |
 | Hiệu lực      | Từ – đến (giờ Việt Nam)                                  | Ngoài khoảng → không áp            |
 | Phạm vi       | Danh sách chi nhánh, danh sách kênh                      | Trống = tất cả                     |
 | Giới hạn lượt | Tổng lượt dùng tối đa                                    | Trừ nguyên tử khi hoàn tất đơn     |
@@ -301,7 +312,17 @@ Hệ thống áp khuyến mại cấp sản phẩm trước, rồi áp đúng m�
 
 **Thứ tự tính**
 
+Quản lý thời hạn (#426): khoảng áp dụng là `startAt ≤ now < endAt`, kể cả khi job chưa đổi trạng thái.
+API tạo/sửa thông thường yêu cầu `endAt > startAt` và `endAt > now`; không dùng API này để nhập lịch sử đã hết hạn.
+Có thể bật chương trình trước giờ bắt đầu, nhưng chưa áp dụng trước `startAt`; bật khi đã hết hạn bị từ chối.
+Job mỗi phút đưa DRAFT/ACTIVE/PAUSED đã hết hạn sang ENDED và ghi audit cùng transaction.
+Trước khi hoàn tất đơn phải kiểm lại thời hạn và lượt dùng; nếu báo giá cũ không còn đúng, trả TOTAL_CHANGED để xác nhận lại.
+Seed lịch sử tính giá tại thời điểm đơn, rồi chuẩn hóa trạng thái hết hạn tại lúc nạp; không đổi tiền/lượt dùng hay hóa đơn cũ.
+
 1.  Với mỗi dòng: lấy các KM cấp ITEM hợp lệ, chọn KM giảm nhiều nhất cho dòng đó (mỗi dòng tối đa 1 KM). Giảm dòng không vượt thành tiền dòng.
+    - KM chỉ hợp lệ khi SL của dòng ≥ số lượng tối thiểu. Ngưỡng xét trên một dòng SKU, không gộp SKU khác.
+    - AMOUNT giảm theo từng đơn vị: giảm dòng = min(giá trị × SL, thành tiền dòng).
+    - PERCENT: giảm dòng = floor(thành tiền dòng × % / 100), rồi chặn bởi mức tối đa. Mức tối đa áp cho cả dòng, không nhân với SL.
 
 2.  Tổng sau giảm dòng = Σ(thành tiền − giảm dòng).
 
@@ -310,6 +331,20 @@ Hệ thống áp khuyến mại cấp sản phẩm trước, rồi áp đúng m�
 4.  Tổng phải trả = tổng bước 2 − giảm cấp đơn. Số tiền làm tròn xuống đến đồng.
 
 5.  Ghi mã KM và số giảm vào từng dòng và vào đơn để báo cáo hiệu quả.
+
+Lượt dùng (BR-08): mỗi đơn hoàn tất tăng 1 lượt cho mỗi chương trình được áp, không tính theo số lượng hay số dòng.
+
+**Ví dụ KM cấp sản phẩm (#425)**
+
+Ví dụ riêng, không thuộc hóa đơn mục 3. Rau cải 500g giá 18.000 đ. KM-RAU giảm 5.000 đ/đơn vị, số lượng tối thiểu 3. KM-RAU15 giảm 15%, tối đa 6.000 đ, không có số lượng tối thiểu.
+
+| SL | Thành tiền | KM-RAU giảm            | KM-RAU15 giảm          | Hệ thống chọn     |
+|----|------------|------------------------|------------------------|-------------------|
+| 1  | 18.000 đ   | Không đủ điều kiện     | 2.700 đ                | KM-RAU15, 2.700 đ |
+| 2  | 36.000 đ   | Không đủ điều kiện     | 5.400 đ                | KM-RAU15, 5.400 đ |
+| 3  | 54.000 đ   | 3 × 5.000 = 15.000 đ   | 6.000 đ (chạm tối đa)  | KM-RAU, 15.000 đ  |
+
+Quy tắc này có hiệu lực từ contract mới, không tính lại hóa đơn đã bán (BR-12). Trước #425, AMOUNT cấp sản phẩm giảm một lần cho cả dòng; đó không phải lỗi so với đặc tả cũ.
 
 **Ví dụ chọn KM cấp đơn**
 

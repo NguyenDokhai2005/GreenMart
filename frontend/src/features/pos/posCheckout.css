@@ -90,6 +90,15 @@
   font-size: var(--gm-font-size-label);
 }
 
+.pos-checkout__changed-total {
+  display: grid;
+  gap: var(--gm-space-2);
+  padding: var(--gm-space-4);
+  border-radius: var(--gm-radius-md);
+  background: var(--gm-color-page);
+  font-size: var(--gm-font-size-label);
+}
+
 .pos-checkout__success {
   display: grid;
   gap: var(--gm-space-3);
@@ -143,6 +152,22 @@
 .pos-checkout__receipt-total {
   font-size: 18px;
   font-weight: 700;
+}
+
+@media (max-width: 480px) {
+  .pos-checkout__methods {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pos-checkout__totals > div,
+  .pos-checkout__receipt-totals div {
+    gap: var(--gm-space-2);
+  }
+
+  .pos-checkout__receipt-meta,
+  .pos-checkout__receipt-lines {
+    overflow-wrap: anywhere;
+  }
 }
 
 @media print {
