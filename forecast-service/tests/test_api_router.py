@@ -1,8 +1,9 @@
 """Unit and mock tests for forecast API endpoints (#114, #311)."""
 
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import MagicMock
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi import FastAPI
@@ -19,7 +20,11 @@ from app.pipelines.forecast_service import (
 @pytest.fixture
 def test_setup():
     mock_conn = MagicMock()
+    mock_cur = MagicMock()
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+    mock_cur.fetchone.return_value = (date(2025, 11, 1), date(2099, 1, 1))
     mock_bg_runner = MagicMock()
+    mock_etl = MagicMock(return_value={"total_rows": 100})
 
     @contextmanager
     def mock_conn_factory():
@@ -30,6 +35,7 @@ def test_setup():
     router = create_forecast_router(
         connection_factory=mock_conn_factory,
         background_runner=mock_bg_runner,
+        etl_pipeline_fn=mock_etl,
     )
     app.include_router(router)
     client = TestClient(app)
@@ -38,6 +44,7 @@ def test_setup():
         "client": client,
         "conn": mock_conn,
         "bg_runner": mock_bg_runner,
+        "etl_runner": mock_etl,
     }
 
 
@@ -117,7 +124,7 @@ def test_tc_sec_06_valid_bearer_token(test_setup, auth_headers, monkeypatch):
     now = datetime(2026, 11, 11, 15, 0, 0, tzinfo=timezone.utc)
     monkeypatch.setattr(
         "app.api.router.start_forecast_run",
-        lambda conn, model_version: (10, now),
+        lambda conn, model_version, expected_cutoff_date=None: (10, now),
     )
     client = test_setup["client"]
     response = client.post("/forecast/run", headers=auth_headers)
@@ -155,11 +162,13 @@ def test_tc_sec_08_fail_closed_empty_env(test_setup, auth_headers, monkeypatch):
 
 def test_post_forecast_run_success(test_setup, auth_headers, monkeypatch):
     now = datetime(2026, 11, 11, 15, 0, 0, tzinfo=timezone.utc)
+    today_vn = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).date()
+    expected_cutoff = today_vn - timedelta(days=1)
 
     # Mock start_forecast_run returning (55, now)
     monkeypatch.setattr(
         "app.api.router.start_forecast_run",
-        lambda conn, model_version: (55, now),
+        lambda conn, model_version, expected_cutoff_date=None: (55, now),
     )
 
     client = test_setup["client"]
@@ -172,12 +181,16 @@ def test_post_forecast_run_success(test_setup, auth_headers, monkeypatch):
     assert data["runId"] == 55
     assert data["status"] == "RUNNING"
     assert "startedAt" in data
-    # Verify background runner was queued with exactly run_id 55
-    bg_runner.assert_called_once_with(run_id=55)
+    # Verify background runner was queued with run_id 55, expected_cutoff_date, run_etl_before=True
+    bg_runner.assert_called_once_with(
+        run_id=55,
+        expected_cutoff_date=expected_cutoff,
+        run_etl_before=True,
+    )
 
 
 def test_post_forecast_run_conflict_409(test_setup, auth_headers, monkeypatch):
-    def raise_conflict(conn, model_version):
+    def raise_conflict(*args, **kwargs):
         raise ActiveRunConflictError("Đã có lượt chạy run_id=41 đang chạy.", active_id=41)
 
     monkeypatch.setattr("app.api.router.start_forecast_run", raise_conflict)
@@ -195,10 +208,10 @@ def test_post_forecast_run_conflict_409(test_setup, auth_headers, monkeypatch):
 
 
 def test_post_forecast_run_empty_daily_sales_409(test_setup, auth_headers, monkeypatch):
-    def raise_empty(conn, model_version):
+    def raise_empty(*args, **kwargs):
         raise EmptyDailySalesError("Bảng daily_sales hiện đang trống.")
 
-    monkeypatch.setattr("app.api.router.start_forecast_run", raise_empty)
+    monkeypatch.setattr("app.api.router.ensure_fresh_daily_sales", raise_empty)
 
     client = test_setup["client"]
     bg_runner = test_setup["bg_runner"]
@@ -214,10 +227,10 @@ def test_post_forecast_run_empty_daily_sales_409(test_setup, auth_headers, monke
 
 def test_post_forecast_run_stale_daily_sales_409(test_setup, auth_headers, monkeypatch):
     """Issue #417: Khi dữ liệu daily_sales bị cũ, API trả 409 EMPTY_DAILY_SALES để backend client ánh xạ chuẩn."""
-    def raise_stale(conn, model_version):
+    def raise_stale(*args, **kwargs):
         raise StaleDailySalesError("Dữ liệu daily_sales chỉ mới tới 2026-11-20, chưa đủ mới tới cutoff 2026-11-22.")
 
-    monkeypatch.setattr("app.api.router.start_forecast_run", raise_stale)
+    monkeypatch.setattr("app.api.router.ensure_fresh_daily_sales", raise_stale)
 
     client = test_setup["client"]
     bg_runner = test_setup["bg_runner"]
@@ -228,6 +241,24 @@ def test_post_forecast_run_stale_daily_sales_409(test_setup, auth_headers, monke
     data = response.json()
     assert data["code"] == "EMPTY_DAILY_SALES"
     assert "2026-11-20" in data["message"]
+    bg_runner.assert_not_called()
+
+
+def test_post_forecast_run_etl_fails_to_reach_cutoff_returns_409(test_setup, auth_headers, monkeypatch):
+    """Mục 2 (Issue #417): Khi ETL nạp xong nhưng vẫn không đạt T - 1, API trả về 409 EMPTY_DAILY_SALES."""
+    monkeypatch.setattr(
+        "app.api.router.ensure_fresh_daily_sales",
+        MagicMock(side_effect=StaleDailySalesError("Dữ liệu daily_sales sau ETL vẫn bị cũ: cutoff 2026-11-20 < 2026-11-22.")),
+    )
+    client = test_setup["client"]
+    bg_runner = test_setup["bg_runner"]
+
+    response = client.post("/forecast/run", headers=auth_headers)
+
+    assert response.status_code == 409
+    data = response.json()
+    assert data["code"] == "EMPTY_DAILY_SALES"
+    assert "vẫn bị cũ" in data["message"]
     bg_runner.assert_not_called()
 
 

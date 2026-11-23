@@ -1113,5 +1113,37 @@ class TestGeneratorStage4(unittest.TestCase):
         self.assertEqual(actual_json_sha, GOLDEN_JSON_SHA256, "Mã SHA-256 in-memory của JSON không được thay đổi")
 
 
+class TestGeneratorEndDateConfig(unittest.TestCase):
+    """Kiểm thử cấu hình ngày kết thúc động cho bộ sinh dữ liệu demo (Issue #417)."""
+
+    def test_default_returns_none(self):
+        self.assertIsNone(generate_data.resolve_generator_end_date())
+
+    def test_demo_flag_resolves_yesterday_vn(self):
+        from zoneinfo import ZoneInfo
+        vn_tz = ZoneInfo("Asia/Ho_Chi_Minh")
+        now_vn = datetime.now(vn_tz)
+        expected_d = now_vn.date() - timedelta(days=1)
+        res = generate_data.resolve_generator_end_date(demo_flag=True)
+        self.assertIsNotNone(res)
+        self.assertEqual(res.date(), expected_d)
+        self.assertEqual(res.hour, 23)
+        self.assertEqual(res.minute, 59)
+
+    def test_explicit_date_resolves_correctly(self):
+        res = generate_data.resolve_generator_end_date("2026-11-20")
+        self.assertIsNotNone(res)
+        self.assertEqual(res.date(), date(2026, 11, 20))
+
+    def test_parse_args_supports_demo_and_end_date(self):
+        args_demo = generate_data.parse_args(["--demo"])
+        self.assertTrue(args_demo.demo)
+        self.assertIsNone(args_demo.end_date)
+
+        args_custom = generate_data.parse_args(["--end-date", "2026-11-22"])
+        self.assertFalse(args_custom.demo)
+        self.assertEqual(args_custom.end_date, "2026-11-22")
+
+
 if __name__ == "__main__":
     unittest.main()

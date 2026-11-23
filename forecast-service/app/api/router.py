@@ -7,10 +7,12 @@ Endpoints:
 
 from __future__ import annotations
 
+from datetime import date, datetime, timedelta
 import logging
 import os
 import secrets
 from typing import Any, Callable, Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, status
 from fastapi.responses import JSONResponse
@@ -26,6 +28,7 @@ from app.pipelines.forecast_service import (
     DEFAULT_MODEL_VERSION,
     EmptyDailySalesError,
     StaleDailySalesError,
+    ensure_fresh_daily_sales,
     execute_background_forecast,
     get_forecast_run_detail,
     start_forecast_run,
@@ -87,8 +90,9 @@ def create_forecast_router(
     connection_factory: Callable[[], Any] = get_db_connection,
     background_runner: Callable[..., Any] = execute_background_forecast,
     auth_verifier: Callable[..., Any] = verify_internal_token,
+    etl_pipeline_fn: Optional[Callable[..., Any]] = None,
 ) -> APIRouter:
-    """Tạo APIRouter cho forecast service, hỗ trợ DI connection_factory, background_runner và auth_verifier."""
+    """Tạo APIRouter cho forecast service, hỗ trợ DI connection_factory, background_runner, auth_verifier và etl_pipeline_fn."""
     r = APIRouter(prefix="/forecast", tags=["forecast"], dependencies=[Depends(auth_verifier)])
 
     @r.post(
@@ -105,13 +109,24 @@ def create_forecast_router(
         """Kích hoạt lượt chạy dự báo nhu cầu nền (Background Task).
 
         Trả về ngay HTTP 202 kèm runId.
-        Ném HTTP 409 nếu đã có một lượt chạy đang RUNNING hoặc bảng daily_sales trống.
+        Ném HTTP 409 nếu đã có một lượt chạy đang RUNNING hoặc bảng daily_sales trống/không đạt độ mới.
         """
+        today_vn = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).date()
+        expected_cutoff = today_vn - timedelta(days=1)
+
         try:
             with connection_factory() as conn:
+                # 1. Đảm bảo dữ liệu daily_sales đạt độ mới tới T - 1 (Issue #417)
+                ensure_fresh_daily_sales(
+                    conn,
+                    expected_cutoff_date=expected_cutoff,
+                    pipeline_fn=etl_pipeline_fn,
+                )
+                # 2. Khởi tạo forecast_run với kiểm tra cutoff
                 run_id, started_at = start_forecast_run(
                     conn,
                     model_version=DEFAULT_MODEL_VERSION,
+                    expected_cutoff_date=expected_cutoff,
                 )
         except ActiveRunConflictError as err:
             logger.warning("Yêu cầu chạy dự báo bị từ chối do xung đột: %s", err)
@@ -132,8 +147,13 @@ def create_forecast_router(
                 content={"code": "INTERNAL_ERROR", "message": "Lỗi nội bộ khi khởi tạo lượt chạy dự báo."},
             )
 
-        # Đẩy công việc vào hàng đợi nền với đúng run_id đã tạo
-        background_tasks.add_task(background_runner, run_id=run_id)
+        # Đẩy công việc vào hàng đợi nền với đúng run_id và tham số độ mới giống job đêm
+        background_tasks.add_task(
+            background_runner,
+            run_id=run_id,
+            expected_cutoff_date=expected_cutoff,
+            run_etl_before=True,
+        )
 
         response_dto = ForecastRunCreatedResponse(
             run_id=run_id,

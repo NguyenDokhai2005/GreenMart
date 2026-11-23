@@ -263,6 +263,8 @@ Tùy theo môi trường, bạn có thể thực thi từ thư mục gốc của
 | `-y`, `--yes` | Tự động đồng ý xóa dữ liệu cũ (TRUNCATE) mà không dừng lại hỏi xác nhận tương tác `y/N`. |
 | `--skip-verify` | Nạp dữ liệu xong nhưng bỏ qua bước chạy `verify_seed.sql`. |
 | `--db-service <NAME>`| Tên dịch vụ PostgreSQL container trong Docker Compose (mặc định: `postgres`). |
+| `--demo` | Chế độ demo (Issue #417): Tự động sinh/kéo dữ liệu đơn hàng tới hôm qua theo giờ VN ($T - 1$). Tránh hiện tượng toàn bộ ngày từ 01/11 đến $T - 1$ bị điền 0 khi nạp ETL làm dự báo tụt về 0. |
+| `--end-date <DATE>` | Chỉ định ngày kết thúc sinh dữ liệu cụ thể (`YYYY-MM-DD` hoặc `yesterday`). Mặc định không truyền vẫn giữ cố định `2026-10-31` để đảm bảo Golden Test SHA-256 không đổi. |
 | `--debug` | Hiển thị chi tiết dấu vết ngăn xếp (stack trace) khi phát sinh lỗi ngoại lệ. |
 
 ### 4.4 Các bước thực hiện nội bộ của `seed.py`

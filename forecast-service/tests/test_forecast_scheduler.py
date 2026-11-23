@@ -60,13 +60,59 @@ def test_has_run_executed_today_returns_false_when_no_record(mock_db):
     assert result is False
 
 
+def test_has_run_executed_today_returns_false_when_done_run_has_stale_cutoff(mock_db):
+    """Mục 1 (Issue #417): Khi lượt chạy hôm nay DONE nhưng MIN(target_date) <= expected_cutoff (train trên cutoff cũ 31/10), coi như chưa có run hợp lệ."""
+    cur = mock_db["cur"]
+    today = date(2026, 11, 20)
+    expected_cutoff = date(2026, 11, 19)
+
+    # 1. SELECT id, status, started_at -> (55, "DONE", ...)
+    # 2. SELECT MIN(target_date) -> 2026-11-01 (từ cutoff 31/10)
+    cur.fetchone.side_effect = [
+        (55, "DONE", datetime(2026, 11, 20, 2, 5, tzinfo=VN_TZ)),
+        (date(2026, 11, 1),),
+    ]
+
+    result = has_run_executed_today(
+        mock_db["conn"],
+        target_date=today,
+        min_hour=2,
+        expected_cutoff_date=expected_cutoff,
+    )
+    assert result is False
+
+
+def test_has_run_executed_today_returns_true_when_done_run_has_fresh_cutoff(mock_db):
+    """Mục 1 (Issue #417): Khi lượt chạy hôm nay DONE và MIN(target_date) > expected_cutoff (được train trên cutoff mới >= 19/11), trả về True."""
+    cur = mock_db["cur"]
+    today = date(2026, 11, 20)
+    expected_cutoff = date(2026, 11, 19)
+
+    # 1. SELECT id, status, started_at -> (55, "DONE", ...)
+    # 2. SELECT MIN(target_date) -> 2026-11-20 (target sớm nhất = cutoff + 1 > 19/11)
+    cur.fetchone.side_effect = [
+        (55, "DONE", datetime(2026, 11, 20, 2, 5, tzinfo=VN_TZ)),
+        (date(2026, 11, 20),),
+    ]
+
+    result = has_run_executed_today(
+        mock_db["conn"],
+        target_date=today,
+        min_hour=2,
+        expected_cutoff_date=expected_cutoff,
+    )
+    assert result is True
+
+
 @patch("app.scheduler.forecast_scheduler.start_forecast_run")
 @patch("app.scheduler.forecast_scheduler.has_run_executed_today")
 def test_tc_sched_01_run_nightly_forecast_job_success(mock_has_run, mock_start, mock_db):
     """TC-SCHED-01: Đến 02:00, job kích hoạt tạo forecast_run mới và gọi runner_fn thành công."""
     mock_has_run.return_value = False
     mock_start.return_value = (88, datetime(2026, 11, 18, 2, 0, tzinfo=VN_TZ))
+    mock_db["cur"].fetchone.return_value = (date(2025, 11, 1), date(2026, 11, 17))
     mock_runner = MagicMock()
+    mock_etl_pipeline = MagicMock(return_value={"total_rows": 100})
 
     test_time = datetime(2026, 11, 18, 2, 0, 5, tzinfo=VN_TZ)
 
@@ -74,12 +120,13 @@ def test_tc_sched_01_run_nightly_forecast_job_success(mock_has_run, mock_start, 
         connection_factory=mock_db["factory"],
         runner_fn=mock_runner,
         now_dt=test_time,
+        etl_pipeline_fn=mock_etl_pipeline,
     )
 
     assert run_id == 88
     mock_has_run.assert_called_once_with(mock_db["conn"], target_date=test_time.date(), min_hour=2)
     mock_start.assert_called_once()
-    mock_runner.assert_called_once_with(run_id=88)
+    mock_runner.assert_called_once_with(run_id=88, expected_cutoff_date=date(2026, 11, 17))
 
 
 @patch("app.scheduler.forecast_scheduler.start_forecast_run")

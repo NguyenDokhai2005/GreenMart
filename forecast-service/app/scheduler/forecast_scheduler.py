@@ -79,19 +79,28 @@ def has_run_executed_today(
                 if expected_cutoff_date is not None and status == "DONE":
                     try:
                         cur.execute(
-                            "SELECT 1 FROM forecast_result WHERE run_id = %s AND target_date > %s LIMIT 1;",
-                            (run_id, expected_cutoff_date),
+                            "SELECT MIN(target_date) FROM forecast_result WHERE run_id = %s;",
+                            (run_id,),
                         )
-                        fresh_row = cur.fetchone()
-                        if not fresh_row:
+                        min_row = cur.fetchone()
+                        min_target = min_row[0] if min_row else None
+                        if isinstance(min_target, datetime):
+                            min_target = min_target.date()
+                        elif isinstance(min_target, str):
+                            try:
+                                min_target = date.fromisoformat(min_target)
+                            except ValueError:
+                                min_target = None
+                        if min_target is None or min_target <= expected_cutoff_date:
                             logger.info(
-                                "Bản ghi forecast_run id=%d đã DONE nhưng kết quả không đạt cutoff %s. Coi như chưa có run hợp lệ.",
+                                "Bản ghi forecast_run id=%d đã DONE nhưng MIN(target_date)=%s <= cutoff %s. Coi như chưa có run hợp lệ.",
                                 run_id,
+                                min_target,
                                 expected_cutoff_date,
                             )
                             return False
-                    except Exception:
-                        pass
+                    except Exception as verify_exc:
+                        logger.warning("Không thể đối soát MIN(target_date) cho run_id=%d: %s", run_id, verify_exc)
 
                 logger.info(
                     "Đã tìm thấy forecast_run hợp lệ cho ngày %s: run_id=%d, status=%s, started_at=%s",
@@ -184,16 +193,7 @@ def run_nightly_forecast_job(
 
     # 4. Thực thi pipeline dự báo nền
     try:
-        try:
-            import inspect
-            sig = inspect.signature(runner_fn)
-            if "expected_cutoff_date" in sig.parameters:
-                runner_fn(run_id=run_id, expected_cutoff_date=expected_cutoff)
-            else:
-                runner_fn(run_id=run_id)
-        except (ValueError, TypeError):
-            runner_fn(run_id=run_id)
-
+        runner_fn(run_id=run_id, expected_cutoff_date=expected_cutoff)
         logger.info("Hoàn tất thực thi pipeline dự báo đêm cho run_id=%d", run_id)
         return run_id
     except Exception as exc:

@@ -115,10 +115,6 @@ def ensure_fresh_daily_sales(
         )
         return {"status": "ALREADY_FRESH", "cutoff_date": current_max}
 
-    if type(conn).__name__ == "MagicMock" and pipeline_fn is None:
-        logger.info("conn là MagicMock trong môi trường test và không có pipeline_fn; bỏ qua ETL.")
-        return {"status": "MOCK_SKIPPED", "cutoff_date": expected_cutoff_date}
-
     logger.info(
         "Dữ liệu daily_sales chưa đủ mới (hiện tại: %s, yêu cầu: %s). Tiến hành kích hoạt DailySalesPipeline...",
         current_max,
