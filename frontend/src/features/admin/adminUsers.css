@@ -1,0 +1,90 @@
+.admin-users {
+  display: grid;
+  gap: 1.5rem;
+}
+.admin-users__heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 1rem;
+}
+.admin-users__heading h1 {
+  margin: 0;
+}
+.admin-users__heading p {
+  margin-bottom: 0;
+}
+.admin-users__filters {
+  display: flex;
+  align-items: end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.admin-users__filters .gm-field {
+  min-width: 15rem;
+}
+.admin-users label {
+  display: grid;
+  gap: 0.35rem;
+}
+.admin-users select {
+  min-height: 2.5rem;
+  border: 1px solid var(--gm-border, #cbd5e1);
+  border-radius: 0.5rem;
+  padding: 0 0.7rem;
+  background: white;
+  color: inherit;
+}
+.admin-users__table-wrap {
+  overflow-x: auto;
+}
+.admin-users table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.admin-users th,
+.admin-users td {
+  padding: 0.7rem;
+  border-bottom: 1px solid var(--gm-border, #e2e8f0);
+  text-align: left;
+}
+.admin-users__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.admin-users__pages {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+.admin-users__form {
+  display: grid;
+  gap: 1rem;
+}
+.admin-users__form fieldset {
+  display: grid;
+  gap: 0.5rem;
+  border: 1px solid var(--gm-border, #cbd5e1);
+  border-radius: 0.5rem;
+}
+.admin-users__form fieldset label,
+.admin-users__form > label:has(input[type='checkbox']) {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.admin-users__form [role='alert'] {
+  color: #b42318;
+  margin: 0;
+}
+@media (max-width: 640px) {
+  .admin-users__heading {
+    flex-direction: column;
+  }
+  .admin-users__filters {
+    display: grid;
+  }
+}
