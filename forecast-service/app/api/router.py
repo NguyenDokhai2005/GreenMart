@@ -33,6 +33,7 @@ from app.pipelines.forecast_service import (
     get_forecast_run_detail,
     start_forecast_run,
 )
+from app.scheduler.forecast_scheduler import get_current_vn_time
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +112,7 @@ def create_forecast_router(
         Trả về ngay HTTP 202 kèm runId.
         Ném HTTP 409 nếu đã có một lượt chạy đang RUNNING hoặc bảng daily_sales trống/không đạt độ mới.
         """
-        today_vn = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).date()
+        today_vn = get_current_vn_time().date()
         expected_cutoff = today_vn - timedelta(days=1)
 
         try:

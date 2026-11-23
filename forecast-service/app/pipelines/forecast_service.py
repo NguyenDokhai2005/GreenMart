@@ -145,6 +145,13 @@ def ensure_fresh_daily_sales(
             new_max = row_after[1] if row_after and len(row_after) > 1 and row_after[1] is not None and row_after[1] is not False else None
             if isinstance(new_max, datetime):
                 new_max = new_max.date()
+            elif isinstance(new_max, str):
+                try:
+                    new_max = date.fromisoformat(new_max)
+                except ValueError:
+                    new_max = None
+            if not isinstance(new_max, date):
+                new_max = None
         except Exception as exc:
             logger.warning("Không thể truy vấn MAX(sale_date) từ daily_sales sau ETL: %s", exc)
             new_max = None
@@ -189,7 +196,14 @@ def start_forecast_run(
         max_sale_date = row[1] if len(row) > 1 and row[1] is not None and row[1] is not False else row[0]
         if isinstance(max_sale_date, datetime):
             max_sale_date = max_sale_date.date()
-        if expected_cutoff_date is not None and isinstance(max_sale_date, date) and max_sale_date < expected_cutoff_date:
+        elif isinstance(max_sale_date, str):
+            try:
+                max_sale_date = date.fromisoformat(max_sale_date)
+            except ValueError:
+                max_sale_date = None
+        if not isinstance(max_sale_date, date):
+            max_sale_date = None
+        if expected_cutoff_date is not None and (max_sale_date is None or max_sale_date < expected_cutoff_date):
             raise StaleDailySalesError(
                 f"Dữ liệu daily_sales bị cũ: cutoff hiện tại là {max_sale_date}, "
                 f"yêu cầu tối thiểu {expected_cutoff_date}."

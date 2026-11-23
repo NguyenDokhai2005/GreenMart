@@ -28,6 +28,7 @@ def mock_db():
     conn.__enter__.return_value = conn
     cur = MagicMock()
     conn.cursor.return_value.__enter__.return_value = cur
+    cur.fetchone.return_value = (date(2025, 11, 1), date(2026, 11, 17))
 
     def conn_factory():
         return conn
