@@ -25,6 +25,8 @@ import { TransferCreatePage, TransferEditPage } from '../transfers/TransferFormP
 import StockDocumentsPage from '../stock-documents/StockDocumentsPage';
 import StockDocumentDetailDrawer from '../stock-documents/StockDocumentDetailDrawer';
 import StockAlertsPage from '../dashboard/StockAlertsPage';
+import AdminBranchesPage from '../admin/AdminBranchesPage';
+import AdminChannelsPage from '../admin/AdminChannelsPage';
 import {
   ADMIN_ROLES,
   APP_PATHS,
@@ -311,6 +313,8 @@ export function AppRoutes() {
         }
       >
         <Route index element={<h1>Dashboard</h1>} />
+        <Route path="branches" element={<AdminBranchesPage />} />
+        <Route path="channels" element={<AdminChannelsPage />} />
         <Route path="*" element={<WorkspaceMountPoint title="Chức năng đang phát triển" />} />
       </Route>
       <Route path={APP_PATHS.forbidden} element={<ForbiddenPage />} />

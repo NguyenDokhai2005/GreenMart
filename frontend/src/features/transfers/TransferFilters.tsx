@@ -45,7 +45,7 @@ export default function TransferFilters({
         label="Trạng thái"
         aria-label="Trạng thái"
         value={status ?? ''}
-        placeholder="Vui lòng chọn"
+        placeholder="Tất cả trạng thái"
         options={statusOptions}
         onChange={(e) =>
           onStatusChange(TRANSFER_FILTER_STATUSES.find((candidate) => candidate === e.target.value))

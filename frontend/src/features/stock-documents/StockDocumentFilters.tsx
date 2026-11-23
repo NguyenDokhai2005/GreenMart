@@ -47,6 +47,7 @@ export default function StockDocumentFilters({
         <Select
           label="Trạng thái"
           value={value.status ?? ''}
+          placeholder="Tất cả trạng thái"
           error={errors.status}
           options={STATUS_OPTIONS}
           onChange={(event) =>
@@ -61,6 +62,7 @@ export default function StockDocumentFilters({
           <input
             type="date"
             value={value.from ?? ''}
+            max={value.to}
             aria-invalid={errors.from ? true : undefined}
             aria-describedby={errors.from ? 'sd-filter-from-error' : undefined}
             onChange={(event) => onChange({ ...value, from: event.target.value || undefined })}
@@ -76,6 +78,7 @@ export default function StockDocumentFilters({
           <input
             type="date"
             value={value.to ?? ''}
+            min={value.from}
             aria-invalid={errors.to ? true : undefined}
             aria-describedby={errors.to ? 'sd-filter-to-error' : undefined}
             onChange={(event) => onChange({ ...value, to: event.target.value || undefined })}

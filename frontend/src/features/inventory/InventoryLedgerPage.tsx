@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { Link, Outlet, useSearchParams } from 'react-router';
 import { ApiError } from '../../api/client';
 import type { components } from '../../api/schema';
@@ -56,12 +56,25 @@ function formatDate(value: string): string {
   }).format(date);
 }
 
-async function loadTransactions(branchId: number | undefined, page: number, signal: AbortSignal) {
-  const result = await listInventoryTransactions(
-    { branchId, page: page - 1, size: PAGE_SIZE },
-    signal,
-  );
-  const productIds = [...new Set(result.content.map((transaction) => transaction.productId))];
+async function loadTransactions(
+  branchId: number | undefined,
+  page: number,
+  term: string,
+  direction: Direction,
+  signal: AbortSignal,
+) {
+  const pageSize = 100;
+  const first = await listInventoryTransactions({ branchId, page: 0, size: pageSize }, signal);
+  const batches = [first.content];
+  for (let nextPage = 1; nextPage < first.totalPages; nextPage += 1) {
+    const batch = await listInventoryTransactions(
+      { branchId, page: nextPage, size: pageSize },
+      signal,
+    );
+    batches.push(batch.content);
+  }
+  const all = batches.flat();
+  const productIds = [...new Set(all.map((transaction) => transaction.productId))];
   const products = await Promise.all(
     productIds.map(async (productId) => {
       try {
@@ -76,12 +89,31 @@ async function loadTransactions(branchId: number | undefined, page: number, sign
     }),
   );
   const productNames = new Map(products);
+  const normalizedTerm = term.trim().toLocaleLowerCase('vi');
+  const filtered = all.filter((transaction) => {
+    const delta = transactionDelta(transaction);
+    if (direction === 'INCREASE' && delta <= 0) return false;
+    if (direction === 'DECREASE' && delta >= 0) return false;
+    if (!normalizedTerm) return true;
+    return [
+      `txn-${transaction.id}`,
+      String(transaction.id),
+      productNames.get(transaction.productId) ?? `Sản phẩm #${transaction.productId}`,
+      transaction.sku,
+      transaction.refCode ?? '',
+    ].some((value) => value.toLocaleLowerCase('vi').includes(normalizedTerm));
+  });
+  const withNames = filtered.map((transaction) => ({
+    ...transaction,
+    productName: productNames.get(transaction.productId) ?? `Sản phẩm #${transaction.productId}`,
+  }));
+  const totalPages = Math.max(1, Math.ceil(withNames.length / PAGE_SIZE));
   return {
-    ...result,
-    content: result.content.map((transaction) => ({
-      ...transaction,
-      productName: productNames.get(transaction.productId) ?? `Sản phẩm #${transaction.productId}`,
-    })),
+    page: page - 1,
+    size: PAGE_SIZE,
+    totalElements: withNames.length,
+    totalPages,
+    content: withNames.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
   };
 }
 
@@ -93,9 +125,10 @@ export default function InventoryLedgerPage() {
   const direction: Direction =
     directionValue === 'INCREASE' || directionValue === 'DECREASE' ? directionValue : '';
   const page = parsePage(params.get('page'));
-  const queryKey = `${branchId ?? 'all'}|${page}`;
+  const normalizedQuery = query.trim();
+  const queryKey = `${branchId ?? 'all'}|${normalizedQuery}|${direction}|${page}`;
   const { data, error, isLoading, reload } = useRemote(
-    (signal) => loadTransactions(branchId, page, signal),
+    (signal) => loadTransactions(branchId, page, normalizedQuery, direction, signal),
     queryKey,
   );
   const hasFilters = !!query || !!direction;
@@ -138,6 +171,12 @@ export default function InventoryLedgerPage() {
   const clearFilters = () => {
     setParams(new URLSearchParams());
   };
+
+  useEffect(() => {
+    if (!isLoading && data && page > data.totalPages) {
+      update({ page: 1 }, true);
+    }
+  }, [data, isLoading, page, update]);
 
   return (
     <div className="ledger-page">

@@ -135,7 +135,7 @@ describe('DashboardPage', () => {
         expect.anything(),
       );
       expect(dashboardApiMock.topProducts).toHaveBeenCalledWith(
-        expect.objectContaining({ branchId: branch.id, channelId: 2, limit: 8 }),
+        expect.objectContaining({ branchId: branch.id, channelId: 2, limit: 10 }),
         expect.anything(),
       );
     });

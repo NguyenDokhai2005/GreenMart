@@ -520,6 +520,22 @@
   font-size: var(--gm-font-size-sm);
   white-space: nowrap;
 }
+.ck-picker__pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--gm-space-2);
+  padding: var(--gm-space-2);
+  border-top: var(--gm-border-width) solid var(--ops-line, var(--gm-color-border));
+}
+.ck-picker__pager button {
+  min-height: 32px;
+  padding: 4px 8px;
+  border: var(--gm-border-width) solid var(--ops-line, var(--gm-color-border));
+  border-radius: var(--gm-radius-md);
+  background: var(--gm-color-surface);
+  font-size: var(--gm-font-size-xs);
+}
 .ck-link-button {
   border: 0;
   background: none;

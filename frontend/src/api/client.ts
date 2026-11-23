@@ -437,6 +437,17 @@ export function listBranches(active?: boolean, signal?: AbortSignal) {
   return request('/branches', 'get', { query: { active }, signal });
 }
 
+export function listSyncLogs(
+  query: operations['listSyncLogs']['parameters']['query'] = {},
+  signal?: AbortSignal,
+) {
+  return request('/integrations/sync-logs', 'get', { query, signal });
+}
+
+export function retrySyncLog(id: number) {
+  return request('/integrations/sync-logs/{id}/retry', 'post', { path: { id } });
+}
+
 export function lookupProduct(code: string, branchId: number, signal?: AbortSignal) {
   return request('/products/lookup', 'get', { query: { code, branchId }, signal });
 }

@@ -44,17 +44,23 @@ export default function InventoryTable({ items, showBranch }: InventoryTableProp
         <tbody>
           {items.map((it) => (
             <tr key={`${it.branch.id}-${it.productId}`}>
-              <td>{it.productName}</td>
-              <td>{it.sku}</td>
-              {showBranch && <td>{it.branch.code}</td>}
-              <td>{it.unit}</td>
-              <td className={NUMERIC}>{formatQty(it.onHand)}</td>
-              <td className={NUMERIC}>{formatQty(it.reserved)}</td>
-              <td className={NUMERIC}>{formatQty(it.available)}</td>
-              <td className={NUMERIC}>
+              <td data-label="Sản phẩm">{it.productName}</td>
+              <td data-label="SKU">{it.sku}</td>
+              {showBranch && <td data-label="Chi nhánh">{it.branch.code}</td>}
+              <td data-label="Đơn vị tính">{it.unit}</td>
+              <td data-label="Tồn thực" className={NUMERIC}>
+                {formatQty(it.onHand)}
+              </td>
+              <td data-label="Giữ chỗ" className={NUMERIC}>
+                {formatQty(it.reserved)}
+              </td>
+              <td data-label="Khả dụng" className={NUMERIC}>
+                {formatQty(it.available)}
+              </td>
+              <td data-label="ROP" className={NUMERIC}>
                 {it.reorderPoint == null ? '—' : formatQty(it.reorderPoint)}
               </td>
-              <td>
+              <td data-label="Cảnh báo">
                 <StockStatusBadge status={it.stockStatus} />
               </td>
             </tr>

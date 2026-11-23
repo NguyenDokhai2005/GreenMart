@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useLocation, useSearchParams } from 'react-router';
 import type { CurrentUser } from '../../api/client';
 import { AsyncBlock, Button, Toast } from '../../components/ui';
@@ -61,6 +61,7 @@ export default function StockDocumentsPage() {
   const [formType, setFormType] = useState<'IMPORT' | 'EXPORT' | null>(null);
   const [editingDocument, setEditingDocument] = useState<StockDocument | null>(null);
   const [success, setSuccess] = useState('');
+  const [dateRangeError, setDateRangeError] = useState('');
   const queryKey = `${branchId ?? 'all'}|${type}|${status ?? ''}|${q}|${from ?? ''}|${to ?? ''}|${page}`;
   const { data, error, isLoading, reload } = useRemote(
     (signal) =>
@@ -88,6 +89,12 @@ export default function StockDocumentsPage() {
       : null
     : formType;
 
+  useEffect(() => {
+    if (!success) return;
+    const timer = globalThis.setTimeout(() => setSuccess(''), 6_000);
+    return () => globalThis.clearTimeout(timer);
+  }, [success]);
+
   const update = useCallback(
     (
       patch: {
@@ -100,6 +107,13 @@ export default function StockDocumentsPage() {
       },
       replace = false,
     ) => {
+      const nextFrom = 'from' in patch ? patch.from : from;
+      const nextTo = 'to' in patch ? patch.to : to;
+      if (nextFrom && nextTo && nextFrom > nextTo) {
+        setDateRangeError('Từ ngày phải trước hoặc bằng Đến ngày.');
+        return;
+      }
+      setDateRangeError('');
       setParams(
         (previous) => {
           const next = new URLSearchParams(previous);
@@ -116,7 +130,7 @@ export default function StockDocumentsPage() {
         { replace },
       );
     },
-    [setParams],
+    [from, setParams, to],
   );
   const debouncedSearch = useDebouncedCallback((value: string) => update({ q: value }, true), 300);
 
@@ -184,7 +198,10 @@ export default function StockDocumentsPage() {
       <StockDocumentFilters
         searchText={searchText}
         value={currentFilter}
-        errors={filterError?.kind === 'form' ? filterError.fieldErrors : undefined}
+        errors={{
+          ...(filterError?.kind === 'form' ? filterError.fieldErrors : {}),
+          ...(dateRangeError ? { from: dateRangeError, to: dateRangeError } : {}),
+        }}
         onSearchChange={(value) => {
           setSearchDraft({ locationKey: location.key, value });
           debouncedSearch.call(value);

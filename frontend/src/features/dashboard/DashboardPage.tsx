@@ -59,7 +59,7 @@ function DashboardPage() {
   );
   const loadTopProducts = useCallback(
     (signal: AbortSignal) =>
-      dashboardApi.topProducts({ from, to, limit: 8, branchId, channelId }, signal),
+      dashboardApi.topProducts({ from, to, limit: 10, branchId, channelId }, signal),
     [branchId, channelId, from, to],
   );
   const topProducts = useCatalogQuery(
