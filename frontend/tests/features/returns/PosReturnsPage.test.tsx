@@ -2,21 +2,29 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import PosReturnsPage from '../../../src/features/returns/PosReturnsPage';
 
-const { listOrders, getOrder, listReturnsByOrder, createReturn, approveReturn, role } = vi.hoisted(
-  () => ({
-    listOrders: vi.fn(),
-    getOrder: vi.fn(),
-    listReturnsByOrder: vi.fn(),
-    createReturn: vi.fn(),
-    approveReturn: vi.fn(),
-    role: { current: 'CASHIER' as string },
-  }),
-);
+const {
+  listOrders,
+  getOrder,
+  listReturnsByOrder,
+  createReturn,
+  approveReturn,
+  cancelReturn,
+  role,
+} = vi.hoisted(() => ({
+  listOrders: vi.fn(),
+  getOrder: vi.fn(),
+  listReturnsByOrder: vi.fn(),
+  createReturn: vi.fn(),
+  approveReturn: vi.fn(),
+  cancelReturn: vi.fn(),
+  role: { current: 'CASHIER' as string },
+}));
 vi.mock('../../../src/api/client', () => ({ listOrders, getOrder }));
 vi.mock('../../../src/features/returns/returnsApi', () => ({
   listReturnsByOrder,
   createReturn,
   approveReturn,
+  cancelReturn,
 }));
 vi.mock('../../../src/features/auth/useActiveBranch', () => ({
   useActiveBranch: () => ({ state: { status: 'active', branch: { id: 1 } } }),
@@ -78,10 +86,21 @@ beforeEach(() => {
   listReturnsByOrder.mockReset().mockResolvedValue([]);
   createReturn.mockReset().mockResolvedValue(document);
   approveReturn.mockReset();
+  cancelReturn.mockReset().mockResolvedValue({ ...document, status: 'CANCELLED' });
 });
 afterEach(() => cleanup());
 
 describe('POS returns', () => {
+  async function openReturnDocument() {
+    render(<PosReturnsPage />);
+    fireEvent.change(screen.getByLabelText('Mã đơn hoặc số điện thoại'), {
+      target: { value: order.code },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Tìm đơn' }));
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(order.code) }));
+    await screen.findByText('Đơn ' + order.code);
+  }
+
   it('searches within the active branch and creates a draft with contract fields', async () => {
     render(<PosReturnsPage />);
     fireEvent.change(screen.getByLabelText('Mã đơn hoặc số điện thoại'), {
@@ -169,5 +188,55 @@ describe('POS returns', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Tạo phiếu trả hàng' }));
     expect(screen.getByText('Lý do trả hàng phải dài từ 3 đến 255 ký tự.')).toBeTruthy();
     expect(createReturn).not.toHaveBeenCalled();
+  });
+
+  it('shows Vietnamese order and return statuses', async () => {
+    listReturnsByOrder.mockResolvedValue([
+      document,
+      { ...document, id: 21, code: 'RET-APPROVED', status: 'APPROVED' },
+      { ...document, id: 22, code: 'RET-CANCELLED', status: 'CANCELLED' },
+    ]);
+    await openReturnDocument();
+
+    expect(screen.getByRole('button', { name: /Hoàn tất/ })).toBeTruthy();
+    expect(screen.getByText(/Trạng thái: Hoàn tất/)).toBeTruthy();
+    expect(screen.getByText(/· Nháp ·/)).toBeTruthy();
+    expect(screen.getByText(/· Đã duyệt ·/)).toBeTruthy();
+    expect(screen.getByText(/· Đã hủy ·/)).toBeTruthy();
+    expect(screen.queryByText(/· (COMPLETED|DRAFT|APPROVED|CANCELLED) ·/)).toBeNull();
+  });
+
+  it('lets a manager cancel their own draft without allowing self-approval', async () => {
+    role.current = 'BRANCH_MANAGER';
+    listReturnsByOrder.mockResolvedValue([document]);
+    await openReturnDocument();
+
+    expect(screen.queryByRole('button', { name: 'Duyệt' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Hủy phiếu' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận' }));
+
+    await waitFor(() => expect(cancelReturn).toHaveBeenCalledWith(document.id));
+    expect(approveReturn).not.toHaveBeenCalled();
+    await screen.findByText(/· Đã hủy ·/);
+    expect(screen.queryByRole('button', { name: 'Hủy phiếu' })).toBeNull();
+  });
+
+  it('lets a manager approve or cancel another creator’s draft', async () => {
+    role.current = 'OWNER';
+    listReturnsByOrder.mockResolvedValue([
+      { ...document, createdBy: { id: 8, fullName: 'Thu ngân khác' } },
+    ]);
+    await openReturnDocument();
+
+    expect(screen.getByRole('button', { name: 'Duyệt' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Hủy phiếu' })).toBeTruthy();
+  });
+
+  it('does not offer approval or cancellation to a cashier', async () => {
+    listReturnsByOrder.mockResolvedValue([document]);
+    await openReturnDocument();
+
+    expect(screen.queryByRole('button', { name: 'Duyệt' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Hủy phiếu' })).toBeNull();
   });
 });

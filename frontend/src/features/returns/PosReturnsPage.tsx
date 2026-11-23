@@ -5,6 +5,7 @@ import { AsyncBlock, Button, Dialog, Input, Skeleton, Toast } from '../../compon
 import { mapErrorToState } from '../../lib/errors';
 import { useActiveBranch } from '../auth/useActiveBranch';
 import { useAuth } from '../auth/useAuth';
+import { STATUS_LABELS } from '../orders/ordersQuery';
 import {
   approveReturn,
   cancelReturn,
@@ -17,6 +18,11 @@ import './posReturns.css';
 type OrderSummary = components['schemas']['OrderSummary'];
 type ReturnItemRequest = components['schemas']['ReturnItemRequest'];
 const money = (value: number) => `${new Intl.NumberFormat('vi-VN').format(value)} ₫`;
+const RETURN_STATUS_LABELS: Record<ReturnDocument['status'], string> = {
+  DRAFT: 'Nháp',
+  APPROVED: 'Đã duyệt',
+  CANCELLED: 'Đã hủy',
+};
 
 export default function PosReturnsPage() {
   const branch = useActiveBranch();
@@ -242,7 +248,7 @@ export default function PosReturnsPage() {
                 variant="secondary"
                 onClick={() => void openOrder(summary.id)}
               >
-                {summary.code} · {summary.status} · {money(summary.total)}
+                {summary.code} · {STATUS_LABELS[summary.status]} · {money(summary.total)}
               </Button>
             ))}
           </div>
@@ -264,7 +270,7 @@ export default function PosReturnsPage() {
         <section className="pos-returns__detail">
           <h2>Đơn {order.code}</h2>
           <p>
-            Trạng thái: {order.status} · Tổng đã thanh toán: {money(order.total)}
+            Trạng thái: {STATUS_LABELS[order.status]} · Tổng đã thanh toán: {money(order.total)}
           </p>
           {!returnable && <p>Đơn này không còn ở trạng thái cho phép lập phiếu trả hàng.</p>}
           {returnable && (
@@ -359,7 +365,7 @@ export default function PosReturnsPage() {
             <div className="pos-returns__documents">
               {returns.map((document) => (
                 <article key={document.id}>
-                  <strong>{document.code}</strong> · {document.status} · Hoàn{' '}
+                  <strong>{document.code}</strong> · {RETURN_STATUS_LABELS[document.status]} · Hoàn{' '}
                   {money(document.refundAmount)}
                   <p>Lý do: {document.reason}</p>
                   <ul>
@@ -371,21 +377,21 @@ export default function PosReturnsPage() {
                       </li>
                     ))}
                   </ul>
-                  {mayApprove &&
-                    document.status === 'DRAFT' &&
-                    document.createdBy.id !== user.id && (
-                      <div className="pos-returns__actions">
+                  {mayApprove && document.status === 'DRAFT' && (
+                    <div className="pos-returns__actions">
+                      {document.createdBy.id !== user?.id && (
                         <Button onClick={() => setAction({ kind: 'approve', document })}>
                           Duyệt
                         </Button>
-                        <Button
-                          variant="secondary"
-                          onClick={() => setAction({ kind: 'cancel', document })}
-                        >
-                          Hủy phiếu
-                        </Button>
-                      </div>
-                    )}
+                      )}
+                      <Button
+                        variant="secondary"
+                        onClick={() => setAction({ kind: 'cancel', document })}
+                      >
+                        Hủy phiếu
+                      </Button>
+                    </div>
+                  )}
                 </article>
               ))}
             </div>
