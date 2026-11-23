@@ -38,8 +38,8 @@ import vn.greenmart.sales.service.PosIdempotencyService;
 @SpringBootTest(
     properties = {
         "spring.autoconfigure.exclude=" +
-            "org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration," +
-            "org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration",
+            "org.springframework.boot.data.redis.autoconfigure.RedisAutoConfiguration," +
+            "org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration",
         // Tắt health group dùng redis/readiness vì Redis bị excluded trong test này
         "management.endpoint.health.group.readiness.include=readinessState,db",
         "management.endpoint.health.group.liveness.include=livenessState",

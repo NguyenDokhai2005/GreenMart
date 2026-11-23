@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { getOrder, listOrders, type PosOrder } from '../../api/client';
 import type { components } from '../../api/schema';
-import { AsyncBlock, Button, EmptyState, ErrorState, Skeleton } from '../../components/ui';
+import { AsyncBlock, Button, EmptyState, ErrorState, Input, Skeleton } from '../../components/ui';
 import { useActiveBranch } from '../auth/useActiveBranch';
 import type { PosPageProps } from '../../layouts/pos/PosPlaceholderPage';
 import { PosPageError } from '../../layouts/pos/PosRouteContent';
+import { discountMoney, money } from './posMoney';
 import './posReceipts.css';
 
 type SummaryPage = components['schemas']['OrderSummaryPage'];
@@ -14,7 +15,6 @@ type LoadState<T> =
   | { status: 'ready'; key: string; data: T }
   | { status: 'error'; key: string; error: unknown };
 
-const money = (amount: number) => `${new Intl.NumberFormat('vi-VN').format(amount)} ₫`;
 const dateTime = (value: string) =>
   new Intl.DateTimeFormat('vi-VN', {
     timeZone: 'Asia/Ho_Chi_Minh',
@@ -95,11 +95,11 @@ function Receipt({ order, onBack }: { order: PosOrder; onBack: () => void }) {
           </div>
           <div>
             <dt>Giảm theo dòng</dt>
-            <dd>−{money(order.itemDiscount)}</dd>
+            <dd>{discountMoney(order.itemDiscount)}</dd>
           </div>
           <div>
             <dt>Giảm giá đơn hàng{order.orderPromotion && ` · ${order.orderPromotion.code}`}</dt>
-            <dd>−{money(order.orderDiscount)}</dd>
+            <dd>{discountMoney(order.orderDiscount)}</dd>
           </div>
           {order.manualDiscount > 0 && (
             <div>
@@ -109,7 +109,7 @@ function Receipt({ order, onBack }: { order: PosOrder; onBack: () => void }) {
           )}
           <div>
             <dt>Tổng giảm giá</dt>
-            <dd>−{money(order.discount)}</dd>
+            <dd>{discountMoney(order.discount)}</dd>
           </div>
           <div className="pos-receipts__total">
             <dt>Tổng thanh toán</dt>
@@ -197,14 +197,19 @@ function ReceiptDetail({
 
 function ReceiptList({ branchId, onOpen }: { branchId: number; onOpen: (id: number) => void }) {
   const [state, setState] = useState<LoadState<SummaryPage>>({ status: 'loading', key: '' });
+  const [searchText, setSearchText] = useState('');
+  const [query, setQuery] = useState('');
   const [page, setPage] = useState(0);
   const [attempt, setAttempt] = useState(0);
-  const key = `${branchId}:${page}:${attempt}`;
+  const key = `${branchId}:${query}:${page}:${attempt}`;
   const loading = state.key !== key || state.status === 'loading';
 
   useEffect(() => {
     const controller = new AbortController();
-    void listOrders({ branchId, channel: 'POS', page, size: 20 }, controller.signal).then(
+    void listOrders(
+      { branchId, channel: 'POS', ...(query ? { q: query } : {}), page, size: 20 },
+      controller.signal,
+    ).then(
       (data) => {
         if (!controller.signal.aborted) setState({ status: 'ready', key, data });
       },
@@ -213,60 +218,87 @@ function ReceiptList({ branchId, onOpen }: { branchId: number; onOpen: (id: numb
       },
     );
     return () => controller.abort();
-  }, [branchId, key, page]);
+  }, [branchId, key, page, query]);
 
-  if (!loading && state.status === 'error') {
-    return <PosPageError error={state.error} onRetry={() => setAttempt((value) => value + 1)} />;
-  }
   return (
-    <AsyncBlock
-      key={key}
-      isLoading={loading}
-      onRetry={() => setAttempt((value) => value + 1)}
-      skeleton={<Skeleton lines={6} />}
-    >
-      {!loading &&
-        state.status === 'ready' &&
-        (state.data.content.length === 0 ? (
-          <EmptyState
-            message="Chưa có hóa đơn"
-            description="Hóa đơn sẽ xuất hiện sau khi hoàn tất đơn bán tại quầy."
-          />
-        ) : (
-          <>
-            <ul className="pos-receipts__list">
-              {state.data.content.map((order) => (
-                <li key={order.id}>
-                  <button type="button" onClick={() => onOpen(order.id)}>
+    <>
+      <form
+        className="pos-receipts__search"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setQuery(searchText.trim());
+          setPage(0);
+        }}
+      >
+        <Input
+          label="Tìm hóa đơn"
+          placeholder="Mã đơn hoặc số điện thoại khách"
+          value={searchText}
+          onChange={(event) => setSearchText(event.target.value)}
+        />
+        <Button type="submit">Tìm kiếm</Button>
+      </form>
+      {!loading && state.status === 'error' ? (
+        <PosPageError error={state.error} onRetry={() => setAttempt((value) => value + 1)} />
+      ) : (
+        <AsyncBlock
+          key={key}
+          isLoading={loading}
+          onRetry={() => setAttempt((value) => value + 1)}
+          skeleton={<Skeleton lines={6} />}
+        >
+          {!loading &&
+            state.status === 'ready' &&
+            (state.data.content.length === 0 ? (
+              <EmptyState
+                message={query ? 'Không có hóa đơn phù hợp' : 'Chưa có hóa đơn'}
+                description={
+                  query
+                    ? 'Thử mã đơn hoặc số điện thoại khác.'
+                    : 'Hóa đơn sẽ xuất hiện sau khi hoàn tất đơn bán tại quầy.'
+                }
+              />
+            ) : (
+              <>
+                <ul className="pos-receipts__list">
+                  {state.data.content.map((order) => (
+                    <li key={order.id}>
+                      <button type="button" onClick={() => onOpen(order.id)}>
+                        <span>
+                          <strong>{order.code}</strong>
+                          <small>{dateTime(order.completedAt ?? order.createdAt)}</small>
+                        </span>
+                        <span>{money(order.total)}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {state.data.totalPages > 1 && (
+                  <nav className="pos-receipts__pagination" aria-label="Phân trang hóa đơn">
+                    <Button
+                      variant="secondary"
+                      disabled={page === 0}
+                      onClick={() => setPage(page - 1)}
+                    >
+                      Trước
+                    </Button>
                     <span>
-                      <strong>{order.code}</strong>
-                      <small>{dateTime(order.completedAt ?? order.createdAt)}</small>
+                      Trang {page + 1}/{state.data.totalPages}
                     </span>
-                    <span>{money(order.total)}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {state.data.totalPages > 1 && (
-              <nav className="pos-receipts__pagination" aria-label="Phân trang hóa đơn">
-                <Button variant="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>
-                  Trước
-                </Button>
-                <span>
-                  Trang {page + 1}/{state.data.totalPages}
-                </span>
-                <Button
-                  variant="secondary"
-                  disabled={page + 1 >= state.data.totalPages}
-                  onClick={() => setPage(page + 1)}
-                >
-                  Sau
-                </Button>
-              </nav>
-            )}
-          </>
-        ))}
-    </AsyncBlock>
+                    <Button
+                      variant="secondary"
+                      disabled={page + 1 >= state.data.totalPages}
+                      onClick={() => setPage(page + 1)}
+                    >
+                      Sau
+                    </Button>
+                  </nav>
+                )}
+              </>
+            ))}
+        </AsyncBlock>
+      )}
+    </>
   );
 }
 

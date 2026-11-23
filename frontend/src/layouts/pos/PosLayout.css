@@ -169,3 +169,27 @@
     padding: var(--gm-space-4);
   }
 }
+
+@media (max-width: 480px) {
+  .pos-layout__header {
+    flex-wrap: wrap;
+    gap: var(--gm-space-3);
+  }
+
+  .pos-layout__identity {
+    min-width: 0;
+    flex: 1 1 100%;
+    align-items: flex-start;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  .pos-layout__menu {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pos-layout__link {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}

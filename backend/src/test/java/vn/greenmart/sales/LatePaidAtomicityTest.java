@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -36,8 +36,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration",
+        "spring.autoconfigure.exclude=org.springframework.boot.data.redis.autoconfigure.RedisAutoConfiguration,"
+                + "org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration",
         "management.endpoint.health.group.readiness.include=readinessState,db",
         "greenmart.outbox.enabled=false"
 })
@@ -99,7 +99,8 @@ class LatePaidAtomicityTest {
         String body = json.writeValueAsString(Map.of("type", "PAID", "occurredAt", OffsetDateTime.now().toString(),
                 "providerRef", "PAY-" + externalId));
         return post("/api/v1/integrations/WEB/orders/{id}/events", externalId)
-                .header("X-Signature", signatures.sign("WEB", body.getBytes(StandardCharsets.UTF_8)))
+                .headers(vn.greenmart.integration.SignedChannelEvents.headers(signatures, "WEB",
+                        "/api/v1/integrations/WEB/orders/" + externalId + "/events", body))
                 .contentType(MediaType.APPLICATION_JSON).content(body);
     }
 

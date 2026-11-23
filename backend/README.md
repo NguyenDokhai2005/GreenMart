@@ -1,6 +1,6 @@
 # Backend – Spring Boot
 
-Java 21 · Spring Boot 3 · Maven · PostgreSQL · Redis · RabbitMQ · Flyway.
+Java 21 · Spring Boot 4 · Maven · PostgreSQL · Redis · RabbitMQ · Flyway.
 Kiến trúc modular monolith: mỗi module là một package trong `vn.greenmart`, chỉ gọi nhau qua interface service hoặc sự kiện.
 
 | Thư mục                               | Nội dung                                                                          |
@@ -10,6 +10,24 @@ Kiến trúc modular monolith: mỗi module là một package trong `vn.greenmar
 | `src/test/java/vn/greenmart`          | Unit test và integration test (Testcontainers)                                    |
 
 Khung dự án (pom.xml, Application.java) do SV07 khởi tạo trong tuần 1.
+
+## Thời hạn khuyến mại (#426)
+
+Tạo/sửa thông thường yêu cầu endAt > startAt và endAt > thời điểm xử lý.
+Có thể bật khuyến mại tương lai; chỉ ACTIVE trong startAt ≤ now < endAt mới được tính.
+Bật khuyến mại đã hết hạn trả 409 INVALID_STATUS. Báo giá và hoàn tất đều kiểm tra thời hạn,
+ghi lượt kiểm tra lại sau khi lấy khóa dòng; thay đổi sau báo giá trả 422 TOTAL_CHANGED.
+
+PromotionExpiryScheduler chạy mỗi phút qua `greenmart.promotion.expiry.cron`
+(mặc định `0 * * * * *`, đặt `-` để tắt trong kiểm thử). DRAFT/ACTIVE/PAUSED
+quá hạn chuyển ENDED và ghi audit hệ thống cùng transaction; không sửa used_count
+hay hóa đơn. Job bỏ qua dòng đang khóa để thử lại ở tick sau, không chặn giao dịch bán.
+60 giây là chu kỳ mục tiêu, không phải cam kết thời gian khi DB/task scheduler bị chậm;
+tính tiền luôn kiểm thời hạn trực tiếp kể cả job tắt/chưa chạy.
+
+Seed tính các đơn tại thời điểm lịch sử, sau đó SQL nạp chuyển chương trình đã hết hạn
+sang ENDED theo CURRENT_TIMESTAMP của transaction import. File SQL vẫn deterministic;
+không lấy ngày sinh file để đổi kết quả hoặc tính lại tiền/counter lịch sử.
 
 ## Migration V4 — thời gian phiếu (#215)
 
@@ -136,6 +154,30 @@ logout/refresh đồng thời, tài khoản khóa, vô hiệu hóa và thu hồi
 `SecurityConfig` cho phép login/refresh/logout, health và các callback tích hợp được chỉ định
 truy cập công khai; các request còn lại cần xác thực JWT. Quyền vai trò và phạm vi
 chi nhánh tiếp tục được kiểm tra tại security chain và tầng service tương ứng.
+
+## API quản trị tài khoản (#424)
+
+`/api/v1/users` và các thao tác chi tiết, sửa, unlock, reset-password chỉ dành
+cho ADMIN. DTO phản hồi không chứa mật khẩu/hash. Vai trò theo chi nhánh phải
+có ít nhất một chi nhánh đang hoạt động; ADMIN/OWNER bỏ qua branchIds và dùng
+các chi nhánh đang hoạt động. Danh sách có lọc, phân trang và sort theo whitelist.
+
+Đổi vai trò/chi nhánh/trạng thái hoặc reset mật khẩu thu hồi mọi phiên qua
+registry của #155 (PR #434). Khóa dòng tài khoản dùng chung với login/refresh
+ngăn phiên vừa được cấp lọt qua thao tác thu hồi. Redis lỗi thì thay đổi DB bị
+hủy; nếu DB lỗi sau khi thu hồi, phiên vẫn bị thu hồi để giữ an toàn.
+Đổi riêng họ tên không buộc đăng nhập lại. Unlock chỉ xóa khóa do nhập sai,
+không tự kích hoạt tài khoản đã bị Admin vô hiệu hóa.
+
+Admin không được tự vô hiệu hóa hoặc tự đổi vai trò (`SELF_ACTION_FORBIDDEN`
+đã có trong OpenAPI). Các thao tác quản trị được tuần tự hóa bằng khóa giao dịch
+và kiểm tra lại quyền người thao tác sau khi chờ, tránh hai Admin đồng thời hạ
+quyền nhau làm mất toàn bộ Admin. Audit lưu cùng giao dịch, không ghi password/hash.
+Create giữ quy tắc chữ+số; reset theo min/max hiện có trong OpenAPI; cả hai chặn
+vượt 72 byte UTF-8 trước BCrypt. Không đổi schema hoặc OpenAPI trong #424.
+
+`UserAdminApiTest` dùng PostgreSQL/Redis thật; chạy cùng `AuthSessionSecurityTest`
+để kiểm tra quyền, validation, phiên, lỗi Redis/audit và đổi quyền đồng thời.
 
 ## API xem tồn kho (#52)
 

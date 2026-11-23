@@ -14,6 +14,7 @@ import ProductsPage from '../catalog/ProductsPage';
 import CustomersPage from '../catalog/CustomersPage';
 import OrdersPage from '../orders/OrdersPage';
 import OnlineOrderDetailPage from '../orders/OnlineOrderDetailPage';
+import AdminUsersPage from '../admin/AdminUsersPage';
 import { OperationsHome, OperationsLayout } from '../../layouts/operations';
 import InventoryPage from '../inventory/InventoryPage';
 import InventoryLedgerPage from '../inventory/InventoryLedgerPage';
@@ -315,6 +316,8 @@ export function AppRoutes() {
         <Route index element={<h1>Dashboard</h1>} />
         <Route path="branches" element={<AdminBranchesPage />} />
         <Route path="channels" element={<AdminChannelsPage />} />
+        <Route path="staff" element={<AdminUsersPage mode="staff" />} />
+        <Route path="locked" element={<AdminUsersPage mode="locked" />} />
         <Route path="*" element={<WorkspaceMountPoint title="Chức năng đang phát triển" />} />
       </Route>
       <Route path={APP_PATHS.forbidden} element={<ForbiddenPage />} />

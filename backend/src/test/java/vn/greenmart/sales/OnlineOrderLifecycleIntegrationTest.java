@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -34,8 +34,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,"
-                + "org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration",
+        "spring.autoconfigure.exclude=org.springframework.boot.data.redis.autoconfigure.RedisAutoConfiguration,"
+                + "org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration",
         "management.endpoint.health.group.readiness.include=readinessState,db",
         "management.health.redis.enabled=false",
         "CHANNEL_WEB_SECRET=test-web-secret-key-123456"
@@ -148,6 +148,8 @@ class OnlineOrderLifecycleIntegrationTest {
         jdbc.execute("TRUNCATE TABLE audit_log CASCADE");
         jdbc.execute("TRUNCATE TABLE inventory_transaction CASCADE");
         jdbc.execute("DELETE FROM outbox_event");
+        jdbc.execute("DELETE FROM channel_event_receipt");
+        jdbc.execute("DELETE FROM channel_payment_reference");
         jdbc.execute("DELETE FROM payment");
         jdbc.execute("DELETE FROM order_item");
         jdbc.execute("DELETE FROM sales_order");
@@ -301,10 +303,13 @@ class OnlineOrderLifecycleIntegrationTest {
                 "occurredAt", "2026-11-13T10:00:00+07:00",
                 "providerRef", "VNP-999"
         ));
-        String validSig = signatures.sign("WEB", paidBody.getBytes(StandardCharsets.UTF_8));
+        var paidHeaders = vn.greenmart.integration.SignedChannelEvents.headers(signatures, "WEB",
+                "/api/v1/integrations/WEB/orders/EXT-EVT-001/events", paidBody);
 
         // Sai chữ ký -> 401
         mvc.perform(post("/api/v1/integrations/WEB/orders/EXT-EVT-001/events")
+                        .header("X-Event-ID", paidHeaders.getFirst("X-Event-ID"))
+                        .header("X-Event-Timestamp", paidHeaders.getFirst("X-Event-Timestamp"))
                         .header("X-Signature", "0000000000000000000000000000000000000000000000000000000000000000")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(paidBody))
@@ -313,7 +318,7 @@ class OnlineOrderLifecycleIntegrationTest {
 
         // Đúng chữ ký -> 200 CONFIRMED
         mvc.perform(post("/api/v1/integrations/WEB/orders/EXT-EVT-001/events")
-                        .header("X-Signature", validSig)
+                        .headers(paidHeaders)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(paidBody))
                 .andExpect(status().isOk())
@@ -323,10 +328,14 @@ class OnlineOrderLifecycleIntegrationTest {
         jdbc.update("UPDATE inventory SET on_hand = 3, reserved = 3 WHERE branch_id = ? AND product_id = ?", branch1Id, productId);
         Long expOrderId = insertOnlineOrder("WEB-EVT-002", "EXT-EVT-002", "EXPIRED", 2, "NOW() - INTERVAL '5 minutes'");
 
+        // Another order must use its own transaction reference and a signature bound to its own path.
+        String lateBody = objectMapper.writeValueAsString(Map.of("type", "PAID",
+                "occurredAt", "2026-11-13T10:00:00+07:00", "providerRef", "VNP-1000"));
         mvc.perform(post("/api/v1/integrations/WEB/orders/EXT-EVT-002/events")
-                        .header("X-Signature", validSig)
+                        .headers(vn.greenmart.integration.SignedChannelEvents.headers(signatures, "WEB",
+                                "/api/v1/integrations/WEB/orders/EXT-EVT-002/events", lateBody))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(paidBody))
+                        .content(lateBody))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CANCELLED"))
                 .andExpect(jsonPath("$.rejectReason").value("OUT_OF_STOCK"));
@@ -344,7 +353,8 @@ class OnlineOrderLifecycleIntegrationTest {
                 "occurredAt", "2026-11-14T10:00:00+07:00",
                 "providerRef", "VNP-RACE-1"
         ));
-        String validSig = signatures.sign("WEB", paidBody.getBytes(StandardCharsets.UTF_8));
+        var paidHeaders = vn.greenmart.integration.SignedChannelEvents.headers(signatures, "WEB",
+                "/api/v1/integrations/WEB/orders/EXT-RACE-001/events", paidBody);
 
         var executor = java.util.concurrent.Executors.newFixedThreadPool(2);
         var barrier = new java.util.concurrent.CyclicBarrier(2);
@@ -357,7 +367,7 @@ class OnlineOrderLifecycleIntegrationTest {
             var paidFuture = executor.submit(() -> {
                 barrier.await(5, java.util.concurrent.TimeUnit.SECONDS);
                 return mvc.perform(post("/api/v1/integrations/WEB/orders/EXT-RACE-001/events")
-                                .header("X-Signature", validSig)
+                                .headers(paidHeaders)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(paidBody))
                         .andReturn().getResponse().getStatus();

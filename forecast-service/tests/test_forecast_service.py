@@ -10,6 +10,8 @@ from app.pipelines.forecast_service import (
     ActiveRunConflictError,
     DEFAULT_SLOW_THRESHOLD,
     EmptyDailySalesError,
+    StaleDailySalesError,
+    ensure_fresh_daily_sales,
     execute_background_forecast,
     get_forecast_run_detail,
     start_forecast_run,
@@ -26,6 +28,81 @@ def test_start_forecast_run_raises_when_daily_sales_empty():
 
     with pytest.raises(EmptyDailySalesError, match="Bảng daily_sales hiện đang trống"):
         start_forecast_run(mock_conn)
+
+
+def test_start_forecast_run_raises_when_daily_sales_stale():
+    """Issue #417: start_forecast_run ném StaleDailySalesError khi MAX(sale_date) < expected_cutoff_date."""
+    mock_conn = MagicMock()
+    mock_cur = MagicMock()
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+
+    # SELECT MIN(sale_date), MAX(sale_date) -> 2026-11-20
+    mock_cur.fetchone.return_value = (date(2025, 11, 1), date(2026, 11, 20))
+
+    with pytest.raises(StaleDailySalesError, match="bị cũ: cutoff hiện tại là"):
+        start_forecast_run(mock_conn, expected_cutoff_date=date(2026, 11, 22))
+
+
+def test_ensure_fresh_daily_sales_already_fresh():
+    """Issue #417: Khi MAX(sale_date) >= expected_cutoff_date, không cần chạy pipeline."""
+    mock_conn = MagicMock()
+    mock_cur = MagicMock()
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+    mock_cur.fetchone.return_value = (date(2025, 11, 1), date(2026, 11, 22))
+
+    res = ensure_fresh_daily_sales(mock_conn, expected_cutoff_date=date(2026, 11, 22))
+    assert res["status"] == "ALREADY_FRESH"
+    assert res["cutoff_date"] == date(2026, 11, 22)
+
+
+def test_ensure_fresh_daily_sales_runs_pipeline_and_succeeds():
+    """Issue #417: Khi dữ liệu thiếu, gọi pipeline_fn và kiểm tra lại thành công."""
+    mock_conn = MagicMock()
+    mock_cur = MagicMock()
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+    # Lần 1 (trước ETL): 2026-11-20 < 2026-11-22
+    # Lần 2 (sau ETL): 2026-11-22 >= 2026-11-22
+    mock_cur.fetchone.side_effect = [
+        (date(2025, 11, 1), date(2026, 11, 20)),
+        (date(2025, 11, 1), date(2026, 11, 22)),
+    ]
+
+    pipeline_called = []
+    def dummy_pipeline(start_date, end_date, conn):
+        pipeline_called.append((start_date, end_date))
+        return {"total_rows": 100}
+
+    res = ensure_fresh_daily_sales(
+        mock_conn,
+        expected_cutoff_date=date(2026, 11, 22),
+        pipeline_fn=dummy_pipeline,
+    )
+    assert res["status"] == "ETL_LOADED"
+    assert res["cutoff_date"] == date(2026, 11, 22)
+    assert len(pipeline_called) == 1
+    assert pipeline_called[0][1] == date(2026, 11, 22)
+
+
+def test_ensure_fresh_daily_sales_raises_stale_when_etl_fails_to_reach_cutoff():
+    """Issue #417: Khi pipeline chạy xong nhưng MAX(sale_date) vẫn không tới cutoff, ném StaleDailySalesError."""
+    mock_conn = MagicMock()
+    mock_cur = MagicMock()
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+    # Trước và sau ETL đều chỉ tới 2026-11-20
+    mock_cur.fetchone.side_effect = [
+        (date(2025, 11, 1), date(2026, 11, 20)),
+        (date(2025, 11, 1), date(2026, 11, 20)),
+    ]
+
+    def dummy_pipeline(start_date, end_date, conn):
+        return {"total_rows": 0}
+
+    with pytest.raises(StaleDailySalesError, match="vẫn bị cũ"):
+        ensure_fresh_daily_sales(
+            mock_conn,
+            expected_cutoff_date=date(2026, 11, 22),
+            pipeline_fn=dummy_pipeline,
+        )
 
 
 def test_start_forecast_run_raises_when_active_run_running():

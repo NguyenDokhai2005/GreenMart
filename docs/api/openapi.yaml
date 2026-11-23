@@ -44,6 +44,7 @@ info:
     | 409 | IDEMPOTENCY_CONFLICT | Cùng `Idempotency-Key` nhưng nội dung khác, hoặc request trước chưa xử lý xong |
     | 409 | CATEGORY_IN_USE | Xóa danh mục còn sản phẩm hoặc danh mục con |
     | 422 | PRODUCT_INACTIVE | Bán sản phẩm đã ngừng bán |
+    | 422 | CUSTOMER_INACTIVE | POS gắn khách ngừng hoạt động hoặc tra đúng số điện thoại khách inactive; liên hệ Quản lý/Chủ cửa hàng để kích hoạt lại |
     | 422 | TOTAL_CHANGED | Tổng tính lại khác `expectedTotal` (KM hết hạn/hết lượt, đổi giá); `details.quote` là báo giá mới |
     | 422 | CASH_INSUFFICIENT | Tiền khách đưa nhỏ hơn tổng |
     | 422 | PAYMENT_FAILED / PAYMENT_TIMEOUT | Thanh toán thẻ/QR thất bại hoặc quá 60 giây |
@@ -325,6 +326,7 @@ paths:
     post:
       tags: [Categories]
       summary: Tạo danh mục
+      description: Tên chuẩn hóa NFC, trim/gộp Unicode whitespace. Không trùng tên khi bỏ phân biệt hoa/thường trong cùng parentId, kể cả danh mục gốc; giữ dấu tiếng Việt. Trùng trả 409 CONFLICT.
       operationId: createCategory
       x-roles: [OWNER]
       requestBody:
@@ -342,12 +344,14 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /categories/{categoryId}:
     parameters:
       - $ref: '#/components/parameters/CategoryId'
     put:
       tags: [Categories]
       summary: Sửa danh mục
+      description: Cùng quy tắc chuẩn hóa và duy nhất như tạo; đổi parentId cũng kiểm trùng tại cấp đích, không tự gộp danh mục.
       operationId: updateCategory
       x-roles: [OWNER]
       requestBody:
@@ -365,6 +369,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/BusinessRule' }
     delete:
       tags: [Categories]
@@ -497,6 +502,11 @@ paths:
     get:
       tags: [Customers]
       summary: Tìm khách hàng
+      description: |
+        Tìm kiếm mặc định chỉ trả khách active. Khi có phone khớp chính xác khách inactive và active không được gửi
+        hoặc là true, trả 422 CUSTOMER_INACTIVE kèm hướng dẫn liên hệ Quản lý/Chủ cửa hàng để kích hoạt lại;
+        không trả hồ sơ khách trong lỗi. Phone chưa tồn tại trả 200 với content rỗng.
+        OWNER/BRANCH_MANAGER gửi active=false để xem khách inactive; CASHIER không có quyền này.
       operationId: listCustomers
       parameters:
         - name: q
@@ -521,10 +531,15 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/CustomerPage' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/BusinessRule' }
     post:
       tags: [Customers]
       summary: Tạo khách hàng
-      description: Thu ngân tạo nhanh tại POS khi số điện thoại chưa có (UC-01 bước 2).
+      description: |
+        Thu ngân tạo nhanh tại POS khi số điện thoại chưa có (UC-01 bước 2).
+        Số điện thoại đã tồn tại vẫn trả 409 DUPLICATE_PHONE; nếu thuộc khách inactive, message hướng dẫn
+        liên hệ Quản lý/Chủ cửa hàng kích hoạt lại, không tạo khách trùng hoặc tự kích hoạt.
       operationId: createCustomer
       x-roles: [OWNER, BRANCH_MANAGER, CASHIER]
       requestBody:
@@ -624,6 +639,8 @@ paths:
       description: |
         Tính tạm tính, khuyến mại có lợi nhất (BR-07) và tổng. Không ghi gì vào CSDL, không giữ tồn.
         POS gọi sau mỗi thay đổi giỏ hàng (UC-01 bước 3).
+        customerId phải tồn tại và active; inactive trả 422 CUSTOMER_INACTIVE, không tồn tại trả 404.
+        Không gắn customerId vẫn được bán cho khách lẻ.
       operationId: quoteOrder
       x-roles: [BRANCH_MANAGER, CASHIER]
       requestBody:
@@ -661,6 +678,9 @@ paths:
         - Tổng tính lại khác `expectedTotal` → 422 `TOTAL_CHANGED`, không tạo đơn (UC-01 5b).
         - Thiếu tồn lúc hoàn tất → 409 `INSUFFICIENT_STOCK`, không tạo đơn, giỏ hàng giữ nguyên (5a).
         - Thanh toán thẻ/QR thất bại hoặc quá 60 giây → 422, không tạo đơn (4a).
+        - Khách bị ngừng hoạt động (kể cả sau báo giá) → 422 CUSTOMER_INACTIVE, không tạo đơn/payment hoặc trừ tồn.
+          Kiểm tra và khóa trạng thái khách trong transaction hoàn tất; chỉ OWNER/BRANCH_MANAGER kích hoạt lại bằng API có sẵn.
+          Retry cùng key/body của đơn đã thành công vẫn trả đơn cũ, không tạo đơn mới dù khách sau đó ngừng hoạt động.
       operationId: createPosOrder
       x-roles: [BRANCH_MANAGER, CASHIER]
       parameters:
@@ -708,7 +728,7 @@ paths:
                         - { productId: 205, sku: SUA-TH-1L, requested: 2, available: 1 }
                     traceId: a91d07e2
         '422':
-          description: TOTAL_CHANGED, CASH_INSUFFICIENT, PAYMENT_FAILED, PAYMENT_TIMEOUT, PRODUCT_INACTIVE, MANUAL_DISCOUNT_FORBIDDEN
+          description: TOTAL_CHANGED, CASH_INSUFFICIENT, PAYMENT_FAILED, PAYMENT_TIMEOUT, PRODUCT_INACTIVE, CUSTOMER_INACTIVE, MANUAL_DISCOUNT_FORBIDDEN
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -1102,7 +1122,7 @@ paths:
               type: object
               required: [externalSku]
               properties:
-                externalSku: { type: string, minLength: 1, maxLength: 60 }
+                externalSku: { $ref: '#/components/schemas/ExternalSku' }
       responses:
         '204': { description: Đã lưu ánh xạ }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -1183,11 +1203,22 @@ paths:
       tags: [Channel webhook]
       summary: Kênh báo thanh toán hoặc hủy đơn
       description: |
-        Ký HMAC giống webhook đơn mới.
+        Chữ ký sự kiện v1 (khác chữ ký body của webhook đơn mới/callback): HMAC-SHA256 hex trên chuỗi UTF-8
+        gồm 6 dòng, ngăn bằng LF, không LF cuối: `GREENMART-EVENT-V1`, HTTP method `POST`, raw path đầy đủ
+        `/api/v1/integrations/{channelCode}/orders/{externalOrderId}/events` (giữ nguyên percent-encoding),
+        `X-Event-ID`, `X-Event-Timestamp`, SHA-256 hex chữ thường của nguyên byte body.
+        Dùng secret riêng của kênh. Timestamp là epoch giây lúc gửi, chấp nhận lệch tối đa ±300 giây;
+        không dùng occurredAt nghiệp vụ để chặn PAID đến muộn. Thiếu/sai header, chữ ký hoặc timestamp → 401 INVALID_SIGNATURE.
+        Retry giữ eventId/path/body nguyên byte, cập nhật transport timestamp và ký lại. EventId UUID duy nhất trong kênh;
+        cùng eventId nhưng đổi target/nội dung → 409 CONFLICT. Receipt giữ tối thiểu 7 ngày, hiện chưa tự xóa;
+        retry đúng trả acknowledgement đầu tiên (có thể khác trạng thái đơn hiện tại), không áp dụng lại sự kiện.
         - `PAID`: RESERVED → CONFIRMED, ghi payment PAID. Nếu đơn đã EXPIRED (BA E2): thử giữ chỗ lại; đủ → CONFIRMED,
           không đủ → CANCELLED và hoàn tiền giả lập.
         - `CANCELLED`: RESERVED/CONFIRMED → CANCELLED, nhả giữ chỗ, hoàn tiền nếu đã trả (lý do `CHANNEL_CANCELLED`).
-        Gửi lại cùng sự kiện cho đơn đã ở trạng thái đích → 200, không làm gì thêm.
+        PAID bắt buộc có providerRef không rỗng, tối đa 60 ký tự. Mã là chuỗi opaque phân biệt hoa/thường,
+        duy nhất theo gateway/merchant do server cấu hình payment_provider_scope; WEB/MARKET mặc định cùng MOCK:GREENMART.
+        Một mã không gắn hai đơn, một đơn không thay sang mã khác; xung đột → 409 CONFLICT. Binding giữ cả sau refund.
+        Mã mới cho đơn đã CONFIRMED/COMPLETED chỉ được xác nhận idempotent khi khớp giao dịch PAID/REFUNDED đã có.
       operationId: receiveChannelOrderEvent
       security: []
       parameters:
@@ -1196,7 +1227,20 @@ paths:
           in: path
           required: true
           schema: { type: string, maxLength: 60 }
-        - $ref: '#/components/parameters/Signature'
+        - name: X-Signature
+          in: header
+          required: true
+          description: HMAC-SHA256 hex trên envelope GREENMART-EVENT-V1 mô tả ở operation này; không dùng chữ ký body cũ.
+          schema: { type: string }
+        - name: X-Event-ID
+          in: header
+          required: true
+          schema: { type: string, format: uuid }
+        - name: X-Event-Timestamp
+          in: header
+          required: true
+          description: Epoch giây tại lúc gửi; retry ký lại timestamp mới cùng eventId và body.
+          schema: { type: string, pattern: '^[0-9]{1,12}$' }
       requestBody:
         required: true
         content:
@@ -1212,7 +1256,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/InvalidSignature' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/InvalidStatus' }
+        '409': { $ref: '#/components/responses/Conflict' }
 
   # ------------------------------------------------------------------ Callback mock connector (v2)
   /mock/{channelCode}/stock:
@@ -1378,7 +1422,10 @@ paths:
     put:
       tags: [Stock documents]
       summary: Sửa phiếu nháp
-      description: Chỉ phiếu DRAFT. Không đổi được `type`, `branchId`. Với ADJUST, dùng để nhập `countedQuantity`.
+      description: |
+        Chỉ phiếu DRAFT. Không đổi được type, branchId. Với ADJUST, dùng để nhập countedQuantity.
+        Số đếm/chênh lệch được giữ trên phiếu và ghi audit RECORD_STOCK_COUNT cùng transaction,
+        kể cả khi lần duyệt sau bị chặn do reservation. Không tự thay đổi tồn hoặc đơn hàng khi nhập số đếm.
       operationId: updateStockDocument
       x-roles: [STOREKEEPER, BRANCH_MANAGER]
       parameters:
@@ -1399,6 +1446,34 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/InvalidStatus' }
+  /stock-documents/{documentId}/reconciliation:
+    get:
+      tags: [Stock documents]
+      summary: Đối soát tồn và đơn giữ chỗ trước khi duyệt kiểm kê
+      description: |
+        Chỉ ADJUST/DRAFT, cùng quyền và phạm vi chi nhánh như xem phiếu. Đọc snapshot nhất quán;
+        không sửa tồn, hủy đơn hoặc ghi audit khi đọc. projectedOnHand = onHand + countedQuantity - snapshotQuantity.
+        shortfall = max(0, reserved - projectedOnHand). Nhập thêm hàng hoặc xử lý đơn qua luồng được phép,
+        rồi đọc lại và thử duyệt; hàng phát sinh sau snapshot không bị mất.
+        inventoryReady chỉ phản ánh điều kiện tồn/số đếm, không thay kiểm tra quyền hoặc BR-13/BR-17.
+        Mỗi SKU trả tối đa 20 đơn RESERVED/CONFIRMED theo id; reservationOrderCount và reservationGap
+        tính trên toàn bộ đơn đang giữ chỗ, không chỉ 20 dòng. Gap khác 0 cần đối soát dữ liệu,
+        không sửa reserved bằng SQL. Không trả hồ sơ khách, payment hoặc tự chọn đơn để hủy.
+        Kết quả có thể cũ sau response; approve kiểm lại với khóa hàng trong transaction.
+      operationId: reconcileStocktake
+      x-roles: [OWNER, BRANCH_MANAGER, STOREKEEPER]
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      responses:
+        '200':
+          description: Thông tin đối soát, gồm cả trường hợp chưa đủ điều kiện tồn để duyệt
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StocktakeReconciliation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/InvalidStatus' }
   /stock-documents/{documentId}/approve:
     post:
       tags: [Stock documents]
@@ -1409,6 +1484,10 @@ paths:
         - `EXPORT`: DRAFT → APPROVED, on_hand giảm (EXPORT); không vượt khả dụng → 409 `INSUFFICIENT_STOCK`.
         - `TRANSFER`: DRAFT → **IN_TRANSIT** (duyệt kèm xác nhận xuất, BA 6.3), on_hand CN nguồn giảm (TRANSFER_OUT).
         - `ADJUST`: DRAFT → APPROVED, ghi ADJUST bằng chênh lệch `countedQuantity − quantity` (BR-17); mọi dòng phải có `countedQuantity`.
+          Kiểm tra mọi dòng dưới khóa product→inventory theo productId tăng dần trước ghi tồn.
+          Nếu tồn dự kiến nhỏ hơn reserved, trả 409 INSUFFICIENT_STOCK; details có documentId,
+          reconciliationPath và lines theo StocktakeReconciliationLine. Giữ số đếm/audit đã lưu ở transaction trước.
+          Không tự hủy đơn/hoàn tiền hoặc sửa reserved; xử lý bằng nhập kho/luồng đơn hợp lệ rồi duyệt lại.
 
         Ghi `audit_log` (AUTH-03), outbox `stock.changed`.
       operationId: approveStockDocument
@@ -1416,6 +1495,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/DocumentId'
       responses:
+        '400': { $ref: '#/components/responses/BadRequest' }
         '200':
           description: Phiếu sau khi duyệt
           content:
@@ -1507,7 +1587,7 @@ paths:
           schema: { $ref: '#/components/schemas/PromotionLevel' }
         - name: activeAt
           in: query
-          description: Chỉ lấy chương trình hiệu lực tại thời điểm này
+          description: Lọc khoảng startAt ≤ activeAt < endAt; kết hợp status để lọc trạng thái chương trình.
           schema: { type: string, format: date-time }
         - $ref: '#/components/parameters/BranchIdQuery'
         - name: channel
@@ -1531,7 +1611,7 @@ paths:
     post:
       tags: [Promotions]
       summary: Tạo chương trình (Nháp)
-      description: Tạo ở DRAFT (PRM-01). `productIds` bắt buộc với `level = ITEM`. `branchIds`, `channels` rỗng = áp mọi chi nhánh/kênh.
+      description: Tạo ở DRAFT (PRM-01). `productIds` bắt buộc với `level = ITEM`; `minQuantity` chỉ dùng với ITEM, bỏ trống = 1. `branchIds`, `channels` rỗng = áp mọi chi nhánh/kênh.
       operationId: createPromotion
       x-roles: [OWNER]
       requestBody:
@@ -1606,6 +1686,9 @@ paths:
       summary: Đổi trạng thái chương trình
       description: |
         DRAFT → ACTIVE; ACTIVE ⇄ PAUSED; ACTIVE/PAUSED → ENDED (không quay lại). Chỉ ACTIVE trong thời gian hiệu lực mới được áp (BR-07).
+        Có thể bật chương trình trước startAt; chỉ áp dụng khi startAt ≤ thời điểm tính < endAt.
+        Bật lại chương trình đã hết hạn (endAt ≤ thời điểm xử lý) trả 409 INVALID_STATUS.
+        Job kết thúc DRAFT/ACTIVE/PAUSED hết hạn theo lịch mỗi phút; việc tính giá và ghi lượt dùng luôn kiểm thời hạn trực tiếp, không chờ job.
         Đơn đang mở báo giá với KM vừa tạm dừng sẽ nhận 422 `TOTAL_CHANGED` khi hoàn tất.
       operationId: changePromotionStatus
       x-roles: [OWNER]
@@ -2324,8 +2407,15 @@ components:
       type: object
       required: [name]
       properties:
-        name: { type: string, minLength: 1, maxLength: 120 }
+        name: { type: string, minLength: 1, maxLength: 120, description: 'Chuẩn hóa NFC, trim và gộp Unicode whitespace trước validation. Duy nhất không phân biệt hoa/thường trong cùng parentId (gồm root), giữ dấu; khác parent được trùng.' }
         parentId: { type: integer, format: int64, nullable: true }
+
+    ExternalSku:
+      type: string
+      minLength: 1
+      maxLength: 60
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,59}$'
+      description: 'SKU kênh demo WEB/MARKET: trim Unicode whitespace ở ngoài trước validation; giữ case, không khoảng trắng trong hoặc <>. Mapping và lookup dùng cùng quy tắc; không thay quy tắc SKU sản phẩm nội bộ.'
 
     # ---------- Product
     Product:
@@ -2900,7 +2990,7 @@ components:
             type: object
             required: [externalSku, quantity, unitPrice]
             properties:
-              externalSku: { type: string, maxLength: 60 }
+              externalSku: { $ref: '#/components/schemas/ExternalSku' }
               quantity: { type: integer, minimum: 1, maximum: 9999 }
               unitPrice: { $ref: '#/components/schemas/Money' }
         shippingFee: { allOf: [{ $ref: '#/components/schemas/Money' }], description: 'Chỉ để đối chiếu, không lưu' }
@@ -2941,7 +3031,7 @@ components:
             type: object
             required: [externalSku, available, version]
             properties:
-              externalSku: { type: string }
+              externalSku: { $ref: '#/components/schemas/ExternalSku' }
               available: { type: integer, minimum: 0, description: 'Σ khả dụng các CN phục vụ kênh − safety_stock, không âm (BR-15)' }
               version: { type: integer, format: int64, description: Kênh bỏ qua bản có version cũ hơn }
     ChannelOrderStatusUpdate:
@@ -3026,6 +3116,45 @@ components:
             properties:
               itemId: { type: integer, format: int64 }
               receivedQuantity: { type: integer, minimum: 0, description: '≤ quantity (không nhận thừa)' }
+    StocktakeReconciliation:
+      type: object
+      required: [documentId, branchId, inventoryReady, lines]
+      properties:
+        documentId: { type: integer, format: int64 }
+        branchId: { type: integer, format: int64 }
+        inventoryReady: { type: boolean }
+        lines:
+          type: array
+          items: { $ref: '#/components/schemas/StocktakeReconciliationLine' }
+    StocktakeReconciliationLine:
+      type: object
+      required: [productId, sku, snapshotQuantity, countedQuantity, difference, onHand, reserved, projectedOnHand, shortfall, reservationGap, reservationOrderCount, reservationOrders]
+      properties:
+        productId: { type: integer, format: int64 }
+        sku: { type: string }
+        snapshotQuantity: { type: integer, minimum: 0 }
+        countedQuantity: { type: integer, minimum: 0, nullable: true }
+        difference: { type: integer, nullable: true }
+        onHand: { type: integer, minimum: 0 }
+        reserved: { type: integer, minimum: 0 }
+        projectedOnHand: { type: integer, format: int64, nullable: true }
+        shortfall: { type: integer, format: int64, minimum: 0 }
+        reservationGap:
+          type: integer
+          format: int64
+          description: reserved trừ tổng lượng của mọi đơn RESERVED/CONFIRMED; dương là chưa quy được cho đơn, âm là đơn giữ vượt tổng reserved
+        reservationOrderCount: { type: integer, format: int64, minimum: 0 }
+        reservationOrders:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            required: [orderId, code, status, quantity]
+            properties:
+              orderId: { type: integer, format: int64 }
+              code: { type: string }
+              status: { type: string, enum: [RESERVED, CONFIRMED] }
+              quantity: { type: integer, format: int64, minimum: 1 }
     StockDocumentItem:
       type: object
       required: [id, productId, sku, productName, unit, quantity]
@@ -3122,16 +3251,21 @@ components:
           type: integer
           format: int64
           minimum: 1
-          description: 'PERCENT: 1–100 (%); AMOUNT: số tiền VND'
-        maxDiscount: { type: integer, format: int64, minimum: 1, nullable: true, description: 'Mức giảm tối đa, chỉ với PERCENT' }
+          description: 'PERCENT: 1–100 (%); AMOUNT: số tiền VND. ITEM-AMOUNT giảm trên mỗi đơn vị: giảm dòng = min(value × quantity, unitPrice × quantity). ORDER-AMOUNT giảm một lần mỗi đơn (#425).'
+        maxDiscount: { type: integer, format: int64, minimum: 1, nullable: true, description: 'Mức giảm tối đa, chỉ với PERCENT. Với ITEM là trần cho cả dòng, không nhân với số lượng: giảm dòng = min(floor(lineTotal × value / 100), maxDiscount).' }
         minOrder: { type: integer, format: int64, minimum: 0, nullable: true, description: 'Tổng sau giảm dòng tối thiểu, chỉ với ORDER' }
+        minQuantity:
+          type: integer
+          minimum: 1
+          nullable: true
+          description: 'Số lượng tối thiểu trên một dòng SKU, chỉ với ITEM; bỏ trống = 1. Không gộp số lượng của SKU khác để đủ ngưỡng. Gửi kèm level = ORDER trả 400 VALIDATION_ERROR (#425).'
         startAt: { type: string, format: date-time }
-        endAt: { type: string, format: date-time, description: Phải sau startAt }
+        endAt: { type: string, format: date-time, description: 'Phải sau startAt và ở tương lai khi tạo/sửa qua API thông thường; sai trả 400 VALIDATION_ERROR. Thời điểm kết thúc không còn được áp dụng.' }
         usageLimit: { type: integer, minimum: 1, nullable: true, description: Tổng lượt dùng tối đa (BR-08); null = không giới hạn }
         productIds:
           type: array
           items: { type: integer, format: int64 }
-          description: Bắt buộc, ít nhất 1 với ITEM; bỏ trống với ORDER
+          description: Bắt buộc, ít nhất 1 với ITEM; bỏ trống với ORDER. Phạm vi theo danh mục (categoryIds) chưa hỗ trợ ở v1.
         branchIds:
           type: array
           items: { type: integer, format: int64 }
@@ -3151,6 +3285,7 @@ components:
         value: { type: integer, format: int64 }
         maxDiscount: { type: integer, format: int64, nullable: true }
         minOrder: { type: integer, format: int64, nullable: true }
+        minQuantity: { type: integer, minimum: 1, nullable: true, description: 'ITEM: số lượng tối thiểu trên một dòng (mặc định 1); ORDER: null' }
         startAt: { type: string, format: date-time }
         endAt: { type: string, format: date-time }
         usageLimit: { type: integer, nullable: true }

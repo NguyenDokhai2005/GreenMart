@@ -8,6 +8,7 @@ Chặng 4: Xuất file SQL hoàn chỉnh (idempotent, setval, update channels) v
 
 from __future__ import annotations
 
+import argparse
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
@@ -32,6 +33,8 @@ try:
 except ImportError:
     import config  # type: ignore
 
+
+PROMOTION_EXPIRY_SQL = "UPDATE promotion SET status='ENDED' WHERE status IN ('DRAFT','ACTIVE','PAUSED') AND end_at<=CURRENT_TIMESTAMP;"
 
 # ==============================================================================
 # CẤU TRÚC DỮ LIỆU ĐỐI TƯỢNG (DATA MODELS)
@@ -1169,6 +1172,7 @@ def generate_orders_and_items(
                 subtotal = 0
                 item_discount_total = 0
                 selected_prod_ids: Set[int] = set()
+                used_item_campaigns: Set[int] = set()
 
                 # Xác định các khuyến mại cấp ITEM đang có hiệu lực tại thời điểm, chi nhánh, kênh này
                 active_item_p = [
@@ -1176,6 +1180,7 @@ def generate_orders_and_items(
                     if p.start_at <= created_at <= p.end_at
                     and b_id in p.branch_ids
                     and ch_code in p.channel_codes
+                    and (p.usage_limit is None or p.used_count < p.usage_limit)
                 ]
                 promo_sku_map: Dict[int, Promotion] = {}
                 for p in active_item_p:
@@ -1225,7 +1230,9 @@ def generate_orders_and_items(
                             line_discount = math.floor(quantity * unit_price * item_promo.value / 100)
                         else:  # AMOUNT
                             line_discount = min(item_promo.value * quantity, unit_price * quantity)
-                        item_promo.used_count += 1
+                        if item_promo.id not in used_item_campaigns:
+                            item_promo.used_count += 1
+                            used_item_campaigns.add(item_promo.id)
 
                     line_total = quantity * unit_price - line_discount
                     subtotal += quantity * unit_price
@@ -2256,6 +2263,9 @@ def _write_sql_statements(
         for p in promotions
     ]
     f.write(",\n".join(promo_lines) + ";\n\n")
+    # Historical eligibility was evaluated above; persisted status reflects import time.
+    # Keep prices/counters and the generated file deterministic across generation dates.
+    f.write(PROMOTION_EXPIRY_SQL + "\n\n")
 
     # promotion_branch
     pb_lines = []
@@ -2433,6 +2443,28 @@ def _write_sql_statements(
     f.write("\nCOMMIT;\n")
 
 
+def validate_promotion_usage(promotions: List[Promotion], orders: List[SalesOrder]) -> None:
+    """Reject inconsistent historical seed before writing SQL; never repair counters."""
+    orders_by_campaign: Dict[int, Set[int]] = {p.id: set() for p in promotions}
+    for order in orders:
+        if order.status not in {"COMPLETED", "RETURNED", "CANCELLED", "EXPIRED", "REJECTED"}:
+            raise ValueError(f"[#422] seed-only check cannot validate order status {order.status}")
+        if order.status not in {"COMPLETED", "RETURNED"}:
+            continue
+        campaign_ids = {item.promotion_id for item in order.items}
+        campaign_ids.add(order.promotion_id)
+        campaign_ids.discard(None)
+        for campaign_id in campaign_ids:
+            if campaign_id not in orders_by_campaign:
+                raise ValueError(f"[#422] Unknown campaign {campaign_id} on order {order.id}")
+            orders_by_campaign[campaign_id].add(order.id)
+    for campaign in promotions:
+        if campaign.used_count != len(orders_by_campaign[campaign.id]):
+            raise ValueError(f"[#422] {campaign.code}: used_count must equal distinct eligible orders")
+        if campaign.used_count < 0 or (campaign.usage_limit is not None and campaign.used_count > campaign.usage_limit):
+            raise ValueError(f"[#422] {campaign.code}: used_count exceeds usage limit")
+
+
 def export_to_sql(
     branches: List[Branch],
     categories: List[Category],
@@ -2451,6 +2483,7 @@ def export_to_sql(
     stream: Optional[Any] = None,
 ) -> None:
     """Xuất toàn bộ dữ liệu mẫu 12 tháng lịch sử thành file SQL hoàn chỉnh (idempotent, newline='\\n')."""
+    validate_promotion_usage(promotions, orders)
     if stream is not None:
         _write_sql_statements(stream, branches, categories, products, users, customers, promotions, orders, returns, audit_logs, stock_documents, stock_document_items, inventories, inventory_transactions)
     else:
@@ -2466,10 +2499,65 @@ def export_to_sql(
 # ==============================================================================
 
 
-def main() -> None:
+def resolve_generator_end_date(
+    end_date_arg: Optional[str] = None,
+    demo_flag: bool = False,
+) -> Optional[datetime]:
+    """Xác định ngày kết thúc sinh dữ liệu từ đối số CLI hoặc biến môi trường (Issue #417).
+
+    - Mặc định: Trả về None (giữ nguyên config.END_DATE = 2026-10-31 23:59:59 cho golden test).
+    - Nếu demo_flag=True hoặc SEED_END_DATE/DEMO_MODE='yesterday'/'demo': Dùng hôm qua theo giờ VN (T - 1).
+    - Nếu truyền chuỗi ngày YYYY-MM-DD: Phân tích thành mốc 23:59:59 theo múi giờ config.TIMEZONE.
+    """
+    raw_val = end_date_arg or os.environ.get("SEED_END_DATE")
+    if not raw_val and (demo_flag or os.environ.get("DEMO_MODE", "").lower() in ("1", "true", "yes")):
+        raw_val = "yesterday"
+
+    if not raw_val:
+        return None
+
+    raw_lower = raw_val.strip().lower()
+    if raw_lower in ("yesterday", "demo", "t-1", "today-1"):
+        now_vn = datetime.now(config.TIMEZONE)
+        target_d = now_vn.date() - timedelta(days=1)
+        return datetime(target_d.year, target_d.month, target_d.day, 23, 59, 59, tzinfo=config.TIMEZONE)
+
+    try:
+        d = date.fromisoformat(raw_val.strip())
+        return datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=config.TIMEZONE)
+    except ValueError:
+        return None
+
+
+def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
+    """Phân tích tham số dòng lệnh cho generate_data.py (Issue #417)."""
+    parser = argparse.ArgumentParser(description="GreenMart Demo Data Generator (Issue #106, #417)")
+    parser.add_argument(
+        "--end-date",
+        type=str,
+        default=None,
+        help="Ngày kết thúc dữ liệu (định dạng YYYY-MM-DD hoặc 'yesterday').",
+    )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Chế độ demo: kéo dữ liệu tới hôm qua theo giờ VN (T - 1) để tránh làm dự báo tụt về 0.",
+    )
+    return parser.parse_args(args)
+
+
+def main(args: Optional[List[str]] = None) -> None:
     """Hàm chạy toàn bộ luồng sinh dữ liệu và xuất file SQL + JSON."""
+    parsed = parse_args(args)
+    custom_end = resolve_generator_end_date(end_date_arg=parsed.end_date, demo_flag=parsed.demo)
+    if custom_end is not None:
+        config.END_DATE = custom_end
+        config.MAX_EVENT_DATETIME = custom_end
+
     print("=" * 70)
     print("GreenMart Demo Data Generator (Issue #106 / AI-01)")
+    if custom_end is not None:
+        print(f"[*] Chế độ tùy chỉnh ngày: Kéo dữ liệu seed tới {config.END_DATE.strftime('%Y-%m-%d')} (Issue #417)")
     print("=" * 70)
 
     # Chặng 1
@@ -2527,7 +2615,6 @@ def main() -> None:
     sql_path = base_dir / "seed_data.sql"
     json_path = base_dir / "stockout_schedule.json"
 
-    export_stockout_schedule(stockout_schedule, products, json_path)
     export_to_sql(
         branches=branches,
         categories=categories,
@@ -2544,6 +2631,7 @@ def main() -> None:
         inventory_transactions=inventory_transactions,
         filepath=sql_path,
     )
+    export_stockout_schedule(stockout_schedule, products, json_path)
 
 
     # Thống kê

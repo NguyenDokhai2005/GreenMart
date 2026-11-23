@@ -7,9 +7,9 @@ import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
 import vn.greenmart.sales.dto.PromotionRef;
 
-import java.math.BigInteger;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.Clock;
 import java.util.Comparator;
 import java.util.List;
 
@@ -18,9 +18,11 @@ import java.util.List;
 public class DefaultPromotionCalculator implements PromotionCalculator {
 
     private final JdbcTemplate jdbcTemplate;
+    private final Clock clock;
 
     @Override
     public PromotionRef evaluateItemPromotion(Long productId, String sku, long unitPrice, int quantity, Long branchId, String channelCode) {
+        if (quantity <= 0 || unitPrice <= 0) return null;
         final long lineSubtotal;
         try {
             lineSubtotal = Math.multiplyExact(unitPrice, (long) quantity);
@@ -31,7 +33,7 @@ public class DefaultPromotionCalculator implements PromotionCalculator {
             return null;
         }
         String effectiveChannel = (channelCode != null && !channelCode.isBlank()) ? channelCode.trim().toUpperCase() : "POS";
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         Timestamp nowTs = Timestamp.from(now);
 
         List<PromotionCandidate> candidates = jdbcTemplate.query(
@@ -41,7 +43,8 @@ public class DefaultPromotionCalculator implements PromotionCalculator {
                 JOIN promotion_product pp ON pp.promotion_id = p.id AND pp.product_id = ?
                 WHERE p.status = 'ACTIVE'
                   AND p.level = 'ITEM'
-                  AND p.start_at <= ? AND p.end_at >= ?
+                  AND COALESCE(p.min_quantity, 1) <= ?
+                  AND p.start_at <= ? AND p.end_at > ?
                   AND (p.usage_limit IS NULL OR p.used_count < p.usage_limit)
                   AND (NOT EXISTS (SELECT 1 FROM promotion_branch pb WHERE pb.promotion_id = p.id)
                        OR EXISTS (SELECT 1 FROM promotion_branch pb WHERE pb.promotion_id = p.id AND pb.branch_id = ?))
@@ -57,10 +60,10 @@ public class DefaultPromotionCalculator implements PromotionCalculator {
                         (Long) rs.getObject("max_discount"),
                         rs.getTimestamp("end_at").toInstant()
                 ),
-                productId, nowTs, nowTs, branchId, effectiveChannel
+                productId, quantity, nowTs, nowTs, branchId, effectiveChannel
         );
 
-        return pickBestPromotion(candidates, lineSubtotal);
+        return pickBestPromotion(candidates, lineSubtotal, quantity);
     }
 
     @Override
@@ -69,7 +72,7 @@ public class DefaultPromotionCalculator implements PromotionCalculator {
             return null;
         }
         String effectiveChannel = (channelCode != null && !channelCode.isBlank()) ? channelCode.trim().toUpperCase() : "POS";
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         Timestamp nowTs = Timestamp.from(now);
 
         List<PromotionCandidate> candidates = jdbcTemplate.query(
@@ -78,7 +81,7 @@ public class DefaultPromotionCalculator implements PromotionCalculator {
                 FROM promotion p
                 WHERE p.status = 'ACTIVE'
                   AND p.level = 'ORDER'
-                  AND p.start_at <= ? AND p.end_at >= ?
+                  AND p.start_at <= ? AND p.end_at > ?
                   AND (p.min_order IS NULL OR ? >= p.min_order)
                   AND (p.usage_limit IS NULL OR p.used_count < p.usage_limit)
                   AND (NOT EXISTS (SELECT 1 FROM promotion_branch pb WHERE pb.promotion_id = p.id)
@@ -98,12 +101,12 @@ public class DefaultPromotionCalculator implements PromotionCalculator {
                 nowTs, nowTs, subtotalAfterLineDiscounts, branchId, effectiveChannel
         );
 
-        return pickBestPromotion(candidates, subtotalAfterLineDiscounts);
+        return pickBestPromotion(candidates, subtotalAfterLineDiscounts, 1);
     }
 
-    private PromotionRef pickBestPromotion(List<PromotionCandidate> candidates, long baseAmount) {
+    private PromotionRef pickBestPromotion(List<PromotionCandidate> candidates, long baseAmount, int quantity) {
         return candidates.stream()
-                .map(c -> new EvaluatedCandidate(c, computeDiscount(c, baseAmount)))
+                .map(c -> new EvaluatedCandidate(c, computeDiscount(c, baseAmount, quantity)))
                 .filter(ec -> ec.discount() > 0)
                 .max(Comparator
                         .comparingLong(EvaluatedCandidate::discount)
@@ -118,23 +121,11 @@ public class DefaultPromotionCalculator implements PromotionCalculator {
                 .orElse(null);
     }
 
-    private long computeDiscount(PromotionCandidate c, long baseAmount) {
-        long rawDiscount;
+    private long computeDiscount(PromotionCandidate c, long baseAmount, int quantity) {
         if ("PERCENT".equalsIgnoreCase(c.type())) {
-            // Dùng BigInteger tránh tràn số int64 khi nhân baseAmount lớn với phần trăm
-            BigInteger calculated = BigInteger.valueOf(baseAmount)
-                    .multiply(BigInteger.valueOf(c.value()))
-                    .divide(BigInteger.valueOf(100L));
-            rawDiscount = calculated.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0
-                    ? Long.MAX_VALUE
-                    : calculated.longValue();
-            if (c.maxDiscount() != null && rawDiscount > c.maxDiscount()) {
-                rawDiscount = c.maxDiscount();
-            }
-        } else {
-            rawDiscount = c.value();
+            return PromotionDiscounts.percent(c.value(), c.maxDiscount(), baseAmount);
         }
-        return Math.min(rawDiscount, baseAmount);
+        return PromotionDiscounts.amount(c.value(), quantity, baseAmount);
     }
 
     private record PromotionCandidate(

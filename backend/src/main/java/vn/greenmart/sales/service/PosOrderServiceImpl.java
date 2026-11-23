@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.LinkedHashSet;
+import java.util.HashMap;
 
 @Slf4j
 @Service
@@ -86,6 +87,7 @@ public class PosOrderServiceImpl implements PosOrderService {
             throw AppException.branchForbidden(request.branchId(), "Bạn không có quyền thao tác trên chi nhánh này");
         }
 
+        customerService.lockActivePosCustomer(request.customerId());
         // Tính lại Báo giá & Kiểm tra expectedTotal
         QuoteRequest quoteRequest = new QuoteRequest(
                 request.branchId(),
@@ -101,18 +103,20 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         // Kiểm tra lượt khuyến mãi: nếu hết lượt thì tính lại quote mới và trả về 422 TOTAL_CHANGED
         Set<Long> appliedPromotionIds = new LinkedHashSet<>();
+        Map<Long,Integer> smallestAppliedQuantities = new HashMap<>();
         if (recomputedQuote.orderPromotion() != null && recomputedQuote.orderPromotion().id() != null) {
             appliedPromotionIds.add(recomputedQuote.orderPromotion().id());
         }
         for (QuoteLine qLine : recomputedQuote.lines()) {
             if (qLine.promotion() != null && qLine.promotion().id() != null) {
                 appliedPromotionIds.add(qLine.promotion().id());
+                smallestAppliedQuantities.merge(qLine.promotion().id(), qLine.quantity(), Math::min);
             }
         }
 
         boolean promoSuccess = true;
         for (Long promoId : appliedPromotionIds) {
-            if (!promotionService.recordUsage(promoId)) {
+            if (!promotionService.recordUsage(promoId, smallestAppliedQuantities.getOrDefault(promoId, 1))) {
                 promoSuccess = false;
                 break;
             }
@@ -120,7 +124,7 @@ public class PosOrderServiceImpl implements PosOrderService {
 
         if (!promoSuccess) {
             Quote updatedQuote = quoteService.calculateQuote(quoteRequest);
-            throw new AppException(ErrorCode.TOTAL_CHANGED, "Khuyến mại đã hết lượt sử dụng, tổng tiền đã thay đổi", Map.of("quote", updatedQuote));
+            throw new AppException(ErrorCode.TOTAL_CHANGED, "Khuyến mại không còn áp dụng, tổng tiền đã thay đổi", Map.of("quote", updatedQuote));
         }
 
         // Kiểm tra xem có sản phẩm ngưng kinh doanh không
