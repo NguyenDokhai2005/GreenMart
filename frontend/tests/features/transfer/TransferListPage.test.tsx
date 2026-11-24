@@ -75,6 +75,8 @@ describe('TransferListPage', () => {
   it('hiện danh sách, cột, huy hiệu trạng thái và cờ chênh lệch', async () => {
     renderList();
     expect(await screen.findByText('CK-GM001-20261107-004')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Danh sách phiếu chuyển kho' })).toBeTruthy();
+    expect(screen.getByText('3 phiếu')).toBeTruthy();
     for (const col of ['Mã phiếu', 'Kho xuất', 'Kho nhận', 'Ngày tạo', 'Trạng thái', 'Thao tác']) {
       expect(screen.getByRole('columnheader', { name: col })).toBeTruthy();
     }

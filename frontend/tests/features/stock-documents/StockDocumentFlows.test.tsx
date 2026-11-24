@@ -235,11 +235,64 @@ describe('Phiếu kho', () => {
 
     expect(await screen.findByText(draftDocument.code)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Duyệt phiếu' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Sửa phiếu' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Sửa phiếu' })).toBeNull();
     expect(screen.getByText(/Bạn là người lập phiếu nên không thể tự duyệt/)).toBeTruthy();
   });
 
-  it('mở biểu mẫu sửa từ chi tiết phiếu nháp', async () => {
+  it('QL chi nhánh không thể mở biểu mẫu sửa hoặc tạo phiếu', async () => {
+    mocks.userRef.current = manager(7);
+    renderList();
+    expect(await screen.findByRole('heading', { name: 'Phiếu nhập / xuất kho' })).toBeTruthy();
+    expect(screen.getByText('Xem, duyệt hoặc hủy phiếu kho thuộc chi nhánh.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Tạo phiếu/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Sửa phiếu' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Phiếu nhập' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Phiếu xuất' })).toBeNull();
+    expect(screen.getByRole('combobox', { name: 'Loại phiếu' })).toBeTruthy();
+
+    await waitFor(() =>
+      expect(mocks.listStockDocuments).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'IMPORT' }),
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(mocks.listStockDocuments).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'EXPORT' }),
+      expect.any(AbortSignal),
+    );
+    expect(
+      mocks.listStockDocuments.mock.calls.every(
+        ([query]) => query.type === 'IMPORT' || query.type === 'EXPORT',
+      ),
+    ).toBe(true);
+  });
+
+  it('OWNER chỉ xem phiếu kho, không có tạo, sửa, hủy hoặc duyệt', async () => {
+    const owner = { ...manager(7), role: 'OWNER' as const };
+    mocks.userRef.current = owner;
+    renderList();
+
+    expect(await screen.findByRole('heading', { name: 'Phiếu nhập / xuất kho' })).toBeTruthy();
+    expect(
+      screen.getByText('Theo dõi trạng thái và hoạt động phiếu kho toàn hệ thống.'),
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Tạo phiếu/ })).toBeNull();
+    expect(screen.getByRole('combobox', { name: 'Loại phiếu' })).toBeTruthy();
+  });
+
+  it('OWNER xem chi tiết phiếu nhưng không có hành động', async () => {
+    renderDetail({ ...manager(7), role: 'OWNER' });
+    expect(await screen.findByText(draftDocument.code)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Sửa phiếu' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Hủy phiếu' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Duyệt phiếu' })).toBeNull();
+  });
+
+  it('thủ kho mở biểu mẫu sửa từ chi tiết phiếu nháp', async () => {
+    mocks.userRef.current = {
+      ...manager(7),
+      role: 'STOREKEEPER',
+    };
     renderList('/operations/stock-documents/8');
 
     fireEvent.click(await screen.findByRole('button', { name: 'Sửa phiếu' }));
@@ -306,6 +359,128 @@ describe('Phiếu kho', () => {
     );
     expect(onSaved).toHaveBeenCalledWith(draftDocument);
   });
+
+  it.each(['IMPORT', 'EXPORT'] as const)(
+    'phân trang picker %s sang trang 2 và quay lại trang 1 khi tìm kiếm',
+    async (type) => {
+      const firstProduct = {
+        id: 23,
+        sku: 'SUA-001',
+        barcode: null,
+        name: 'Sữa tươi 1L',
+        unit: 'hộp',
+        categoryId: 3,
+        categoryName: 'Sữa',
+        salePrice: 2000,
+        costPrice: null,
+        active: true,
+      } satisfies components['schemas']['Product'];
+      const secondProduct = { ...firstProduct, id: 24, sku: 'GAO-001', name: 'Gạo ST25' };
+      mocks.searchProducts
+        .mockResolvedValueOnce({
+          page: 0,
+          size: 20,
+          totalElements: 40,
+          totalPages: 2,
+          content: [firstProduct],
+        })
+        .mockResolvedValueOnce({
+          page: 1,
+          size: 20,
+          totalElements: 40,
+          totalPages: 2,
+          content: [secondProduct],
+        })
+        .mockResolvedValue({
+          page: 0,
+          size: 20,
+          totalElements: 1,
+          totalPages: 1,
+          content: [firstProduct],
+        });
+      mocks.listInventory
+        .mockResolvedValueOnce({
+          page: 0,
+          size: 20,
+          totalElements: 40,
+          totalPages: 2,
+          content: [
+            {
+              branch,
+              productId: 23,
+              sku: 'SUA-001',
+              productName: 'Sữa tươi 1L',
+              unit: 'hộp',
+              onHand: 12,
+              reserved: 2,
+              available: 10,
+              reorderPoint: 3,
+              stockStatus: 'OK',
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          page: 1,
+          size: 20,
+          totalElements: 40,
+          totalPages: 2,
+          content: [
+            {
+              branch,
+              productId: 24,
+              sku: 'GAO-001',
+              productName: 'Gạo ST25',
+              unit: 'kg',
+              onHand: 20,
+              reserved: 0,
+              available: 20,
+              reorderPoint: 3,
+              stockStatus: 'OK',
+            },
+          ],
+        })
+        .mockResolvedValue({
+          page: 0,
+          size: 20,
+          totalElements: 1,
+          totalPages: 1,
+          content: [
+            {
+              branch,
+              productId: 23,
+              sku: 'SUA-001',
+              productName: 'Sữa tươi 1L',
+              unit: 'hộp',
+              onHand: 12,
+              reserved: 2,
+              available: 10,
+              reorderPoint: 3,
+              stockStatus: 'OK',
+            },
+          ],
+        });
+      render(
+        <StockDocumentFormDialog type={type} branchId={1} onClose={vi.fn()} onSaved={vi.fn()} />,
+      );
+
+      expect(
+        await screen.findByText(type === 'IMPORT' ? 'Sữa tươi 1L' : 'Sữa tươi 1L'),
+      ).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Trang sau' }));
+      expect(await screen.findByText(type === 'IMPORT' ? 'Gạo ST25' : 'Gạo ST25')).toBeTruthy();
+      if (type === 'IMPORT') {
+        expect(mocks.searchProducts).toHaveBeenLastCalledWith('', expect.any(AbortSignal), 1, 20);
+      } else {
+        expect(mocks.listInventory).toHaveBeenLastCalledWith(
+          expect.objectContaining({ page: 1, size: 20 }),
+          expect.any(AbortSignal),
+        );
+      }
+
+      fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'sữa' } });
+      await waitFor(() => expect(screen.queryByText('Gạo ST25')).toBeNull());
+    },
+  );
 
   it('sửa phiếu nháp bằng PUT với dữ liệu ban đầu', async () => {
     const updated = { ...draftDocument, supplier: 'Nhà cung cấp mới' };

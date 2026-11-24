@@ -17,7 +17,7 @@ import {
 import {
   canApproveStockDocument,
   canCancelStockDocument,
-  canCreateStockDocument,
+  canEditStockDocument,
   isBlockedSelfApproval,
 } from './stockDocumentPermissions';
 import StockDocumentPageError from './StockDocumentPageError';
@@ -264,10 +264,7 @@ export default function StockDocumentDetailDrawer() {
   const pageError = error ? mapErrorToState(error, 'page') : undefined;
   const canApprove = stockDocument ? canApproveStockDocument(user, stockDocument) : false;
   const canCancel = stockDocument ? canCancelStockDocument(user, stockDocument) : false;
-  const canEdit =
-    stockDocument?.status === 'DRAFT' &&
-    (stockDocument.type === 'IMPORT' || stockDocument.type === 'EXPORT') &&
-    canCreateStockDocument(user, stockDocument.branch.id);
+  const canEdit = stockDocument ? canEditStockDocument(user, stockDocument) : false;
   const selfApproval = stockDocument ? isBlockedSelfApproval(user, stockDocument) : false;
 
   return (

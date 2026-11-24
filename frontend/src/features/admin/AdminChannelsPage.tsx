@@ -45,6 +45,9 @@ export default function AdminChannelsPage() {
   const [retryError, setRetryError] = useState('');
   const [blockedIds, setBlockedIds] = useState<Set<number>>(new Set());
   const [localStatuses, setLocalStatuses] = useState<Map<number, SyncStatus>>(new Map());
+  const [retryBaselines, setRetryBaselines] = useState<
+    Map<number, { status?: SyncStatus; externalId?: string | null; attempts?: number }>
+  >(new Map());
 
   const load = useCallback(
     (signal: AbortSignal) =>
@@ -103,6 +106,14 @@ export default function AdminChannelsPage() {
     try {
       await retrySyncLog(id);
       setLocalStatuses((prev) => new Map(prev).set(id, 'RETRYING'));
+      setRetryBaselines((prev) =>
+        new Map(prev).set(id, {
+          status: retryTarget.status,
+          externalId: retryTarget.externalId,
+          attempts: retryTarget.attempts,
+        }),
+      );
+      query.retry();
       setRetryTarget(null);
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
@@ -144,6 +155,7 @@ export default function AdminChannelsPage() {
           value={channel}
           placeholder="Tất cả kênh"
           options={[
+            { label: 'Tất cả kênh', value: '' },
             { label: 'Website', value: 'WEB' },
             { label: 'Sàn TMĐT', value: 'MARKET' },
           ]}
@@ -155,6 +167,7 @@ export default function AdminChannelsPage() {
           value={status}
           placeholder="Tất cả trạng thái"
           options={[
+            { label: 'Tất cả trạng thái', value: '' },
             { label: 'Thành công', value: 'SUCCESS' },
             { label: 'Thất bại', value: 'FAILED' },
             { label: 'Đang gửi lại', value: 'RETRYING' },
@@ -172,7 +185,23 @@ export default function AdminChannelsPage() {
           error={query.error}
           onRetry={query.retry}
           isEmpty={!!data && data.content.length === 0}
-          empty={{ message: 'Không có log đồng bộ phù hợp' }}
+          empty={{
+            message: 'Không có log đồng bộ phù hợp',
+            filtered: !!channel || !!status,
+            onClearFilters:
+              channel || status
+                ? () => {
+                    setParams((prev) => {
+                      const next = new URLSearchParams(prev);
+                      next.delete('channel');
+                      next.delete('channelCode');
+                      next.delete('status');
+                      next.delete('page');
+                      return next;
+                    });
+                  }
+                : undefined,
+          }}
         >
           <div className="admin-sync-table" role="table" aria-label="Danh sách log đồng bộ">
             <div className="admin-sync-table__head" role="row">
@@ -187,7 +216,20 @@ export default function AdminChannelsPage() {
             {data?.content.map((raw) => {
               const log = raw as SyncLog;
               const id = log.id;
-              const statusValue = id ? (localStatuses.get(id) ?? log.status) : log.status;
+              const baseline = id ? retryBaselines.get(id) : undefined;
+              const responseChanged =
+                !!baseline &&
+                !!id &&
+                (log.status !== baseline.status ||
+                  log.externalId !== baseline.externalId ||
+                  (log.attempts ?? 0) !== (baseline.attempts ?? 0));
+              const serverAuthoritative =
+                log.status === 'SUCCESS' || (log.status === 'FAILED' && responseChanged);
+              const statusValue = id
+                ? serverAuthoritative
+                  ? log.status
+                  : (localStatuses.get(id) ?? log.status)
+                : log.status;
               const canRetry =
                 statusValue === 'FAILED' &&
                 id !== undefined &&

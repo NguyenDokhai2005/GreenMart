@@ -29,7 +29,6 @@ const STAFF: readonly Role[] = ['OWNER', 'BRANCH_MANAGER', 'STOREKEEPER'];
 /** Nguồn duy nhất của menu Operations/Admin (AUTH-02). */
 export const MENU: MenuItem[] = [
   { key: 'overview', label: 'Tổng quan', to: OP, icon: 'dashboard', roles: MANAGER },
-  { key: 'admin-dashboard', label: 'Dashboard', to: AD, icon: 'dashboard', roles: ['ADMIN'] },
   {
     key: 'pos',
     label: 'Bán hàng POS',
@@ -68,8 +67,6 @@ export const MENU: MenuItem[] = [
     children: [
       { key: 'branches', label: 'Chi nhánh', to: `${AD}/branches`, roles: ['ADMIN'] },
       { key: 'staff', label: 'Nhân sự & phân quyền', to: `${AD}/staff`, roles: ['ADMIN'] },
-      { key: 'settings', label: 'Cấu hình hệ thống', to: `${AD}/settings`, roles: ['ADMIN'] },
-      { key: 'audit', label: 'Nhật ký hoạt động', to: `${AD}/audit`, roles: ['ADMIN'] },
       { key: 'channels', label: 'Trạng thái đồng bộ kênh', to: `${AD}/channels`, roles: ['ADMIN'] },
       { key: 'locked', label: 'Danh sách tài khoản bị khóa', to: `${AD}/locked`, roles: ['ADMIN'] },
     ],

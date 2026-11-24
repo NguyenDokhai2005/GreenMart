@@ -15,6 +15,9 @@ interface StockDocumentFiltersProps {
   searchText: string;
   value: StockDocumentFiltersValue;
   errors?: Record<string, string>;
+  integrated?: boolean;
+  type?: 'IMPORT' | 'EXPORT';
+  onTypeChange?: (type: 'IMPORT' | 'EXPORT' | undefined) => void;
   onSearchChange: (value: string) => void;
   onChange: (value: StockDocumentFiltersValue) => void;
 }
@@ -30,6 +33,9 @@ export default function StockDocumentFilters({
   searchText,
   value,
   errors = {},
+  integrated = false,
+  type,
+  onTypeChange,
   onSearchChange,
   onChange,
 }: StockDocumentFiltersProps) {
@@ -44,19 +50,38 @@ export default function StockDocumentFilters({
           placeholder="Mã phiếu hoặc nhà cung cấp..."
           onChange={(event) => onSearchChange(event.target.value)}
         />
-        <Select
-          label="Trạng thái"
-          value={value.status ?? ''}
-          placeholder="Tất cả trạng thái"
-          error={errors.status}
-          options={STATUS_OPTIONS}
-          onChange={(event) =>
-            onChange({
-              ...value,
-              status: parseStockDocumentStatus(event.target.value || null),
-            })
-          }
-        />
+        {integrated ? (
+          <Select
+            label="Loại phiếu"
+            value={type ?? ''}
+            placeholder="Tất cả loại phiếu"
+            options={[
+              { value: 'IMPORT', label: 'Nhập kho' },
+              { value: 'EXPORT', label: 'Xuất hủy' },
+            ]}
+            onChange={(event) =>
+              onTypeChange?.(
+                event.target.value === 'IMPORT' || event.target.value === 'EXPORT'
+                  ? event.target.value
+                  : undefined,
+              )
+            }
+          />
+        ) : (
+          <Select
+            label="Trạng thái"
+            value={value.status ?? ''}
+            placeholder="Tất cả trạng thái"
+            error={errors.status}
+            options={STATUS_OPTIONS}
+            onChange={(event) =>
+              onChange({
+                ...value,
+                status: parseStockDocumentStatus(event.target.value || null),
+              })
+            }
+          />
+        )}
         <label className="sd-date-field">
           <span>Từ ngày</span>
           <input

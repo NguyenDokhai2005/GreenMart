@@ -412,9 +412,14 @@ export async function logout(): Promise<void> {
   }
 }
 
-export function searchProducts(query: string, signal?: AbortSignal): Promise<ProductPage> {
+export function searchProducts(
+  query: string,
+  signal?: AbortSignal,
+  page = 0,
+  size = 20,
+): Promise<ProductPage> {
   return request('/products', 'get', {
-    query: { active: true, page: 0, size: 100, q: query.trim() || undefined },
+    query: { active: true, page, size, q: query.trim() || undefined },
     signal,
   });
 }

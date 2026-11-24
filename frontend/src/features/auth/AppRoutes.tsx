@@ -313,7 +313,7 @@ export function AppRoutes() {
           </AuthBoundary>
         }
       >
-        <Route index element={<h1>Dashboard</h1>} />
+        <Route index element={<Navigate to="/admin/branches" replace />} />
         <Route path="branches" element={<AdminBranchesPage />} />
         <Route path="channels" element={<AdminChannelsPage />} />
         <Route path="staff" element={<AdminUsersPage mode="staff" />} />

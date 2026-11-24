@@ -94,6 +94,56 @@ describe('Admin pages', () => {
     ).toBe('FAILED');
   });
 
+  it('can clear channel and status filters including an empty result', async () => {
+    listSyncLogs
+      .mockResolvedValueOnce({
+        page: 0,
+        size: 20,
+        totalElements: 1,
+        content: [
+          {
+            id: 11,
+            channelCode: 'WEB',
+            direction: 'OUT',
+            externalId: 'WEB-11',
+            status: 'FAILED',
+            attempts: 2,
+            createdAt: '2026-11-22T10:00:00+07:00',
+          },
+        ],
+      })
+      .mockResolvedValue({
+        page: 0,
+        size: 20,
+        totalElements: 0,
+        content: [],
+      });
+    render(
+      <MemoryRouter initialEntries={['/admin/channels']}>
+        <AdminChannelsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText('WEB-11');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Lọc theo kênh' }), {
+      target: { value: 'MARKET' },
+    });
+    await waitFor(() =>
+      expect(listSyncLogs).toHaveBeenLastCalledWith(
+        expect.objectContaining({ channelCode: 'MARKET', page: 0 }),
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(await screen.findByText('Không có kết quả phù hợp')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Xóa bộ lọc' }));
+    await waitFor(() =>
+      expect(listSyncLogs).toHaveBeenLastCalledWith(
+        expect.objectContaining({ channelCode: undefined, status: undefined, page: 0 }),
+        expect.any(AbortSignal),
+      ),
+    );
+  });
+
   it('confirms retry and changes FAILED log to RETRYING', async () => {
     render(
       <MemoryRouter>
@@ -107,8 +157,64 @@ describe('Admin pages', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Gửi lại' }));
 
     await waitFor(() => expect(retrySyncLog).toHaveBeenCalledWith(11));
-    expect(await waitFor(() => document.querySelector('.admin-status--retrying'))).toBeTruthy();
+    await waitFor(() => expect(document.querySelector('.admin-status--retrying')).toBeTruthy());
     expect(screen.queryByRole('button', { name: 'Gửi lại' })).toBeNull();
+  });
+
+  it.each([
+    ['SUCCESS', 'Thành công'],
+    ['FAILED', 'Thất bại'],
+  ])('reconciles RETRYING to server %s after refetch', async (status, label) => {
+    listSyncLogs
+      .mockResolvedValueOnce({
+        page: 0,
+        size: 20,
+        totalElements: 1,
+        content: [
+          {
+            id: 11,
+            channelCode: 'WEB',
+            direction: 'OUT',
+            externalId: 'WEB-11',
+            status: 'FAILED',
+            attempts: 2,
+            createdAt: '2026-11-22T10:00:00+07:00',
+          },
+        ],
+      })
+      .mockResolvedValue({
+        page: 0,
+        size: 20,
+        totalElements: 1,
+        content: [
+          {
+            id: 11,
+            channelCode: 'WEB',
+            direction: 'OUT',
+            externalId: 'WEB-11-NEW',
+            status,
+            attempts: 3,
+            createdAt: '2026-11-22T10:05:00+07:00',
+          },
+        ],
+      });
+    render(
+      <MemoryRouter>
+        <AdminChannelsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText('WEB-11');
+    fireEvent.click(screen.getByRole('button', { name: 'Gửi lại' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Gửi lại' }));
+    expect(await screen.findByText('Đang gửi lại')).toBeTruthy();
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Lọc theo kênh' }), {
+      target: { value: 'WEB' },
+    });
+    expect(await screen.findByText('WEB-11-NEW')).toBeTruthy();
+    expect(document.querySelector('.admin-status--retrying')).toBeNull();
+    await waitFor(() => expect(document.querySelector('.admin-status')?.textContent).toBe(label));
   });
 
   it('shows 409 and does not retry the same log again', async () => {

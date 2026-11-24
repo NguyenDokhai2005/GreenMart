@@ -47,7 +47,7 @@ function ProductPicker({ type, branchId, selectedIds, disabled, onPick }: Produc
   const debouncedSearch = useDebouncedCallback((value: string) => setQuery(value.trim()), 300);
   const { data, error, isLoading, reload } = useRemote(async (signal) => {
     if (type === 'IMPORT') {
-      const result = await searchProducts(query, signal);
+      const result = await searchProducts(query, signal, page - 1, 20);
       return {
         totalPages: result.totalPages,
         content: result.content.map((product): ProductOption => ({

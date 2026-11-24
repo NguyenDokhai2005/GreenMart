@@ -119,9 +119,8 @@ export default function TransferListPage() {
 
       <section className="ck-card" aria-labelledby="ck-list-title" aria-busy={isLoading}>
         <div className="ck-card__head">
-          <h2 id="ck-list-title" className="ck-sr-only">
-            Danh sách phiếu chuyển kho
-          </h2>
+          <h2 id="ck-list-title">Danh sách phiếu chuyển kho</h2>
+          {data && <span className="ck-result-count">{data.totalElements} phiếu</span>}
           {isInitialLoading && showLoading && (
             <span className="ck-loading" role="status">
               Đang tải dữ liệu…
