@@ -1,0 +1,49 @@
+.pos-returns {
+  display: grid;
+  gap: 1rem;
+}
+.pos-returns h1,
+.pos-returns h2,
+.pos-returns h3,
+.pos-returns p {
+  margin: 0;
+}
+.pos-returns__search,
+.pos-returns__orders,
+.pos-returns__actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: end;
+}
+.pos-returns__search .gm-field {
+  min-width: 18rem;
+}
+.pos-returns__detail,
+.pos-returns__documents {
+  display: grid;
+  gap: 1rem;
+}
+.pos-returns__documents article {
+  border: 1px solid var(--gm-border, #cbd5e1);
+  border-radius: 0.6rem;
+  padding: 1rem;
+}
+.pos-returns table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.pos-returns th,
+.pos-returns td {
+  text-align: left;
+  padding: 0.6rem;
+  border-bottom: 1px solid var(--gm-border, #e2e8f0);
+}
+.pos-returns input[type='number'] {
+  width: 6rem;
+}
+@media (max-width: 640px) {
+  .pos-returns__detail {
+    overflow-x: auto;
+  }
+}
