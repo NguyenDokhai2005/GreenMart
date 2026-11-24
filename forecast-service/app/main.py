@@ -88,10 +88,12 @@ def create_app(
             except Exception as shutdown_err:
                 log.warning("Lỗi khi dừng APScheduler: %s", shutdown_err)
 
+    docs_enabled = os.environ.get("FORECAST_DOCS_ENABLED", "false").lower() == "true"
     application = FastAPI(
         title="GreenMart Forecast Service",
-        docs_url=None,
-        redoc_url=None,
+        openapi_url="/openapi.json" if docs_enabled else None,
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
         lifespan=lifespan,
     )
     register_auth_exception_handler(application)
