@@ -19,6 +19,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import vn.greenmart.common.audit.BranchAccessAudit;
 import vn.greenmart.common.security.SecurityUtils;
@@ -76,6 +77,22 @@ public class GlobalExceptionHandler {
     }
 
     // JSON hỏng cú pháp / sai kiểu dữ liệu enum
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ErrorResponse> handleMethodValidation(HandlerMethodValidationException ex) {
+        if (ex.isForReturnValue()) {
+            return ResponseEntity.internalServerError().body(new ErrorResponse(
+                    ErrorCode.INTERNAL_SERVER_ERROR.name(), ErrorCode.INTERNAL_SERVER_ERROR.getDefaultMessage(),
+                    null, generateTraceId()));
+        }
+        var details = ex.getParameterValidationResults().stream().flatMap(result ->
+                result.getResolvableErrors().stream().map(error -> new ValidationErrorDetail(
+                        error instanceof FieldError field ? field.getField()
+                                : result.getMethodParameter().getParameterName(),
+                        error.getDefaultMessage()))).toList();
+        return ResponseEntity.badRequest().body(new ErrorResponse(ErrorCode.VALIDATION_ERROR.name(),
+                ErrorCode.VALIDATION_ERROR.getDefaultMessage(), details, generateTraceId()));
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
         ErrorResponse response = new ErrorResponse(
