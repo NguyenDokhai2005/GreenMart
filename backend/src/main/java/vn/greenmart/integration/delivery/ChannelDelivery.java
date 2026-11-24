@@ -89,6 +89,16 @@ public class ChannelDelivery {
                 INSERT INTO channel_delivery(event_id,sync_log_id,routing_key,channel_code,external_id,body,trace_id)
                 VALUES (?,?,?,?,?,?::jsonb,?)
                 """, eventId, log, routing, channel, externalId, envelope.path("body").toString(), TraceContext.current());
+        if (STOCK.equals(routing)) {
+            jdbc.update("""
+                    INSERT INTO channel_stock_snapshot(channel_code,external_sku,version,item)
+                    SELECT ?,item->>'externalSku',(item->>'version')::bigint,item
+                    FROM jsonb_array_elements(?::jsonb->'items') item
+                    ORDER BY item->>'externalSku'
+                    ON CONFLICT(channel_code,external_sku) DO UPDATE SET version=EXCLUDED.version,item=EXCLUDED.item
+                    WHERE EXCLUDED.version>channel_stock_snapshot.version
+                    """,channel,envelope.path("body").toString());
+        }
     }
 
     record Job(String event, long log, String routing, String channel, String externalId,
@@ -103,6 +113,11 @@ public class ChannelDelivery {
     @Bean
     org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler channelDeliveryScheduler() {
         return scheduler("channel-delivery-");
+    }
+
+    @Bean
+    org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler channelRecoveryScheduler() {
+        return scheduler("channel-recovery-");
     }
 
     @Bean
@@ -122,6 +137,11 @@ public class ChannelDelivery {
                 SELECT d.event_id,d.sync_log_id,d.routing_key,d.channel_code,d.external_id,d.body,d.trace_id,l.attempts
                 FROM channel_delivery d JOIN sync_log l ON l.id=d.sync_log_id
                 WHERE d.next_attempt_at <= clock_timestamp()
+                  AND (d.routing_key <> 'channel.order.status' OR NOT EXISTS (
+                    SELECT 1 FROM channel_delivery older JOIN sync_log ol ON ol.id=older.sync_log_id
+                    WHERE older.channel_code=d.channel_code AND older.routing_key=d.routing_key
+                      AND older.external_id=d.external_id AND older.sync_log_id<d.sync_log_id
+                      AND ol.status<>'SUCCESS'))
                 ORDER BY d.next_attempt_at,d.event_id LIMIT 1 FOR UPDATE OF d SKIP LOCKED
                 """, (rs,row) -> new Job(rs.getString(1),rs.getLong(2),rs.getString(3),rs.getString(4),
                 rs.getString(5),rs.getString(6),rs.getString(7),rs.getInt(8)));
@@ -167,6 +187,11 @@ public class ChannelDelivery {
         jdbc.update("UPDATE sync_log SET attempts=?,status=?,error=? WHERE id=?", attempts, status, error, job.log());
         jdbc.update("UPDATE channel_delivery SET next_attempt_at=clock_timestamp()+make_interval(secs => ?::int) WHERE event_id=?",
                 delay, job.event());
+        if ("FAILED".equals(status)) {
+            jdbc.update("UPDATE channel_delivery SET first_failed_at=COALESCE(first_failed_at,clock_timestamp()) WHERE event_id=?", job.event());
+        } else if ("SUCCESS".equals(status)) {
+            jdbc.update("UPDATE channel_delivery SET first_failed_at=NULL,last_recovery_warning_at=NULL WHERE event_id=?", job.event());
+        }
     }
 
     private int send(Job job) throws IOException, InterruptedException {
@@ -175,7 +200,17 @@ public class ChannelDelivery {
         else url.pathSegment("orders", "{externalId}", "status");
         URI endpoint = url.encode().buildAndExpand(STOCK.equals(job.routing()) ? Map.of()
                 : Map.of("externalId", job.externalId())).toUri();
-        byte[] body = job.body().getBytes(StandardCharsets.UTF_8);
+        // Preserve the original journal, but never resend an older stock snapshot for a SKU.
+        String payload = job.body();
+        if (STOCK.equals(job.routing())) {
+            payload = jdbc.queryForObject("""
+                    SELECT jsonb_build_object('items',COALESCE(jsonb_agg(s.item ORDER BY s.external_sku),'[]'::jsonb))::text
+                    FROM channel_stock_snapshot s
+                    WHERE s.channel_code=? AND s.external_sku IN (
+                        SELECT x->>'externalSku' FROM jsonb_array_elements(?::jsonb->'items') x)
+                    """, String.class, job.channel(), job.body());
+        }
+        byte[] body = payload.getBytes(StandardCharsets.UTF_8);
         var request = HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5))
                 .header("Content-Type", "application/json").header("X-Signature", signatures.sign(job.channel(), body))
                 .header(TraceContext.HEADER, job.trace()).PUT(HttpRequest.BodyPublishers.ofByteArray(body)).build();

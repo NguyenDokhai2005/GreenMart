@@ -25,7 +25,9 @@ import vn.greenmart.integration.delivery.ChannelDelivery;
 
 @JdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({ChannelDelivery.class, vn.greenmart.integration.channel.ChannelSignatures.class, OutboxService.class, ChannelDeliveryTest.Json.class})
+@Import({ChannelDelivery.class, vn.greenmart.integration.delivery.ChannelRecovery.class,
+        vn.greenmart.integration.delivery.SyncLogService.class,
+        vn.greenmart.integration.channel.ChannelSignatures.class, OutboxService.class, ChannelDeliveryTest.Json.class})
 @Testcontainers
 @DirtiesContext
 class ChannelDeliveryTest {
@@ -43,26 +45,30 @@ class ChannelDeliveryTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired ChannelDelivery publisher;
     @Autowired ObjectMapper json;
+    @Autowired vn.greenmart.integration.delivery.ChannelRecovery recovery;
+    @Autowired vn.greenmart.integration.delivery.SyncLogService syncLogs;
 
     static final java.util.concurrent.atomic.AtomicInteger httpStatus = new java.util.concurrent.atomic.AtomicInteger(503);
     static final java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
     static final java.util.concurrent.atomic.AtomicReference<String> signature = new java.util.concurrent.atomic.AtomicReference<>();
+    static final java.util.List<String> bodies = new java.util.concurrent.CopyOnWriteArrayList<>();
     static final com.sun.net.httpserver.HttpServer server = startHttp();
     @org.junit.jupiter.api.AfterAll static void stopHttp() { server.stop(0); }
     @org.junit.jupiter.api.BeforeEach void resetHttp() {
         httpStatus.set(503);
         calls.set(0);
         signature.set(null);
+        bodies.clear();
     }
 
     static com.sun.net.httpserver.HttpServer startHttp() {
         try {
             var fixture = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
-            fixture.createContext("/mock/WEB/stock", exchange -> {
+            fixture.createContext("/mock/WEB/", exchange -> {
                 try (exchange) {
                     calls.incrementAndGet();
                     signature.set(exchange.getRequestHeaders().getFirst("X-Signature"));
-                    exchange.getRequestBody().readAllBytes();
+                    bodies.add(new String(exchange.getRequestBody().readAllBytes(),StandardCharsets.UTF_8));
                     exchange.sendResponseHeaders(httpStatus.get(), -1);
                 }
             });
@@ -115,6 +121,122 @@ class ChannelDeliveryTest {
                 .containsEntry("attempts", 1).containsEntry("status", "FAILED");
         publisher.deliverOne();
         assertThat(calls.get()).isEqualTo(3);
+    }
+
+    @Test void recoversAfterOutageAndGatesRepeatedProbes() throws Exception {
+        exhaust("201");
+        assertThat(recovery.recover("WEB")).isZero();
+        httpStatus.set(204);
+        assertThat(recovery.recover("WEB")).isZero(); // persisted 30s gate
+        openProbeGate();
+        assertThat(recovery.recover("WEB")).isEqualTo(1);
+        assertThat(bodies.getLast()).isEqualTo("{\"items\":[]}");
+        assertThat(recovery.recover("WEB")).isZero();
+        publisher.deliverOne();
+        assertThat(jdbc.queryForMap("SELECT status,attempts FROM sync_log"))
+                .containsEntry("status","SUCCESS").containsEntry("attempts",1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM channel_delivery",Integer.class)).isEqualTo(1);
+    }
+
+    @Test void doesNotAutomaticallyRetryPermanentFailureButAllowsManualRetry() throws Exception {
+        httpStatus.set(401);
+        publisher.accept(event("202")); publisher.deliverOne();
+        assertThat(recovery.recover("WEB")).isZero();
+        assertThat(calls.get()).isEqualTo(1);
+        syncLogs.retry(jdbc.queryForObject("SELECT id FROM sync_log",Long.class));
+        httpStatus.set(204); publisher.deliverOne();
+        assertThat(jdbc.queryForObject("SELECT status FROM sync_log",String.class)).isEqualTo("SUCCESS");
+    }
+
+    @Test void recoveredStockUsesNewestVersionWhileOriginalPayloadIsRetained() throws Exception {
+        exhaust("203");
+        var newer=event("204");
+        newer=new Message(new String(newer.getBody(),StandardCharsets.UTF_8)
+                .replace("\"version\":1","\"version\":9").replace("\"available\":1","\"available\":77")
+                .getBytes(StandardCharsets.UTF_8),newer.getMessageProperties());
+        publisher.accept(newer);
+        httpStatus.set(204); publisher.deliverOne();
+        assertThat(recovery.recover("WEB")).isEqualTo(1);
+        publisher.deliverOne();
+        assertThat(json.readTree(bodies.getLast()).path("items").get(0).path("version").asInt()).isEqualTo(9);
+        assertThat(json.readTree(bodies.getLast()).path("items").get(0).path("available").asInt()).isEqualTo(77);
+        assertThat(jdbc.queryForObject("SELECT body->'items'->0->>'version' FROM channel_delivery WHERE event_id='203'",String.class)).isEqualTo("1");
+    }
+
+    @Test void lifecycleEventsWaitForEarlierFailedDelivery() throws Exception {
+        publisher.accept(statusEvent("205","CONFIRMED"));
+        exhaustExisting();
+        publisher.accept(statusEvent("206","PAID"));
+        httpStatus.set(204);
+        publisher.deliverOne();
+        assertThat(calls.get()).isEqualTo(6); // later lifecycle callback is blocked
+        assertThat(recovery.recover("WEB")).isEqualTo(1);
+        publisher.deliverOne(); publisher.deliverOne();
+        assertThat(bodies.get(bodies.size()-2)).contains("CONFIRMED");
+        assertThat(bodies.getLast()).contains("PAID");
+    }
+
+    @Test void recoveryIsBoundedAndOverdueFailuresAreFlaggedWithoutDeletion() throws Exception {
+        for (int n=0;n<21;n++) publisher.accept(event("batch-"+n));
+        jdbc.update("UPDATE sync_log SET status='FAILED',error='HTTP 503',attempts=6");
+        jdbc.update("UPDATE channel_delivery SET next_attempt_at=NULL,first_failed_at=clock_timestamp()-interval '25 hours'");
+        httpStatus.set(204);
+        assertThat(recovery.recover("WEB")).isEqualTo(20);
+        assertThat(recovery.recover("WEB")).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM channel_delivery WHERE last_recovery_warning_at IS NOT NULL",Integer.class)).isEqualTo(21);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM sync_log WHERE status='FAILED'",Integer.class)).isEqualTo(1);
+        openProbeGate();
+        assertThat(recovery.recover("WEB")).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM channel_delivery",Integer.class)).isEqualTo(21);
+    }
+
+    @Test
+    @org.springframework.transaction.annotation.Transactional(propagation=org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    void manualAndAutomaticRecoveryRaceQueuesOnlyOneDelivery() throws Exception {
+        exhaust("race-419");
+        long id=jdbc.queryForObject("SELECT sync_log_id FROM channel_delivery WHERE event_id='race-419'",Long.class);
+        httpStatus.set(204);
+        var start=new java.util.concurrent.CountDownLatch(1);
+        try (var threads=java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var auto=threads.submit(() -> { start.await(); return recovery.recover("WEB"); });
+            var manual=threads.submit(() -> {
+                start.await();
+                try { syncLogs.retry(id); }
+                catch (vn.greenmart.common.exception.AppException ex) {
+                    assertThat(ex.getCode()).isEqualTo("INVALID_STATUS");
+                }
+                return null;
+            });
+            start.countDown();
+            auto.get(15,java.util.concurrent.TimeUnit.SECONDS);
+            manual.get(15,java.util.concurrent.TimeUnit.SECONDS);
+            int before=calls.get();
+            publisher.deliverOne(); publisher.deliverOne();
+            assertThat(calls.get()).isEqualTo(before+1);
+            assertThat(jdbc.queryForMap("SELECT status,attempts FROM sync_log WHERE id=?",id))
+                    .containsEntry("status","SUCCESS").containsEntry("attempts",1);
+        } finally {
+            jdbc.update("DELETE FROM channel_delivery WHERE event_id='race-419'");
+            jdbc.update("DELETE FROM sync_log WHERE id=?",id);
+            jdbc.update("DELETE FROM outbox_event WHERE event_type='channel.delivery.failed' AND payload->>'eventId'='race-419'");
+            openProbeGate();
+        }
+    }
+
+    private void exhaust(String id) throws Exception { publisher.accept(event(id)); exhaustExisting(); }
+    private void exhaustExisting() {
+        for (int n=0;n<6;n++) {
+            jdbc.update("UPDATE channel_delivery SET next_attempt_at=clock_timestamp()-interval '1 second'");
+            publisher.deliverOne();
+        }
+    }
+    private void openProbeGate() {
+        jdbc.update("UPDATE channel_recovery SET next_probe_at=clock_timestamp()-interval '1 second'");
+    }
+    private Message statusEvent(String id,String status) {
+        var props=new MessageProperties(); props.setMessageId(id); props.setReceivedRoutingKey("channel.order.status");
+        return new Message(("{\"channelCode\":\"WEB\",\"externalId\":\"ORDER-1\",\"body\":{\"status\":\""+status+"\"}}")
+                .getBytes(StandardCharsets.UTF_8),props);
     }
 
     private Message event(String id) {
