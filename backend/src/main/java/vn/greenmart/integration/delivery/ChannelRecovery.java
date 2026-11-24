@@ -7,6 +7,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +16,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import vn.greenmart.integration.channel.ChannelSignatures;
 
 @Service
@@ -26,6 +28,7 @@ public class ChannelRecovery {
     private final URI base;
     private final boolean enabled;
     private final TransactionTemplate tx;
+    private final TransactionTemplate withoutTransaction;
 
     public ChannelRecovery(JdbcTemplate jdbc, HttpClient channelCallbackHttpClient, ChannelSignatures signatures,
             PlatformTransactionManager transactions,
@@ -34,6 +37,9 @@ public class ChannelRecovery {
             @Value("${greenmart.outbox.enabled:true}") boolean workers) {
         this.jdbc=jdbc; this.http=channelCallbackHttpClient; this.signatures=signatures;
         this.base=base; this.enabled=enabled && workers; this.tx=new TransactionTemplate(transactions);
+        this.tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        this.withoutTransaction=new TransactionTemplate(transactions);
+        this.withoutTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
     }
 
     @Scheduled(fixedDelay=30000, scheduler="channelRecoveryScheduler")
@@ -43,26 +49,41 @@ public class ChannelRecovery {
     }
 
     public int recover(String channel) {
-        return tx.execute(ignored -> {
-            // Persist the probe gate, so multiple backend instances cannot probe one channel together.
+        UUID token=tx.execute(ignored -> {
+            // Commit the gate before HTTP: no delivery/channel row lock crosses the network call.
             var gate=jdbc.queryForList("""
                     SELECT channel_code FROM channel_recovery
                     WHERE channel_code=? AND next_probe_at<=clock_timestamp() FOR UPDATE SKIP LOCKED
                     """, String.class, channel);
-            if (gate.isEmpty()) return 0;
-            jdbc.update("UPDATE channel_recovery SET next_probe_at=clock_timestamp()+interval '30 seconds' WHERE channel_code=?",channel);
+            if (gate.isEmpty()) return null;
+            UUID ticket=UUID.randomUUID();
+            jdbc.update("UPDATE channel_recovery SET next_probe_at=clock_timestamp()+interval '30 seconds',probe_token=? WHERE channel_code=?",ticket,channel);
             warnOverdue(channel);
+            boolean eligible=Boolean.TRUE.equals(jdbc.queryForObject("""
+                    SELECT EXISTS(SELECT 1 FROM channel_delivery d JOIN sync_log l ON l.id=d.sync_log_id
+                    WHERE d.channel_code=? AND d.recovery_count<3 AND l.status='FAILED'
+                      AND (l.error='Kết nối callback thất bại' OR l.error ~ '^HTTP (5[0-9]{2}|408|429)$'))
+                    """,Boolean.class,channel));
+            return eligible ? ticket : null;
+        });
+        if (token==null || !Boolean.TRUE.equals(withoutTransaction.execute(ignored -> healthy(channel)))) return 0;
+        return tx.execute(ignored -> {
+            // Revalidate the claim and job state after HTTP; manual retry can win while probing.
+            var gate=jdbc.queryForList("""
+                    SELECT channel_code FROM channel_recovery WHERE channel_code=? AND probe_token=?
+                    FOR UPDATE SKIP LOCKED
+                    """,String.class,channel,token);
+            if (gate.isEmpty()) return 0;
             var jobs=jdbc.queryForList("""
                     SELECT d.sync_log_id FROM channel_delivery d JOIN sync_log l ON l.id=d.sync_log_id
-                    WHERE d.channel_code=? AND l.status='FAILED'
+                    WHERE d.channel_code=? AND d.recovery_count<3 AND l.status='FAILED'
                       AND (l.error='Kết nối callback thất bại' OR l.error ~ '^HTTP (5[0-9]{2}|408|429)$')
                     ORDER BY d.sync_log_id LIMIT 20 FOR UPDATE OF d SKIP LOCKED
                     """, Long.class, channel);
-            if (jobs.isEmpty() || !healthy(channel)) return 0;
             int changed=0;
             for (long id : jobs) {
-                if (jdbc.update("UPDATE sync_log SET status='RETRYING',attempts=0,error=NULL WHERE id=? AND status='FAILED'",id)==1) {
-                    jdbc.update("UPDATE channel_delivery SET next_attempt_at=clock_timestamp() WHERE sync_log_id=?",id);
+                if (jdbc.update("UPDATE sync_log SET status='RETRYING',error=NULL WHERE id=? AND status='FAILED'",id)==1) {
+                    jdbc.update("UPDATE channel_delivery SET next_attempt_at=clock_timestamp(),cycle_attempts=0,recovery_count=recovery_count+1 WHERE sync_log_id=?",id);
                     changed++;
                 }
             }

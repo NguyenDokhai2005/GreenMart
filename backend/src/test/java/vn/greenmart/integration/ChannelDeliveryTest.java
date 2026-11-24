@@ -30,6 +30,7 @@ import vn.greenmart.integration.delivery.ChannelDelivery;
         vn.greenmart.integration.channel.ChannelSignatures.class, OutboxService.class, ChannelDeliveryTest.Json.class})
 @Testcontainers
 @DirtiesContext
+@org.springframework.transaction.annotation.Transactional(propagation=org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
 class ChannelDeliveryTest {
     @TestConfiguration static class Json {
         @Bean ObjectMapper objectMapper() { return new ObjectMapper(); }
@@ -49,13 +50,24 @@ class ChannelDeliveryTest {
     @Autowired vn.greenmart.integration.delivery.SyncLogService syncLogs;
 
     static final java.util.concurrent.atomic.AtomicInteger httpStatus = new java.util.concurrent.atomic.AtomicInteger(503);
+    static final java.util.concurrent.atomic.AtomicInteger orderStatus = new java.util.concurrent.atomic.AtomicInteger(-1);
+    static final java.util.concurrent.atomic.AtomicReference<Runnable> probeHook = new java.util.concurrent.atomic.AtomicReference<>();
     static final java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
     static final java.util.concurrent.atomic.AtomicReference<String> signature = new java.util.concurrent.atomic.AtomicReference<>();
     static final java.util.List<String> bodies = new java.util.concurrent.CopyOnWriteArrayList<>();
     static final com.sun.net.httpserver.HttpServer server = startHttp();
     @org.junit.jupiter.api.AfterAll static void stopHttp() { server.stop(0); }
     @org.junit.jupiter.api.BeforeEach void resetHttp() {
+        // This class owns its isolated Testcontainers database. Commit fixtures so recovery's short
+        // independent transactions and real concurrency are exercised, rather than joining a test tx.
+        jdbc.update("DELETE FROM channel_delivery");
+        jdbc.update("DELETE FROM sync_log");
+        jdbc.update("DELETE FROM channel_stock_snapshot");
+        jdbc.update("DELETE FROM outbox_event");
+        openProbeGate();
         httpStatus.set(503);
+        orderStatus.set(-1);
+        probeHook.set(null);
         calls.set(0);
         signature.set(null);
         bodies.clear();
@@ -68,8 +80,12 @@ class ChannelDeliveryTest {
                 try (exchange) {
                     calls.incrementAndGet();
                     signature.set(exchange.getRequestHeaders().getFirst("X-Signature"));
-                    bodies.add(new String(exchange.getRequestBody().readAllBytes(),StandardCharsets.UTF_8));
-                    exchange.sendResponseHeaders(httpStatus.get(), -1);
+                    String body=new String(exchange.getRequestBody().readAllBytes(),StandardCharsets.UTF_8);
+                    bodies.add(body);
+                    if ("{\"items\":[]}".equals(body) && probeHook.get()!=null) probeHook.get().run();
+                    int status=exchange.getRequestURI().getPath().contains("/orders/") && orderStatus.get()>=0
+                            ? orderStatus.get() : httpStatus.get();
+                    exchange.sendResponseHeaders(status, -1);
                 }
             });
             fixture.start();
@@ -134,7 +150,7 @@ class ChannelDeliveryTest {
         assertThat(recovery.recover("WEB")).isZero();
         publisher.deliverOne();
         assertThat(jdbc.queryForMap("SELECT status,attempts FROM sync_log"))
-                .containsEntry("status","SUCCESS").containsEntry("attempts",1);
+                .containsEntry("status","SUCCESS").containsEntry("attempts",7);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM channel_delivery",Integer.class)).isEqualTo(1);
     }
 
@@ -214,13 +230,93 @@ class ChannelDeliveryTest {
             publisher.deliverOne(); publisher.deliverOne();
             assertThat(calls.get()).isEqualTo(before+1);
             assertThat(jdbc.queryForMap("SELECT status,attempts FROM sync_log WHERE id=?",id))
-                    .containsEntry("status","SUCCESS").containsEntry("attempts",1);
+                    .containsEntry("status","SUCCESS").containsEntry("attempts",7);
         } finally {
             jdbc.update("DELETE FROM channel_delivery WHERE event_id='race-419'");
             jdbc.update("DELETE FROM sync_log WHERE id=?",id);
             jdbc.update("DELETE FROM outbox_event WHERE event_type='channel.delivery.failed' AND payload->>'eventId'='race-419'");
             openProbeGate();
         }
+    }
+
+    @Test void healthyStockProbeDoesNotRetryBrokenOrderEndpointForever() throws Exception {
+        httpStatus.set(204); // stock/probe is healthy, but this order's endpoint remains broken
+        orderStatus.set(503);
+        publisher.accept(statusEvent("bounded-419","PAID"));
+        exhaustExisting();
+        for (int cycle=1;cycle<=3;cycle++) {
+            openProbeGate();
+            assertThat(recovery.recover("WEB")).isEqualTo(1);
+            assertThat(jdbc.queryForObject("SELECT attempts FROM sync_log",Integer.class)).isEqualTo(6*cycle);
+            assertThat(jdbc.queryForObject("SELECT recovery_count FROM channel_delivery",Integer.class)).isEqualTo(cycle);
+            for (int attempt=1;attempt<=6;attempt++) {
+                jdbc.update("UPDATE channel_delivery SET next_attempt_at=clock_timestamp()-interval '1 second'");
+                publisher.deliverOne();
+                assertThat(jdbc.queryForObject("SELECT attempts FROM sync_log",Integer.class)).isEqualTo(6*cycle+attempt);
+                assertThat(jdbc.queryForObject("SELECT cycle_attempts FROM channel_delivery",Integer.class)).isEqualTo(attempt);
+                assertThat(jdbc.queryForObject("SELECT status FROM sync_log",String.class))
+                        .isEqualTo(attempt==6 ? "FAILED" : "RETRYING");
+            }
+        }
+        int before=calls.get();
+        for (int n=0;n<4;n++) {
+            openProbeGate();
+            assertThat(recovery.recover("WEB")).isZero();
+            publisher.deliverOne();
+        }
+        assertThat(calls.get()).isEqualTo(before);
+        assertThat(jdbc.queryForObject("SELECT next_attempt_at IS NULL FROM channel_delivery",Boolean.class)).isTrue();
+        assertThat(jdbc.queryForObject("SELECT attempts FROM sync_log",Integer.class)).isEqualTo(24);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM outbox_event WHERE event_type='channel.delivery.failed'",Integer.class)).isEqualTo(4);
+        assertThat(jdbc.queryForObject("SELECT body->>'status' FROM channel_delivery",String.class)).isEqualTo("PAID");
+
+        // Exhausting auto recovery must not disable the explicit ADMIN recovery path.
+        syncLogs.retry(jdbc.queryForObject("SELECT id FROM sync_log",Long.class));
+        assertThat(jdbc.queryForObject("SELECT attempts FROM sync_log",Integer.class)).isEqualTo(24);
+        orderStatus.set(204);
+        publisher.deliverOne();
+        assertThat(jdbc.queryForMap("SELECT status,attempts FROM sync_log"))
+                .containsEntry("status","SUCCESS").containsEntry("attempts",25);
+        assertThat(jdbc.queryForObject("SELECT recovery_count FROM channel_delivery",Integer.class)).isEqualTo(3);
+    }
+
+    @Test void slowProbeDoesNotHoldJobLocksAndManualRetryWins() throws Exception {
+        exhaust("slow-probe-419");
+        httpStatus.set(204);
+        var probing=new java.util.concurrent.CountDownLatch(1);
+        var release=new java.util.concurrent.CountDownLatch(1);
+        probeHook.set(() -> {
+            probing.countDown();
+            try {
+                if (!release.await(4,java.util.concurrent.TimeUnit.SECONDS)) throw new IllegalStateException("Probe test timed out");
+            } catch (InterruptedException ex) { Thread.currentThread().interrupt(); }
+        });
+        try (var threads=java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var auto=threads.submit(() -> recovery.recover("WEB"));
+            try {
+                assertThat(probing.await(5,java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                assertThat(recovery.recover("WEB")).isZero(); // gate was committed before HTTP
+                long id=jdbc.queryForObject("SELECT id FROM sync_log",Long.class);
+                threads.submit(() -> syncLogs.retry(id)).get(2,java.util.concurrent.TimeUnit.SECONDS);
+            } finally { release.countDown(); }
+            assertThat(auto.get(5,java.util.concurrent.TimeUnit.SECONDS)).isZero();
+            int before=calls.get();
+            publisher.deliverOne(); publisher.deliverOne();
+            assertThat(calls.get()).isEqualTo(before+1);
+            assertThat(jdbc.queryForMap("SELECT status,attempts FROM sync_log"))
+                    .containsEntry("status","SUCCESS").containsEntry("attempts",7);
+            assertThat(jdbc.queryForObject("SELECT recovery_count FROM channel_delivery",Integer.class)).isZero();
+        } finally { release.countDown(); probeHook.set(null); }
+    }
+
+    @Test void expiredProbeCannotDrainJobsFromNewerClaim() throws Exception {
+        exhaust("expired-probe-419");
+        httpStatus.set(204);
+        probeHook.set(() -> jdbc.update("UPDATE channel_recovery SET probe_token=? WHERE channel_code='WEB'",
+                java.util.UUID.randomUUID()));
+        assertThat(recovery.recover("WEB")).isZero();
+        assertThat(jdbc.queryForObject("SELECT status FROM sync_log",String.class)).isEqualTo("FAILED");
+        assertThat(jdbc.queryForObject("SELECT recovery_count FROM channel_delivery",Integer.class)).isZero();
     }
 
     private void exhaust(String id) throws Exception { publisher.accept(event(id)); exhaustExisting(); }
