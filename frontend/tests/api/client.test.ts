@@ -13,6 +13,7 @@ import {
   onSessionExpired,
   readStoredSession,
   request,
+  retrySyncLog,
   searchProducts,
 } from '../../src/api/client';
 import type { AuthSession } from '../../src/api/client';
@@ -71,6 +72,14 @@ async function signIn() {
 }
 
 describe('API transport', () => {
+  it('accepts retrySyncLog 202 with an empty body', async () => {
+    await signIn();
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 202 }));
+
+    await expect(retrySyncLog(11)).resolves.toBeUndefined();
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/integrations/sync-logs/11/retry');
+  });
+
   it('attaches the bearer token and encodes query values and path parameters', async () => {
     await signIn();
     fetchMock.mockImplementation(async () => json({ content: [] }));

@@ -140,6 +140,15 @@ describe('TransferListPage', () => {
     await waitFor(() => expect(lastQuery().status).toBeUndefined());
   });
 
+  it('chặn URL khoảng ngày đảo ngược và không gọi API', async () => {
+    renderList('/operations/transfers?from=2026-11-24&to=2026-11-01');
+
+    expect(await screen.findAllByText('Từ ngày phải trước hoặc bằng Đến ngày.')).not.toHaveLength(
+      0,
+    );
+    expect(api.listTransfers).not.toHaveBeenCalled();
+  });
+
   it('tìm kiếm chờ 300 ms rồi gửi q', async () => {
     renderList();
     await screen.findByText('CK-GM001-20261107-004');

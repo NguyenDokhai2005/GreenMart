@@ -145,6 +145,39 @@ describe('Admin pages', () => {
   });
 
   it('confirms retry and changes FAILED log to RETRYING', async () => {
+    listSyncLogs
+      .mockResolvedValueOnce({
+        page: 0,
+        size: 20,
+        totalElements: 1,
+        content: [
+          {
+            id: 11,
+            channelCode: 'WEB',
+            direction: 'OUT',
+            externalId: 'WEB-11',
+            status: 'FAILED',
+            attempts: 2,
+            createdAt: '2026-11-22T10:00:00+07:00',
+          },
+        ],
+      })
+      .mockResolvedValue({
+        page: 0,
+        size: 20,
+        totalElements: 1,
+        content: [
+          {
+            id: 11,
+            channelCode: 'WEB',
+            direction: 'OUT',
+            externalId: 'WEB-11',
+            status: 'RETRYING',
+            attempts: 2,
+            createdAt: '2026-11-22T10:00:00+07:00',
+          },
+        ],
+      });
     render(
       <MemoryRouter>
         <AdminChannelsPage />
@@ -215,6 +248,61 @@ describe('Admin pages', () => {
     expect(await screen.findByText('WEB-11-NEW')).toBeTruthy();
     expect(document.querySelector('.admin-status--retrying')).toBeNull();
     await waitFor(() => expect(document.querySelector('.admin-status')?.textContent).toBe(label));
+  });
+
+  it('reconciles terminal FAILED even when externalId and attempts stay unchanged', async () => {
+    listSyncLogs
+      .mockResolvedValueOnce({
+        page: 0,
+        size: 20,
+        totalElements: 1,
+        content: [
+          {
+            id: 11,
+            channelCode: 'WEB',
+            direction: 'OUT',
+            externalId: 'WEB-11',
+            status: 'FAILED',
+            attempts: 6,
+            createdAt: '2026-11-22T10:00:00+07:00',
+          },
+        ],
+      })
+      .mockResolvedValue({
+        page: 0,
+        size: 20,
+        totalElements: 1,
+        content: [
+          {
+            id: 11,
+            channelCode: 'WEB',
+            direction: 'OUT',
+            externalId: 'WEB-11',
+            status: 'FAILED',
+            attempts: 6,
+            createdAt: '2026-11-22T10:00:00+07:00',
+          },
+        ],
+      });
+    render(
+      <MemoryRouter>
+        <AdminChannelsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText('WEB-11');
+    fireEvent.click(screen.getByRole('button', { name: 'Gửi lại' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Gửi lại' }));
+    expect(await screen.findByText('Đang gửi lại')).toBeTruthy();
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Lọc theo kênh' }), {
+      target: { value: 'WEB' },
+    });
+    await waitFor(() =>
+      expect(document.querySelector('.admin-status')?.textContent).toBe('Thất bại'),
+    );
+    expect(document.querySelector('.admin-status--retrying')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Gửi lại' })).toBeTruthy();
   });
 
   it('shows 409 and does not retry the same log again', async () => {

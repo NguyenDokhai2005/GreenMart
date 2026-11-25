@@ -277,6 +277,59 @@ describe('Phiếu kho', () => {
       screen.getByText('Theo dõi trạng thái và hoạt động phiếu kho toàn hệ thống.'),
     ).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Tạo phiếu/ })).toBeNull();
+  });
+
+  it('All tải đủ quá 100 phiếu nhập và hiển thị đúng tổng với trang cuối', async () => {
+    const owner = { ...manager(7), role: 'OWNER' as const };
+    mocks.userRef.current = owner;
+    const imports = Array.from({ length: 103 }, (_, index) => ({
+      ...draftDocument,
+      id: 1000 + index,
+      code: `NK-GM001-20261108-${String(index + 1).padStart(3, '0')}`,
+      createdAt: `2026-11-${String((index % 28) + 1).padStart(2, '0')}T09:00:00+07:00`,
+    })) satisfies components['schemas']['StockDocumentSummary'][];
+    mocks.listStockDocuments.mockImplementation(async (query: { type?: string; page?: number }) => {
+      if (query.type === 'IMPORT') {
+        const pageIndex = query.page ?? 0;
+        return {
+          page: pageIndex,
+          size: 100,
+          totalElements: 103,
+          totalPages: 2,
+          content: pageIndex === 0 ? imports.slice(0, 100) : imports.slice(100),
+        };
+      }
+      return {
+        page: 0,
+        size: 100,
+        totalElements: 0,
+        totalPages: 0,
+        content: [],
+      };
+    });
+
+    renderList();
+    expect(await screen.findByText('103 phiếu')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Trang 6' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Trang 6' }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Trang 6' }).getAttribute('aria-current')).toBe(
+        'page',
+      ),
+    );
+    expect(await screen.findByText('103 phiếu')).toBeTruthy();
+  });
+
+  it('URL ngày đảo ngược được chặn trước request và hiện lỗi trên bộ lọc', async () => {
+    mocks.userRef.current = manager(7);
+    renderList('/operations/stock-documents?from=2026-11-24&to=2026-11-01');
+
+    expect(await screen.findAllByText('Từ ngày phải trước hoặc bằng Đến ngày.')).not.toHaveLength(
+      0,
+    );
+    expect(mocks.listStockDocuments).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Thử lại' })).toBeNull();
     expect(screen.getByRole('combobox', { name: 'Loại phiếu' })).toBeTruthy();
   });
 

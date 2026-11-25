@@ -45,9 +45,6 @@ export default function AdminChannelsPage() {
   const [retryError, setRetryError] = useState('');
   const [blockedIds, setBlockedIds] = useState<Set<number>>(new Set());
   const [localStatuses, setLocalStatuses] = useState<Map<number, SyncStatus>>(new Map());
-  const [retryBaselines, setRetryBaselines] = useState<
-    Map<number, { status?: SyncStatus; externalId?: string | null; attempts?: number }>
-  >(new Map());
 
   const load = useCallback(
     (signal: AbortSignal) =>
@@ -106,13 +103,6 @@ export default function AdminChannelsPage() {
     try {
       await retrySyncLog(id);
       setLocalStatuses((prev) => new Map(prev).set(id, 'RETRYING'));
-      setRetryBaselines((prev) =>
-        new Map(prev).set(id, {
-          status: retryTarget.status,
-          externalId: retryTarget.externalId,
-          attempts: retryTarget.attempts,
-        }),
-      );
       query.retry();
       setRetryTarget(null);
     } catch (error) {
@@ -216,17 +206,8 @@ export default function AdminChannelsPage() {
             {data?.content.map((raw) => {
               const log = raw as SyncLog;
               const id = log.id;
-              const baseline = id ? retryBaselines.get(id) : undefined;
-              const responseChanged =
-                !!baseline &&
-                !!id &&
-                (log.status !== baseline.status ||
-                  log.externalId !== baseline.externalId ||
-                  (log.attempts ?? 0) !== (baseline.attempts ?? 0));
-              const serverAuthoritative =
-                log.status === 'SUCCESS' || (log.status === 'FAILED' && responseChanged);
               const statusValue = id
-                ? serverAuthoritative
+                ? log.status === 'SUCCESS' || log.status === 'FAILED'
                   ? log.status
                   : (localStatuses.get(id) ?? log.status)
                 : log.status;

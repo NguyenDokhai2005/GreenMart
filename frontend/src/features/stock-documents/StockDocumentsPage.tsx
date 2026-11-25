@@ -70,9 +70,25 @@ export default function StockDocumentsPage() {
   const [formType, setFormType] = useState<'IMPORT' | 'EXPORT' | null>(null);
   const [editingDocument, setEditingDocument] = useState<StockDocument | null>(null);
   const [success, setSuccess] = useState('');
-  const [dateRangeError, setDateRangeError] = useState('');
+  const [dateRangeErrorState, setDateRangeErrorState] = useState({
+    locationKey: location.key,
+    message: '',
+  });
+  const urlDateRangeError = from && to && from > to ? 'Từ ngày phải trước hoặc bằng Đến ngày.' : '';
+  const dateRangeError =
+    urlDateRangeError ||
+    (dateRangeErrorState.locationKey === location.key ? dateRangeErrorState.message : '');
   const queryKey = `${branchId ?? 'all'}|${integratedRole ? 'integrated' : 'staff'}|${type ?? 'all'}|${status ?? ''}|${q}|${from ?? ''}|${to ?? ''}|${page}`;
   const { data, error, isLoading, reload } = useRemote(async (signal) => {
+    if (from && to && from > to) {
+      return {
+        page: 0,
+        size: PAGE_SIZE,
+        totalElements: 0,
+        totalPages: 0,
+        content: [],
+      };
+    }
     const baseQuery = {
       branchId,
       status: status ? [status] : undefined,
@@ -83,14 +99,29 @@ export default function StockDocumentsPage() {
     };
 
     if (integratedRole && type === undefined) {
+      const fetchAllPages = async (documentType: 'IMPORT' | 'EXPORT') => {
+        const first = await listStockDocuments(
+          { ...baseQuery, type: documentType, page: 0, size: 100 },
+          signal,
+        );
+        const content = [...first.content];
+        for (let nextPage = 1; nextPage < first.totalPages; nextPage += 1) {
+          const next = await listStockDocuments(
+            { ...baseQuery, type: documentType, page: nextPage, size: 100 },
+            signal,
+          );
+          content.push(...next.content);
+        }
+        return { content, totalElements: first.totalElements };
+      };
       const [imports, exports] = await Promise.all([
-        listStockDocuments({ ...baseQuery, type: 'IMPORT', page: 0, size: 100 }, signal),
-        listStockDocuments({ ...baseQuery, type: 'EXPORT', page: 0, size: 100 }, signal),
+        fetchAllPages('IMPORT'),
+        fetchAllPages('EXPORT'),
       ]);
       const merged = [...imports.content, ...exports.content].sort(
         (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
       );
-      const totalElements = merged.length;
+      const totalElements = imports.totalElements + exports.totalElements;
       const totalPages = Math.max(1, Math.ceil(totalElements / PAGE_SIZE));
       return {
         page: page - 1,
@@ -140,10 +171,13 @@ export default function StockDocumentsPage() {
       const nextFrom = 'from' in patch ? patch.from : from;
       const nextTo = 'to' in patch ? patch.to : to;
       if (nextFrom && nextTo && nextFrom > nextTo) {
-        setDateRangeError('Từ ngày phải trước hoặc bằng Đến ngày.');
+        setDateRangeErrorState({
+          locationKey: location.key,
+          message: 'Từ ngày phải trước hoặc bằng Đến ngày.',
+        });
         return;
       }
-      setDateRangeError('');
+      setDateRangeErrorState({ locationKey: location.key, message: '' });
       setParams(
         (previous) => {
           const next = new URLSearchParams(previous);
@@ -160,7 +194,7 @@ export default function StockDocumentsPage() {
         { replace },
       );
     },
-    [from, setParams, to],
+    [from, location.key, setParams, to],
   );
   const debouncedSearch = useDebouncedCallback((value: string) => update({ q: value }, true), 300);
 

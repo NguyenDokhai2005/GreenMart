@@ -188,6 +188,10 @@ async function requestRaw<T>(
 
   const contentType = response.headers.get('content-type') ?? '';
   if (!contentType.toLowerCase().includes('application/json')) {
+    if (response.status === 202) {
+      const text = await response.text();
+      if (!text.trim()) return undefined as T;
+    }
     throw new ApiError(
       response.ok
         ? 'API trả về dữ liệu không phải JSON.'
