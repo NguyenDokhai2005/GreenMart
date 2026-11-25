@@ -23,6 +23,7 @@ import vn.greenmart.sales.domain.PaymentSimulation;
 import vn.greenmart.sales.dto.OrderLineRequest;
 import vn.greenmart.sales.dto.PaymentRequest;
 import vn.greenmart.sales.dto.PosOrderRequest;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -74,15 +75,19 @@ class PosIdempotencyApiTest {
     private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
-    void seedData() {
+    void seedData() throws Exception {
+        redis.execInContainer("redis-cli", "FLUSHALL");
         jdbcTemplate.execute("TRUNCATE TABLE inventory_transaction CASCADE;");
         jdbcTemplate.execute("DELETE FROM order_item;");
         jdbcTemplate.execute("DELETE FROM payment;");
         jdbcTemplate.execute("DELETE FROM sales_order;");
         jdbcTemplate.execute("DELETE FROM outbox_event;");
+        jdbcTemplate.execute("DELETE FROM user_branch WHERE user_id = 1;");
 
         jdbcTemplate.execute("""
             INSERT INTO branch (id, code, name, is_active) VALUES (1, 'GM-001', 'GreenMart Q1', true)
+            ON CONFLICT (id) DO NOTHING;
+            INSERT INTO branch (id, code, name, is_active) VALUES (2, 'GM-002', 'GreenMart Q2', true)
             ON CONFLICT (id) DO NOTHING;
             INSERT INTO sales_channel (id, code, name, default_branch_id, safety_stock)
             VALUES (1, 'POS', 'Point of Sale', 1, 0)
@@ -205,5 +210,183 @@ class PosIdempotencyApiTest {
              "SELECT on_hand FROM inventory WHERE branch_id = 1 AND product_id = 101", Integer.class
      );
      assertThat(onHand).isEqualTo(47);
+    }
+
+
+    @Test
+    @DisplayName("Issue #515 (AC1 & AC3): Đổi branch sang CN2 -> GET và POST retry (cả Redis cache-hit lẫn DB-fallback) đều 403 BRANCH_FORBIDDEN")
+    void testIssue515_BranchRevoked_GetAndPostRetryBothCacheHitAndDbFallbackReturn403() throws Exception {
+        String oldKey = UUID.randomUUID().toString();
+        PosOrderRequest request = new PosOrderRequest(
+                1L, null,
+                List.of(new OrderLineRequest(101L, 2)),
+                null,
+                new PaymentRequest(PaymentMethod.CASH, 200000L, PaymentSimulation.SUCCESS),
+                200000L
+        );
+        String requestBody = objectMapper.writeValueAsString(request);
+
+        // 1. CASHIER ở CN1 tạo đơn thành công -> 201 Created
+        MvcResult createdRes = mockMvc.perform(post("/api/v1/orders/pos")
+                        .with(user("1").roles("CASHIER"))
+                        .header("Idempotency-Key", oldKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        long orderId = objectMapper.readTree(createdRes.getResponse().getContentAsString()).get("id").asLong();
+
+        // 2. ADMIN chuyển tài khoản từ CN1 sang CN2
+        jdbcTemplate.update("DELETE FROM user_branch WHERE user_id = 1");
+        jdbcTemplate.update("INSERT INTO user_branch (user_id, branch_id) VALUES (1, 2)");
+
+        // 3. Phiên mới ở CN2: GET /orders/{orderId} -> 403 BRANCH_FORBIDDEN
+        mockMvc.perform(get("/api/v1/orders/" + orderId)
+                        .with(user("1").roles("CASHIER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
+
+        // 4. POST retry key cũ (Redis cache-hit) -> 403 BRANCH_FORBIDDEN
+        mockMvc.perform(post("/api/v1/orders/pos")
+                        .with(user("1").roles("CASHIER"))
+                        .header("Idempotency-Key", oldKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
+
+        // 5. Xóa cache Redis để ép đi nhánh DB-fallback -> POST retry key cũ vẫn 403 BRANCH_FORBIDDEN
+        redis.execInContainer("redis-cli", "FLUSHALL");
+        mockMvc.perform(post("/api/v1/orders/pos")
+                        .with(user("1").roles("CASHIER"))
+                        .header("Idempotency-Key", oldKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
+
+        // 6. POST với key mới -> 403 BRANCH_FORBIDDEN
+        mockMvc.perform(post("/api/v1/orders/pos")
+                        .with(user("1").roles("CASHIER"))
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("Issue #515 (AC2 & AC3): Đổi role sang STOREKEEPER (cùng CN1) -> Retry key cũ (cache-hit & DB-fallback) và key mới đều 403 FORBIDDEN")
+    void testIssue515_RoleChangedToStorekeeper_RetryOldAndNewKeyBothReturn403() throws Exception {
+        String oldKey = UUID.randomUUID().toString();
+        PosOrderRequest request = new PosOrderRequest(
+                1L, null,
+                List.of(new OrderLineRequest(101L, 1)),
+                null,
+                new PaymentRequest(PaymentMethod.CASH, 100000L, PaymentSimulation.SUCCESS),
+                100000L
+        );
+        String requestBody = objectMapper.writeValueAsString(request);
+
+        // 1. Tạo đơn bằng quyền CASHIER tại CN1 -> 201 Created
+        mockMvc.perform(post("/api/v1/orders/pos")
+                        .with(user("1").roles("CASHIER"))
+                        .header("Idempotency-Key", oldKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isCreated());
+
+        // 2. Đổi role sang STOREKEEPER (vẫn thuộc CN1): retry key cũ qua Redis cache-hit -> 403 FORBIDDEN
+        mockMvc.perform(post("/api/v1/orders/pos")
+                        .with(user("1").roles("STOREKEEPER"))
+                        .header("Idempotency-Key", oldKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        // 3. Xóa cache Redis để ép nhánh DB-fallback -> retry key cũ vẫn 403 FORBIDDEN (không lộ qua getOrder)
+        redis.execInContainer("redis-cli", "FLUSHALL");
+        mockMvc.perform(post("/api/v1/orders/pos")
+                        .with(user("1").roles("STOREKEEPER"))
+                        .header("Idempotency-Key", oldKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        // 4. Key mới với role STOREKEEPER -> 403 FORBIDDEN
+        mockMvc.perform(post("/api/v1/orders/pos")
+                        .with(user("1").roles("STOREKEEPER"))
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        // Đảm bảo chỉ có 1 đơn, 1 payment, 1 ledger và tồn kho chỉ trừ 1 lần (50 -> 49)
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM sales_order", Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM payment", Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM inventory_transaction", Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT on_hand FROM inventory WHERE branch_id = 1 AND product_id = 101", Integer.class))
+                .isEqualTo(49);
+    }
+
+    @Test
+    @DisplayName("Issue #515 (AC3 & AC4): Quyền còn hợp lệ (kể cả khách hàng sau đó bị inactive) -> Retry trả 200 cùng orderId, không trừ tồn lần hai")
+    void testIssue515_ValidRetryEvenAfterCustomerInactive_Returns200SameOrderIdNoDoubleDeduction() throws Exception {
+        jdbcTemplate.execute("""
+            INSERT INTO customer (id, phone, name, is_active)
+            VALUES (501, '0909123456', 'Khách Hàng Test', true)
+            ON CONFLICT (id) DO UPDATE SET is_active = true
+        """);
+
+        String key = UUID.randomUUID().toString();
+        PosOrderRequest request = new PosOrderRequest(
+                1L, 501L,
+                List.of(new OrderLineRequest(101L, 2)),
+                null,
+                new PaymentRequest(PaymentMethod.CASH, 200000L, PaymentSimulation.SUCCESS),
+                200000L
+        );
+        String requestBody = objectMapper.writeValueAsString(request);
+
+        MvcResult firstRes = mockMvc.perform(post("/api/v1/orders/pos")
+                        .with(user("1").roles("CASHIER"))
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isCreated())
+                .andReturn();
+        long originalOrderId = objectMapper.readTree(firstRes.getResponse().getContentAsString()).get("id").asLong();
+
+        // Khách hàng bị chuyển sang inactive sau khi đơn đã tạo (ngoại lệ BR-11/NFR-05)
+        jdbcTemplate.update("UPDATE customer SET is_active = false WHERE id = 501");
+
+        // Retry qua Redis cache-hit -> 200 OK cùng orderId
+        mockMvc.perform(post("/api/v1/orders/pos")
+                        .with(user("1").roles("CASHIER"))
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(originalOrderId));
+
+        // Retry qua DB-fallback -> vẫn 200 OK cùng orderId
+        redis.execInContainer("redis-cli", "FLUSHALL");
+        mockMvc.perform(post("/api/v1/orders/pos")
+                        .with(user("1").roles("CASHIER"))
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(originalOrderId));
+
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM sales_order", Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM payment", Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM inventory_transaction", Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT on_hand FROM inventory WHERE branch_id = 1 AND product_id = 101", Integer.class))
+                .isEqualTo(48);
     }
 }
