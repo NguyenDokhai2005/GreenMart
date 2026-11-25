@@ -18,7 +18,7 @@ info:
     - Xác thực bằng header `Authorization: Bearer <accessToken>`; access token 15 phút, refresh token 7 ngày.
     - Access token gắn với phiên `sid`; logout thu hồi ngay access và refresh của phiên đó. Đổi mật khẩu thu hồi mọi phiên.
     - API được bảo vệ có thể trả 503 `AUTH_UNAVAILABLE` nếu không kiểm tra được trạng thái phiên trong Redis.
-    - Phân trang `?page=0&size=20&sort=field,asc|desc`; `page` bắt đầu từ 0, `size` tối đa 100.
+    - Phân trang `?page=0&size=20&sort=field,asc|desc`; `page` bắt đầu từ 0, `size` từ 1 đến 100, và ràng buộc liên trường `page * size <= 2147483647` (giới hạn offset int32).
     - Mọi lỗi dùng chung định dạng `ErrorResponse`; danh sách mã lỗi ở cuối mô tả này.
 
     **Phân quyền (BR-11, AUTH-02)**
@@ -2142,7 +2142,7 @@ components:
     Page:
       name: page
       in: query
-      description: Số trang, bắt đầu từ 0
+      description: Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`)
       schema: { type: integer, minimum: 0, default: 0 }
     Size:
       name: size

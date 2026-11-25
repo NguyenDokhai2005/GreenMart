@@ -83,6 +83,18 @@ public final class PageUtils {
                 List.of(new ValidationErrorDetail("size", "Từ 1 đến 100"))
             );
         }
+        long offset = (long) page * (long) size;
+        if (offset > Integer.MAX_VALUE) {
+            long maxPageForSize = Integer.MAX_VALUE / size;
+            throw new AppException(
+                ErrorCode.VALIDATION_ERROR,
+                "Vị trí bắt đầu trang (page * size) vượt quá giới hạn tối đa " + Integer.MAX_VALUE,
+                List.of(new ValidationErrorDetail(
+                    "page",
+                    "Với size = " + size + ", page tối đa là " + maxPageForSize + " (ràng buộc page * size <= " + Integer.MAX_VALUE + ")"
+                ))
+            );
+        }
     }
 
     // Phân giải danh sách chuỗi sort: "field" hoặc "field,asc|desc".
