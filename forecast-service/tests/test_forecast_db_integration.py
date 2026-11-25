@@ -82,6 +82,7 @@ def postgres_container() -> Generator[Any, None, None]:
         "V3__reference_data.sql",
         "V4__document_timestamps.sql",
         "V5__inventory_transaction_append_only.sql",
+        "V22__forecast_run_standardized_metrics.sql",
     ]
 
     with psycopg.connect(
@@ -655,5 +656,73 @@ def test_complete_forecast_run_records_real_clock_timestamp(postgres_container):
         conn.commit()
     finally:
         conn.close()
+
+
+def test_standardized_forecast_run_persistence_and_detail_roundtrip(postgres_container, monkeypatch, auth_headers):
+    """Kiểm thử end-to-end #423 trên Postgres thật: evaluator -> DB V22 -> GET /forecast/runs/{runId}."""
+    from contextlib import contextmanager
+    from fastapi.testclient import TestClient
+    from app.main import create_app
+    from app.pipelines.forecast_service import execute_background_forecast, start_forecast_run
+
+    @contextmanager
+    def pg_conn_factory():
+        c = _get_pg_connection(postgres_container)
+        try:
+            yield c
+        finally:
+            c.close()
+
+    cutoff = date(2026, 10, 1)
+    df_daily = _make_dummy_daily_sales(cutoff)  # ends at 2026-10-31
+
+    conn = _get_pg_connection(postgres_container)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM forecast_result;")
+            cur.execute("DELETE FROM forecast_run;")
+            cur.execute("DELETE FROM daily_sales;")
+            rows = [
+                (r["sale_date"], int(r["branch_id"]), int(r["product_id"]), int(r["qty_net"]), 0, int(r["qty_net"]), float(r["qty_net"] * 10000), False, 0.0, bool(r["stockout"]))
+                for _, r in df_daily.iterrows()
+            ]
+            cur.executemany(
+                """
+                INSERT INTO daily_sales (sale_date, branch_id, product_id, qty_sold, qty_returned, qty_net, revenue, promo_flag, promo_discount_pct, stockout)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                """,
+                rows,
+            )
+            run_id, _ = start_forecast_run(conn, expected_cutoff_date=date(2026, 10, 31))
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setattr("app.pipelines.forecast_service.get_db_connection", pg_conn_factory)
+    published_events = []
+    execute_background_forecast(
+        run_id=run_id,
+        expected_cutoff_date=date(2026, 10, 31),
+        event_publisher_fn=lambda **kwargs: published_events.append(kwargs) or True,
+    )
+
+    app = create_app(pg_conn_factory)
+    client = TestClient(app)
+    res = client.get(f"/forecast/runs/{run_id}", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.json()
+    assert body["status"] == "DONE"
+    assert body["legacy"] is False
+    assert body["metricHorizon"] == 7
+    assert body["aggregation"] == "HORIZON_AGGREGATE_POSTPROC"
+    assert body["postprocessVersion"] == "slow-th-h7_0.4-h30_0.4-sh28-v1"
+    assert body["cutoffDate"] == "2026-10-31"
+    assert body["evaluationCutoffDate"] == "2026-10-01"
+    assert body["metricsBreakdown"]["h7"]["servingAggregatePostproc"]["segments"]["overall"]["model"]["wape"] == pytest.approx(body["wape"], abs=1e-4)
+    assert body["metricsBreakdown"]["h7"]["rollingH7AggregatePostproc"] is not None
+    assert body["metricsBreakdown"]["h30"]["servingAggregatePostproc"] is not None
+    assert len(published_events) == 1
+    assert published_events[0]["aggregation"] == "HORIZON_AGGREGATE_POSTPROC"
+    assert "metricsBreakdown" not in published_events[0]
 
 

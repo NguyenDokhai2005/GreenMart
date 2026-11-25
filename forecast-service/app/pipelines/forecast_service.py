@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+import json
 import logging
 from typing import Any, Dict, Optional, Tuple
 
@@ -24,6 +25,7 @@ from app.events.publisher import publish_forecast_completed
 from app.models.baselines import extract_top_sku_ids_from_sales
 from app.models.evaluator import (
     apply_short_history_fallback,
+    compute_canonical_data_hash,
     evaluate_lightgbm_pipeline,
     train_production_demand_models,
 )
@@ -31,6 +33,7 @@ from app.models.features import FeatureMatrixBuilder
 from app.pipelines.forecast_runner import (
     assemble_forecast_results_dataframe,
     complete_forecast_run,
+    extract_run_metric_summary,
     fail_forecast_run,
     save_forecast_results,
 )
@@ -258,10 +261,26 @@ def start_forecast_run(
     return run_id, started_at
 
 
+def _to_date_or_none(value: Any) -> Optional[date]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        return date.fromisoformat(value)
+    return None
+
+
 def get_forecast_run_detail(conn: Any, run_id: int) -> Optional[Dict[str, Any]]:
-    """Lấy thông tin chi tiết của một forecast_run theo run_id."""
+    """Lấy thông tin chi tiết của một forecast_run theo run_id (kèm metadata & breakdown #423)."""
     sql = """
-        SELECT id, status, started_at, finished_at, model_version, mae, wape, baseline_mae, baseline_wape
+        SELECT id, status, started_at, finished_at, model_version,
+               mae, wape, baseline_mae, baseline_wape,
+               metric_horizon, aggregation, postprocess_version, metric_protocol_version,
+               cutoff_date, evaluation_cutoff_date, test_start_date, test_end_date,
+               stockout_mode, baseline_name, data_source, data_source_hash, metrics_breakdown
         FROM forecast_run
         WHERE id = %s;
     """
@@ -270,16 +289,41 @@ def get_forecast_run_detail(conn: Any, run_id: int) -> Optional[Dict[str, Any]]:
         row = cur.fetchone()
         if not row:
             return None
+
+        status_str = str(row[1])
+        done = status_str == "DONE"
+        has_extended = len(row) > 9
+        protocol_ver = str(row[12]) if (done and has_extended and row[12] is not None) else None
+        is_legacy = bool(done and protocol_ver is None)
+
+        raw_breakdown = row[21] if (done and has_extended) else None
+        if isinstance(raw_breakdown, str):
+            raw_breakdown = json.loads(raw_breakdown)
+
         return {
             "run_id": int(row[0]),
-            "status": str(row[1]),
+            "status": status_str,
             "started_at": row[2],
             "finished_at": row[3],
             "model_version": str(row[4]),
-            "mae": float(row[5]) if row[5] is not None else None,
-            "wape": float(row[6]) if row[6] is not None else None,
-            "baseline_mae": float(row[7]) if row[7] is not None else None,
-            "baseline_wape": float(row[8]) if row[8] is not None else None,
+            "mae": float(row[5]) if (done and row[5] is not None) else None,
+            "wape": float(row[6]) if (done and row[6] is not None) else None,
+            "baseline_mae": float(row[7]) if (done and row[7] is not None) else None,
+            "baseline_wape": float(row[8]) if (done and row[8] is not None) else None,
+            "legacy": is_legacy,
+            "metric_horizon": int(row[9]) if (done and has_extended and row[9] is not None) else None,
+            "aggregation": str(row[10]) if (done and has_extended and row[10] is not None) else None,
+            "postprocess_version": str(row[11]) if (done and has_extended and row[11] is not None) else None,
+            "metric_protocol_version": protocol_ver,
+            "cutoff_date": _to_date_or_none(row[13]) if (done and has_extended) else None,
+            "evaluation_cutoff_date": _to_date_or_none(row[14]) if (done and has_extended) else None,
+            "test_start_date": _to_date_or_none(row[15]) if (done and has_extended) else None,
+            "test_end_date": _to_date_or_none(row[16]) if (done and has_extended) else None,
+            "stockout_mode": str(row[17]) if (done and has_extended and row[17] is not None) else None,
+            "baseline_name": str(row[18]) if (done and has_extended and row[18] is not None) else None,
+            "data_source": str(row[19]) if (done and has_extended and row[19] is not None) else None,
+            "data_source_hash": str(row[20]) if (done and has_extended and row[20] is not None) else None,
+            "metrics_breakdown": raw_breakdown if done else None,
         }
 
 
@@ -350,11 +394,23 @@ def execute_background_forecast(
                     f"cutoff hiện tại là {last_date}, yêu cầu tối thiểu {expected_cutoff_date}."
                 )
 
-            # 4. Huấn luyện và đánh giá mô hình LightGBM đối đầu Baseline (Backtest lấy MAE/WAPE)
-            report, backtest_models = eval_fn(
-                df_daily=df_daily,
-                horizons=(7, 30),
-            )
+            # 4. Huấn luyện và đánh giá mô hình LightGBM đối đầu Baseline (cùng threshold phục vụ #423)
+            th_v = optimal_threshold if optimal_threshold is not None else DEFAULT_SLOW_THRESHOLD
+            data_hash = compute_canonical_data_hash(df_daily)
+            if evaluate_pipeline_fn is not None:
+                report, backtest_models = eval_fn(
+                    df_daily=df_daily,
+                    horizons=(7, 30),
+                )
+            else:
+                report, backtest_models = eval_fn(
+                    df_daily=df_daily,
+                    horizons=(7, 30),
+                    fixed_slow_thresholds={7: th_v, 30: th_v},
+                    data_source="postgresql.daily_sales",
+                    data_source_hash=data_hash,
+                    serving_cutoff_date=last_date,
+                )
 
             # Tính lại Top 200 SKU bán chạy trên toàn bộ dữ liệu tới ngày D (Issue #298)
             # Với unit test dùng dummy evaluator, cho phép dùng top_sku_ids từ mock để test threshold trên 1 SKU
@@ -387,8 +443,7 @@ def execute_background_forecast(
                 pred_cols = [model.predict(fdf) for fdf in future_dfs]
                 p_mat = np.column_stack(pred_cols)
 
-                # Quyết định Lead 13/11/2026: Áp dụng hậu xử lý ngưỡng (mặc định 0.4) cho nhóm SKU bán chậm
-                th_v = optimal_threshold if optimal_threshold is not None else DEFAULT_SLOW_THRESHOLD
+                # Quyết định chốt #423: Áp dụng đúng thứ tự threshold < 0.4 -> fallback < 28 ngày -> clip >= 0
                 if th_v > 0.0:
                     slow_cells = (~is_top_mask)[:, np.newaxis] & (p_mat < th_v)
                     p_mat = np.where(slow_cells, 0.0, p_mat)
@@ -411,19 +466,33 @@ def execute_background_forecast(
             # 5. Ghi trực tiếp kết quả vào bảng forecast_result theo từng batch
             total_inserted = save_forecast_results(conn, run_id=run_id, results_df=results_df)
 
-            # 6. Cập nhật chỉ số MAE, WAPE và baseline của tầm 7 ngày vào forecast_run
-            m_h7_ov = report.lgb_results_clean[7]["lgb_tweedie"]["overall"]
-            best_b_name = report.baseline_report.best_baseline[7]
-            b_h7_ov = report.baseline_report.results[7][best_b_name]["overall"]
-
-            complete_forecast_run(
-                conn,
-                run_id=run_id,
-                mae=m_h7_ov.mae,
-                wape=m_h7_ov.wape,
-                baseline_mae=b_h7_ov.mae,
-                baseline_wape=b_h7_ov.wape,
+            # 6. Cập nhật chỉ số MAE, WAPE (H7 overall HORIZON_AGGREGATE_POSTPROC) & metadata vào forecast_run
+            mae_val, wape_val, b_mae_val, b_wape_val, metric_metadata = extract_run_metric_summary(
+                report,
+                serving_cutoff_date=last_date,
+                data_source="postgresql.daily_sales",
+                data_source_hash=data_hash,
             )
+
+            if metric_metadata is not None:
+                complete_forecast_run(
+                    conn,
+                    run_id=run_id,
+                    mae=mae_val,
+                    wape=wape_val,
+                    baseline_mae=b_mae_val,
+                    baseline_wape=b_wape_val,
+                    metric_metadata=metric_metadata,
+                )
+            else:
+                complete_forecast_run(
+                    conn,
+                    run_id=run_id,
+                    mae=mae_val,
+                    wape=wape_val,
+                    baseline_mae=b_mae_val,
+                    baseline_wape=b_wape_val,
+                )
 
             if hasattr(conn, "commit"):
                 conn.commit()
@@ -439,16 +508,37 @@ def execute_background_forecast(
             # Lỗi khi phát sự kiện chỉ log ERROR, KHÔNG rollback hay làm hỏng forecast_run đã DONE.
             pub_fn = event_publisher_fn if event_publisher_fn is not None else publish_forecast_completed
             try:
-                pub_fn(
-                    run_id=run_id,
-                    status="DONE",
-                    mae=m_h7_ov.mae,
-                    wape=m_h7_ov.wape,
-                    baseline_mae=b_h7_ov.mae,
-                    baseline_wape=b_h7_ov.wape,
-                    cutoff_date=str(last_date),
-                    model_version=DEFAULT_MODEL_VERSION,
-                )
+                if metric_metadata is not None:
+                    pub_fn(
+                        run_id=run_id,
+                        status="DONE",
+                        mae=mae_val,
+                        wape=wape_val,
+                        baseline_mae=b_mae_val,
+                        baseline_wape=b_wape_val,
+                        cutoff_date=str(last_date),
+                        model_version=DEFAULT_MODEL_VERSION,
+                        metric_horizon=metric_metadata["metric_horizon"],
+                        aggregation=metric_metadata["aggregation"],
+                        postprocess_version=metric_metadata["postprocess_version"],
+                        metric_protocol_version=metric_metadata["metric_protocol_version"],
+                        evaluation_cutoff_date=str(metric_metadata["evaluation_cutoff_date"]),
+                        test_start_date=str(metric_metadata["test_start_date"]),
+                        test_end_date=str(metric_metadata["test_end_date"]),
+                        stockout_mode=metric_metadata["stockout_mode"],
+                        baseline_name=metric_metadata["baseline_name"],
+                    )
+                else:
+                    pub_fn(
+                        run_id=run_id,
+                        status="DONE",
+                        mae=mae_val,
+                        wape=wape_val,
+                        baseline_mae=b_mae_val,
+                        baseline_wape=b_wape_val,
+                        cutoff_date=str(last_date),
+                        model_version=DEFAULT_MODEL_VERSION,
+                    )
             except Exception as pub_err:
                 logger.error(
                     "Lỗi không mong muốn khi gọi publisher cho run_id=%d: %s. "

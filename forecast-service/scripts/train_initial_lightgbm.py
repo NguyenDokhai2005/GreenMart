@@ -7,6 +7,7 @@ Cách sử dụng:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -19,7 +20,14 @@ _SERVICE_DIR = _SCRIPT_DIR.parent
 if str(_SERVICE_DIR) not in sys.path:
     sys.path.insert(0, str(_SERVICE_DIR))
 
-from app.models.evaluator import evaluate_lightgbm_pipeline, format_full_comparison_report
+from app.models.evaluator import (
+    _metric_to_dict,
+    build_metrics_breakdown_payload,
+    build_standardized_evaluation_summary,
+    compute_canonical_data_hash,
+    evaluate_lightgbm_pipeline,
+    format_full_comparison_report,
+)
 from app.pipelines.forecast_runner import (
     assemble_forecast_results_dataframe,
     complete_forecast_run,
@@ -53,10 +61,14 @@ def run_training_and_evaluation(
 
     t0 = time.time()
     print("[1/5] Đang nạp dữ liệu daily_sales...")
+    parquet_sha256 = hashlib.sha256(data_path.read_bytes()).hexdigest()
     df_daily = pd.read_parquet(data_path)
     if pd.api.types.is_datetime64_any_dtype(df_daily["sale_date"]):
         df_daily["sale_date"] = pd.to_datetime(df_daily["sale_date"]).dt.date
+    canonical_hash = compute_canonical_data_hash(df_daily)
     print(f"      Đã nạp {len(df_daily):,} dòng dữ liệu ({time.time() - t0:.2f}s).")
+    print(f"      SHA-256 file: {parquet_sha256}")
+    print(f"      SHA-256 dữ liệu chuẩn hóa: {canonical_hash}")
 
     t1 = time.time()
     print("[2/5] Đang huấn luyện và đánh giá đối đầu trên 2 tầm (7 ngày và 30 ngày)...")
@@ -66,6 +78,8 @@ def run_training_and_evaluation(
         horizons=(7, 30),
         objectives=("regression_l1", "tweedie"),
         sample_step_days=7,
+        data_source=data_path.name,
+        data_source_hash=canonical_hash,
     )
     print(f"      Huấn luyện và đánh giá hoàn tất trong {time.time() - t1:.2f}s.")
 
@@ -83,61 +97,45 @@ def run_training_and_evaluation(
     report_file.write_text(md_report, encoding="utf-8")
     print(f"      Đã lưu báo cáo tại: {report_file}")
 
-    # Xuất metrics JSON tổng hợp
+    def _serialize_view_results(results_by_h: dict) -> dict:
+        return {
+            str(H): {
+                m_name: {
+                    s_name: _metric_to_dict(m)
+                    for s_name, m in s_dict.items()
+                }
+                for m_name, s_dict in results_by_h[H].items()
+            }
+            for H in report.horizons
+        }
+
+    standardized = build_standardized_evaluation_summary(report)
+    metrics_breakdown = build_metrics_breakdown_payload(report)
+    # Xuất metrics JSON tổng hợp (giữ đủ các khóa cũ + bổ sung metadata chuẩn hóa #423)
     metrics_summary = {
+        "schema_version": standardized["schema_version"],
+        "metric_protocol_version": standardized["metric_protocol_version"],
         "cutoff_date": str(report.cutoff_date),
         "test_start_date": str(report.test_start_date),
         "test_end_date": str(report.test_end_date),
-        "optimal_slow_thresholds": {str(k): float(v) for k, v in report.optimal_slow_thresholds.items()},
+        "model_version": standardized["model_version"],
+        "postprocess_version": standardized["postprocess_version"],
+        "data_source": data_path.name,
+        "data_source_hash": canonical_hash,
+        "parquet_sha256": parquet_sha256,
+        "optimal_slow_thresholds": standardized["optimal_slow_thresholds"],
         "short_history_series_count": report.short_history_series_count,
-        "results_clean_daily": {
-            str(H): {
-                m_name: {
-                    s_name: {
-                        "mae": m.mae,
-                        "wape": m.wape,
-                        "sample_count": m.sample_count,
-                        "zero_pred_ratio": m.zero_pred_ratio,
-                    }
-                    for s_name, m in s_dict.items()
-                }
-                for m_name, s_dict in report.lgb_results_clean[H].items()
-            }
-            for H in report.horizons
-        },
-        "results_clean_weekly": {
-            str(H): {
-                m_name: {
-                    s_name: {
-                        "mae": m.mae,
-                        "wape": m.wape,
-                        "sample_count": m.sample_count,
-                        "zero_pred_ratio": m.zero_pred_ratio,
-                    }
-                    for s_name, m in s_dict.items()
-                }
-                for m_name, s_dict in report.weekly_results_clean[H].items()
-            }
-            for H in report.horizons
-        },
-        "results_clean_aggregate": {
-            str(H): {
-                m_name: {
-                    s_name: {
-                        "mae": m.mae,
-                        "wape": m.wape,
-                        "sample_count": m.sample_count,
-                        "zero_pred_ratio": m.zero_pred_ratio,
-                    }
-                    for s_name, m in s_dict.items()
-                }
-                for m_name, s_dict in report.aggregated_results_clean[H].items()
-            }
-            for H in report.horizons
-        },
+        "best_baseline_by_view": standardized["best_baseline_by_view"],
+        "standardized_summary": standardized["horizons"],
+        "metrics_breakdown": metrics_breakdown,
+        "benchmark_limitations": standardized["benchmark_limitations"],
+        "results_clean_daily": _serialize_view_results(report.lgb_results_clean),
+        "results_raw_daily": _serialize_view_results(report.lgb_results_raw),
+        "results_clean_weekly": _serialize_view_results(report.weekly_results_clean),
+        "results_clean_aggregate": _serialize_view_results(report.aggregated_results_clean),
     }
     json_file = artifacts_dir / "evaluation_metrics.json"
-    json_file.write_text(json.dumps(metrics_summary, indent=2, ensure_ascii=False), encoding="utf-8")
+    json_file.write_text(json.dumps(metrics_summary, indent=2, ensure_ascii=False, allow_nan=False), encoding="utf-8")
     print(f"      Đã lưu metrics JSON tại: {json_file}")
 
     if save_db:

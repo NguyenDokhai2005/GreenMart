@@ -278,3 +278,34 @@ def test_execute_background_forecast_survives_publisher_failure(
 
     # Tuyệt đối KHÔNG được gọi fail_forecast_run
     mock_fail.assert_not_called()
+
+
+def test_build_forecast_completed_payload_with_standardized_metadata():
+    """Sự kiện forecast.completed mang metadata tóm tắt gọn (#423), không nhúng blob metricsBreakdown."""
+    payload = build_forecast_completed_payload(
+        run_id=300,
+        status="DONE",
+        mae=0.8757,
+        wape=0.7913,
+        baseline_mae=1.0706,
+        baseline_wape=0.9674,
+        cutoff_date="2026-10-31",
+        model_version=DEFAULT_MODEL_VERSION,
+        metric_horizon=7,
+        aggregation="HORIZON_AGGREGATE_POSTPROC",
+        postprocess_version="slow-th-h7_0.4-h30_0.4-sh28-v1",
+        metric_protocol_version="ac05-v2-h7-h30-postproc-20261125",
+        evaluation_cutoff_date="2026-10-01",
+        test_start_date="2026-10-02",
+        test_end_date="2026-10-31",
+        stockout_mode="EXCLUDED_CLEAN",
+        baseline_name="rolling_mean_28",
+    )
+
+    assert payload["metricHorizon"] == 7
+    assert payload["aggregation"] == "HORIZON_AGGREGATE_POSTPROC"
+    assert payload["postprocessVersion"] == "slow-th-h7_0.4-h30_0.4-sh28-v1"
+    assert payload["evaluationCutoffDate"] == "2026-10-01"
+    assert payload["cutoffDate"] == "2026-10-31"
+    assert payload["baselineName"] == "rolling_mean_28"
+    assert "metricsBreakdown" not in payload

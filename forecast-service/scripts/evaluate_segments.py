@@ -11,12 +11,12 @@ Tuân thủ chặt chẽ:
 
 from __future__ import annotations
 
+import argparse
 from datetime import date, timedelta
 import json
-import math
 from pathlib import Path
 import sys
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, Optional, Set
 
 import numpy as np
 import pandas as pd
@@ -27,9 +27,13 @@ _SERVICE_DIR = _SCRIPT_DIR.parent
 if str(_SERVICE_DIR) not in sys.path:
     sys.path.insert(0, str(_SERVICE_DIR))
 
+from app.models.baselines import BaselineMetrics, _compare_metrics_for_best
 from app.models.evaluator import (
+    DEFAULT_MIN_HISTORY_DAYS,
+    DEFAULT_MODEL_VERSION,
     aggregate_by_weekly_windows,
     apply_short_history_fallback,
+    build_postprocess_version,
     calculate_mae,
     calculate_wape,
     calculate_zero_ratio,
@@ -38,10 +42,81 @@ from app.models.features import FeatureMatrixBuilder
 from app.models.lightgbm_model import LightGBMDemandModel
 
 
+def _load_thresholds_from_metrics_json(
+    artifacts_dir: Path,
+    horizons: tuple[int, ...],
+    override_threshold: Optional[float] = None,
+) -> Dict[int, float]:
+    """Đọc ngưỡng bán chậm theo horizon từ evaluation_metrics.json (hoặc fallback 0.4)."""
+    if override_threshold is not None:
+        return {H: float(override_threshold) for H in horizons}
+    metrics_file = artifacts_dir / "evaluation_metrics.json"
+    if metrics_file.exists():
+        try:
+            payload = json.loads(metrics_file.read_text(encoding="utf-8"))
+            raw_th = payload.get("optimal_slow_thresholds", {})
+            if raw_th:
+                return {H: float(raw_th.get(str(H), 0.4)) for H in horizons}
+        except Exception:
+            pass
+    return {H: 0.4 for H in horizons}
+
+
+def _compute_view_comparison(
+    y_act: np.ndarray,
+    y_postproc: np.ndarray,
+    y_raw: np.ndarray,
+    y_ma28: np.ndarray,
+    y_naive: np.ndarray,
+    horizon: int,
+    aggregation: str,
+    stockout_excluded: bool,
+) -> Dict[str, Any]:
+    """Tính toán đồng nhất các chỉ số model (raw + postproc) và baseline trên cùng ma trận."""
+    mae_ma28 = calculate_mae(y_act, y_ma28)
+    wape_ma28 = calculate_wape(y_act, y_ma28, as_percent=False)
+
+    mae_naive = calculate_mae(y_act, y_naive)
+    wape_naive = calculate_wape(y_act, y_naive, as_percent=False)
+
+    best_b_name = _compare_metrics_for_best(
+        BaselineMetrics(mae=mae_naive, wape=wape_naive, sample_count=len(y_act), total_actual=float(np.sum(y_act))),
+        BaselineMetrics(mae=mae_ma28, wape=wape_ma28, sample_count=len(y_act), total_actual=float(np.sum(y_act))),
+    )
+    best_b_wape = wape_naive if best_b_name == "weekly_naive" else wape_ma28
+
+    mae_post = calculate_mae(y_act, y_postproc)
+    wape_post = calculate_wape(y_act, y_postproc, as_percent=False)
+    zero_ratio_post = calculate_zero_ratio(y_postproc)
+
+    mae_raw = calculate_mae(y_act, y_raw)
+    wape_raw = calculate_wape(y_act, y_raw, as_percent=False)
+    zero_ratio_raw = calculate_zero_ratio(y_raw)
+
+    win_post = (wape_post < best_b_wape) if (wape_post is not None and best_b_wape is not None) else False
+    wape_diff = (wape_post - best_b_wape) if (wape_post is not None and best_b_wape is not None) else None
+
+    return {
+        "horizon": horizon,
+        "aggregation": aggregation,
+        "stockout_excluded": stockout_excluded,
+        "sample_count": int(len(y_act)),
+        "best_baseline_name": best_b_name,
+        "model": {"mae": mae_post, "wape": wape_post, "zero_pred_ratio": zero_ratio_post},
+        "model_raw": {"mae": mae_raw, "wape": wape_raw, "zero_pred_ratio": zero_ratio_raw},
+        "baseline_rolling_mean_28": {"mae": mae_ma28, "wape": wape_ma28},
+        "baseline_weekly_naive": {"mae": mae_naive, "wape": wape_naive},
+        "wape_diff": wape_diff,
+        "win": win_post,
+    }
+
+
 def run_segment_evaluation(
     data_path: Path | None = None,
     artifacts_dir: Path | None = None,
     output_json_path: Path | None = None,
+    cutoff_date: Optional[date] = None,
+    slow_threshold: Optional[float] = None,
 ) -> Dict[str, Any]:
     if data_path is None:
         data_path = _SERVICE_DIR / "data" / "daily_sales.parquet"
@@ -51,7 +126,7 @@ def run_segment_evaluation(
         output_json_path = artifacts_dir / "segment_metrics.json"
 
     print("=" * 80)
-    print("TRÍCH XUẤT SỐ LIỆU ĐÁNH GIÁ MÔ HÌNH THEO PHÂN NHÓM (TASK #120 - AC-05)")
+    print("TRÍCH XUẤT SỐ LIỆU ĐÁNH GIÁ MÔ HÌNH THEO PHÂN NHÓM (TASK #120 & #423)")
     print(f"- Dữ liệu: {data_path}")
     print(f"- Thư mục artifacts: {artifacts_dir}")
     print("=" * 80)
@@ -67,12 +142,23 @@ def run_segment_evaluation(
 
     builder = FeatureMatrixBuilder(df_daily)
     unique_dates = builder.unique_dates
-    cutoff_date = date(2026, 10, 1)
+    max_date = unique_dates[-1]
+    resolved_cutoff = cutoff_date or (max_date - timedelta(days=30))
+    test_dates = [d for d in unique_dates if d > resolved_cutoff]
+    if len(test_dates) != 30:
+        raise ValueError(
+            f"Cửa sổ kiểm tra phải có đúng 30 ngày sau cutoff {resolved_cutoff}, thực tế có {len(test_dates)} ngày."
+        )
+    test_start_date = test_dates[0]
+    test_end_date = test_dates[-1]
 
-    print(f"      Tổng số dòng: {len(df_daily):,}, Chuỗi: {builder.n_series:,}, Ngày chốt: {cutoff_date}")
+    print(
+        f"      Tổng số dòng: {len(df_daily):,}, Chuỗi: {builder.n_series:,}, "
+        f"Cutoff: {resolved_cutoff}, Test: {test_start_date}..{test_end_date}"
+    )
 
     # 2. Xác định Top 200 SKU trên tập dữ liệu train (<= cutoff_date)
-    df_train = builder.df[builder.df["sale_date"] <= cutoff_date]
+    df_train = builder.df[builder.df["sale_date"] <= resolved_cutoff]
     top_sku_ids: Set[int] = set(
         df_train.groupby("product_id")["qty_net"].sum().nlargest(200).index
     )
@@ -80,26 +166,42 @@ def run_segment_evaluation(
     branch_ids_series = builder.branch_ids
     is_top_mask = np.isin(product_ids_series, list(top_sku_ids))
 
-    # Lấy thông tin chi nhánh thực tế
-    branches_df = df_daily[["branch_id", "branch_code", "branch_name"]].drop_duplicates().sort_values("branch_id")
-    branch_info = branches_df.to_dict("records")
+    # Lấy thông tin chi nhánh và ngành hàng thực tế (hỗ trợ cả DataFrame rút gọn không có cột tên)
+    if {"branch_id", "branch_code", "branch_name"}.issubset(df_daily.columns):
+        branches_df = df_daily[["branch_id", "branch_code", "branch_name"]].drop_duplicates().sort_values("branch_id")
+        branch_info = branches_df.to_dict("records")
+    else:
+        branch_info = [
+            {"branch_id": int(b), "branch_code": f"BR-{int(b)}", "branch_name": f"Branch {int(b)}"}
+            for b in sorted(df_daily["branch_id"].unique())
+        ]
     print(f"      Số chi nhánh thực tế: {len(branch_info)}")
 
-    # Lấy thông tin ngành hàng thực tế
-    cat_df = df_daily[["category_id", "category_name"]].drop_duplicates().sort_values("category_id")
-    cat_info = cat_df.to_dict("records")
+    if {"category_id", "category_name"}.issubset(df_daily.columns):
+        cat_df = df_daily[["category_id", "category_name"]].drop_duplicates().sort_values("category_id")
+        cat_info = cat_df.to_dict("records")
+        prod_to_cat = df_daily.drop_duplicates("product_id").set_index("product_id")["category_id"].to_dict()
+        category_ids_series = np.array([prod_to_cat.get(pid, -1) for pid in product_ids_series])
+    else:
+        cat_info = []
+        category_ids_series = np.full(len(product_ids_series), -1)
     print(f"      Số ngành hàng thực tế: {len(cat_info)}")
 
-    # Ánh xạ product_id -> category_id
-    prod_to_cat = df_daily.drop_duplicates("product_id").set_index("product_id")["category_id"].to_dict()
-    category_ids_series = np.array([prod_to_cat.get(pid, -1) for pid in product_ids_series])
-
-    train_dates = [d for d in unique_dates if d <= cutoff_date]
+    train_dates = [d for d in unique_dates if d <= resolved_cutoff]
     history_qty_matrix = builder.qty_matrix[:, : len(train_dates)]
 
-    # 3. Nạp mô hình LightGBM cho 2 tầm 7 và 30 ngày
+    # 3. Nạp mô hình LightGBM và ngưỡng postprocess cho 2 tầm 7 và 30 ngày
     print("[2/4] Nạp mô hình LightGBM từ artifacts...")
     horizons = (7, 30)
+    thresholds_by_h = _load_thresholds_from_metrics_json(
+        artifacts_dir=artifacts_dir,
+        horizons=horizons,
+        override_threshold=slow_threshold,
+    )
+    postprocess_version = build_postprocess_version(
+        thresholds_by_h,
+        min_history_days=DEFAULT_MIN_HISTORY_DAYS,
+    )
     models: Dict[int, LightGBMDemandModel] = {}
     for H in horizons:
         model_file = artifacts_dir / f"lgbm_demand_h{H}.txt"
@@ -111,25 +213,29 @@ def run_segment_evaluation(
         print(f"      Đã nạp thành công mô hình tầm {H} ngày từ {model_file.name}")
 
     # 4. Dự báo và đánh giá
-    print("[3/4] Dự báo và tính toán MAE/WAPE trên tập kiểm tra (02/10/2026 - 31/10/2026)...")
+    print(f"[3/4] Dự báo và tính toán MAE/WAPE trên tập kiểm tra ({test_start_date} - {test_end_date})...")
 
     results: Dict[str, Any] = {
-        "cutoff_date": str(cutoff_date),
-        "test_start_date": "2026-10-02",
-        "test_end_date": "2026-10-31",
-        "slow_moving_threshold": 0.4,
+        "schema_version": "1.0",
+        "cutoff_date": str(resolved_cutoff),
+        "test_start_date": str(test_start_date),
+        "test_end_date": str(test_end_date),
+        "model_version": DEFAULT_MODEL_VERSION,
+        "postprocess_version": postprocess_version,
+        "slow_moving_thresholds": {str(h): float(v) for h, v in thresholds_by_h.items()},
+        "slow_moving_threshold": float(thresholds_by_h.get(7, 0.4)),
         "branches": branch_info,
         "categories": cat_info,
         "metrics": {},
     }
 
     for H in horizons:
-        test_dates_H = [cutoff_date + timedelta(days=i) for i in range(1, H + 1)]
+        th_h = thresholds_by_h[H]
+        test_dates_H = [resolved_cutoff + timedelta(days=i) for i in range(1, H + 1)]
         test_indices = [builder.date_to_idx[d] for d in test_dates_H]
         actual_matrix_H = builder.qty_matrix[:, test_indices]
         stockout_matrix_H = builder.stockout_matrix[:, test_indices]
 
-        # Sinh dự báo cho các Baseline
         # Baseline 1: Naive theo tuần
         last_7_train = history_qty_matrix[:, -7:]
         reps = int(np.ceil(H / 7))
@@ -141,58 +247,53 @@ def run_segment_evaluation(
         mean_28 = np.mean(last_28_train, axis=1, keepdims=True)
         pred_ma28 = np.repeat(mean_28, H, axis=1)
 
-        # Baseline tham chiếu: Zero
-        pred_zero = np.zeros_like(actual_matrix_H, dtype=float)
-
-        # Mô hình LightGBM Tweedie
-        test_feature_dfs = builder.build_test_features_matrix(cutoff_date=cutoff_date, horizon=H)
+        # Mô hình LightGBM Tweedie (raw + postproc)
+        test_feature_dfs = builder.build_test_features_matrix(cutoff_date=resolved_cutoff, horizon=H)
         step_preds = [models[H].predict(sdf) for sdf in test_feature_dfs]
         pred_lgb_raw = np.column_stack(step_preds)
 
-        # Áp dụng hậu xử lý ngưỡng 0.4 cho slow-moving
-        slow_cells = (~is_top_mask)[:, np.newaxis] & (pred_lgb_raw < 0.4)
+        slow_cells = (~is_top_mask)[:, np.newaxis] & (pred_lgb_raw < th_h) if th_h > 0.0 else np.zeros_like(pred_lgb_raw, dtype=bool)
         pred_lgb_postproc = np.where(slow_cells, 0.0, pred_lgb_raw)
 
-        # Áp dụng fallback chuỗi mới
-        apply_short_history_fallback(df_train, builder.series_index, pred_naive, 28)
-        apply_short_history_fallback(df_train, builder.series_index, pred_ma28, 28)
-        apply_short_history_fallback(df_train, builder.series_index, pred_zero, 28)
-        apply_short_history_fallback(df_train, builder.series_index, pred_lgb_postproc, 28)
+        # Áp dụng đồng nhất fallback chuỗi mới (< 28 ngày) và clip >= 0 theo đúng thứ tự phục vụ
+        for arr in (pred_naive, pred_ma28, pred_lgb_raw, pred_lgb_postproc):
+            apply_short_history_fallback(df_train, builder.series_index, arr, DEFAULT_MIN_HISTORY_DAYS)
+            np.clip(arr, 0.0, None, out=arr)
 
-        # Chuẩn bị ma trận đã lọc stockout
+        # Ma trận đã lọc stockout
         act_clean = np.where(stockout_matrix_H, 0.0, actual_matrix_H)
         pred_naive_clean = np.where(stockout_matrix_H, 0.0, pred_naive)
         pred_ma28_clean = np.where(stockout_matrix_H, 0.0, pred_ma28)
-        pred_zero_clean = np.where(stockout_matrix_H, 0.0, pred_zero)
+        pred_lgb_raw_clean = np.where(stockout_matrix_H, 0.0, pred_lgb_raw)
         pred_lgb_clean = np.where(stockout_matrix_H, 0.0, pred_lgb_postproc)
 
         # Weekly aggregate
         act_w_clean = aggregate_by_weekly_windows(act_clean, H)
         pred_naive_w_clean = aggregate_by_weekly_windows(pred_naive_clean, H)
         pred_ma28_w_clean = aggregate_by_weekly_windows(pred_ma28_clean, H)
-        pred_zero_w_clean = aggregate_by_weekly_windows(pred_zero_clean, H)
+        pred_lgb_raw_w_clean = aggregate_by_weekly_windows(pred_lgb_raw_clean, H)
         pred_lgb_w_clean = aggregate_by_weekly_windows(pred_lgb_clean, H)
 
         # Horizon aggregate
         act_agg_clean = np.sum(act_clean, axis=1)
         pred_naive_agg_clean = np.sum(pred_naive_clean, axis=1)
         pred_ma28_agg_clean = np.sum(pred_ma28_clean, axis=1)
-        pred_zero_agg_clean = np.sum(pred_zero_clean, axis=1)
+        pred_lgb_raw_agg_clean = np.sum(pred_lgb_raw_clean, axis=1)
         pred_lgb_agg_clean = np.sum(pred_lgb_clean, axis=1)
 
-        # Định nghĩa các phân nhóm cần đánh giá
+        zero_demand_mask_H = np.sum(actual_matrix_H, axis=1) <= 0.0
         segment_masks: Dict[str, np.ndarray] = {
             "overall": np.ones(builder.n_series, dtype=bool),
             "top_200": is_top_mask,
             "slow_moving": ~is_top_mask,
+            "zero_demand": zero_demand_mask_H,
+            "non_zero_demand": ~zero_demand_mask_H,
         }
 
-        # Bổ sung các nhóm chi nhánh
         for b in branch_info:
             b_id = b["branch_id"]
             segment_masks[f"branch_{b_id}"] = (branch_ids_series == b_id)
 
-        # Bổ sung các nhóm ngành hàng
         for c in cat_info:
             c_id = c["category_id"]
             segment_masks[f"category_{c_id}"] = (category_ids_series == c_id)
@@ -203,136 +304,112 @@ def run_segment_evaluation(
             if not np.any(mask):
                 continue
 
-            # 1. Từng ô ngày (Daily cell)
+            # 1. Từng ô ngày (Daily cell - đã lọc stockout)
             y_act = actual_matrix_H[mask, :].ravel()
-            s_mask = stockout_matrix_H[mask, :].ravel()
-            valid = ~s_mask
+            valid = ~stockout_matrix_H[mask, :].ravel()
+            if not np.any(valid):
+                continue
 
             y_act_v = y_act[valid]
-            tot_act_daily = float(np.sum(y_act_v))
-            n_daily = int(len(y_act_v))
+            daily_comp = _compute_view_comparison(
+                y_act=y_act_v,
+                y_postproc=pred_lgb_postproc[mask, :].ravel()[valid],
+                y_raw=pred_lgb_raw[mask, :].ravel()[valid],
+                y_ma28=pred_ma28[mask, :].ravel()[valid],
+                y_naive=pred_naive[mask, :].ravel()[valid],
+                horizon=H,
+                aggregation="daily_cell",
+                stockout_excluded=True,
+            )
 
-            pred_ma28_v = pred_ma28[mask, :].ravel()[valid]
-            pred_naive_v = pred_naive[mask, :].ravel()[valid]
-            pred_lgb_v = pred_lgb_postproc[mask, :].ravel()[valid]
+            weekly_comp = _compute_view_comparison(
+                y_act=act_w_clean[mask, :].ravel(),
+                y_postproc=pred_lgb_w_clean[mask, :].ravel(),
+                y_raw=pred_lgb_raw_w_clean[mask, :].ravel(),
+                y_ma28=pred_ma28_w_clean[mask, :].ravel(),
+                y_naive=pred_naive_w_clean[mask, :].ravel(),
+                horizon=H,
+                aggregation="weekly_aggregate",
+                stockout_excluded=True,
+            )
 
-            mae_ma28_d = calculate_mae(y_act_v, pred_ma28_v)
-            wape_ma28_d = calculate_wape(y_act_v, pred_ma28_v, as_percent=False)
-
-            mae_naive_d = calculate_mae(y_act_v, pred_naive_v)
-            wape_naive_d = calculate_wape(y_act_v, pred_naive_v, as_percent=False)
-
-            mae_lgb_d = calculate_mae(y_act_v, pred_lgb_v)
-            wape_lgb_d = calculate_wape(y_act_v, pred_lgb_v, as_percent=False)
-            zero_ratio_d = calculate_zero_ratio(pred_lgb_v)
-
-            # 2. Gộp theo tuần (Weekly aggregate)
-            y_w_act = act_w_clean[mask, :].ravel()
-            y_w_ma28 = pred_ma28_w_clean[mask, :].ravel()
-            y_w_naive = pred_naive_w_clean[mask, :].ravel()
-            y_w_lgb = pred_lgb_w_clean[mask, :].ravel()
-
-            mae_ma28_w = calculate_mae(y_w_act, y_w_ma28)
-            wape_ma28_w = calculate_wape(y_w_act, y_w_ma28, as_percent=False)
-
-            mae_naive_w = calculate_mae(y_w_act, y_w_naive)
-            wape_naive_w = calculate_wape(y_w_act, y_w_naive, as_percent=False)
-
-            mae_lgb_w = calculate_mae(y_w_act, y_w_lgb)
-            wape_lgb_w = calculate_wape(y_w_act, y_w_lgb, as_percent=False)
-            zero_ratio_w = calculate_zero_ratio(y_w_lgb)
-
-            # 3. Tổng cả tầm (Horizon aggregate)
-            y_agg_act = act_agg_clean[mask]
-            y_agg_ma28 = pred_ma28_agg_clean[mask]
-            y_agg_naive = pred_naive_agg_clean[mask]
-            y_agg_lgb = pred_lgb_agg_clean[mask]
-
-            mae_ma28_agg = calculate_mae(y_agg_act, y_agg_ma28)
-            wape_ma28_agg = calculate_wape(y_agg_act, y_agg_ma28, as_percent=False)
-
-            mae_naive_agg = calculate_mae(y_agg_act, y_agg_naive)
-            wape_naive_agg = calculate_wape(y_agg_act, y_agg_naive, as_percent=False)
-
-            mae_lgb_agg = calculate_mae(y_agg_act, y_agg_lgb)
-            wape_lgb_agg = calculate_wape(y_agg_act, y_agg_lgb, as_percent=False)
-            zero_ratio_agg = calculate_zero_ratio(y_agg_lgb)
-
-            # Đánh giá thắng/thua so với Baseline tốt nhất (Rolling mean 28)
-            win_daily = (wape_lgb_d < wape_ma28_d) if (wape_lgb_d is not None and wape_ma28_d is not None) else False
-            win_weekly = (wape_lgb_w < wape_ma28_w) if (wape_lgb_w is not None and wape_ma28_w is not None) else False
-            win_horizon = (wape_lgb_agg < wape_ma28_agg) if (wape_lgb_agg is not None and wape_ma28_agg is not None) else False
+            horizon_comp = _compute_view_comparison(
+                y_act=act_agg_clean[mask],
+                y_postproc=pred_lgb_agg_clean[mask],
+                y_raw=pred_lgb_raw_agg_clean[mask],
+                y_ma28=pred_ma28_agg_clean[mask],
+                y_naive=pred_naive_agg_clean[mask],
+                horizon=H,
+                aggregation="horizon_aggregate",
+                stockout_excluded=True,
+            )
 
             results["metrics"][str(H)][seg_key] = {
                 "sample_count_series": int(np.sum(mask)),
-                "total_actual_clean": tot_act_daily,
-                "daily_cell": {
-                    "sample_count": n_daily,
-                    "model": {"mae": mae_lgb_d, "wape": wape_lgb_d, "zero_pred_ratio": zero_ratio_d},
-                    "baseline_rolling_mean_28": {"mae": mae_ma28_d, "wape": wape_ma28_d},
-                    "baseline_weekly_naive": {"mae": mae_naive_d, "wape": wape_naive_d},
-                    "wape_diff": (wape_lgb_d - wape_ma28_d) if (wape_lgb_d and wape_ma28_d) else None,
-                    "win": win_daily,
-                },
-                "weekly_aggregate": {
-                    "sample_count": len(y_w_act),
-                    "model": {"mae": mae_lgb_w, "wape": wape_lgb_w, "zero_pred_ratio": zero_ratio_w},
-                    "baseline_rolling_mean_28": {"mae": mae_ma28_w, "wape": wape_ma28_w},
-                    "baseline_weekly_naive": {"mae": mae_naive_w, "wape": wape_naive_w},
-                    "wape_diff": (wape_lgb_w - wape_ma28_w) if (wape_lgb_w and wape_ma28_w) else None,
-                    "win": win_weekly,
-                },
-                "horizon_aggregate": {
-                    "sample_count": len(y_agg_act),
-                    "model": {"mae": mae_lgb_agg, "wape": wape_lgb_agg, "zero_pred_ratio": zero_ratio_agg},
-                    "baseline_rolling_mean_28": {"mae": mae_ma28_agg, "wape": wape_ma28_agg},
-                    "baseline_weekly_naive": {"mae": mae_naive_agg, "wape": wape_naive_agg},
-                    "wape_diff": (wape_lgb_agg - wape_ma28_agg) if (wape_lgb_agg and wape_ma28_agg) else None,
-                    "win": win_horizon,
-                },
+                "total_actual_clean": float(np.sum(y_act_v)),
+                "daily_cell": daily_comp,
+                "weekly_aggregate": weekly_comp,
+                "horizon_aggregate": horizon_comp,
             }
 
     # 5. Lưu ra JSON
     print(f"[4/4] Ghi kết quả vào {output_json_path}...")
     output_json_path.parent.mkdir(parents=True, exist_ok=True)
     output_json_path.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"      Đã lưu metrics phân nhóm thành công!")
+    print("      Đã lưu metrics phân nhóm thành công!")
 
     # In tóm tắt kết quả
+    def _pct(val: Optional[float]) -> str:
+        return f"{val * 100:>8.2f}%" if val is not None else f"{'N/A':>9}"
+
+    def _diff_pct(val: Optional[float]) -> str:
+        return f"{val * 100:>+9.2f}%" if val is not None else f"{'N/A':>10}"
+
     print("\n" + "=" * 80)
     print("BẢNG TỔNG HỢP THEO CHI NHÁNH (CÁCH ĐO GỘP TUẦN - WEEKLY AGGREGATE):")
-    print(f"{'Tầm':<8} | {'Chi nhánh':<24} | {'Thực tế':<8} | {'BL2 WAPE':<10} | {'Mô hình WAPE':<12} | {'Chênh lệch':<11} | {'Kết quả':<8}")
-    print("-" * 90)
-    for H in (7, 30):
+    print(f"{'Tầm':<8} | {'Chi nhánh':<24} | {'Thực tế':<8} | {'BestBL WAPE':<11} | {'Mô hình WAPE':<12} | {'Chênh lệch':<11} | {'Kết quả':<8}")
+    print("-" * 92)
+    for H in horizons:
         for b in branch_info:
             b_id = b["branch_id"]
             b_name = f"{b['branch_code']} ({b['branch_name']})"
             m = results["metrics"][str(H)][f"branch_{b_id}"]["weekly_aggregate"]
-            bl_w = m["baseline_rolling_mean_28"]["wape"] * 100
-            md_w = m["model"]["wape"] * 100
-            diff = (m["wape_diff"]) * 100
+            bl_key = "baseline_weekly_naive" if m["best_baseline_name"] == "weekly_naive" else "baseline_rolling_mean_28"
+            bl_w = m[bl_key]["wape"]
+            md_w = m["model"]["wape"]
             res = "Thắng" if m["win"] else "Thua"
             tot = int(results["metrics"][str(H)][f"branch_{b_id}"]["total_actual_clean"])
-            print(f"{H} ngày   | {b_name:<24} | {tot:<8} | {bl_w:>8.2f}% | {md_w:>10.2f}% | {diff:>+9.2f}% | {res:<8}")
+            print(f"{H} ngày   | {b_name:<24} | {tot:<8} | {_pct(bl_w):<11} | {_pct(md_w):<12} | {_diff_pct(m['wape_diff']):<11} | {res:<8}")
 
-    print("\n" + "=" * 80)
-    print("BẢNG TỔNG HỢP THEO NGÀNH HÀNG (CÁCH ĐO GỘP TUẦN - WEEKLY AGGREGATE):")
-    print(f"{'Tầm':<8} | {'Ngành hàng':<32} | {'Thực tế':<8} | {'BL2 WAPE':<10} | {'Mô hình WAPE':<12} | {'Chênh lệch':<11} | {'Kết quả':<8}")
-    print("-" * 100)
-    for H in (7, 30):
-        for c in cat_info:
-            c_id = c["category_id"]
-            c_name = f"[{c_id}] {c['category_name']}"
-            m = results["metrics"][str(H)][f"category_{c_id}"]["weekly_aggregate"]
-            bl_w = m["baseline_rolling_mean_28"]["wape"] * 100
-            md_w = m["model"]["wape"] * 100
-            diff = (m["wape_diff"]) * 100
-            res = "Thắng" if m["win"] else "Thua"
-            tot = int(results["metrics"][str(H)][f"category_{c_id}"]["total_actual_clean"])
-            print(f"{H} ngày   | {c_name:<32} | {tot:<8} | {bl_w:>8.2f}% | {md_w:>10.2f}% | {diff:>+9.2f}% | {res:<8}")
+    if cat_info:
+        print("\n" + "=" * 80)
+        print("BẢNG TỔNG HỢP THEO NGÀNH HÀNG (CÁCH ĐO GỘP TUẦN - WEEKLY AGGREGATE):")
+        print(f"{'Tầm':<8} | {'Ngành hàng':<32} | {'Thực tế':<8} | {'BestBL WAPE':<11} | {'Mô hình WAPE':<12} | {'Chênh lệch':<11} | {'Kết quả':<8}")
+        print("-" * 102)
+        for H in horizons:
+            for c in cat_info:
+                c_id = c["category_id"]
+                c_name = f"[{c_id}] {c['category_name']}"
+                m = results["metrics"][str(H)][f"category_{c_id}"]["weekly_aggregate"]
+                bl_key = "baseline_weekly_naive" if m["best_baseline_name"] == "weekly_naive" else "baseline_rolling_mean_28"
+                bl_w = m[bl_key]["wape"]
+                md_w = m["model"]["wape"]
+                res = "Thắng" if m["win"] else "Thua"
+                tot = int(results["metrics"][str(H)][f"category_{c_id}"]["total_actual_clean"])
+                print(f"{H} ngày   | {c_name:<32} | {tot:<8} | {_pct(bl_w):<11} | {_pct(md_w):<12} | {_diff_pct(m['wape_diff']):<11} | {res:<8}")
 
     return results
 
 
 if __name__ == "__main__":
-    run_segment_evaluation()
+    parser = argparse.ArgumentParser(description="Trích xuất metrics phân nhóm cho forecast-service.")
+    parser.add_argument("--data-path", type=str, default=None, help="Đường dẫn file parquet daily_sales")
+    parser.add_argument("--cutoff-date", type=str, default=None, help="Ngày gốc cutoff YYYY-MM-DD (mặc định max_date - 30)")
+    parser.add_argument("--slow-threshold", type=float, default=None, help="Ghi đè ngưỡng postprocess bán chậm")
+    args = parser.parse_args()
+
+    run_segment_evaluation(
+        data_path=Path(args.data_path) if args.data_path else None,
+        cutoff_date=date.fromisoformat(args.cutoff_date) if args.cutoff_date else None,
+        slow_threshold=args.slow_threshold,
+    )

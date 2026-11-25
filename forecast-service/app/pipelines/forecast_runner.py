@@ -14,11 +14,22 @@ Tuân thủ:
 from __future__ import annotations
 
 from datetime import date, datetime
+import json
+import math
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import numpy as np
 import pandas as pd
 
 from app.db.connection import get_db_connection
+from app.models.evaluator import (
+    DEFAULT_METRIC_PROTOCOL_VERSION,
+    DEFAULT_MIN_HISTORY_DAYS,
+    DEFAULT_MODEL_VERSION,
+    _resolve_best_baseline_name,
+    build_metrics_breakdown_payload,
+    build_postprocess_version,
+    compute_canonical_data_hash,
+)
 
 
 def create_forecast_run(
@@ -107,6 +118,95 @@ def save_forecast_results(
     return total_inserted
 
 
+def _clean_metric_float(value: Optional[float], digits: int = 4) -> Optional[float]:
+    if value is None:
+        return None
+    f = float(value)
+    if not math.isfinite(f):
+        return None
+    return round(f, digits)
+
+
+def extract_run_metric_summary(
+    report: Any,
+    serving_cutoff_date: Optional[date] = None,
+    data_source: Optional[str] = None,
+    data_source_hash: Optional[str] = None,
+) -> Tuple[Optional[float], Optional[float], Optional[float], Optional[float], Optional[Dict[str, Any]]]:
+    """Trích xuất chỉ số đại diện H7 postprocessed aggregate + metadata/breakdown từ báo cáo đánh giá.
+
+    - Với `FullEvaluationReport` chuẩn #423 (có `aggregated_results_clean[7]`):
+      Lấy tầm 7 ngày, nhóm overall, phép đo `HORIZON_AGGREGATE_POSTPROC`, `EXCLUDED_CLEAN`,
+      và baseline tốt nhất trên đúng cùng góc đo/mask/dữ liệu/origin/fallback.
+    - Với mock report legacy chỉ cung cấp `lgb_results_clean`: giữ tương thích ngược (`metric_metadata=None`).
+    """
+    agg_dict = getattr(report, "aggregated_results_clean", None)
+    if isinstance(agg_dict, dict) and 7 in agg_dict:
+        if serving_cutoff_date is not None:
+            report.serving_cutoff_date = serving_cutoff_date
+        if data_source is not None:
+            report.data_source = data_source
+        if data_source_hash is not None:
+            report.data_source_hash = data_source_hash
+
+        best_obj_map = getattr(report, "best_objective", None)
+        obj_name = best_obj_map.get(7, "tweedie") if isinstance(best_obj_map, dict) else "tweedie"
+        post_key = f"lgb_{obj_name}_postproc"
+        agg_h7 = agg_dict[7]
+        model_key = post_key if post_key in agg_h7 else f"lgb_{obj_name}"
+
+        m_h7_ov = agg_h7[model_key]["overall"]
+        best_b_name = _resolve_best_baseline_name(report, 7, "horizon_aggregate_clean", agg_h7)
+        b_h7_ov = agg_h7[best_b_name]["overall"]
+
+        m_wape = None if m_h7_ov.total_actual <= 0.0 else m_h7_ov.wape
+        b_wape = None if b_h7_ov.total_actual <= 0.0 else b_h7_ov.wape
+
+        breakdown = build_metrics_breakdown_payload(report)
+        postproc_ver = (
+            getattr(report, "postprocess_version", "")
+            or build_postprocess_version(
+                getattr(report, "optimal_slow_thresholds", {}),
+                min_history_days=DEFAULT_MIN_HISTORY_DAYS,
+            )
+        )
+        protocol_ver = getattr(report, "metric_protocol_version", "") or DEFAULT_METRIC_PROTOCOL_VERSION
+        s_cutoff = getattr(report, "serving_cutoff_date", None) or serving_cutoff_date or getattr(report, "test_end_date", None)
+
+        metadata = {
+            "metric_horizon": 7,
+            "aggregation": "HORIZON_AGGREGATE_POSTPROC",
+            "postprocess_version": postproc_ver,
+            "metric_protocol_version": protocol_ver,
+            "cutoff_date": s_cutoff,
+            "evaluation_cutoff_date": getattr(report, "cutoff_date", None),
+            "test_start_date": getattr(report, "test_start_date", None),
+            "test_end_date": getattr(report, "test_end_date", None),
+            "stockout_mode": "EXCLUDED_CLEAN",
+            "baseline_name": best_b_name,
+            "data_source": getattr(report, "data_source", None) or data_source or "daily_sales",
+            "data_source_hash": getattr(report, "data_source_hash", None) or data_source_hash or "",
+            "metrics_breakdown": breakdown,
+        }
+        return (
+            _clean_metric_float(m_h7_ov.mae, 4),
+            _clean_metric_float(m_wape, 4),
+            _clean_metric_float(b_h7_ov.mae, 4),
+            _clean_metric_float(b_wape, 4),
+            metadata,
+        )
+
+    # Fallback tương thích ngược cho mock report cũ trong unit test
+    m_h7_ov = report.lgb_results_clean[7]["lgb_tweedie"]["overall"]
+    baseline_report = getattr(report, "baseline_report", None)
+    if baseline_report is not None and isinstance(getattr(baseline_report, "best_baseline", None), dict) and 7 in baseline_report.best_baseline:
+        best_b_name = baseline_report.best_baseline[7]
+        b_h7_ov = baseline_report.results[7][best_b_name]["overall"]
+    else:
+        b_h7_ov = report.lgb_results_clean[7]["rolling_mean_28"]["overall"]
+    return (m_h7_ov.mae, m_h7_ov.wape, b_h7_ov.mae, b_h7_ov.wape, None)
+
+
 def complete_forecast_run(
     conn: Any,
     run_id: int,
@@ -114,15 +214,33 @@ def complete_forecast_run(
     wape: Optional[float] = None,
     baseline_mae: Optional[float] = None,
     baseline_wape: Optional[float] = None,
+    metric_metadata: Optional[Dict[str, Any]] = None,
 ) -> None:
-    """Cập nhật trạng thái forecast_run thành DONE kèm các chỉ số đánh giá.
+    """Cập nhật trạng thái forecast_run thành DONE kèm các chỉ số đánh giá và metadata #423."""
+    if metric_metadata is None:
+        sql = """
+            UPDATE forecast_run
+            SET finished_at = clock_timestamp(),
+                status = 'DONE',
+                mae = %s,
+                wape = %s,
+                baseline_mae = %s,
+                baseline_wape = %s
+            WHERE id = %s;
+        """
+        with conn.cursor() as cur:
+            cur.execute(
+                sql,
+                (
+                    _clean_metric_float(mae, 4),
+                    _clean_metric_float(wape, 4),
+                    _clean_metric_float(baseline_mae, 4),
+                    _clean_metric_float(baseline_wape, 4),
+                    run_id,
+                ),
+            )
+        return
 
-    LƯU Ý VỀ SCHEMA V1 (V1__init_schema.sql):
-    Bảng forecast_run trong Schema V1 chỉ có một cặp cột chỉ số (mae, wape) và (baseline_mae, baseline_wape),
-    trong khi mô hình dự báo đồng thời 2 tầm: 7 ngày (đơn hàng tuần) và 30 ngày (kế hoạch tháng).
-    Quy ước hiện tại: Chỉ số lưu vào forecast_run hiện là tầm 7 ngày, nhóm Overall (tầm phục vụ vận hành
-    đặt hàng tuần); khi Lead @NguyenDokhai2005 chốt cách tính WAPE chính sẽ cập nhật theo.
-    """
     sql = """
         UPDATE forecast_run
         SET finished_at = clock_timestamp(),
@@ -130,17 +248,45 @@ def complete_forecast_run(
             mae = %s,
             wape = %s,
             baseline_mae = %s,
-            baseline_wape = %s
+            baseline_wape = %s,
+            metric_horizon = %s,
+            aggregation = %s,
+            postprocess_version = %s,
+            metric_protocol_version = %s,
+            cutoff_date = %s,
+            evaluation_cutoff_date = %s,
+            test_start_date = %s,
+            test_end_date = %s,
+            stockout_mode = %s,
+            baseline_name = %s,
+            data_source = %s,
+            data_source_hash = %s,
+            metrics_breakdown = %s::jsonb
         WHERE id = %s;
     """
+    breakdown = metric_metadata.get("metrics_breakdown")
+    breakdown_json = json.dumps(breakdown, ensure_ascii=False, allow_nan=False) if breakdown is not None else None
     with conn.cursor() as cur:
         cur.execute(
             sql,
             (
-                round(mae, 4) if mae is not None else None,
-                round(wape, 4) if wape is not None else None,
-                round(baseline_mae, 4) if baseline_mae is not None else None,
-                round(baseline_wape, 4) if baseline_wape is not None else None,
+                _clean_metric_float(mae, 4),
+                _clean_metric_float(wape, 4),
+                _clean_metric_float(baseline_mae, 4),
+                _clean_metric_float(baseline_wape, 4),
+                metric_metadata.get("metric_horizon"),
+                metric_metadata.get("aggregation"),
+                metric_metadata.get("postprocess_version"),
+                metric_metadata.get("metric_protocol_version"),
+                metric_metadata.get("cutoff_date"),
+                metric_metadata.get("evaluation_cutoff_date"),
+                metric_metadata.get("test_start_date"),
+                metric_metadata.get("test_end_date"),
+                metric_metadata.get("stockout_mode"),
+                metric_metadata.get("baseline_name"),
+                metric_metadata.get("data_source"),
+                metric_metadata.get("data_source_hash"),
+                breakdown_json,
                 run_id,
             ),
         )
@@ -271,7 +417,7 @@ def persist_forecast_to_db(
                 pred_matrix=p_mat,
                 min_history_days=28,
             )
-            predictions_by_h[H] = p_mat
+            predictions_by_h[H] = np.clip(p_mat, 0.0, None)
 
         results_df = assemble_forecast_results_dataframe(
             series_index=builder.series_index,
@@ -286,25 +432,43 @@ def persist_forecast_to_db(
     try:
         cnt = save_forecast_results(conn, run_id=run_id, results_df=results_df)
 
-        # Lấy chỉ số tầm 7 ngày Overall làm đại diện theo quy ước Schema V1
-        m_h7_ov = report.lgb_results_clean[7]["lgb_tweedie"]["overall"]
-        b_h7_ov = report.lgb_results_clean[7]["rolling_mean_28"]["overall"]
-        complete_forecast_run(
-            conn,
-            run_id=run_id,
-            mae=m_h7_ov.mae,
-            wape=m_h7_ov.wape,
-            baseline_mae=b_h7_ov.mae,
-            baseline_wape=b_h7_ov.wape,
+        serving_cutoff = getattr(report, "serving_cutoff_date", None) or getattr(report, "cutoff_date", None)
+        data_hash = getattr(report, "data_source_hash", None) or (
+            compute_canonical_data_hash(df_daily) if df_daily is not None else None
         )
+        mae_val, wape_val, b_mae_val, b_wape_val, metric_metadata = extract_run_metric_summary(
+            report,
+            serving_cutoff_date=serving_cutoff,
+            data_source=getattr(report, "data_source", None) or "daily_sales",
+            data_source_hash=data_hash,
+        )
+        if metric_metadata is not None:
+            complete_forecast_run(
+                conn,
+                run_id=run_id,
+                mae=mae_val,
+                wape=wape_val,
+                baseline_mae=b_mae_val,
+                baseline_wape=b_wape_val,
+                metric_metadata=metric_metadata,
+            )
+        else:
+            complete_forecast_run(
+                conn,
+                run_id=run_id,
+                mae=mae_val,
+                wape=wape_val,
+                baseline_mae=b_mae_val,
+                baseline_wape=b_wape_val,
+            )
         if hasattr(conn, "commit"):
             conn.commit()
 
         # CHỈ IN SAU KHI ĐÃ COMMIT THÀNH CÔNG:
         print(f"      Đã nạp {cnt:,} dòng vào forecast_result.")
         print(
-            "      [Lưu ý Schema V1] Chỉ số lưu vào forecast_run hiện là tầm 7 ngày, "
-            "nhóm Overall (chờ Lead @NguyenDokhai2005 chốt cách tính WAPE chính)."
+            "      [Chuẩn #423] Chỉ số top-level forecast_run: H7 overall HORIZON_AGGREGATE_POSTPROC "
+            "(chi tiết H7/H30 lưu tại metrics_breakdown)."
         )
         print(f"      Đã cập nhật forecast_run ID {run_id} sang trạng thái DONE.")
         return run_id, cnt

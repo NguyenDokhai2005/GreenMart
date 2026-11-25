@@ -62,9 +62,18 @@ def build_forecast_completed_payload(
     model_version: str = "LightGBM-Tweedie-H7-H30",
     event_id: Optional[str] = None,
     timestamp: Optional[str] = None,
+    metric_horizon: Optional[int] = None,
+    aggregation: Optional[str] = None,
+    postprocess_version: Optional[str] = None,
+    metric_protocol_version: Optional[str] = None,
+    evaluation_cutoff_date: Optional[str] = None,
+    test_start_date: Optional[str] = None,
+    test_end_date: Optional[str] = None,
+    stockout_mode: Optional[str] = None,
+    baseline_name: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Tạo cấu trúc dữ liệu payload cho sự kiện forecast.completed."""
-    return {
+    """Tạo cấu trúc dữ liệu payload gọn kèm metadata cho sự kiện forecast.completed."""
+    payload: Dict[str, Any] = {
         "eventId": event_id or str(uuid.uuid4()),
         "eventType": DEFAULT_ROUTING_KEY,
         "timestamp": timestamp or datetime.now(timezone.utc).isoformat(),
@@ -77,6 +86,21 @@ def build_forecast_completed_payload(
         "baselineWape": baseline_wape,
         "cutoffDate": cutoff_date,
     }
+    optional_meta = {
+        "metricHorizon": metric_horizon,
+        "aggregation": aggregation,
+        "postprocessVersion": postprocess_version,
+        "metricProtocolVersion": metric_protocol_version,
+        "evaluationCutoffDate": evaluation_cutoff_date,
+        "testStartDate": test_start_date,
+        "testEndDate": test_end_date,
+        "stockoutMode": stockout_mode,
+        "baselineName": baseline_name,
+    }
+    for k, v in optional_meta.items():
+        if v is not None:
+            payload[k] = v
+    return payload
 
 
 def publish_forecast_completed(
@@ -94,6 +118,15 @@ def publish_forecast_completed(
     retry_backoff_factor: float = 1.0,
     connection_factory: Optional[Callable[[], Any]] = None,
     sleep_fn: Callable[[float], None] = time.sleep,
+    metric_horizon: Optional[int] = None,
+    aggregation: Optional[str] = None,
+    postprocess_version: Optional[str] = None,
+    metric_protocol_version: Optional[str] = None,
+    evaluation_cutoff_date: Optional[str] = None,
+    test_start_date: Optional[str] = None,
+    test_end_date: Optional[str] = None,
+    stockout_mode: Optional[str] = None,
+    baseline_name: Optional[str] = None,
 ) -> bool:
     """Phát sự kiện forecast.completed lên RabbitMQ với cơ chế retry an toàn.
 
@@ -117,6 +150,15 @@ def publish_forecast_completed(
         baseline_wape=baseline_wape,
         cutoff_date=cutoff_date,
         model_version=model_version,
+        metric_horizon=metric_horizon,
+        aggregation=aggregation,
+        postprocess_version=postprocess_version,
+        metric_protocol_version=metric_protocol_version,
+        evaluation_cutoff_date=evaluation_cutoff_date,
+        test_start_date=test_start_date,
+        test_end_date=test_end_date,
+        stockout_mode=stockout_mode,
+        baseline_name=baseline_name,
     )
     body = json.dumps(payload, ensure_ascii=False)
 

@@ -439,11 +439,16 @@ Dự báo chạy lúc 02:00 hằng đêm cho từng sản phẩm × chi nhánh, 
 
 - Baseline 1: naive theo tuần (bán ngày D = bán ngày D − 7). Baseline 2: trung bình trượt 28 ngày.
 
-- Tập kiểm tra là 30 ngày cuối của dữ liệu; huấn luyện trên toàn bộ dữ liệu trước đó, không trộn ngẫu nhiên.
+- Tập kiểm tra là 30 ngày cuối của dữ liệu (khóa trước đánh giá); huấn luyện trên toàn bộ dữ liệu trước đó, không trộn ngẫu nhiên.
 
-- Báo cáo MAE và WAPE tổng và theo nhóm (bán chạy, bán chậm) cho cả hai tầm 7 và 30 ngày.
+- Chuẩn báo cáo metric (#423):
+  - **Metric chính của lượt chạy (`ForecastRun.mae`, `wape`, `baselineMae`, `baselineWape`)**: đo tổng nhu cầu tầm **7 ngày** nhóm `overall` sau hậu xử lý (`HORIZON_AGGREGATE_POSTPROC`, loại ngày stockout `EXCLUDED_CLEAN`), đối chiếu với baseline tốt nhất (`weekly_naive` hoặc `rolling_mean_28`) trên cùng tập chuỗi, khoảng ngày, nguồn dữ liệu, origin và quy tắc fallback `< 28` ngày.
+  - **Breakdown đầy đủ ở Run Detail (`metricsBreakdown`)**: công khai cả hai tầm **7 ngày** (kèm `rolling H7` trên cửa sổ 30 ngày) và **30 ngày**, cả `HORIZON_AGGREGATE_POSTPROC`, `WEEKLY_AGGREGATE_POSTPROC` và `DAILY_CELL_RAW` (kèm tỷ lệ phủ/số ô stockout bị loại), phân theo `overall`, `top_200`, `slow_moving`, `zero_demand`, `non_zero_demand`.
+  - **Truy vết & tương thích dữ liệu cũ**: tách bạch `cutoffDate` (ngày dữ liệu phục vụ cuối cùng `D`) với `evaluationCutoffDate` (ngày gốc backtest), kèm `postprocessVersion`, `metricProtocolVersion`, `dataSource`, `dataSourceHash`. Lượt chạy cũ trước chuẩn #423 giữ nguyên số liệu và đánh dấu `legacy = true`.
+  - **Chính sách hậu xử lý v1**: giữ ngưỡng `0.4` cố định cho nhóm bán chậm (`predicted_qty < 0.4 -> 0`, giữ nguyên giá trị `== 0.4`), áp dụng trước fallback chuỗi `< 28` ngày và chặn không âm `>= 0`.
+  - **Định nghĩa WAPE & biên dữ liệu**: `wape` là tỉ lệ (có thể `> 1`, UI nhân `100` để hiển thị `%`). Nếu tổng thực tế `<= 0` thì `wape = null` (N/A), vẫn báo MAE, số mẫu và `zeroPredRatio`, không dùng N/A để kết luận đạt.
 
-- Đạt yêu cầu khi WAPE của mô hình thấp hơn baseline tốt nhất ở cả hai tầm.
+- Đạt yêu cầu AC-05 khi WAPE của mô hình sau hậu xử lý thấp hơn baseline tốt nhất ở **cả hai tầm 7 và 30 ngày** trên cùng giao thức đánh giá và công bố đầy đủ giới hạn benchmark.
 
 **Yêu cầu với dữ liệu sinh giả** (vì đề tài cần 10.000 đơn lịch sử)
 
