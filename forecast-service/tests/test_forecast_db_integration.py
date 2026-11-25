@@ -726,3 +726,69 @@ def test_standardized_forecast_run_persistence_and_detail_roundtrip(postgres_con
     assert "metricsBreakdown" not in published_events[0]
 
 
+def test_cli_save_db_aligns_cutoff_date_with_serving_target_dates_postgres(postgres_container, monkeypatch, auth_headers, tmp_path):
+    """Regression #423 QA: CLI train_initial_lightgbm --save-db và persist_forecast_to_db khớp cutoffDate với forecast_result D+1..D+30."""
+    from contextlib import contextmanager
+    from fastapi.testclient import TestClient
+    from app.main import create_app
+    from scripts.train_initial_lightgbm import run_training_and_evaluation
+
+    @contextmanager
+    def pg_conn_factory():
+        c = _get_pg_connection(postgres_container)
+        try:
+            yield c
+        finally:
+            c.close()
+
+    cutoff = date(2026, 10, 1)
+    df_daily = _make_dummy_daily_sales(cutoff)  # 2026-08-27 .. 2026-10-31
+    parquet_path = tmp_path / "daily_sales_cli.parquet"
+    artifacts_dir = tmp_path / "artifacts_cli"
+    df_daily.to_parquet(parquet_path, index=False)
+
+    monkeypatch.setattr("app.db.connection.get_db_connection", pg_conn_factory)
+    run_training_and_evaluation(
+        data_path=parquet_path,
+        artifacts_dir=artifacts_dir,
+        save_db=True,
+    )
+
+    eval_json = (artifacts_dir / "evaluation_metrics.json").read_text(encoding="utf-8")
+    import json as _json
+    parsed_eval = _json.loads(eval_json)
+    assert parsed_eval["optimal_slow_thresholds"] == {"7": 0.4, "30": 0.4}
+
+    conn_check = _get_pg_connection(postgres_container)
+    try:
+        with conn_check.cursor() as cur:
+            cur.execute(
+                "SELECT id, cutoff_date, evaluation_cutoff_date FROM forecast_run ORDER BY id DESC LIMIT 1;"
+            )
+            run_id, db_cutoff, db_eval_cutoff = cur.fetchone()
+            assert db_cutoff == date(2026, 10, 31)
+            assert db_eval_cutoff == date(2026, 10, 1)
+
+            cur.execute(
+                "SELECT horizon, COUNT(*), MIN(target_date), MAX(target_date) "
+                "FROM forecast_result WHERE run_id = %s GROUP BY horizon ORDER BY horizon;",
+                (run_id,),
+            )
+            rows_by_h = {int(h): (int(cnt), mn, mx) for h, cnt, mn, mx in cur.fetchall()}
+            assert rows_by_h[7] == (8 * 7, date(2026, 11, 1), date(2026, 11, 7))
+            assert rows_by_h[30] == (8 * 30, date(2026, 11, 1), date(2026, 11, 30))
+    finally:
+        conn_check.close()
+
+    app = create_app(pg_conn_factory)
+    client = TestClient(app)
+    res = client.get(f"/forecast/runs/{run_id}", headers=auth_headers)
+    assert res.status_code == 200
+    body = res.json()
+    assert body["cutoffDate"] == "2026-10-31"
+    assert body["evaluationCutoffDate"] == "2026-10-01"
+    assert body["legacy"] is False
+    assert body["postprocessVersion"] == "slow-th-h7_0.4-h30_0.4-sh28-v1"
+
+
+

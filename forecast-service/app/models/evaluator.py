@@ -895,13 +895,15 @@ def _build_openapi_evaluation_view(
         n_seg = naive_segs.get(seg_snake, empty_fallback)
         ma_seg = ma28_segs.get(seg_snake, empty_fallback)
         z_seg = zero_segs.get(seg_snake, empty_fallback)
+        cov_val = _finite_float(m_seg.coverage_ratio)
+        tot_act_val = _finite_float(m_seg.total_actual)
         segments_camel[seg_camel] = {
             "segment": seg_snake,
             "sampleCount": m_seg.sample_count,
             "excludedStockoutCount": m_seg.excluded_stockout_count,
             "totalDailyCellsBeforeFilter": m_seg.total_daily_cells,
-            "coverageRatio": float(_finite_float(m_seg.coverage_ratio) or 1.0),
-            "totalActual": float(_finite_float(m_seg.total_actual) or 0.0),
+            "coverageRatio": float(cov_val) if cov_val is not None else 1.0,
+            "totalActual": float(tot_act_val) if tot_act_val is not None else 0.0,
             "bestBaselineName": best_b_name,
             "model": _metric_values_camel(m_seg),
             "bestBaseline": _metric_values_camel(b_seg),

@@ -190,7 +190,8 @@ def test_scripts_train_and_segment_evaluation_end_to_end_metadata(tmp_path: Path
 
     eval_json = json.loads((artifacts_dir / "evaluation_metrics.json").read_text(encoding="utf-8"))
     assert eval_json["model_version"] == DEFAULT_MODEL_VERSION
-    assert eval_json["postprocess_version"].startswith("slow-th-")
+    assert eval_json["postprocess_version"] == "slow-th-h7_0.4-h30_0.4-sh28-v1"
+    assert eval_json["optimal_slow_thresholds"] == {"7": 0.4, "30": 0.4}
     assert "standardized_summary" in eval_json
     assert "results_raw_daily" in eval_json
     assert "zero_demand" in eval_json["results_clean_aggregate"]["7"]["lgb_tweedie_postproc"]
@@ -351,3 +352,129 @@ def test_canonical_hash_rolling_h7_and_typed_breakdown_contract():
     assert failed_detail["mae"] is None
     assert failed_detail["metric_horizon"] is None
     assert failed_detail["metrics_breakdown"] is None
+
+
+def test_serialize_eval_view_preserves_zero_coverage_ratio():
+    """Coverage = 0.0 (toàn bộ ngày bị stockout) không được fallback thành 1.0 (#423 QA)."""
+    from app.api.schemas import ForecastEvaluationView
+    from app.models.evaluator import _build_openapi_evaluation_view
+
+    full_stockout_seg = ModelComparisonMetrics(None, None, 0, 0.0, None, 7, 7, 0.0)
+    half_cov_seg = ModelComparisonMetrics(1.0, 0.5, 4, 8.0, 0.25, 4, 8, 0.5)
+    full_cov_seg = ModelComparisonMetrics(0.5, 0.2, 7, 14.0, 0.0, 0, 7, 1.0)
+    naive_seg = ModelComparisonMetrics(1.2, 0.6, 4, 8.0, 0.5, 4, 8, 0.5)
+    zero_seg = ModelComparisonMetrics(2.0, 1.0, 4, 8.0, 1.0, 4, 8, 0.5)
+
+    stub_report = MagicMock()
+    stub_report.best_baseline_by_view = {7: {"daily_clean": "rolling_mean_28"}}
+
+    view = _build_openapi_evaluation_view(
+        report=stub_report,
+        horizon=7,
+        aggregation="DAILY_CELL_RAW",
+        stockout_mode="EXCLUDED_CLEAN",
+        res_h={
+            "lgb_tweedie": {
+                "overall": full_stockout_seg,
+                "top_200": half_cov_seg,
+                "slow_moving": full_cov_seg,
+                "zero_demand": full_stockout_seg,
+                "non_zero_demand": full_cov_seg,
+            },
+            "rolling_mean_28": {
+                "overall": full_stockout_seg,
+                "top_200": half_cov_seg,
+                "slow_moving": full_cov_seg,
+                "zero_demand": full_stockout_seg,
+                "non_zero_demand": full_cov_seg,
+            },
+            "weekly_naive": {
+                "overall": full_stockout_seg,
+                "top_200": naive_seg,
+                "slow_moving": full_cov_seg,
+                "zero_demand": full_stockout_seg,
+                "non_zero_demand": full_cov_seg,
+            },
+            "zero_forecast": {
+                "overall": full_stockout_seg,
+                "top_200": zero_seg,
+                "slow_moving": full_cov_seg,
+                "zero_demand": full_stockout_seg,
+                "non_zero_demand": full_cov_seg,
+            },
+        },
+        model_key="lgb_tweedie",
+        bb_view_key="daily_clean",
+        evaluation_origins=[date(2026, 10, 1)],
+        target_start=date(2026, 10, 2),
+        target_end=date(2026, 10, 8),
+        postproc_ver="none",
+    )
+
+    parsed_view = ForecastEvaluationView.model_validate(view)
+    assert view["segments"]["overall"]["coverageRatio"] == 0.0
+    assert parsed_view.segments.overall.coverage_ratio == 0.0
+    assert view["segments"]["overall"]["excludedStockoutCount"] == 7
+    assert view["segments"]["overall"]["totalDailyCellsBeforeFilter"] == 7
+    assert view["segments"]["overall"]["sampleCount"] == 0
+    assert view["segments"]["top200"]["coverageRatio"] == 0.5
+    assert view["segments"]["slowMoving"]["coverageRatio"] == 1.0
+
+
+def test_compute_view_comparison_wape_none_for_zero_negative_and_empty():
+    """WAPE phải là None/N/A khi total_actual <= 0 (all-zero, trả hàng) hoặc tập rỗng (#423 QA)."""
+    zeros = np.zeros(7, dtype=float)
+    comp_zero = _compute_view_comparison(
+        y_act=zeros,
+        y_postproc=zeros,
+        y_raw=zeros,
+        y_ma28=zeros,
+        y_naive=zeros,
+        horizon=7,
+        aggregation="horizon_aggregate",
+        stockout_excluded=True,
+    )
+    assert comp_zero["sample_count"] == 7
+    assert comp_zero["model"]["mae"] == 0.0
+    assert comp_zero["model"]["wape"] is None
+    assert comp_zero["model"]["zero_pred_ratio"] == 1.0
+    assert comp_zero["model_raw"]["wape"] is None
+    assert comp_zero["baseline_rolling_mean_28"]["wape"] is None
+    assert comp_zero["baseline_weekly_naive"]["wape"] is None
+    assert comp_zero["wape_diff"] is None
+    assert comp_zero["win"] is False
+
+    returns_neg = np.array([-3.0, 1.0, 1.0], dtype=float)  # total_actual = -1 <= 0
+    pred_neg = np.zeros(3, dtype=float)
+    comp_neg = _compute_view_comparison(
+        y_act=returns_neg,
+        y_postproc=pred_neg,
+        y_raw=pred_neg,
+        y_ma28=pred_neg,
+        y_naive=pred_neg,
+        horizon=7,
+        aggregation="horizon_aggregate",
+        stockout_excluded=True,
+    )
+    assert comp_neg["model"]["mae"] == pytest.approx(5.0 / 3.0)
+    assert comp_neg["model"]["wape"] is None
+    assert comp_neg["baseline_rolling_mean_28"]["wape"] is None
+    assert comp_neg["win"] is False
+
+    empty = np.array([], dtype=float)
+    comp_empty = _compute_view_comparison(
+        y_act=empty,
+        y_postproc=empty,
+        y_raw=empty,
+        y_ma28=empty,
+        y_naive=empty,
+        horizon=7,
+        aggregation="horizon_aggregate",
+        stockout_excluded=True,
+    )
+    assert comp_empty["sample_count"] == 0
+    assert comp_empty["model"]["mae"] is None
+    assert comp_empty["model"]["wape"] is None
+    assert comp_empty["model"]["zero_pred_ratio"] is None
+    assert comp_empty["win"] is False
+

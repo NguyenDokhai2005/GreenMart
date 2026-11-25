@@ -13,7 +13,7 @@ Tuân thủ:
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import json
 import math
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
@@ -21,14 +21,17 @@ import numpy as np
 import pandas as pd
 
 from app.db.connection import get_db_connection
+from app.models.baselines import extract_top_sku_ids_from_sales
 from app.models.evaluator import (
     DEFAULT_METRIC_PROTOCOL_VERSION,
     DEFAULT_MIN_HISTORY_DAYS,
     DEFAULT_MODEL_VERSION,
+    DEFAULT_SLOW_THRESHOLD,
     _resolve_best_baseline_name,
     build_metrics_breakdown_payload,
     build_postprocess_version,
     compute_canonical_data_hash,
+    train_production_demand_models,
 )
 
 
@@ -359,23 +362,18 @@ def persist_forecast_to_db(
     df_daily: Optional[pd.DataFrame] = None,
     results_df: Optional[pd.DataFrame] = None,
     model_version: str = "LightGBM-Tweedie-H7-H30",
+    serving_mode: Optional[bool] = None,
 ) -> Tuple[int, int]:
     """Thực thi toàn bộ luồng tạo kết quả dự báo và ghi vào CSDL theo cờ --save-db.
 
     Quy trình:
-    1. Lấy danh sách Top 200 SKU từ baseline_report (tái dùng mask từ baselines.py).
-    2. Vector hóa: Áp ngưỡng hậu xử lý tối ưu cho nhóm bán chậm (không dùng vòng lặp for).
-    3. Áp dụng fallback chuỗi mới (< 28 ngày) bằng trung bình danh mục.
-    4. Ghép nối thành results_df (37 ngày x N chuỗi).
-    5. Quản lý transaction:
-       - create_forecast_run: Commit ngay (status = 'RUNNING').
-       - try: save_forecast_results + complete_forecast_run -> conn.commit().
-       - except: conn.rollback() -> fail_forecast_run (commit) -> raise err.
-       - Chỉ in thông báo "Đã nạp ... dòng" và "DONE" SAU KHI commit thành công.
-
-    Trả về:
-        (run_id, total_inserted)
+    - Khi ở serving_mode (hoặc report chuẩn hóa #423 có serving_cutoff_date > cutoff_date):
+      retrain trên toàn bộ dữ liệu tới ngày cuối D (= origin_date), tạo dự báo tương lai D+1..D+30,
+      áp ngưỡng bán chậm + fallback < 28 ngày + clip >= 0, và gắn cutoff_date = D khớp chính xác với target_date.
+    - Khi ở chế độ backtest/legacy (ví dụ DummyReport hoặc serving_mode=False):
+      giữ origin = report.cutoff_date và đồng bộ cutoff_date theo đúng origin của points được ghi.
     """
+    computed_origin_date: Optional[date] = None
     if results_df is None:
         if df_daily is None or best_models is None:
             raise ValueError("Cần cung cấp df_daily và best_models nếu results_df chưa được tính sẵn.")
@@ -388,29 +386,65 @@ def persist_forecast_to_db(
 
         from app.models.features import FeatureMatrixBuilder
         from app.models.evaluator import apply_short_history_fallback
+        from app.models.lightgbm_model import LightGBMDemandModel
 
         builder = FeatureMatrixBuilder(df_daily)
-        # Tái dùng đúng mask/danh sách Top 200 SKU từ baseline_report
-        top_sku_ids = report.baseline_report.top_sku_ids
+        report_serving_cutoff = getattr(report, "serving_cutoff_date", None)
+        is_standardized_report = isinstance(getattr(report, "aggregated_results_clean", None), dict)
+        if serving_mode is None:
+            use_serving_future = bool(
+                is_standardized_report
+                and report_serving_cutoff is not None
+                and getattr(report, "cutoff_date", None) is not None
+                and report_serving_cutoff > report.cutoff_date
+            )
+        else:
+            use_serving_future = bool(serving_mode)
+
+        if use_serving_future:
+            last_data_date = builder.unique_dates[-1]
+            origin_date = min(last_data_date, report_serving_cutoff) if report_serving_cutoff is not None else last_data_date
+            top_sku_ids = extract_top_sku_ids_from_sales(df_daily, cutoff_date=origin_date, top_k=200)
+            if (
+                origin_date > report.cutoff_date
+                and all(isinstance(best_models.get(h), LightGBMDemandModel) for h in (7, 30) if h in best_models)
+            ):
+                active_models = train_production_demand_models(
+                    builder=builder,
+                    horizons=(7, 30),
+                    best_models=best_models,
+                    best_objectives=getattr(report, "best_objective", None),
+                )
+            else:
+                active_models = best_models
+            df_train_only = df_daily[sale_dates <= origin_date]
+        else:
+            origin_date = report.cutoff_date
+            top_sku_ids = report.baseline_report.top_sku_ids
+            active_models = best_models
+            df_train_only = df_daily[sale_dates <= origin_date]
+
+        computed_origin_date = origin_date
         series_product_ids = builder.series_index.get_level_values("product_id").to_numpy()
         is_top_mask = np.isin(series_product_ids, list(top_sku_ids))
 
         predictions_by_h: Dict[int, np.ndarray] = {}
-        df_train_only = df_daily[sale_dates <= report.cutoff_date]
-
         for H in (7, 30):
-            test_dfs = builder.build_test_features_matrix(report.cutoff_date, H)
-            model = best_models[H]
-            pred_cols = [model.predict(sdf) for sdf in test_dfs]
+            if use_serving_future:
+                feature_dfs = builder.build_future_features_matrix(origin_date=origin_date, horizon=H)
+            else:
+                feature_dfs = builder.build_test_features_matrix(origin_date, H)
+            model = active_models[H]
+            pred_cols = [model.predict(sdf) for sdf in feature_dfs]
             p_mat = np.column_stack(pred_cols)
 
-            th_v = report.optimal_slow_thresholds.get(H, 0.0)
+            th_v = report.optimal_slow_thresholds.get(H, DEFAULT_SLOW_THRESHOLD if use_serving_future else 0.0)
             if th_v > 0.0:
                 # Vector hóa: Áp ngưỡng hậu xử lý chỉ cho chuỗi bán chậm (không thuộc top 200)
                 slow_cells = (~is_top_mask)[:, np.newaxis] & (p_mat < th_v)
                 p_mat = np.where(slow_cells, 0.0, p_mat)
 
-            # Áp dụng quy tắc fallback chuỗi mới (< 28 ngày)
+            # Áp dụng quy tắc fallback chuỗi mới (< 28 ngày) và chặn không âm >= 0
             apply_short_history_fallback(
                 df_train=df_train_only,
                 series_index=builder.series_index,
@@ -422,7 +456,7 @@ def persist_forecast_to_db(
         results_df = assemble_forecast_results_dataframe(
             series_index=builder.series_index,
             predictions_by_horizon=predictions_by_h,
-            cutoff_date=report.cutoff_date,
+            cutoff_date=origin_date,
         )
 
     # Bắt đầu transaction quản lý CSDL
@@ -432,7 +466,13 @@ def persist_forecast_to_db(
     try:
         cnt = save_forecast_results(conn, run_id=run_id, results_df=results_df)
 
-        serving_cutoff = getattr(report, "serving_cutoff_date", None) or getattr(report, "cutoff_date", None)
+        if computed_origin_date is not None:
+            serving_cutoff = computed_origin_date
+        elif not results_df.empty:
+            min_target = pd.to_datetime(results_df["target_date"]).dt.date.min()
+            serving_cutoff = min_target - timedelta(days=1)
+        else:
+            serving_cutoff = getattr(report, "serving_cutoff_date", None) or getattr(report, "cutoff_date", None)
         data_hash = getattr(report, "data_source_hash", None) or (
             compute_canonical_data_hash(df_daily) if df_daily is not None else None
         )

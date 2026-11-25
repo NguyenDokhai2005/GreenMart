@@ -62,6 +62,14 @@ def _load_thresholds_from_metrics_json(
     return {H: 0.4 for H in horizons}
 
 
+def _standardized_wape(y_true: np.ndarray, y_pred: np.ndarray) -> Optional[float]:
+    """Tính WAPE theo chuẩn #423/BA: trả None (N/A) khi tập rỗng hoặc tổng actual <= 0."""
+    y_t = np.asarray(y_true, dtype=float).ravel()
+    if y_t.size == 0 or float(np.sum(y_t)) <= 0.0:
+        return None
+    return calculate_wape(y_t, y_pred, as_percent=False)
+
+
 def _compute_view_comparison(
     y_act: np.ndarray,
     y_postproc: np.ndarray,
@@ -73,24 +81,43 @@ def _compute_view_comparison(
     stockout_excluded: bool,
 ) -> Dict[str, Any]:
     """Tính toán đồng nhất các chỉ số model (raw + postproc) và baseline trên cùng ma trận."""
-    mae_ma28 = calculate_mae(y_act, y_ma28)
-    wape_ma28 = calculate_wape(y_act, y_ma28, as_percent=False)
+    y_act_arr = np.asarray(y_act, dtype=float).ravel()
+    if y_act_arr.size == 0:
+        return {
+            "horizon": horizon,
+            "aggregation": aggregation,
+            "stockout_excluded": stockout_excluded,
+            "sample_count": 0,
+            "best_baseline_name": "weekly_naive",
+            "model": {"mae": None, "wape": None, "zero_pred_ratio": None},
+            "model_raw": {"mae": None, "wape": None, "zero_pred_ratio": None},
+            "baseline_rolling_mean_28": {"mae": None, "wape": None},
+            "baseline_weekly_naive": {"mae": None, "wape": None},
+            "wape_diff": None,
+            "win": False,
+        }
 
-    mae_naive = calculate_mae(y_act, y_naive)
-    wape_naive = calculate_wape(y_act, y_naive, as_percent=False)
+    total_actual = float(np.sum(y_act_arr))
+    n_samples = int(y_act_arr.size)
+
+    mae_ma28 = calculate_mae(y_act_arr, y_ma28)
+    wape_ma28 = _standardized_wape(y_act_arr, y_ma28)
+
+    mae_naive = calculate_mae(y_act_arr, y_naive)
+    wape_naive = _standardized_wape(y_act_arr, y_naive)
 
     best_b_name = _compare_metrics_for_best(
-        BaselineMetrics(mae=mae_naive, wape=wape_naive, sample_count=len(y_act), total_actual=float(np.sum(y_act))),
-        BaselineMetrics(mae=mae_ma28, wape=wape_ma28, sample_count=len(y_act), total_actual=float(np.sum(y_act))),
+        BaselineMetrics(mae=mae_naive, wape=wape_naive, sample_count=n_samples, total_actual=total_actual),
+        BaselineMetrics(mae=mae_ma28, wape=wape_ma28, sample_count=n_samples, total_actual=total_actual),
     )
     best_b_wape = wape_naive if best_b_name == "weekly_naive" else wape_ma28
 
-    mae_post = calculate_mae(y_act, y_postproc)
-    wape_post = calculate_wape(y_act, y_postproc, as_percent=False)
+    mae_post = calculate_mae(y_act_arr, y_postproc)
+    wape_post = _standardized_wape(y_act_arr, y_postproc)
     zero_ratio_post = calculate_zero_ratio(y_postproc)
 
-    mae_raw = calculate_mae(y_act, y_raw)
-    wape_raw = calculate_wape(y_act, y_raw, as_percent=False)
+    mae_raw = calculate_mae(y_act_arr, y_raw)
+    wape_raw = _standardized_wape(y_act_arr, y_raw)
     zero_ratio_raw = calculate_zero_ratio(y_raw)
 
     win_post = (wape_post < best_b_wape) if (wape_post is not None and best_b_wape is not None) else False
@@ -100,7 +127,7 @@ def _compute_view_comparison(
         "horizon": horizon,
         "aggregation": aggregation,
         "stockout_excluded": stockout_excluded,
-        "sample_count": int(len(y_act)),
+        "sample_count": n_samples,
         "best_baseline_name": best_b_name,
         "model": {"mae": mae_post, "wape": wape_post, "zero_pred_ratio": zero_ratio_post},
         "model_raw": {"mae": mae_raw, "wape": wape_raw, "zero_pred_ratio": zero_ratio_raw},
@@ -355,7 +382,10 @@ def run_segment_evaluation(
     # 5. Lưu ra JSON
     print(f"[4/4] Ghi kết quả vào {output_json_path}...")
     output_json_path.parent.mkdir(parents=True, exist_ok=True)
-    output_json_path.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
+    output_json_path.write_text(
+        json.dumps(results, indent=2, ensure_ascii=False, allow_nan=False),
+        encoding="utf-8",
+    )
     print("      Đã lưu metrics phân nhóm thành công!")
 
     # In tóm tắt kết quả

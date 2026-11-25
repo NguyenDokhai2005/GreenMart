@@ -21,6 +21,7 @@ if str(_SERVICE_DIR) not in sys.path:
     sys.path.insert(0, str(_SERVICE_DIR))
 
 from app.models.evaluator import (
+    DEFAULT_SLOW_THRESHOLD,
     _metric_to_dict,
     build_metrics_breakdown_payload,
     build_standardized_evaluation_summary,
@@ -42,6 +43,8 @@ def run_training_and_evaluation(
     data_path: Path | None = None,
     artifacts_dir: Path | None = None,
     save_db: bool = False,
+    slow_threshold: float | None = DEFAULT_SLOW_THRESHOLD,
+    tune_slow_threshold: bool = False,
 ) -> str:
     """Nạp dữ liệu, huấn luyện mô hình LightGBM và xuất báo cáo so sánh Baseline đối đầu."""
     if data_path is None:
@@ -52,10 +55,16 @@ def run_training_and_evaluation(
     if not data_path.exists():
         raise FileNotFoundError(f"Không tìm thấy tệp dữ liệu tại {data_path}. Hãy chạy export_daily_sales_parquet.py trước.")
 
+    fixed_thresholds: dict[int, float] | None = None
+    if not tune_slow_threshold:
+        th = DEFAULT_SLOW_THRESHOLD if slow_threshold is None else float(slow_threshold)
+        fixed_thresholds = {7: th, 30: th}
+
     print("=" * 80)
-    print("KHỞI CHẠY HUẤN LUYỆN VÀ ĐÁNH GIÁ MÔ HÌNH LIGHTGBM (ISSUE #113)")
+    print("KHỞI CHẠY HUẤN LUYỆN VÀ ĐÁNH GIÁ MÔ HÌNH LIGHTGBM (ISSUE #113 & #423)")
     print(f"- Nguồn dữ liệu: {data_path}")
     print(f"- Thư mục artifacts: {artifacts_dir}")
+    print(f"- Chính sách ngưỡng slow-moving: {'tune Validation' if fixed_thresholds is None else f'cố định {fixed_thresholds[7]}'}")
     print(f"- Ghi CSDL (forecast_run / forecast_result): {save_db}")
     print("=" * 80)
 
@@ -72,12 +81,16 @@ def run_training_and_evaluation(
 
     t1 = time.time()
     print("[2/5] Đang huấn luyện và đánh giá đối đầu trên 2 tầm (7 ngày và 30 ngày)...")
-    print("      Thử nghiệm 2 hàm mục tiêu: regression_l1 và tweedie; tối ưu ngưỡng bán chậm trên Validation.")
+    if fixed_thresholds is None:
+        print("      Thử nghiệm 2 hàm mục tiêu: regression_l1 và tweedie; tối ưu ngưỡng bán chậm trên Validation.")
+    else:
+        print(f"      Thử nghiệm 2 hàm mục tiêu: regression_l1 và tweedie; khóa ngưỡng bán chậm v1 = {fixed_thresholds[7]}.")
     report, best_models = evaluate_lightgbm_pipeline(
         df_daily=df_daily,
         horizons=(7, 30),
         objectives=("regression_l1", "tweedie"),
         sample_step_days=7,
+        fixed_slow_thresholds=fixed_thresholds,
         data_source=data_path.name,
         data_source_hash=canonical_hash,
     )
@@ -139,7 +152,7 @@ def run_training_and_evaluation(
     print(f"      Đã lưu metrics JSON tại: {json_file}")
 
     if save_db:
-        print("[5/5] Đang ghi kết quả vào PostgreSQL (forecast_run và forecast_result)...")
+        print("[5/5] Đang retrain tới ngày D và ghi dự báo phục vụ vào PostgreSQL (forecast_run và forecast_result)...")
         from app.db.connection import get_db_connection
 
         with get_db_connection() as conn:
@@ -149,6 +162,7 @@ def run_training_and_evaluation(
                 best_models=best_models,
                 df_daily=df_daily,
                 model_version="LightGBM-Tweedie-H7-H30",
+                serving_mode=True,
             )
 
     print("=" * 80)
@@ -161,8 +175,24 @@ def run_training_and_evaluation(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Huấn luyện mô hình LightGBM cho forecast-service.")
     parser.add_argument("--data-path", type=str, default=None, help="Đường dẫn file parquet daily_sales")
-    parser.add_argument("--save-db", action="store_true", help="Ghi kết quả vào PostgreSQL")
+    parser.add_argument("--save-db", action="store_true", help="Ghi kết quả phục vụ vào PostgreSQL")
+    parser.add_argument(
+        "--slow-threshold",
+        type=float,
+        default=DEFAULT_SLOW_THRESHOLD,
+        help="Ngưỡng slow-moving cố định (mặc định 0.4 theo policy v1 #423)",
+    )
+    parser.add_argument(
+        "--tune-slow-threshold",
+        action="store_true",
+        help="Chế độ nghiên cứu: tối ưu ngưỡng trên Validation thay vì khóa ngưỡng cố định",
+    )
     args = parser.parse_args()
 
     p = Path(args.data_path) if args.data_path else None
-    run_training_and_evaluation(data_path=p, save_db=args.save_db)
+    run_training_and_evaluation(
+        data_path=p,
+        save_db=args.save_db,
+        slow_threshold=args.slow_threshold,
+        tune_slow_threshold=args.tune_slow_threshold,
+    )
