@@ -603,4 +603,51 @@ def test_execute_background_forecast_generates_future_target_dates_D1_to_D30(mon
     assert completed_runs[0] == (298, 0.22, 0.14)
 
 
+def test_execute_background_forecast_supports_two_arg_monkeypatched_evaluator(monkeypatch):
+    """Đảm bảo monkeypatch evaluate_lightgbm_pipeline với chữ ký 2 tham số (df_daily, horizons) không lỗi TypeError (#423)."""
+    mock_conn = MagicMock()
+    monkeypatch.setattr("app.pipelines.forecast_service.get_db_connection", lambda: mock_conn)
+    mock_conn.__enter__.return_value = mock_conn
+
+    df_dummy = _build_dummy_sales(product_id=10)
+    monkeypatch.setattr("app.pipelines.forecast_service.fetch_daily_sales_from_db", lambda conn: df_dummy)
+
+    mock_metrics = MagicMock(mae=0.25, wape=0.15)
+    mock_report = MagicMock()
+    mock_report.cutoff_date = date(2026, 10, 1)
+    mock_report.optimal_slow_thresholds = {7: 0.4, 30: 0.4}
+    mock_report.baseline_report.top_sku_ids = {10}
+    mock_report.baseline_report.best_baseline = {7: "rolling_mean_28"}
+    mock_report.baseline_report.results = {7: {"rolling_mean_28": {"overall": mock_metrics}}}
+    mock_report.lgb_results_clean = {7: {"lgb_tweedie": {"overall": mock_metrics}}}
+    mock_report.best_objective = {7: "tweedie", 30: "tweedie"}
+
+    class DummyProdModel:
+        def predict(self, df):
+            return np.full(len(df), 2.0)
+
+    monkeypatch.setattr(
+        "app.pipelines.forecast_service.evaluate_lightgbm_pipeline",
+        lambda df_daily, horizons: (mock_report, {7: DummyProdModel(), 30: DummyProdModel()}),
+    )
+
+    completed_runs = []
+    monkeypatch.setattr(
+        "app.pipelines.forecast_service.save_forecast_results",
+        lambda conn, run_id, results_df: len(results_df),
+    )
+    monkeypatch.setattr(
+        "app.pipelines.forecast_service.complete_forecast_run",
+        lambda conn, run_id, mae, wape, baseline_mae, baseline_wape: completed_runs.append((run_id, mae, wape)),
+    )
+
+    execute_background_forecast(
+        run_id=423,
+        retrain_models_fn=lambda builder, horizons: {7: DummyProdModel(), 30: DummyProdModel()},
+        event_publisher_fn=lambda **kwargs: True,
+    )
+    assert completed_runs == [(423, 0.25, 0.15)]
+
+
+
 

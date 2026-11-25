@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+import inspect
 import json
 import logging
 from typing import Any, Dict, Optional, Tuple
@@ -397,20 +398,28 @@ def execute_background_forecast(
             # 4. Huấn luyện và đánh giá mô hình LightGBM đối đầu Baseline (cùng threshold phục vụ #423)
             th_v = optimal_threshold if optimal_threshold is not None else DEFAULT_SLOW_THRESHOLD
             data_hash = compute_canonical_data_hash(df_daily)
-            if evaluate_pipeline_fn is not None:
-                report, backtest_models = eval_fn(
-                    df_daily=df_daily,
-                    horizons=(7, 30),
-                )
-            else:
-                report, backtest_models = eval_fn(
-                    df_daily=df_daily,
-                    horizons=(7, 30),
-                    fixed_slow_thresholds={7: th_v, 30: th_v},
-                    data_source="postgresql.daily_sales",
-                    data_source_hash=data_hash,
-                    serving_cutoff_date=last_date,
-                )
+            eval_kwargs: Dict[str, Any] = {
+                "df_daily": df_daily,
+                "horizons": (7, 30),
+            }
+            if evaluate_pipeline_fn is None:
+                optional_eval_kwargs = {
+                    "fixed_slow_thresholds": {7: th_v, 30: th_v},
+                    "data_source": "postgresql.daily_sales",
+                    "data_source_hash": data_hash,
+                    "serving_cutoff_date": last_date,
+                }
+                try:
+                    sig = inspect.signature(eval_fn)
+                    accepts_var_kw = any(
+                        p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
+                    )
+                    for k, v in optional_eval_kwargs.items():
+                        if accepts_var_kw or k in sig.parameters:
+                            eval_kwargs[k] = v
+                except (TypeError, ValueError):
+                    pass
+            report, backtest_models = eval_fn(**eval_kwargs)
 
             # Tính lại Top 200 SKU bán chạy trên toàn bộ dữ liệu tới ngày D (Issue #298)
             # Với unit test dùng dummy evaluator, cho phép dùng top_sku_ids từ mock để test threshold trên 1 SKU
