@@ -2597,7 +2597,7 @@ export interface components {
     };
   };
   parameters: {
-    /** @description Số trang, bắt đầu từ 0 */
+    /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
     Page: number;
     Size: number;
     /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
@@ -2973,7 +2973,7 @@ export interface operations {
         /** @description Gồm cả danh mục con */
         categoryId?: number;
         active?: boolean;
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
         /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
@@ -3116,7 +3116,7 @@ export interface operations {
         phone?: components['schemas']['Phone'];
         /** @description Lọc theo trạng thái hoạt động (mặc định true; chỉ OWNER, BRANCH_MANAGER được gửi active=false) */
         active?: boolean;
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
         /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
@@ -3253,7 +3253,7 @@ export interface operations {
   listCustomerOrders: {
     parameters: {
       query?: {
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
       };
@@ -3416,7 +3416,7 @@ export interface operations {
         customerId?: number;
         /** @description Tìm theo mã đơn, mã đơn kênh hoặc số điện thoại khách */
         q?: string;
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
         /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
@@ -3609,7 +3609,7 @@ export interface operations {
         /** @description Tìm chuỗi con theo tên, SKU hoặc barcode, không phân biệt hoa thường. Riêng tên sản phẩm không phân biệt dấu tiếng Việt (đ/Đ tương đương d; Unicode dạng tổ hợp và dựng sẵn tương đương). SKU/barcode giữ cách đối chiếu ký tự hiện có, không bỏ dấu. */
         q?: string;
         stockStatus?: components['schemas']['StockStatus'];
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
         /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
@@ -3733,7 +3733,7 @@ export interface operations {
         refId?: number;
         from?: string;
         to?: string;
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
       };
@@ -4124,7 +4124,7 @@ export interface operations {
         to?: string;
         /** @description Tìm theo mã phiếu hoặc nhà cung cấp */
         q?: string;
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
         /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
@@ -4381,7 +4381,7 @@ export interface operations {
         channel?: components['schemas']['ChannelCode'];
         /** @description Tìm theo mã */
         q?: string;
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
         /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
@@ -4548,7 +4548,7 @@ export interface operations {
         active?: boolean;
         /** @description Tìm theo tên đăng nhập hoặc họ tên */
         q?: string;
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
         /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
@@ -4965,7 +4965,7 @@ export interface operations {
     parameters: {
       query?: {
         status?: components['schemas']['ForecastRunStatus'];
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
       };
