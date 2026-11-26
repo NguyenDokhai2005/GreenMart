@@ -12,6 +12,7 @@ import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.jdbc.core.JdbcTemplate;
 import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
 import vn.greenmart.common.security.SecurityUtils;
@@ -34,7 +35,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("PosIdempotencyService - Unit Tests (Issue #34)")
+@DisplayName("PosIdempotencyService - Unit Tests (Issue #34 & #515)")
 class PosIdempotencyServiceTest {
 
     @Mock
@@ -52,6 +53,9 @@ class PosIdempotencyServiceTest {
     @Mock
     private PosOrderService posOrderService;
 
+    @Mock
+    private JdbcTemplate jdbcTemplate;
+
     private final ObjectMapper objectMapper = new ObjectMapper()
             .findAndRegisterModules()
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -67,10 +71,11 @@ class PosIdempotencyServiceTest {
     void setUp() {
         securityUtilsMock = mockStatic(SecurityUtils.class);
         securityUtilsMock.when(SecurityUtils::getCurrentUserId).thenReturn(1L);
+        securityUtilsMock.when(() -> SecurityUtils.getAccessibleBranchIds(jdbcTemplate)).thenReturn(List.of(1L));
 
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         idempotencyService = new PosIdempotencyService(
-                redisTemplate, objectMapper, salesOrderRepository, posOrderService);
+                redisTemplate, objectMapper, salesOrderRepository, posOrderService, jdbcTemplate);
 
         key = UUID.randomUUID().toString();
         defaultRequest = new PosOrderRequest(
@@ -238,62 +243,60 @@ class PosIdempotencyServiceTest {
     }
 
     @Test
-@DisplayName("Kịch bản A (#313): Redis lỗi không lưu được COMPLETED -> Lần gửi lại đọc từ DB và trả đơn cũ")
-void testExecute_RedisFailureOnSave_FallbackToDbReturnsExistingOrder() {
-    String expectedRedisKey = "idempotency:pos:1:" + key;
-    when(valueOperations.setIfAbsent(eq(expectedRedisKey), anyString(), any(Duration.class)))
-            .thenReturn(true);
-    when(action.get()).thenReturn(mockResponse);
-    // Lần đầu: Redis lỗi khi lưu COMPLETED
-    doThrow(new org.springframework.data.redis.RedisConnectionFailureException("Redis down"))
-            .when(valueOperations).set(eq(expectedRedisKey), anyString(), eq(Duration.ofHours(24)));
+    @DisplayName("Kịch bản A (#313): Redis lỗi không lưu được COMPLETED -> Lần gửi lại đọc từ DB và trả đơn cũ")
+    void testExecute_RedisFailureOnSave_FallbackToDbReturnsExistingOrder() {
+        String expectedRedisKey = "idempotency:pos:1:" + key;
+        when(valueOperations.setIfAbsent(eq(expectedRedisKey), anyString(), any(Duration.class)))
+                .thenReturn(true);
+        when(action.get()).thenReturn(mockResponse);
+        doThrow(new org.springframework.data.redis.RedisConnectionFailureException("Redis down"))
+                .when(valueOperations).set(eq(expectedRedisKey), anyString(), eq(Duration.ofHours(24)));
 
-    IdempotencyResult firstResult = idempotencyService.execute(key, defaultRequest, action);
-    assertThat(firstResult.isCreated()).isTrue();
+        IdempotencyResult firstResult = idempotencyService.execute(key, defaultRequest, action);
+        assertThat(firstResult.isCreated()).isTrue();
 
-    // Lần hai: khóa PROCESSING trên Redis đã hết hạn nên setIfAbsent trả true, nhưng DB đã có đơn
-    vn.greenmart.sales.domain.SalesOrder existingOrder = new vn.greenmart.sales.domain.SalesOrder();
-    existingOrder.setId(500L);
-    existingOrder.setCreatedBy(1L);
-    existingOrder.setIdempotencyKey(key);
-    existingOrder.setCreatedAt(Instant.now());
+        vn.greenmart.sales.domain.SalesOrder existingOrder = new vn.greenmart.sales.domain.SalesOrder();
+        existingOrder.setId(500L);
+        existingOrder.setBranchId(1L);
+        existingOrder.setCreatedBy(1L);
+        existingOrder.setIdempotencyKey(key);
+        existingOrder.setCreatedAt(Instant.now());
 
-    when(salesOrderRepository.findByCreatedByAndIdempotencyKey(1L, key))
-            .thenReturn(java.util.Optional.of(existingOrder));
-    when(posOrderService.getOrder(500L)).thenReturn(mockResponse);
+        when(salesOrderRepository.findByCreatedByAndIdempotencyKey(1L, key))
+                .thenReturn(java.util.Optional.of(existingOrder));
+        when(posOrderService.getOrder(500L)).thenReturn(mockResponse);
 
-    IdempotencyResult retryResult = idempotencyService.execute(key, defaultRequest, action);
+        IdempotencyResult retryResult = idempotencyService.execute(key, defaultRequest, action);
 
-    assertThat(retryResult.isCreated()).isFalse();
-    assertThat(retryResult.response().id()).isEqualTo(500L);
-    verify(action, times(1)).get();
-}
+        assertThat(retryResult.isCreated()).isFalse();
+        assertThat(retryResult.response().id()).isEqualTo(500L);
+        verify(action, times(1)).get();
+    }
 
-@Test
-@DisplayName("Kịch bản B (#313): Khóa Redis hết hạn sau 30s và 2 request đụng UNIQUE DB -> Trả đơn cũ, không tạo trùng")
-void testExecute_LockExpiredAfter30s_DbUniqueConstraintReturnsExistingOrder() {
-    String expectedRedisKey = "idempotency:pos:1:" + key;
-    when(valueOperations.setIfAbsent(eq(expectedRedisKey), anyString(), any(Duration.class)))
-            .thenReturn(true);
+    @Test
+    @DisplayName("Kịch bản B (#313): Khóa Redis hết hạn sau 30s và 2 request đụng UNIQUE DB -> Trả đơn cũ, không tạo trùng")
+    void testExecute_LockExpiredAfter30s_DbUniqueConstraintReturnsExistingOrder() {
+        String expectedRedisKey = "idempotency:pos:1:" + key;
+        when(valueOperations.setIfAbsent(eq(expectedRedisKey), anyString(), any(Duration.class)))
+                .thenReturn(true);
 
-    vn.greenmart.sales.domain.SalesOrder committedOrder = new vn.greenmart.sales.domain.SalesOrder();
-    committedOrder.setId(500L);
-    committedOrder.setCreatedBy(1L);
-    committedOrder.setIdempotencyKey(key);
-    committedOrder.setCreatedAt(Instant.now());
+        vn.greenmart.sales.domain.SalesOrder committedOrder = new vn.greenmart.sales.domain.SalesOrder();
+        committedOrder.setId(500L);
+        committedOrder.setBranchId(1L);
+        committedOrder.setCreatedBy(1L);
+        committedOrder.setIdempotencyKey(key);
+        committedOrder.setCreatedAt(Instant.now());
 
-    // Lần kiểm tra DB trước khi chạy chưa thấy (do request 1 đang chạy), nhưng khi lưu DB đụng UNIQUE constraint
-    when(salesOrderRepository.findByCreatedByAndIdempotencyKey(1L, key))
-            .thenReturn(java.util.Optional.empty())
-            .thenReturn(java.util.Optional.of(committedOrder));
-    when(action.get()).thenThrow(new org.springframework.dao.DataIntegrityViolationException("uq_sales_order_creator_idempotency"));
-    when(posOrderService.getOrder(500L)).thenReturn(mockResponse);
+        when(salesOrderRepository.findByCreatedByAndIdempotencyKey(1L, key))
+                .thenReturn(java.util.Optional.empty())
+                .thenReturn(java.util.Optional.of(committedOrder));
+        when(action.get()).thenThrow(new org.springframework.dao.DataIntegrityViolationException("uq_sales_order_creator_idempotency"));
+        when(posOrderService.getOrder(500L)).thenReturn(mockResponse);
 
-    IdempotencyResult result = idempotencyService.execute(key, defaultRequest, action);
+        IdempotencyResult result = idempotencyService.execute(key, defaultRequest, action);
 
-    assertThat(result.isCreated()).isFalse();
-    assertThat(result.response().id()).isEqualTo(500L);
-
+        assertThat(result.isCreated()).isFalse();
+        assertThat(result.response().id()).isEqualTo(500L);
     }
 
     @Test
@@ -305,6 +308,7 @@ void testExecute_LockExpiredAfter30s_DbUniqueConstraintReturnsExistingOrder() {
 
         vn.greenmart.sales.domain.SalesOrder expiredOrder = new vn.greenmart.sales.domain.SalesOrder();
         expiredOrder.setId(500L);
+        expiredOrder.setBranchId(1L);
         expiredOrder.setCreatedBy(1L);
         expiredOrder.setIdempotencyKey(key);
         expiredOrder.setCreatedAt(Instant.now().minus(Duration.ofHours(25)));
@@ -321,5 +325,38 @@ void testExecute_LockExpiredAfter30s_DbUniqueConstraintReturnsExistingOrder() {
                 });
 
         verify(action, never()).get();
-    }   
+    }
+
+    @Test
+    @DisplayName("Issue #515: Thu hồi quyền chi nhánh sau khi đã cache Redis -> Retry key cũ ném 403 BRANCH_FORBIDDEN")
+    void testExecute_BranchRevokedAfterCache_Throws403BranchForbidden() {
+        securityUtilsMock.when(() -> SecurityUtils.getAccessibleBranchIds(jdbcTemplate)).thenReturn(List.of(2L));
+
+        assertThatThrownBy(() -> idempotencyService.execute(key, defaultRequest, action))
+                .isInstanceOf(AppException.class)
+                .satisfies(ex -> {
+                    AppException appEx = (AppException) ex;
+                    assertThat(appEx.getCode()).isEqualTo(ErrorCode.BRANCH_FORBIDDEN.name());
+                });
+
+        verify(redisTemplate, never()).opsForValue();
+        verify(action, never()).get();
+    }
+
+    @Test
+    @DisplayName("Issue #515: Đổi sang role không có quyền POS (STOREKEEPER) -> Retry key cũ ném 403 FORBIDDEN")
+    void testExecute_RoleRevokedAfterCache_Throws403Forbidden() {
+        securityUtilsMock.when(() -> SecurityUtils.requireRole("BRANCH_MANAGER", "CASHIER"))
+                .thenThrow(new AppException(ErrorCode.FORBIDDEN, "Bạn không có quyền thực hiện thao tác này"));
+
+        assertThatThrownBy(() -> idempotencyService.execute(key, defaultRequest, action))
+                .isInstanceOf(AppException.class)
+                .satisfies(ex -> {
+                    AppException appEx = (AppException) ex;
+                    assertThat(appEx.getCode()).isEqualTo(ErrorCode.FORBIDDEN.name());
+                });
+
+        verify(redisTemplate, never()).opsForValue();
+        verify(action, never()).get();
+    }
 }
