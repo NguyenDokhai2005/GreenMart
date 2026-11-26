@@ -188,6 +188,10 @@ async function requestRaw<T>(
 
   const contentType = response.headers.get('content-type') ?? '';
   if (!contentType.toLowerCase().includes('application/json')) {
+    if (response.status === 202) {
+      const text = await response.text();
+      if (!text.trim()) return undefined as T;
+    }
     throw new ApiError(
       response.ok
         ? 'API trả về dữ liệu không phải JSON.'
@@ -412,9 +416,14 @@ export async function logout(): Promise<void> {
   }
 }
 
-export function searchProducts(query: string, signal?: AbortSignal): Promise<ProductPage> {
+export function searchProducts(
+  query: string,
+  signal?: AbortSignal,
+  page = 0,
+  size = 20,
+): Promise<ProductPage> {
   return request('/products', 'get', {
-    query: { active: true, page: 0, size: 100, q: query.trim() || undefined },
+    query: { active: true, page, size, q: query.trim() || undefined },
     signal,
   });
 }
@@ -435,6 +444,17 @@ export function completePosOrder(
 
 export function listBranches(active?: boolean, signal?: AbortSignal) {
   return request('/branches', 'get', { query: { active }, signal });
+}
+
+export function listSyncLogs(
+  query: operations['listSyncLogs']['parameters']['query'] = {},
+  signal?: AbortSignal,
+) {
+  return request('/integrations/sync-logs', 'get', { query, signal });
+}
+
+export function retrySyncLog(id: number) {
+  return request('/integrations/sync-logs/{id}/retry', 'post', { path: { id } });
 }
 
 export function lookupProduct(code: string, branchId: number, signal?: AbortSignal) {

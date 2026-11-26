@@ -1,8 +1,12 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { REVENUE_30_DAYS, lastDays } from '../../../src/features/dashboard/mock/revenue';
 import RevenueAreaChart from '../../../src/components/charts/RevenueAreaChart';
 import Sparkline from '../../../src/components/charts/Sparkline';
+
+const REVENUE_30_DAYS = Array.from({ length: 30 }, (_, index) => ({
+  date: new Date(Date.UTC(2026, 9, index + 1)).toISOString().slice(0, 10),
+  revenue: (index + 1) * 1_000_000,
+}));
 
 beforeEach(() => {
   // jsdom không có ResizeObserver và luôn đo kích thước = 0; ResponsiveContainer cần cả hai.
@@ -47,7 +51,7 @@ describe('RevenueAreaChart', () => {
   });
 
   it('chuyển 7 ngày: hiện nhãn từng ngày (7 tick)', () => {
-    const { container } = render(<RevenueAreaChart data={lastDays(REVENUE_30_DAYS, 7)} />);
+    const { container } = render(<RevenueAreaChart data={REVENUE_30_DAYS.slice(-7)} />);
     expect(xTickCount(container)).toBe(7);
   });
 

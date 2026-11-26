@@ -10,6 +10,7 @@ interface TransferFiltersProps {
   from: string | undefined;
   to: string | undefined;
   onDatesChange: (from: string | undefined, to: string | undefined) => void;
+  errors?: { from?: string; to?: string };
 }
 
 export default function TransferFilters({
@@ -20,6 +21,7 @@ export default function TransferFilters({
   from,
   to,
   onDatesChange,
+  errors = {},
 }: TransferFiltersProps) {
   const statusOptions = [
     { value: '', label: 'Tất cả trạng thái' },
@@ -45,7 +47,7 @@ export default function TransferFilters({
         label="Trạng thái"
         aria-label="Trạng thái"
         value={status ?? ''}
-        placeholder="Vui lòng chọn"
+        placeholder="Tất cả trạng thái"
         options={statusOptions}
         onChange={(e) =>
           onStatusChange(TRANSFER_FILTER_STATUSES.find((candidate) => candidate === e.target.value))
@@ -58,8 +60,14 @@ export default function TransferFilters({
           aria-label="Từ ngày"
           value={from ?? ''}
           max={to}
+          aria-invalid={errors.from ? true : undefined}
           onChange={(e) => onDatesChange(e.target.value || undefined, to)}
         />
+        {errors.from && (
+          <span className="ck-filter-error" role="alert">
+            {errors.from}
+          </span>
+        )}
       </label>
       <label className="ck-date-field">
         <span>Đến ngày</span>
@@ -68,8 +76,14 @@ export default function TransferFilters({
           aria-label="Đến ngày"
           value={to ?? ''}
           min={from}
+          aria-invalid={errors.to ? true : undefined}
           onChange={(e) => onDatesChange(from, e.target.value || undefined)}
         />
+        {errors.to && (
+          <span className="ck-filter-error" role="alert">
+            {errors.to}
+          </span>
+        )}
       </label>
     </section>
   );

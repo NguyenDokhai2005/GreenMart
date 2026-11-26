@@ -36,11 +36,30 @@ export default function TransferListPage() {
   const to = parseDateParam(params.get('to'));
   const page = parsePageParam(params.get('page'));
   const hasFilters = q !== '' || status !== undefined || from !== undefined || to !== undefined;
+  const [dateRangeErrorState, setDateRangeErrorState] = useState({
+    locationKey: params.toString(),
+    message: '',
+  });
+  const urlDateRangeError = from && to && from > to ? 'Từ ngày phải trước hoặc bằng Đến ngày.' : '';
+  const dateRangeError =
+    urlDateRangeError ||
+    (dateRangeErrorState.locationKey === params.toString() ? dateRangeErrorState.message : '');
 
   const [searchText, setSearchText] = useState(q);
   const { data, error, isLoading, reload } = useRemote(
-    (signal) => listTransfers(toTransferQuery({ branchId, q, status, from, to, page }), signal),
-    `${branchId ?? 'all'}|${q}|${status ?? ''}|${from ?? ''}|${to ?? ''}|${page}`,
+    async (signal) => {
+      if (from && to && from > to) {
+        return {
+          page: 0,
+          size: 20,
+          totalElements: 0,
+          totalPages: 0,
+          content: [],
+        };
+      }
+      return listTransfers(toTransferQuery({ branchId, q, status, from, to, page }), signal);
+    },
+    `${branchId ?? 'all'}|${q}|${status ?? ''}|${from ?? ''}|${to ?? ''}|${page}|${dateRangeError ? 'invalid-date' : ''}`,
   );
   const isInitialLoading = isLoading && data === undefined;
   const { showLoading } = useDelayedLoading(isInitialLoading);
@@ -56,6 +75,16 @@ export default function TransferListPage() {
       },
       replace = false,
     ) => {
+      const nextFrom = 'from' in patch ? patch.from : from;
+      const nextTo = 'to' in patch ? patch.to : to;
+      if (nextFrom && nextTo && nextFrom > nextTo) {
+        setDateRangeErrorState({
+          locationKey: params.toString(),
+          message: 'Từ ngày phải trước hoặc bằng Đến ngày.',
+        });
+        return;
+      }
+      setDateRangeErrorState({ locationKey: params.toString(), message: '' });
       setParams(
         (prev) => {
           const next = new URLSearchParams(prev);
@@ -72,7 +101,7 @@ export default function TransferListPage() {
         { replace },
       );
     },
-    [setParams],
+    [from, params, setParams, to],
   );
 
   const search = useDebouncedCallback(
@@ -115,13 +144,15 @@ export default function TransferListPage() {
         from={from}
         to={to}
         onDatesChange={(f, t) => update({ from: f, to: t })}
+        errors={{
+          ...(dateRangeError ? { from: dateRangeError, to: dateRangeError } : {}),
+        }}
       />
 
       <section className="ck-card" aria-labelledby="ck-list-title" aria-busy={isLoading}>
         <div className="ck-card__head">
-          <h2 id="ck-list-title" className="ck-sr-only">
-            Danh sách phiếu chuyển kho
-          </h2>
+          <h2 id="ck-list-title">Danh sách phiếu chuyển kho</h2>
+          {data && <span className="ck-result-count">{data.totalElements} phiếu</span>}
           {isInitialLoading && showLoading && (
             <span className="ck-loading" role="status">
               Đang tải dữ liệu…

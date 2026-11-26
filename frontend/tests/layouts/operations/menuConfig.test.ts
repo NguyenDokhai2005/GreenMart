@@ -14,14 +14,7 @@ const keys = (items: MenuItem[]): string[] =>
 describe('menuForRole (AUTH-02)', () => {
   it('THỦ KHO không thấy Khuyến mại, Quản trị và các mục chỉ dành cho quản lý', () => {
     const k = keys(menuForRole('STOREKEEPER'));
-    for (const hidden of [
-      'promotions',
-      'admin',
-      'admin-dashboard',
-      'overview',
-      'forecast',
-      'reports',
-    ]) {
+    for (const hidden of ['promotions', 'admin', 'overview', 'forecast', 'reports']) {
       expect(k).not.toContain(hidden);
     }
     expect(k).toEqual(
@@ -51,13 +44,15 @@ describe('menuForRole (AUTH-02)', () => {
         ]),
       );
       expect(k).not.toContain('admin');
-      expect(k).not.toContain('admin-dashboard');
     },
   );
 
-  it('ADMIN chỉ thấy Dashboard và nhóm Quản trị', () => {
+  it('ADMIN chỉ thấy nhóm Quản trị', () => {
     const top = menuForRole('ADMIN').map((i) => i.key);
-    expect(top).toEqual(['admin-dashboard', 'admin']);
+    expect(top).toEqual(['admin']);
+    const k = keys(menuForRole('ADMIN'));
+    expect(k).not.toContain('settings');
+    expect(k).not.toContain('audit');
   });
 
   it('CASHIER không có mục nào trong khu Operations', () => {
@@ -98,7 +93,7 @@ describe('breadcrumbFor', () => {
   it('mục thường hiện tên mục; Tổng quan chỉ khớp đúng /operations', () => {
     expect(breadcrumbFor('/operations')).toBe('Tổng quan');
     expect(breadcrumbFor('/operations/orders')).toBe('Đơn hàng');
-    expect(breadcrumbFor('/admin')).toBe('Dashboard');
+    expect(breadcrumbFor('/admin')).toBeUndefined();
   });
 
   it('đường dẫn không có trong menu trả undefined', () => {
