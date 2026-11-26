@@ -50,6 +50,9 @@ public class CustomerServiceImpl implements CustomerService {
     public CustomerResponse createCustomer(CustomerRequest request) {
         SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER", "CASHIER");
 
+        List<Long> branches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
+        if (branches != null && branches.isEmpty()) throw new AppException(ErrorCode.BRANCH_FORBIDDEN);
+
         String normalizedPhone = request.phone().trim();
         customerRepository.findByPhone(normalizedPhone).ifPresent(existing -> {
             throw new AppException(
@@ -73,6 +76,7 @@ public class CustomerServiceImpl implements CustomerService {
     public CustomerResponse updateCustomer(Long customerId, CustomerRequest request) {
         SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER", "CASHIER");
 
+        requireCustomerBranch(customerId);
         Customer customer = customerRepository.findByIdForUpdate(customerId).orElseThrow(() ->
             new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy khách hàng", Map.of("customerId", customerId))
         );
@@ -107,6 +111,7 @@ public class CustomerServiceImpl implements CustomerService {
     public CustomerResponse deactivateCustomer(Long customerId) {
         SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER");
 
+        requireCustomerBranch(customerId);
         Customer customer = customerRepository.findByIdForUpdate(customerId).orElseThrow(() ->
             new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy khách hàng", Map.of("customerId", customerId))
         );
@@ -115,6 +120,17 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setActive(false);
         Customer updated = customerRepository.save(customer);
         return CustomerResponse.from(updated);
+    }
+
+    private void requireCustomerBranch(Long customerId) {
+        if ("OWNER".equals(SecurityUtils.getCurrentRole())) return;
+        Boolean allowed = jdbcTemplate.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1 FROM sales_order o JOIN user_branch ub ON ub.branch_id = o.branch_id
+                    WHERE o.customer_id = ? AND ub.user_id = ? AND o.status IN ('COMPLETED','RETURNED')
+                )
+                """, Boolean.class, customerId, SecurityUtils.getCurrentUserId());
+        if (!Boolean.TRUE.equals(allowed)) throw new AppException(ErrorCode.BRANCH_FORBIDDEN);
     }
 
     @Override

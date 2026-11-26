@@ -251,7 +251,8 @@ export interface paths {
     get: operations['getProduct'];
     /**
      * Sửa sản phẩm
-     * @description Đổi `salePrice` được ghi nhật ký (giá cũ, giá mới, người đổi) theo PRD-02.
+     * @description ADMIN được sửa thông tin sản phẩm nhưng phải giữ nguyên giá bán hiện hành. Chỉ OWNER được đổi giá.
+     *     Đổi `salePrice` được ghi nhật ký (giá cũ, giá mới, người đổi) theo PRD-02.
      *     Đơn đã bán giữ giá cũ (BR-12). Ngừng bán bằng `active=false`; không xóa cứng.
      */
     put: operations['updateProduct'];
@@ -304,7 +305,9 @@ export interface paths {
     get: operations['getCustomer'];
     /**
      * Sửa khách hàng
-     * @description Cập nhật thông tin khách hàng. Để mở lại khách đã vô hiệu hóa, gửi active: true.
+     * @description OWNER có thể cập nhật toàn chuỗi. QL và thu ngân chỉ sửa được hồ sơ khi khách đã có đơn
+     *     COMPLETED hoặc RETURNED tại ít nhất một chi nhánh được gán. Chưa có giao dịch thì chỉ OWNER sửa.
+     *     Trường active yêu cầu OWNER hoặc QL; quyền ngừng hoạt động cũng xét cùng phạm vi giao dịch.
      */
     put: operations['updateCustomer'];
     post?: never;
@@ -878,7 +881,8 @@ export interface paths {
     put?: never;
     /**
      * Duyệt phiếu
-     * @description Người duyệt khác người lập (BR-13, 422 `SELF_APPROVAL_FORBIDDEN`). Trong một transaction, ghi `approvedBy`, `approvedAt` rồi:
+     * @description OWNER duyệt IMPORT, EXPORT và ADJUST ở mọi chi nhánh. TRANSFER chỉ do quản lý chi nhánh nguồn duyệt.
+     *     Người duyệt khác người lập (BR-13, 422 `SELF_APPROVAL_FORBIDDEN`). Trong một transaction, ghi `approvedBy`, `approvedAt` rồi:
      *     - `IMPORT`: DRAFT → APPROVED, on_hand tăng (IMPORT), cập nhật giá vốn bình quân.
      *     - `EXPORT`: DRAFT → APPROVED, on_hand giảm (EXPORT); không vượt khả dụng → 409 `INSUFFICIENT_STOCK`.
      *     - `TRANSFER`: DRAFT → **IN_TRANSIT** (duyệt kèm xác nhận xuất, BA 6.3), on_hand CN nguồn giảm (TRANSFER_OUT).
@@ -1210,7 +1214,7 @@ export interface paths {
      *     `cutoffDate` là ngày dữ liệu cuối cùng (D) của lượt chạy, các điểm dự báo là D+1..D+7 và D+1..D+30.
      *     `actualQty` là bán ròng thực tế trong `daily_sales` (BA mục 9), `null` với ngày chưa có dữ liệu; dùng để vẽ biểu đồ dự báo so với thực tế.
      *     Chưa có lượt `DONE` nào, hoặc lượt được chọn không có dòng cho sản phẩm × chi nhánh này: 404 `NOT_FOUND`.
-     *     Quản lý chi nhánh và thủ kho chỉ xem chi nhánh được gán (403 `BRANCH_FORBIDDEN`).
+     *     Quản lý chỉ xem dự báo của chi nhánh được gán (403 `BRANCH_FORBIDDEN`). Thủ kho xem gợi ý nhập qua API replenishment.
      */
     get: operations['getForecast'];
     put?: never;
@@ -4404,6 +4408,7 @@ export interface operations {
       };
       400: components['responses']['BadRequest'];
       401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
     };
   };
   createPromotion: {
@@ -4473,6 +4478,7 @@ export interface operations {
         };
       };
       401: components['responses']['Unauthorized'];
+      403: components['responses']['Forbidden'];
       404: components['responses']['NotFound'];
     };
   };

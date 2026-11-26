@@ -94,7 +94,13 @@ async function allLockedUsers(signal: AbortSignal): Promise<User[]> {
   return users.filter((user) => user.locked);
 }
 
-export default function AdminUsersPage({ mode }: { mode: Mode }) {
+export default function AdminUsersPage({
+  mode,
+  readOnly = false,
+}: {
+  mode: Mode;
+  readOnly?: boolean;
+}) {
   const [params, setParams] = useSearchParams();
   const paramKey = params.toString();
   const filters = useMemo(() => readFilters(new URLSearchParams(paramKey)), [paramKey]);
@@ -295,11 +301,13 @@ export default function AdminUsersPage({ mode }: { mode: Mode }) {
           <h1>{mode === 'staff' ? 'Nhân sự & phân quyền' : 'Tài khoản bị khóa'}</h1>
           <p>
             {mode === 'staff'
-              ? 'Quản lý tài khoản và quyền truy cập.'
+              ? readOnly
+                ? 'Xem tài khoản, vai trò và chi nhánh của nhân viên.'
+                : 'Quản lý tài khoản và quyền truy cập.'
               : 'Các tài khoản đang bị khóa đăng nhập tạm thời.'}
           </p>
         </div>
-        {mode === 'staff' && <Button onClick={openCreate}>Tạo tài khoản</Button>}
+        {!readOnly && mode === 'staff' && <Button onClick={openCreate}>Tạo tài khoản</Button>}
       </header>
       {notice && <Toast variant="success" title={notice} />}
       {mode === 'staff' && (
@@ -373,7 +381,7 @@ export default function AdminUsersPage({ mode }: { mode: Mode }) {
                 <th>Vai trò</th>
                 <th>Chi nhánh</th>
                 <th>Trạng thái</th>
-                <th>Thao tác</th>
+                {!readOnly && <th>Thao tác</th>}
               </tr>
             </thead>
             <tbody>
@@ -388,42 +396,44 @@ export default function AdminUsersPage({ mode }: { mode: Mode }) {
                   <td>
                     {user.active ? (user.locked ? 'Bị khóa tạm thời' : 'Hoạt động') : 'Vô hiệu hóa'}
                   </td>
-                  <td className="admin-users__actions">
-                    {mode === 'staff' && (
-                      <Button
-                        variant="secondary"
-                        disabled={busy}
-                        onClick={() => void openEdit(user)}
-                      >
-                        Sửa
-                      </Button>
-                    )}
-                    {mode === 'staff' && (
-                      <Button
-                        variant="secondary"
-                        onClick={() => {
-                          setSelected(user);
-                          setNewPassword('');
-                          setFormError(undefined);
-                          setConfirm('reset');
-                        }}
-                      >
-                        Đặt lại mật khẩu
-                      </Button>
-                    )}
-                    {user.locked && (
-                      <Button
-                        variant="secondary"
-                        onClick={() => {
-                          setSelected(user);
-                          setFormError(undefined);
-                          setConfirm('unlock');
-                        }}
-                      >
-                        Mở khóa
-                      </Button>
-                    )}
-                  </td>
+                  {!readOnly && (
+                    <td className="admin-users__actions">
+                      {mode === 'staff' && (
+                        <Button
+                          variant="secondary"
+                          disabled={busy}
+                          onClick={() => void openEdit(user)}
+                        >
+                          Sửa
+                        </Button>
+                      )}
+                      {mode === 'staff' && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            setSelected(user);
+                            setNewPassword('');
+                            setFormError(undefined);
+                            setConfirm('reset');
+                          }}
+                        >
+                          Đặt lại mật khẩu
+                        </Button>
+                      )}
+                      {user.locked && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            setSelected(user);
+                            setFormError(undefined);
+                            setConfirm('unlock');
+                          }}
+                        >
+                          Mở khóa
+                        </Button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

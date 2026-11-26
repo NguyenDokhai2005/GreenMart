@@ -125,11 +125,11 @@ docker compose exec postgres psql -U greenmart -d greenmart -c \
 
 | ID | Tiêu đề | Given | When | Then | Mức độ |
 |---|---|---|---|---|---|
-| TC-AUTH02-10 | CASHIER không tạo sản phẩm (`x-roles: [OWNER]`) | `thungan.gm001` (CASHIER) | `POST /api/v1/products` | HTTP 403 `FORBIDDEN` | Must |
-| TC-AUTH02-11 | CASHIER không sửa sản phẩm (`x-roles: [OWNER]`) | `thungan.gm001` (CASHIER) | `PUT /api/v1/products/{productId}` | HTTP 403 `FORBIDDEN` | Must |
+| TC-AUTH02-10 | CASHIER không tạo sản phẩm (`x-roles: [OWNER, ADMIN]`) | `thungan.gm001` (CASHIER) | `POST /api/v1/products` | HTTP 403 `FORBIDDEN` | Must |
+| TC-AUTH02-11 | CASHIER không sửa sản phẩm (`x-roles: [OWNER, ADMIN]`) | `thungan.gm001` (CASHIER) | `PUT /api/v1/products/{productId}` | HTTP 403 `FORBIDDEN` | Must |
 | TC-AUTH02-12 | CASHIER không xem sổ giao dịch kho (`x-roles: [OWNER, BRANCH_MANAGER, STOREKEEPER]`) | `thungan.gm001` (CASHIER) | `GET /api/v1/inventory/transactions?branchId=1` | HTTP 403 `FORBIDDEN` | Must |
 | TC-AUTH02-13 | STOREKEEPER không duyệt phiếu kho (`x-roles: [BRANCH_MANAGER]`) | `thukho.gm001` (STOREKEEPER) | `POST /api/v1/stock-documents/{id}/approve` | HTTP 403 `FORBIDDEN` | Must |
-| TC-AUTH02-14 | OWNER tạo sản phẩm thành công (`x-roles: [OWNER]`) | `owner` (OWNER) | `POST /api/v1/products` với body hợp lệ | HTTP 201 (không phải 403) | Must |
+| TC-AUTH02-14 | OWNER tạo sản phẩm thành công (`x-roles: [OWNER, ADMIN]`) | `owner` (OWNER) | `POST /api/v1/products` với body hợp lệ | HTTP 201 (không phải 403) | Must |
 | TC-AUTH02-15 | BRANCH_MANAGER xem sổ kho thành công (`x-roles: [OWNER, BRANCH_MANAGER, STOREKEEPER]`) | `quanly.gm001` (BRANCH_MANAGER) | `GET /api/v1/inventory/transactions?branchId=1` | HTTP 200 | Must |
 
 ---
@@ -175,3 +175,15 @@ docker compose exec postgres psql -U greenmart -d greenmart -c \
 
 - *Q-27 đã chốt theo [phản hồi trên #310](https://github.com/NguyenDokhai2005/GreenMart/issues/310#issuecomment-6854060178). Q-31 về audit khi bị từ chối do sai vai trò được theo dõi riêng.*
 - *Q-31 trong `docs/testing/qa-questions-week1.md` — 403 `FORBIDDEN` (sai role) có ghi `audit_log` không? Kết quả của TC-AUTH02-41 phụ thuộc câu trả lời này.*
+
+### Kiểm tra các quyền đã đối chiếu lại với BA
+
+| Chức năng | Ca được phép | Ca phải bị từ chối |
+|---|---|---|
+| Sản phẩm, danh mục | ADMIN tạo sản phẩm với giá ban đầu, sửa tên sản phẩm, tạo hoặc sửa danh mục. OWNER đổi giá bán hiện tại. | ADMIN gửi giá bán khác giá hiện tại khi sửa sản phẩm. Giá lưu trong hệ thống phải giữ nguyên. |
+| Tài khoản | OWNER xem danh sách và chi tiết nhân viên. | OWNER sửa tài khoản, đổi quyền hoặc mở khóa tài khoản. |
+| Khuyến mại | OWNER, QL và thu ngân xem danh sách và chi tiết. | ADMIN và thủ kho đọc chương trình. QL và thu ngân sửa chương trình. |
+| Đơn online | OWNER hoàn tất hoặc hủy đơn đúng trạng thái ở bất kỳ chi nhánh nào. | QL xử lý đơn ngoài chi nhánh được gán. Thủ kho hủy đơn. |
+| Phiếu kho | OWNER duyệt phiếu nhập, xuất hủy hoặc kiểm kê do người khác lập. | Tự duyệt phiếu. OWNER duyệt phiếu chuyển. QL duyệt phiếu ngoài chi nhánh. |
+| Khách chung toàn chuỗi | Khách đã mua ở A và B. Thu ngân được gán B sửa tên. OWNER sửa được hồ sơ chưa phát sinh giao dịch. | Thu ngân chỉ được gán C sửa cùng khách. Đơn chỉ giữ chỗ hoặc đã hủy tại C cũng không cấp quyền sửa. Thu ngân thay đổi trạng thái khách. |
+| Dự báo và gợi ý nhập | QL xem chuỗi dự báo của chi nhánh được gán. Thủ kho xem bảng gợi ý nhập tại chi nhánh mình. | Thủ kho gọi API dự báo theo ngày, kể cả tại chi nhánh mình. Thủ kho tra gợi ý nhập của chi nhánh khác. |

@@ -129,7 +129,7 @@ class ProductServiceTest {
 
     @Test
     @WithMockUser(roles = "CASHIER")
-    void testCreateProduct_NonOwner_ThrowsForbidden() {
+    void testCreateProduct_Cashier_ThrowsForbidden() {
         ProductRequest req = new ProductRequest("SUA-TEST", null, "Sữa", "hộp", 1L, 20000L, 15000L, true);
 
         AppException ex = assertThrows(AppException.class, () -> productService.createProduct(req));
@@ -150,7 +150,7 @@ class ProductServiceTest {
         cat.setId(1L);
         cat.setName("Sữa");
 
-        when(productRepository.findById(205L)).thenReturn(Optional.of(existing));
+        when(productRepository.lockForEdit(205L)).thenReturn(Optional.of(existing));
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(cat));
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -172,8 +172,24 @@ class ProductServiceTest {
     }
 
     @Test
-    @WithMockUser(username = "1", roles = "OWNER")
-    void testUpdateProduct_NoPriceChange_NeverSavesAuditLog() {
+    @WithMockUser(roles = "ADMIN")
+    void adminCannotChangeExistingSalePrice() {
+        Product existing = new Product();
+        existing.setSalePrice(29000L);
+        when(productRepository.lockForEdit(205L)).thenReturn(Optional.of(existing));
+        ProductRequest request = new ProductRequest("SKU", null, "Product", "unit", 1L, 31000L, 23000L, true);
+
+        AppException error = assertThrows(AppException.class, () -> productService.updateProduct(205L, request));
+
+        assertEquals(ErrorCode.FORBIDDEN.name(), error.getCode());
+        assertEquals(29000L, existing.getSalePrice());
+        verify(productRepository, never()).save(any());
+        verify(auditLogRepository, never()).save(any());
+    }
+
+    @Test
+    @WithMockUser(username = "1", roles = "ADMIN")
+    void testUpdateProduct_AdminNoPriceChange_NeverSavesAuditLog() {
         Product existing = new Product();
         existing.setId(205L);
         existing.setSku("SUA-TH-1L");
@@ -183,7 +199,7 @@ class ProductServiceTest {
         Category cat = new Category();
         cat.setId(1L);
 
-        when(productRepository.findById(205L)).thenReturn(Optional.of(existing));
+        when(productRepository.lockForEdit(205L)).thenReturn(Optional.of(existing));
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(cat));
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
 

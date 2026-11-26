@@ -328,7 +328,7 @@ paths:
       summary: Tạo danh mục
       description: Tên chuẩn hóa NFC, trim/gộp Unicode whitespace. Không trùng tên khi bỏ phân biệt hoa/thường trong cùng parentId, kể cả danh mục gốc; giữ dấu tiếng Việt. Trùng trả 409 CONFLICT.
       operationId: createCategory
-      x-roles: [OWNER]
+      x-roles: [ADMIN, OWNER]
       requestBody:
         required: true
         content:
@@ -353,7 +353,7 @@ paths:
       summary: Sửa danh mục
       description: Cùng quy tắc chuẩn hóa và duy nhất như tạo; đổi parentId cũng kiểm trùng tại cấp đích, không tự gộp danh mục.
       operationId: updateCategory
-      x-roles: [OWNER]
+      x-roles: [ADMIN, OWNER]
       requestBody:
         required: true
         content:
@@ -416,7 +416,7 @@ paths:
       tags: [Products]
       summary: Tạo sản phẩm
       operationId: createProduct
-      x-roles: [OWNER]
+      x-roles: [ADMIN, OWNER]
       requestBody:
         required: true
         content:
@@ -476,10 +476,11 @@ paths:
       tags: [Products]
       summary: Sửa sản phẩm
       description: |
+        ADMIN được sửa thông tin sản phẩm nhưng phải giữ nguyên giá bán hiện hành. Chỉ OWNER được đổi giá.
         Đổi `salePrice` được ghi nhật ký (giá cũ, giá mới, người đổi) theo PRD-02.
         Đơn đã bán giữ giá cũ (BR-12). Ngừng bán bằng `active=false`; không xóa cứng.
       operationId: updateProduct
-      x-roles: [OWNER]
+      x-roles: [ADMIN, OWNER]
       requestBody:
         required: true
         content:
@@ -575,7 +576,10 @@ paths:
     put:
       tags: [Customers]
       summary: Sửa khách hàng
-      description: 'Cập nhật thông tin khách hàng. Để mở lại khách đã vô hiệu hóa, gửi active: true.'
+      description: |
+        OWNER có thể cập nhật toàn chuỗi. QL và thu ngân chỉ sửa được hồ sơ khi khách đã có đơn
+        COMPLETED hoặc RETURNED tại ít nhất một chi nhánh được gán. Chưa có giao dịch thì chỉ OWNER sửa.
+        Trường active yêu cầu OWNER hoặc QL; quyền ngừng hoạt động cũng xét cùng phạm vi giao dịch.
       operationId: updateCustomer
       x-roles: [OWNER, BRANCH_MANAGER, CASHIER]
       requestBody:
@@ -1059,7 +1063,7 @@ paths:
         (tồn thực và giữ chỗ cùng giảm), ghi sổ SALE, tăng lượt dùng KM, ghi outbox `order.completed`, `stock.changed`.
         Sau commit báo trạng thái về kênh (SYNC-04).
       operationId: completeOnlineOrder
-      x-roles: [BRANCH_MANAGER, STOREKEEPER]
+      x-roles: [OWNER, BRANCH_MANAGER, STOREKEEPER]
       parameters:
         - $ref: '#/components/parameters/OrderId'
       responses:
@@ -1081,7 +1085,7 @@ paths:
         (payment → REFUNDED), hoàn lượt dùng KM, ghi `audit_log` (AUTH-03), ghi outbox `order.cancelled`, `stock.changed`, báo về kênh.
         Đơn POS và đơn đã COMPLETED không hủy được (dùng trả hàng, v3).
       operationId: cancelOnlineOrder
-      x-roles: [BRANCH_MANAGER]
+      x-roles: [OWNER, BRANCH_MANAGER]
       parameters:
         - $ref: '#/components/parameters/OrderId'
       requestBody:
@@ -1479,6 +1483,7 @@ paths:
       tags: [Stock documents]
       summary: Duyệt phiếu
       description: |
+        OWNER duyệt IMPORT, EXPORT và ADJUST ở mọi chi nhánh. TRANSFER chỉ do quản lý chi nhánh nguồn duyệt.
         Người duyệt khác người lập (BR-13, 422 `SELF_APPROVAL_FORBIDDEN`). Trong một transaction, ghi `approvedBy`, `approvedAt` rồi:
         - `IMPORT`: DRAFT → APPROVED, on_hand tăng (IMPORT), cập nhật giá vốn bình quân.
         - `EXPORT`: DRAFT → APPROVED, on_hand giảm (EXPORT); không vượt khả dụng → 409 `INSUFFICIENT_STOCK`.
@@ -1491,7 +1496,7 @@ paths:
 
         Ghi `audit_log` (AUTH-03), outbox `stock.changed`.
       operationId: approveStockDocument
-      x-roles: [BRANCH_MANAGER]
+      x-roles: [OWNER, BRANCH_MANAGER]
       parameters:
         - $ref: '#/components/parameters/DocumentId'
       responses:
@@ -1574,6 +1579,7 @@ paths:
       tags: [Promotions]
       summary: Danh sách chương trình khuyến mại
       operationId: listPromotions
+      x-roles: [OWNER, BRANCH_MANAGER, CASHIER]
       parameters:
         - name: status
           in: query
@@ -1608,6 +1614,7 @@ paths:
               schema: { $ref: '#/components/schemas/PromotionPage' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
     post:
       tags: [Promotions]
       summary: Tạo chương trình (Nháp)
@@ -1646,6 +1653,7 @@ paths:
       tags: [Promotions]
       summary: Chi tiết chương trình
       operationId: getPromotion
+      x-roles: [OWNER, BRANCH_MANAGER, CASHIER]
       parameters:
         - $ref: '#/components/parameters/PromotionId'
       responses:
@@ -1655,6 +1663,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Promotion' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
     put:
       tags: [Promotions]
@@ -1720,7 +1729,7 @@ paths:
       tags: [Users]
       summary: Danh sách tài khoản
       operationId: listUsers
-      x-roles: [ADMIN]
+      x-roles: [ADMIN, OWNER]
       parameters:
         - name: role
           in: query
@@ -1773,7 +1782,7 @@ paths:
       tags: [Users]
       summary: Chi tiết tài khoản
       operationId: getUser
-      x-roles: [ADMIN]
+      x-roles: [ADMIN, OWNER]
       parameters:
         - $ref: '#/components/parameters/UserId'
       responses:
@@ -2028,9 +2037,9 @@ paths:
         `cutoffDate` là ngày dữ liệu cuối cùng (D) của lượt chạy, các điểm dự báo là D+1..D+7 và D+1..D+30.
         `actualQty` là bán ròng thực tế trong `daily_sales` (BA mục 9), `null` với ngày chưa có dữ liệu; dùng để vẽ biểu đồ dự báo so với thực tế.
         Chưa có lượt `DONE` nào, hoặc lượt được chọn không có dòng cho sản phẩm × chi nhánh này: 404 `NOT_FOUND`.
-        Quản lý chi nhánh và thủ kho chỉ xem chi nhánh được gán (403 `BRANCH_FORBIDDEN`).
+        Quản lý chỉ xem dự báo của chi nhánh được gán (403 `BRANCH_FORBIDDEN`). Thủ kho xem gợi ý nhập qua API replenishment.
       operationId: getForecast
-      x-roles: [OWNER, BRANCH_MANAGER, STOREKEEPER]
+      x-roles: [OWNER, BRANCH_MANAGER]
       parameters:
         - $ref: '#/components/parameters/BranchIdQueryRequired'
         - name: productId

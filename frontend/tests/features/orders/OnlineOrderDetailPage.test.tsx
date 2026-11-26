@@ -116,8 +116,8 @@ describe('Online order detail #81', () => {
     authRef.current = { state: { status: 'authenticated', user: { role: 'OWNER' } } };
     mount();
     expect(await screen.findByText(order.code)).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Hoàn tất đơn' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Hủy đơn' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Hoàn tất đơn' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Hủy đơn' })).toBeTruthy();
   });
 
   it.each([
@@ -125,7 +125,7 @@ describe('Online order detail #81', () => {
     ['BRANCH_MANAGER', 'RESERVED', 'MARKET', false, true],
     ['STOREKEEPER', 'CONFIRMED', 'WEB', true, false],
     ['STOREKEEPER', 'RESERVED', 'WEB', false, false],
-    ['OWNER', 'CONFIRMED', 'WEB', false, false],
+    ['OWNER', 'CONFIRMED', 'WEB', true, true],
     ['CASHIER', 'CONFIRMED', 'WEB', false, false],
     ['ADMIN', 'CONFIRMED', 'WEB', false, false],
     ['BRANCH_MANAGER', 'CONFIRMED', 'POS', false, false],

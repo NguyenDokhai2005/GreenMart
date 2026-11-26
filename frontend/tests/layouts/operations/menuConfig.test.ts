@@ -47,9 +47,9 @@ describe('menuForRole (AUTH-02)', () => {
     },
   );
 
-  it('ADMIN chỉ thấy nhóm Quản trị', () => {
+  it('ADMIN thấy danh mục sản phẩm và nhóm Quản trị', () => {
     const top = menuForRole('ADMIN').map((i) => i.key);
-    expect(top).toEqual(['admin']);
+    expect(top).toEqual(['products-admin', 'admin']);
     const k = keys(menuForRole('ADMIN'));
     expect(k).not.toContain('settings');
     expect(k).not.toContain('audit');

@@ -244,8 +244,9 @@ def main():
                     session, {'supplier': 'QA152 unauthorized', 'items': [{'productId': pid, 'quantity': 2, 'unitCost': 1}]}, code=denied_code)
                 check(username, 'Cross-branch document cancel denied', 'POST', f'/stock-documents/{docs[branch]}/cancel', 403,
                     session, {'reason': 'QA152 denied cross-branch'}, code=denied_code)
-                check(username, 'Cross-branch approval denied', 'POST', f'/stock-documents/{docs[branch]}/approve', 403,
-                    session, code='BRANCH_FORBIDDEN' if role == 'BRANCH_MANAGER' else (None if role == 'STOREKEEPER' else 'FORBIDDEN'))
+                if role != 'OWNER':
+                    check(username, 'Cross-branch approval denied', 'POST', f'/stock-documents/{docs[branch]}/approve', 403,
+                        session, code='BRANCH_FORBIDDEN' if role == 'BRANCH_MANAGER' else (None if role == 'STOREKEEPER' else 'FORBIDDEN'))
                 check(username, 'Cross-branch receive denied before status validation', 'POST', f'/stock-documents/{docs[branch]}/receive', 403,
                     session, {'items': [{'itemId': 1, 'receivedQuantity': 1}]}, code=denied_code)
                 check(username, 'Cross-branch POS denied', 'POST', '/orders/pos', 403, session,
@@ -261,6 +262,9 @@ def main():
     RESULTS.append({'id': f'RBAC152-{len(RESULTS)+1:03}', 'name': 'Denied writes leave business state unchanged',
         'assertions': {'unchanged': before == after}, 'before': before, 'after': after,
         'result': 'PASS' if before == after else 'FAIL'})
+    check('owner', 'OWNER approves an IMPORT from another user', 'POST',
+        f'/stock-documents/{docs[1]}/approve', 200, sessions['owner'],
+        verify=lambda d: {'approved': d['status'] == 'APPROVED'})
     for source, transfer in transfers.items():
         destination = source % 3 + 1
         username = f'thukho.gm00{destination}'

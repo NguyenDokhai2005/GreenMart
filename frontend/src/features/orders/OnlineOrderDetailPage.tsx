@@ -96,11 +96,11 @@ function OnlineOrderDetailView({ orderId }: { orderId: number }) {
   const canComplete =
     isOnline &&
     data?.status === 'CONFIRMED' &&
-    (role === 'BRANCH_MANAGER' || role === 'STOREKEEPER');
+    (role === 'OWNER' || role === 'BRANCH_MANAGER' || role === 'STOREKEEPER');
   const canCancel =
     isOnline &&
     (data?.status === 'RESERVED' || data?.status === 'CONFIRMED') &&
-    role === 'BRANCH_MANAGER';
+    (role === 'OWNER' || role === 'BRANCH_MANAGER');
   const mappedError = actionError ? mapErrorToState(actionError, 'block') : null;
   const fieldErrors = mappedError?.kind === 'form' ? mappedError.fieldErrors : {};
   const missingReason = action === 'cancel' && !reason;

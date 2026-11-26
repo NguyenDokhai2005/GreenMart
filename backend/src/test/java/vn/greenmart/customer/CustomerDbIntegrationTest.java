@@ -97,6 +97,28 @@ class CustomerDbIntegrationTest {
         jdbcTemplate.execute(String.format("INSERT INTO user_branch (user_id, branch_id) VALUES (%d, %d) ON CONFLICT DO NOTHING", TEST_USER_ID, branch1Id));
     }
 
+    private void recordSale(long customer, long branch, String code) {
+        insertedOrderIds.add(jdbcTemplate.queryForObject("""
+                INSERT INTO sales_order (code, channel_id, branch_id, customer_id, status, subtotal, discount, total)
+                VALUES (?, ?, ?, ?, 'COMPLETED', 10000, 0, 10000) RETURNING id
+                """, Long.class, code, posChannelId, branch, customer));
+    }
+
+    @Test
+    @WithMockUser(username = "8888", roles = "CASHIER")
+    void editingSharedCustomerRequiresTransactionInAnAssignedBranch() {
+        Customer customer = customerRepository.save(new Customer("0909999999", "Khách cũ", null));
+        insertedCustomerIds.add(customer.getId());
+        recordSale(customer.getId(), branch2Id, "POS-OTHER-BRANCH");
+        CustomerRequest request = new CustomerRequest("0909999999", "Tên mới", null);
+        AppException denied = assertThrows(AppException.class,
+                () -> customerService.updateCustomer(customer.getId(), request));
+        assertEquals(ErrorCode.BRANCH_FORBIDDEN.name(), denied.getCode());
+        assertEquals("Khách cũ", customerRepository.findById(customer.getId()).orElseThrow().getName());
+        recordSale(customer.getId(), branch1Id, "POS-ASSIGNED-BRANCH");
+        assertEquals("Tên mới", customerService.updateCustomer(customer.getId(), request).name());
+    }
+
     @AfterEach
     void tearDownData() {
         // Dọn dẹp chính xác theo ID, không xóa toàn bảng
@@ -144,6 +166,7 @@ class CustomerDbIntegrationTest {
         AppException exCreate = assertThrows(AppException.class, () -> customerService.createCustomer(createReq));
         assertEquals(ErrorCode.DUPLICATE_PHONE.name(), exCreate.getCode());
 
+        recordSale(c2.getId(), branch1Id, "POS-CUSTOMER-DUP");
         CustomerRequest updateReq = new CustomerRequest("0901234567", "Khách 2 Đổi SĐT", null);
         AppException exUpdate = assertThrows(AppException.class, () -> customerService.updateCustomer(c2.getId(), updateReq));
         assertEquals(ErrorCode.DUPLICATE_PHONE.name(), exUpdate.getCode());

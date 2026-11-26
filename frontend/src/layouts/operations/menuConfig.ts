@@ -38,6 +38,10 @@ export const MENU: MenuItem[] = [
   },
   { key: 'orders', label: 'Đơn hàng', to: `${OP}/orders`, icon: 'orders', roles: STAFF },
   { key: 'products', label: 'Sản phẩm', to: `${OP}/products`, icon: 'products', roles: STAFF },
+  { key: 'branches-read', label: 'Chi nhánh', to: OP + '/branches', roles: ['OWNER'] },
+  { key: 'channels-read', label: 'Nhật ký đồng bộ', to: OP + '/channels', roles: ['OWNER'] },
+  { key: 'staff-read', label: 'Nhân sự', to: OP + '/staff', roles: ['OWNER'] },
+  { key: 'products-admin', label: 'Sản phẩm', to: AD + '/products', roles: ['ADMIN'] },
   { key: 'customers', label: 'Khách hàng', to: `${OP}/customers`, icon: 'customers', roles: STAFF },
   { key: 'promotions', label: 'Khuyến mại', to: `${OP}/promotions`, icon: 'promo', roles: MANAGER },
   {
@@ -57,6 +61,12 @@ export const MENU: MenuItem[] = [
       { key: 'stocktake', label: 'Kiểm kê', to: `${OP}/stocktake`, roles: STAFF },
       { key: 'ledger', label: 'Sổ giao dịch', to: APP_PATHS.ledger, roles: STAFF },
     ],
+  },
+  {
+    key: 'replenishment',
+    label: 'Gợi ý nhập hàng',
+    to: OP + '/replenishment',
+    roles: ['STOREKEEPER'],
   },
   { key: 'forecast', label: 'Dự báo', to: `${OP}/forecast`, icon: 'forecast', roles: MANAGER },
   { key: 'reports', label: 'Báo cáo', to: `${OP}/reports`, icon: 'report', roles: MANAGER },

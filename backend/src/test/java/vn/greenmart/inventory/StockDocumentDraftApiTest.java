@@ -270,11 +270,18 @@ class StockDocumentDraftApiTest {
         entityManager.clear();
         mvc.perform(post("/api/v1/stock-documents/{id}/approve", id).with(user("811").roles("BRANCH_MANAGER")))
                 .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("SELF_APPROVAL_FORBIDDEN"));
-        for (String role : List.of("STOREKEEPER", "OWNER", "CASHIER")) {
+        for (String role : List.of("STOREKEEPER", "ADMIN", "CASHIER")) {
             mvc.perform(post("/api/v1/stock-documents/{id}/approve", id).with(user("810").roles(role)))
                     .andExpect(status().isForbidden());
         }
         assertStockUnchanged();
+    }
+
+    @Test
+    void ownerCanApproveImportCreatedByAnotherEmployee() throws Exception {
+        long id = create();
+        mvc.perform(post("/api/v1/stock-documents/{id}/approve", id).with(user("811").roles("OWNER")))
+                .andExpect(status().isOk());
     }
 
     @Test

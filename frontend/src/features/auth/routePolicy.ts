@@ -60,6 +60,9 @@ export function getRolesForPath(pathname: string): readonly Role[] | undefined {
   ) {
     return STOCK_DOCUMENT_ROLES;
   }
+  if (pathname === '/operations/forecast') return ['OWNER', 'BRANCH_MANAGER'];
+  if (['/operations/staff', '/operations/branches', '/operations/channels'].includes(pathname))
+    return ['OWNER'];
   if (pathname === APP_PATHS.pos || pathname.startsWith(`${APP_PATHS.pos}/`)) return POS_ROLES;
   if (pathname === APP_PATHS.operations || pathname.startsWith(`${APP_PATHS.operations}/`)) {
     return OPERATIONS_ROLES;

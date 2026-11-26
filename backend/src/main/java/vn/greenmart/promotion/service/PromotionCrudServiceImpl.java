@@ -61,7 +61,7 @@ public class PromotionCrudServiceImpl implements PromotionCrudService {
             Integer size,
             HttpServletRequest request
     ) {
-        ensureAuthenticated();
+        SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER", "CASHIER");
 
         List<PromotionStatus> normalizedStatuses = parseStatuses(status);
         PromotionLevel normalizedLevel = parseLevel(level);
@@ -114,7 +114,7 @@ public class PromotionCrudServiceImpl implements PromotionCrudService {
     @Override
     @Transactional(readOnly = true)
     public PromotionResponse getPromotion(Long promotionId) {
-        ensureAuthenticated();
+        SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER", "CASHIER");
         Promotion promotion = promotionRepository.findById(promotionId)
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy chương trình khuyến mại", Map.of("promotionId", promotionId)));
         return toResponse(promotion);
@@ -399,12 +399,6 @@ public class PromotionCrudServiceImpl implements PromotionCrudService {
             throw new AppException(ErrorCode.VALIDATION_ERROR, "Kênh bán không hợp lệ: " + rawChannel);
         }
         return normalized;
-    }
-
-    private void ensureAuthenticated() {
-        if (SecurityUtils.getCurrentRole() == null) {
-            throw new AppException(ErrorCode.UNAUTHORIZED, "Chưa đăng nhập");
-        }
     }
 
     private void saveAudit(String action, Long promotionId, Map<String, Object> detail) {

@@ -208,17 +208,18 @@ class ForecastQueryApiTest {
     }
 
     @Test
-    void managerAndKeeperAreRestrictedToAssignedBranchAndDenialIsAudited() throws Exception {
+    void managerIsBranchScopedAndKeeperCannotReadForecastSeries() throws Exception {
         mvc.perform(request("?branchId=11&productId=21", 102, "BRANCH_MANAGER")).andExpect(status().isOk());
-        mvc.perform(request("?branchId=11&productId=21", 103, "STOREKEEPER")).andExpect(status().isOk());
+        mvc.perform(request("?branchId=11&productId=21", 103, "STOREKEEPER"))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
         mvc.perform(request("?branchId=12&productId=21&runId=20", 102, "BRANCH_MANAGER"))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
         mvc.perform(request("?branchId=12&productId=21", 103, "STOREKEEPER"))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
         mvc.perform(request("?branchId=11&productId=21", 106, "BRANCH_MANAGER"))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_log WHERE action='BRANCH_FORBIDDEN'", Integer.class))
-                .isEqualTo(3);
+                .isEqualTo(2);
         mvc.perform(owner("?branchId=12&productId=21"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.horizons[0].totalPredictedQty").value(693));
     }

@@ -341,12 +341,12 @@ describe('Phiếu kho', () => {
     expect(screen.getByRole('combobox', { name: 'Trạng thái' })).toBeTruthy();
   });
 
-  it('OWNER xem chi tiết phiếu nhưng không có hành động', async () => {
-    renderDetail({ ...manager(7), role: 'OWNER' });
+  it('OWNER được duyệt phiếu nhập do người khác lập', async () => {
+    renderDetail({ ...manager(8), role: 'OWNER' });
     expect(await screen.findByText(draftDocument.code)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Sửa phiếu' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Hủy phiếu' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Duyệt phiếu' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Duyệt phiếu' })).toBeTruthy();
   });
 
   it('thủ kho mở biểu mẫu sửa từ chi tiết phiếu nháp', async () => {

@@ -9,7 +9,7 @@ import type { components } from '../../api/schema';
 
 type Category = components['schemas']['Category'];
 type EditorProps = { onClose: () => void; onSaved: () => void } & (
-  | { kind: 'product'; initial?: Product; categories: Category[] }
+  | { kind: 'product'; lockSalePrice?: boolean; initial?: Product; categories: Category[] }
   | { kind: 'customer'; initial?: Customer }
 );
 type Values = Record<string, string>;
@@ -134,7 +134,7 @@ export default function CatalogEditor(props: EditorProps) {
       type={type}
       value={values[field] ?? ''}
       error={errors[field]}
-      disabled={busy}
+      disabled={busy || (props.kind === 'product' && props.lockSalePrice && field === 'salePrice')}
       helperText={
         field === 'sku'
           ? '1–40 ký tự; chữ in hoa, số và dấu gạch nối.'
@@ -253,7 +253,7 @@ export default function CatalogEditor(props: EditorProps) {
           <p>Trường có dấu * là bắt buộc.</p>
           {isProduct ? (
             <>
-              <p>Chỉ chủ cửa hàng (OWNER) được thêm, sửa và thay đổi giá sản phẩm.</p>
+              <p>Chỉ chủ cửa hàng (OWNER) được thay đổi giá bán của sản phẩm hiện có.</p>
               <p>Mọi thay đổi giá được ghi nhật ký. Hóa đơn đã tạo vẫn giữ nguyên giá cũ.</p>
               <p>Ngừng bán để tạm dừng kinh doanh sản phẩm, không xóa dữ liệu.</p>
             </>

@@ -98,6 +98,9 @@ export default function ProductsPage() {
     return (
       <CatalogEditor
         kind="product"
+        lockSalePrice={
+          state.status === 'authenticated' && state.user.role === 'ADMIN' && editing !== 'new'
+        }
         initial={editing === 'new' ? undefined : editing}
         categories={categories.data ?? []}
         onClose={() => setEditing(null)}
@@ -201,8 +204,8 @@ export default function ProductsPage() {
       </div>
       {editable && (
         <p className="catalog__footnote">
-          Chỉ OWNER được thêm / sửa sản phẩm và đổi giá. Không xóa sản phẩm; dùng trạng thái Ngừng
-          bán.
+          ADMIN và OWNER được thêm, sửa sản phẩm. Chỉ OWNER được đổi giá bán. Không xóa sản phẩm;
+          dùng trạng thái Ngừng bán.
         </p>
       )}
     </section>

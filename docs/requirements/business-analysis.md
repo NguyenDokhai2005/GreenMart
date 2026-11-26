@@ -63,6 +63,8 @@ Có 5 vai trò người dùng và 1 tác nhân hệ thống; quyền được gi
 | Chạy lại dự báo                                 | X     | X     |              |                  |            |
 | Xem sync log, gửi lại đồng bộ                   | X     | Xem   |              |                  |            |
 
+Hồ sơ khách được dùng chung toàn chuỗi. Quản lý hoặc thu ngân có chi nhánh được gán được tạo khách. Họ được sửa hồ sơ khi ít nhất một chi nhánh đang được gán có đơn của khách ở trạng thái COMPLETED hoặc RETURNED. Khách mua ở nhiều nơi có thể được sửa từ mỗi chi nhánh đủ điều kiện. Khi khách chưa phát sinh giao dịch như trên, chỉ OWNER được sửa. Quyền đổi trạng thái khách thuộc OWNER hoặc quản lý đủ điều kiện.
+
 Người lập phiếu không được tự duyệt phiếu của mình (tách người lập và người duyệt).
 
 ## 3. Bán tại quầy (POS) – UC-01
@@ -177,8 +179,8 @@ Tạm tính 238.000 đ → trừ giảm dòng còn 223.000 đ → KM-10 giảm 1
 | NEW                 | REJECTED  | Thiếu tồn hoặc SKU chưa ánh xạ                  | Hệ thống              | Không                                       |
 | RESERVED            | CONFIRMED | Thanh toán thành công, hoặc đơn COD             | Hệ thống              | Không                                       |
 | RESERVED            | EXPIRED   | Quá 15 phút chưa thanh toán (job chạy mỗi phút) | Hệ thống              | reserved giảm (RELEASE)                     |
-| RESERVED, CONFIRMED | CANCELLED | Kênh hoặc khách hủy; QL chi nhánh hủy kèm lý do | Kênh, QL chi nhánh    | reserved giảm; hoàn tiền giả lập nếu đã trả |
-| CONFIRMED           | COMPLETED | Thủ kho/QL xác nhận đã bàn giao                 | Thủ kho, QL chi nhánh | on_hand và reserved cùng giảm (SALE)        |
+| RESERVED, CONFIRMED | CANCELLED | Kênh hoặc khách hủy; người xử lý nội bộ hủy kèm lý do | Kênh, OWNER, QL chi nhánh    | reserved giảm; hoàn tiền giả lập nếu đã trả |
+| CONFIRMED           | COMPLETED | Xác nhận đã bàn giao                            | OWNER, thủ kho, QL chi nhánh | on_hand và reserved cùng giảm (SALE)        |
 | COMPLETED           | RETURNED  | Trả toàn bộ đơn (mục 5)                         | QL chi nhánh          | on_hand tăng (RETURN)                       |
 
 ![Vòng đời đơn online](images/online-order-states.png)
@@ -207,7 +209,7 @@ Hủy chỉ áp dụng cho đơn chưa giao (nhả giữ chỗ); trả hàng áp
 
 ### 5.1 Hủy đơn
 
-1.  QL chi nhánh mở đơn RESERVED hoặc CONFIRMED, chọn Hủy và lý do (khách đổi ý, hết hàng thực tế, sai thông tin, khác).
+1.  OWNER hoặc QL của chi nhánh xử lý mở đơn RESERVED hoặc CONFIRMED, chọn Hủy và lý do (khách đổi ý, hết hàng thực tế, sai thông tin, khác).
 
 2.  Hệ thống nhả toàn bộ giữ chỗ (RELEASE), đơn CANCELLED, hoàn tiền giả lập nếu đã thanh toán, hoàn lượt dùng khuyến mại.
 
@@ -251,16 +253,16 @@ Mọi phiếu kho đi qua Nháp → Duyệt; tồn chỉ thay đổi tại bư�
 
 | Phiếu              | Người lập        | Người duyệt  | Trạng thái                               | Tồn thay đổi khi                  | Giao dịch sổ kho          |
 |--------------------|------------------|--------------|------------------------------------------|-----------------------------------|---------------------------|
-| Nhập hàng (UC-05)  | Thủ kho          | QL chi nhánh | DRAFT → APPROVED / CANCELLED             | Duyệt: on_hand tăng               | IMPORT                    |
-| Xuất hủy (UC-06)   | Thủ kho          | QL chi nhánh | DRAFT → APPROVED / CANCELLED             | Duyệt: on_hand giảm               | EXPORT                    |
+| Nhập hàng (UC-05)  | Thủ kho          | OWNER hoặc QL chi nhánh | DRAFT → APPROVED / CANCELLED             | Duyệt: on_hand tăng               | IMPORT                    |
+| Xuất hủy (UC-06)   | Thủ kho          | OWNER hoặc QL chi nhánh | DRAFT → APPROVED / CANCELLED             | Duyệt: on_hand giảm               | EXPORT                    |
 | Chuyển kho (UC-07) | Thủ kho CN nguồn | QL CN nguồn  | DRAFT → APPROVED → IN_TRANSIT → RECEIVED | Xuất: nguồn giảm; Nhận: đích tăng | TRANSFER_OUT, TRANSFER_IN |
-| Kiểm kê (UC-08)    | Thủ kho          | QL chi nhánh | DRAFT → APPROVED                         | Duyệt: on_hand = số đếm           | ADJUST (±chênh lệch)      |
+| Kiểm kê (UC-08)    | Thủ kho          | OWNER hoặc QL chi nhánh | DRAFT → APPROVED                         | Duyệt: on_hand = số đếm           | ADJUST (±chênh lệch)      |
 
 ### 6.1 Nhập hàng
 
 1.  Thủ kho tạo phiếu: nhà cung cấp, ngày nhận, danh sách sản phẩm, số lượng, giá nhập.
 
-2.  QL chi nhánh kiểm tra và duyệt. Hệ thống cộng on_hand, ghi IMPORT, cập nhật giá vốn bình quân, gỡ cảnh báo tồn thấp nếu đã vượt ngưỡng.
+2.  OWNER hoặc QL của chi nhánh trên phiếu kiểm tra và duyệt. Hệ thống cộng on_hand, ghi IMPORT, cập nhật giá vốn bình quân, gỡ cảnh báo tồn thấp nếu đã vượt ngưỡng.
 
 Giá vốn bình quân mới = (tồn cũ × giá vốn cũ + SL nhập × giá nhập) / (tồn cũ + SL nhập). Ví dụ: tồn 20 gói giá vốn 10.000 đ, nhập 30 gói giá 11.000 đ → (200.000 + 330.000) / 50 = 10.600 đ.
 

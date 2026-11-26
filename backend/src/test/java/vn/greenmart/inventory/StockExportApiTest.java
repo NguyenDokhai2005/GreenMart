@@ -181,7 +181,7 @@ class StockExportApiTest {
         long own=json.readTree(result.getResponse().getContentAsString()).get("id").asLong();
         approve(own).andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("SELF_APPROVAL_FORBIDDEN"));
         long id=create(3);
-        mvc.perform(post("/api/v1/stock-documents/{id}/approve",id).with(user("812").roles("OWNER")))
+        mvc.perform(post("/api/v1/stock-documents/{id}/approve",id).with(user("812").roles("ADMIN")))
                 .andExpect(status().isForbidden());
         jdbc.update("UPDATE user_branch SET branch_id=82 WHERE user_id=811");
         approve(id).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("BRANCH_FORBIDDEN"));
@@ -189,6 +189,8 @@ class StockExportApiTest {
                         .content(json.writeValueAsBytes(request(3,"DAMAGED","Broken"))))
                 .andExpect(status().isUnauthorized());
         unchanged();
+        mvc.perform(post("/api/v1/stock-documents/{id}/approve",id).with(user("812").roles("OWNER")))
+                .andExpect(status().isOk());
     }
     @Test void failingSecondLedgerInsertRollsBackEverything() throws Exception {
         long id=create(3);
