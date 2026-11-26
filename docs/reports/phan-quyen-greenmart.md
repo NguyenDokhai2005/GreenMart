@@ -43,7 +43,7 @@ Mỗi dòng liệt kê các vai trò được thực hiện hành động ở ph
 | POS | Báo giá và hoàn tất bán tại quầy | QL, thu ngân | Theo chi nhánh bán. Giảm thủ công ngoài chương trình yêu cầu QL và lý do. |
 | Đơn online | Xác nhận hoàn tất bàn giao | QL, thủ kho | Theo chi nhánh xử lý đơn và trạng thái đơn. |
 | Đơn online | Hủy đơn qua nghiệp vụ hủy online | QL | Kiểm tra chi nhánh, trạng thái và điều kiện hủy. |
-| Trả hàng | Lập yêu cầu và xem phiếu trả | OWNER, QL, thu ngân | Xét phạm vi đơn gốc. |
+| Trả hàng | Lập yêu cầu và xem phiếu trả | OWNER, QL, thu ngân | Xét quyền theo chi nhánh nhận trả ghi trên phiếu. Đơn gốc phải đủ điều kiện trả hàng. Quyền xem đơn bán gốc được xét riêng. |
 | Trả hàng | Duyệt hoặc hủy phiếu trả | OWNER, QL | Khi duyệt, người duyệt phải khác người lập. |
 | Kho | Tra số dư tồn | Cả năm vai trò | Theo chi nhánh. Tồn khả dụng bằng thực tồn trừ lượng đã giữ. |
 | Kho | Xem sổ giao dịch và phiếu kho | OWNER, QL, thủ kho | Xét phạm vi dữ liệu. Với phiếu chuyển, nguồn và đích đều có nhu cầu tra cứu. |
