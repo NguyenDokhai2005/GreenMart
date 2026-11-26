@@ -18,6 +18,7 @@ class ChannelCallbackLifecycleTest {
         HttpClient client;
         ThreadPoolTaskScheduler callbackScheduler;
         ThreadPoolTaskScheduler defaultScheduler;
+        ThreadPoolTaskScheduler recoveryScheduler;
         try (var context = new AnnotationConfigApplicationContext()) {
             context.registerBean(JdbcTemplate.class, () -> mock(JdbcTemplate.class));
             context.registerBean(ObjectMapper.class, () -> new ObjectMapper());
@@ -28,10 +29,12 @@ class ChannelCallbackLifecycleTest {
             client = context.getBean(HttpClient.class);
             callbackScheduler = context.getBean("channelDeliveryScheduler", ThreadPoolTaskScheduler.class);
             defaultScheduler = context.getBean("taskScheduler", ThreadPoolTaskScheduler.class);
+            recoveryScheduler = context.getBean("channelRecoveryScheduler", ThreadPoolTaskScheduler.class);
             assertThat(client.isTerminated()).isFalse();
         }
         assertThat(client.isTerminated()).isTrue();
         assertThat(callbackScheduler.getScheduledThreadPoolExecutor().isShutdown()).isTrue();
         assertThat(defaultScheduler.getScheduledThreadPoolExecutor().isShutdown()).isTrue();
+        assertThat(recoveryScheduler.getScheduledThreadPoolExecutor().isShutdown()).isTrue();
     }
 }
