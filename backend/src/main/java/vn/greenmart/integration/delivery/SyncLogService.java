@@ -45,8 +45,9 @@ public class SyncLogService {
                     "SELECT EXISTS(SELECT 1 FROM sync_log WHERE id=?)", Boolean.class, id));
             throw new AppException(exists ? ErrorCode.INVALID_STATUS : ErrorCode.NOT_FOUND);
         }
-        int changed = jdbc.update("UPDATE sync_log SET status='RETRYING',attempts=0,error=NULL WHERE id=? AND status='FAILED'", id);
+        int changed = jdbc.update("UPDATE sync_log SET status='RETRYING',error=NULL WHERE id=? AND status='FAILED'", id);
         if (changed == 0) throw new AppException(ErrorCode.INVALID_STATUS);
-        jdbc.update("UPDATE channel_delivery SET next_attempt_at=clock_timestamp() WHERE sync_log_id=?", id);
+        // Manual retry starts a fresh finite cycle but does not erase history or replenish auto recovery.
+        jdbc.update("UPDATE channel_delivery SET next_attempt_at=clock_timestamp(),cycle_attempts=0 WHERE sync_log_id=?", id);
     }
 }

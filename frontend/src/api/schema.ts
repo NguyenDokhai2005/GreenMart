@@ -1187,7 +1187,7 @@ export interface paths {
     put?: never;
     /**
      * ADMIN đưa callback FAILED vào lịch gửi lại
-     * @description Giữ nguyên event và payload. Đặt lại bộ đếm cho lượt gửi mới. Hai yêu cầu đồng thời chỉ xếp một lượt gửi.
+     * @description Giữ nguyên event, payload và tổng attempts. Đặt lại bộ đếm riêng của chu kỳ gửi mới (một lần gửi và tối đa năm retry), không cấp lại ngân sách tự phục hồi (tối đa ba lần mỗi job). Hai yêu cầu đồng thời chỉ xếp một lượt gửi.
      */
     post: operations['retrySyncLog'];
     delete?: never;
@@ -4850,6 +4850,7 @@ export interface operations {
               externalId?: string | null;
               /** @enum {string} */
               status?: 'SUCCESS' | 'FAILED' | 'RETRYING';
+              /** @description Tổng số lần gửi callback đã ghi nhận; không reset khi retry. */
               attempts?: number;
               error?: string | null;
               /** Format: date-time */

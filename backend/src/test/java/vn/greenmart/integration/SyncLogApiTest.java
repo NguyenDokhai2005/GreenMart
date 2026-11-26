@@ -51,6 +51,8 @@ class SyncLogApiTest {
         mvc.perform(post("/api/v1/integrations/sync-logs/{id}/retry",id)).andExpect(status().isAccepted());
         mvc.perform(post("/api/v1/integrations/sync-logs/{id}/retry",id)).andExpect(status().isConflict());
         assertThat(jdbc.queryForObject("SELECT status FROM sync_log WHERE id=?",String.class,id)).isEqualTo("RETRYING");
+        assertThat(jdbc.queryForObject("SELECT attempts FROM sync_log WHERE id=?",Integer.class,id)).isEqualTo(6);
+        assertThat(jdbc.queryForObject("SELECT cycle_attempts FROM channel_delivery WHERE sync_log_id=?",Integer.class,id)).isZero();
         assertThat(jdbc.queryForObject("SELECT next_attempt_at IS NOT NULL FROM channel_delivery WHERE sync_log_id=?",Boolean.class,id)).isTrue();
         mvc.perform(get("/api/v1/integrations/sync-logs?size=101")).andExpect(status().isBadRequest());
         mvc.perform(get("/api/v1/integrations/sync-logs?channelCode=UNKNOWN")).andExpect(status().isBadRequest());
