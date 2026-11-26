@@ -477,4 +477,3 @@ def test_compute_view_comparison_wape_none_for_zero_negative_and_empty():
     assert comp_empty["model"]["wape"] is None
     assert comp_empty["model"]["zero_pred_ratio"] is None
     assert comp_empty["win"] is False
-

@@ -82,7 +82,7 @@ def postgres_container() -> Generator[Any, None, None]:
         "V3__reference_data.sql",
         "V4__document_timestamps.sql",
         "V5__inventory_transaction_append_only.sql",
-        "V22__forecast_run_standardized_metrics.sql",
+        "V24__forecast_run_standardized_metrics.sql",
     ]
 
     with psycopg.connect(
@@ -659,7 +659,7 @@ def test_complete_forecast_run_records_real_clock_timestamp(postgres_container):
 
 
 def test_standardized_forecast_run_persistence_and_detail_roundtrip(postgres_container, monkeypatch, auth_headers):
-    """Kiểm thử end-to-end #423 trên Postgres thật: evaluator -> DB V22 -> GET /forecast/runs/{runId}."""
+    """Kiểm thử end-to-end #423 trên Postgres thật: evaluator -> DB V24 -> GET /forecast/runs/{runId}."""
     from contextlib import contextmanager
     from fastapi.testclient import TestClient
     from app.main import create_app
@@ -789,6 +789,3 @@ def test_cli_save_db_aligns_cutoff_date_with_serving_target_dates_postgres(postg
     assert body["evaluationCutoffDate"] == "2026-10-01"
     assert body["legacy"] is False
     assert body["postprocessVersion"] == "slow-th-h7_0.4-h30_0.4-sh28-v1"
-
-
-

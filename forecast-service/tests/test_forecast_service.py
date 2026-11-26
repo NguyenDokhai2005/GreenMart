@@ -647,7 +647,3 @@ def test_execute_background_forecast_supports_two_arg_monkeypatched_evaluator(mo
         event_publisher_fn=lambda **kwargs: True,
     )
     assert completed_runs == [(423, 0.25, 0.15)]
-
-
-
-

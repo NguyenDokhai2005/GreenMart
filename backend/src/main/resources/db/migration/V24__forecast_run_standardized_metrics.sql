@@ -1,5 +1,5 @@
 -- #423: Standardize forecast_run metric metadata and H7/H30 breakdown storage.
--- Existing pre-V22 DONE rows keep their original scalar values and NULL metadata (treated as legacy = true).
+-- Existing pre-V24 DONE rows keep their original scalar values and NULL metadata (treated as legacy = true).
 -- RUNNING and FAILED rows keep all metric and metadata columns as NULL.
 
 ALTER TABLE forecast_run
