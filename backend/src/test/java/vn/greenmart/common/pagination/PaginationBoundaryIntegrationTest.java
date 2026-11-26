@@ -1,4 +1,5 @@
 package vn.greenmart.common.pagination;
+import vn.greenmart.inventory.PostgresTestImage;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -17,13 +18,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import vn.greenmart.inventory.PostgresTestImage;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -75,9 +76,10 @@ class PaginationBoundaryIntegrationTest {
     }
 
     @ParameterizedTest(name = "{0} -> page=0, size=20 trả 200 có dữ liệu; page ngoài dữ liệu trả 200 content rỗng")
-    @ValueSource(strings = {"/api/v1/products", "/api/v1/customers", "/api/v1/promotions"})
+    @ValueSource(strings = {"/api/v1/products", "/api/v1/customers", "/api/v1/promotions", "/api/v1/users"})
     void validPageZeroAndOutOfDataRange_Returns200EmptyPageResponse(String endpoint) throws Exception {
         mockMvc.perform(get(endpoint)
+                        .with(user("51601").roles("OWNER", "ADMIN"))
                         .param("page", "0")
                         .param("size", "20"))
                 .andExpect(status().isOk())
@@ -86,6 +88,7 @@ class PaginationBoundaryIntegrationTest {
                 .andExpect(jsonPath("$.content").isArray());
 
         mockMvc.perform(get(endpoint)
+                        .with(user("51601").roles("OWNER", "ADMIN"))
                         .param("page", "500")
                         .param("size", "20"))
                 .andExpect(status().isOk())
@@ -104,10 +107,14 @@ class PaginationBoundaryIntegrationTest {
             "/api/v1/customers, 100, 21474836",
             "/api/v1/promotions, 1, 2147483647",
             "/api/v1/promotions, 20, 107374182",
-            "/api/v1/promotions, 100, 21474836"
+            "/api/v1/promotions, 100, 21474836",
+            "/api/v1/users, 1, 2147483647",
+            "/api/v1/users, 20, 107374182",
+            "/api/v1/users, 100, 21474836"
     })
     void validInt32OffsetThreshold_Returns200(String endpoint, int size, int page) throws Exception {
         mockMvc.perform(get(endpoint)
+                        .with(user("51601").roles("OWNER", "ADMIN"))
                         .param("page", String.valueOf(page))
                         .param("size", String.valueOf(size)))
                 .andExpect(status().isOk())
@@ -123,7 +130,9 @@ class PaginationBoundaryIntegrationTest {
             "/api/v1/customers, 20, 107374183, 107374182",
             "/api/v1/customers, 100, 21474837, 21474836",
             "/api/v1/promotions, 20, 107374183, 107374182",
-            "/api/v1/promotions, 100, 21474837, 21474836"
+            "/api/v1/promotions, 100, 21474837, 21474836",
+            "/api/v1/users, 20, 107374183, 107374182",
+            "/api/v1/users, 100, 21474837, 21474836"
     })
     void overflowInt32OffsetThreshold_Returns400WithPageFieldAndSizeLimit(
             String endpoint,
@@ -132,6 +141,7 @@ class PaginationBoundaryIntegrationTest {
             String expectedMaxPage
     ) throws Exception {
         mockMvc.perform(get(endpoint)
+                        .with(user("51601").roles("OWNER", "ADMIN"))
                         .param("page", String.valueOf(page))
                         .param("size", String.valueOf(size)))
                 .andExpect(status().isBadRequest())
@@ -142,9 +152,10 @@ class PaginationBoundaryIntegrationTest {
     }
 
     @ParameterizedTest(name = "{0} -> page âm hoặc size sai trả 400 VALIDATION_ERROR đúng trường")
-    @ValueSource(strings = {"/api/v1/products", "/api/v1/customers", "/api/v1/promotions"})
+    @ValueSource(strings = {"/api/v1/products", "/api/v1/customers", "/api/v1/promotions", "/api/v1/users"})
     void negativePageOrInvalidSize_Returns400(String endpoint) throws Exception {
         mockMvc.perform(get(endpoint)
+                        .with(user("51601").roles("OWNER", "ADMIN"))
                         .param("page", "-1")
                         .param("size", "20"))
                 .andExpect(status().isBadRequest())
@@ -152,6 +163,7 @@ class PaginationBoundaryIntegrationTest {
                 .andExpect(jsonPath("$.details[0].field").value("page"));
 
         mockMvc.perform(get(endpoint)
+                        .with(user("51601").roles("OWNER", "ADMIN"))
                         .param("page", "0")
                         .param("size", "0"))
                 .andExpect(status().isBadRequest())
@@ -159,10 +171,11 @@ class PaginationBoundaryIntegrationTest {
                 .andExpect(jsonPath("$.details[0].field").value("size"));
 
         mockMvc.perform(get(endpoint)
+                        .with(user("51601").roles("OWNER", "ADMIN"))
                         .param("page", "0")
                         .param("size", "101"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.details[0].field").value("size"));
     }
-} 
+}

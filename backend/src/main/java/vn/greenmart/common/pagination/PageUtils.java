@@ -68,7 +68,7 @@ public final class PageUtils {
         return createPageable(page, size, sortList, defaultSort, allowedSortFields);
     }
 
-    private static void validatePageAndSize(int page, int size) {
+    public static void validatePageAndSize(int page, int size) {
         if (page < 0) {
             throw new AppException(
                 ErrorCode.VALIDATION_ERROR,
