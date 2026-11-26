@@ -20,7 +20,9 @@ Dùng lại `useAuth`, `useActiveBranch`, `routePolicy` của `features/auth` (S
 ## Routes đã tích hợp
 
 - `AppRoutes.tsx` gắn `OperationsLayout` vào `/operations` và `/admin`, giữ kiểm tra quyền; khu Operations tiếp tục yêu cầu chi nhánh đang chọn.
-- Route index Operations dùng `OperationsHome` (THỦ KHO chuyển tới Tồn kho); route index Admin hiển thị Dashboard.
+- Route index Operations dùng dashboard doanh thu và cảnh báo tồn; THỦ KHO chuyển tới Tồn kho.
+- `/operations/forecast` dùng API forecast và gợi ý nhập theo tồn kho; không có dữ liệu dựng sẵn.
+- `/operations/alerts` hiển thị danh sách cảnh báo theo chi nhánh hiện hành; route index Admin hiển thị Dashboard.
 - Các route con chưa có trang thật hiển thị trạng thái chưa tích hợp bên trong layout.
 - `/operations/stock-documents` vẫn do route Phiếu kho riêng xử lý; `/pos` không thay đổi.
 - Menu tài khoản gọi `signOut` để xóa phiên và chuyển về `/login`; nếu thu hồi token qua mạng lỗi, phiên local vẫn được đăng xuất.
@@ -50,9 +52,9 @@ npm run typecheck && npm run lint && npm test
 - **OWNER bị ép chọn chi nhánh** trước khi vào Operations (luồng của SV04); chờ BA/SV04 quyết định.
 - **Responsive (#101):** layout hiện chỉ dành cho desktop (1440 px theo Figma); bản mobile làm ở #101.
 - **Chuông thông báo:** chưa có hành động (`openapi.yaml` chưa có API thông báo).
-- **Trang con** (Tổng quan, Tồn kho, ...) thuộc các issue khác.
+- **Trang con** (Tồn kho, ...) thuộc các issue khác.
 
-# Issue #89: chọn thư viện biểu đồ, biểu đồ thử doanh thu 30 ngày
+# Issue #89: chọn thư viện biểu đồ
 
 Thư viện chọn: **Recharts**. Lý do và số liệu so sánh nằm trong `PR_DESCRIPTION.md` (dán vào mô tả PR).
 
@@ -74,9 +76,11 @@ import { RevenueAreaChart, Sparkline } from '../../components/charts';
 <Sparkline data={series} tone="danger" />     // series: { date, value }[]
 ```
 
-## Xem biểu đồ
+## Dashboard và cảnh báo
 
-Sau khi đã gắn `OperationsLayout` vào `AppRoutes.tsx` (xem README của #88), đăng nhập bằng OWNER hoặc QLCN và mở `/operations`. Trang Tổng quan tạm hiển thị biểu đồ thử.
+Trang `/operations` dùng API báo cáo doanh thu và top sản phẩm, cùng API cảnh báo tồn kho; không dùng dữ liệu dashboard mock. Bộ lọc kênh dùng ID POS/WEB/MARKET theo thứ tự seed trong `V3__reference_data.sql`; bộ chọn chi nhánh ở Topbar áp dụng cho các báo cáo.
+
+Trang `/operations/alerts` liệt kê cảnh báo Hết hàng trước Tồn thấp. Cả dashboard và trang cảnh báo dùng `AsyncBlock` cho trạng thái tải, rỗng và lỗi.
 
 ## Kiểm tra
 

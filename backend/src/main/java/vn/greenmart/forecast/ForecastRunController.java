@@ -8,15 +8,26 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
+import vn.greenmart.common.pagination.PageResponse;
+import vn.greenmart.forecast.service.ForecastRunQueryService;
 
 @RestController
 @RequestMapping("/forecasts/runs")
 public class ForecastRunController {
     private final ForecastClient forecasts;
     private final JdbcTemplate jdbc;
-    public ForecastRunController(ForecastClient forecasts, JdbcTemplate jdbc) {
+    private final ForecastRunQueryService queries;
+    public ForecastRunController(ForecastClient forecasts, JdbcTemplate jdbc,
+                                ForecastRunQueryService queries) {
         this.forecasts = forecasts;
         this.jdbc = jdbc;
+        this.queries = queries;
+    }
+    @GetMapping
+    public PageResponse<ForecastRunQueryService.Run> list(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+        return queries.list(status, page, size);
     }
     @PostMapping
     @ResponseStatus(HttpStatus.ACCEPTED)

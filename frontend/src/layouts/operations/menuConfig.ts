@@ -29,7 +29,13 @@ const STAFF: readonly Role[] = ['OWNER', 'BRANCH_MANAGER', 'STOREKEEPER'];
 /** Nguồn duy nhất của menu Operations/Admin (AUTH-02). */
 export const MENU: MenuItem[] = [
   { key: 'overview', label: 'Tổng quan', to: OP, icon: 'dashboard', roles: MANAGER },
-  { key: 'admin-dashboard', label: 'Dashboard', to: AD, icon: 'dashboard', roles: ['ADMIN'] },
+  {
+    key: 'pos',
+    label: 'Bán hàng POS',
+    to: APP_PATHS.pos,
+    icon: 'orders',
+    roles: ['BRANCH_MANAGER'],
+  },
   { key: 'orders', label: 'Đơn hàng', to: `${OP}/orders`, icon: 'orders', roles: STAFF },
   { key: 'products', label: 'Sản phẩm', to: `${OP}/products`, icon: 'products', roles: STAFF },
   { key: 'customers', label: 'Khách hàng', to: `${OP}/customers`, icon: 'customers', roles: STAFF },
@@ -49,7 +55,7 @@ export const MENU: MenuItem[] = [
       },
       { key: 'transfers', label: 'Chuyển kho', to: `${OP}/transfers`, roles: STAFF },
       { key: 'stocktake', label: 'Kiểm kê', to: `${OP}/stocktake`, roles: STAFF },
-      { key: 'ledger', label: 'Sổ giao dịch', to: `${OP}/ledger`, roles: STAFF },
+      { key: 'ledger', label: 'Sổ giao dịch', to: APP_PATHS.ledger, roles: STAFF },
     ],
   },
   { key: 'forecast', label: 'Dự báo', to: `${OP}/forecast`, icon: 'forecast', roles: MANAGER },
@@ -61,10 +67,8 @@ export const MENU: MenuItem[] = [
     children: [
       { key: 'branches', label: 'Chi nhánh', to: `${AD}/branches`, roles: ['ADMIN'] },
       { key: 'staff', label: 'Nhân sự & phân quyền', to: `${AD}/staff`, roles: ['ADMIN'] },
-      { key: 'audit', label: 'Nhật ký hoạt động', to: `${AD}/audit`, roles: ['ADMIN'] },
       { key: 'channels', label: 'Trạng thái đồng bộ kênh', to: `${AD}/channels`, roles: ['ADMIN'] },
       { key: 'locked', label: 'Danh sách tài khoản bị khóa', to: `${AD}/locked`, roles: ['ADMIN'] },
-      { key: 'recent', label: 'Nhật ký gần đây', to: `${AD}/recent`, roles: ['ADMIN'] },
     ],
   },
 ];
@@ -85,6 +89,7 @@ export const canPickAllBranches = (role: Role) => role === 'OWNER' || role === '
 
 /** Trang đầu của khu Operations: THỦ KHO không có Tổng quan nên vào Tồn kho. */
 export const operationsHomePath = (role: Role) => (role === 'STOREKEEPER' ? `${OP}/inventory` : OP);
+
 /**
  * Nhãn breadcrumb cho đường dẫn hiện tại: mục con của nhóm hiện "Nhóm / Mục" (vd "Kho / Tồn kho"), mục thường hiện tên mục.
  */

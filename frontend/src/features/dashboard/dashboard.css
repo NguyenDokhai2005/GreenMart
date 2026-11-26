@@ -1,0 +1,321 @@
+.gm-dashboard {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.gm-dashboard__heading,
+.gm-dashboard__panel-header,
+.gm-dashboard__filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.gm-dashboard__heading h1,
+.gm-dashboard__panel-header h2 {
+  margin: 0;
+  color: var(--gm-color-text);
+}
+
+.gm-dashboard__heading h1 {
+  margin: 0 0 var(--gm-space-1);
+  font-size: 28px;
+  line-height: 36px;
+}
+
+.gm-dashboard__heading p,
+.gm-dashboard__panel-header p {
+  margin: 4px 0 0;
+  color: var(--gm-color-text-secondary);
+  font-size: var(--gm-font-size-xs);
+}
+
+.gm-dashboard__filters {
+  justify-content: flex-end;
+}
+
+.gm-dashboard__filters .gm-field {
+  min-width: 180px;
+  margin: 0;
+}
+
+.gm-dashboard__scope {
+  color: var(--gm-color-text-secondary);
+  font-size: var(--gm-font-size-label);
+}
+
+.gm-dashboard__metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.gm-dashboard__metric {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 16px;
+  border: var(--gm-border-width) solid #dfe5e2;
+  border-radius: var(--gm-radius-lg);
+  background: var(--gm-color-surface);
+}
+
+.gm-dashboard__metric > span,
+.gm-dashboard__metric small {
+  color: var(--gm-color-text-secondary);
+  font-size: var(--gm-font-size-xs);
+}
+
+.gm-dashboard__metric strong {
+  font-size: clamp(16px, 1.6vw, 22px);
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.gm-dashboard__metric-skeleton {
+  grid-column: span 3;
+  height: 96px;
+  border-radius: var(--gm-radius-lg);
+  background: var(--gm-color-page);
+  animation: gm-skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+.gm-dashboard__metric-skeleton[aria-label='Đang tải cảnh báo'] {
+  grid-column: auto;
+}
+
+.gm-dashboard__primary-grid,
+.gm-dashboard__secondary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(280px, 1fr);
+  align-items: stretch;
+  gap: 16px;
+}
+
+.gm-dashboard__secondary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.gm-dashboard__secondary-grid--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.gm-dashboard__panel {
+  min-width: 0;
+  padding: 16px;
+  border: var(--gm-border-width) solid #dfe5e2;
+  border-radius: var(--gm-radius-lg);
+  background: var(--gm-color-surface);
+}
+
+.gm-dashboard__panel-header {
+  margin-bottom: 14px;
+}
+
+.gm-dashboard__panel-header h2 {
+  font-size: 16px;
+}
+
+.gm-dashboard__text-link {
+  flex: 0 0 auto;
+  color: var(--gm-color-primary);
+  font-size: var(--gm-font-size-xs);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.gm-dashboard__text-link:hover {
+  text-decoration: underline;
+}
+
+.gm-dashboard__chart-skeleton {
+  align-content: center;
+}
+
+.gm-dashboard__alert-list,
+.gm-dashboard__rank-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gm-dashboard__alert {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #f1d5ca;
+  border-radius: var(--gm-radius-md);
+  background: #fffaf8;
+}
+
+.gm-dashboard__alert--out {
+  border-color: #efb6ae;
+  background: #fff5f3;
+}
+
+.gm-dashboard__alert-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e87922;
+}
+
+.gm-dashboard__alert--out .gm-dashboard__alert-indicator {
+  background: #d93025;
+}
+
+.gm-dashboard__alert-info,
+.gm-dashboard__alert-stock {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.gm-dashboard__alert-info strong {
+  overflow: hidden;
+  font-size: var(--gm-font-size-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-dashboard__alert-info span,
+.gm-dashboard__alert-stock span {
+  color: var(--gm-color-text-secondary);
+  font-size: 11px;
+}
+
+.gm-dashboard__alert-stock {
+  justify-items: end;
+}
+
+.gm-dashboard__alert-stock strong {
+  color: #b54130;
+  font-size: var(--gm-font-size-label);
+}
+
+.gm-dashboard__rank-list li {
+  display: grid;
+  grid-template-columns: minmax(80px, 1.1fr) minmax(48px, 1.5fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.gm-dashboard__rank-name {
+  overflow: hidden;
+  font-size: var(--gm-font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-dashboard__rank-track {
+  overflow: hidden;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--gm-color-page);
+}
+
+.gm-dashboard__rank-bar {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: inherit;
+  background: var(--gm-color-primary);
+}
+
+.gm-dashboard__rank-list li > strong {
+  font-size: var(--gm-font-size-xs);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.gm-dashboard--alerts-page > .gm-dashboard__panel {
+  min-height: 280px;
+}
+
+@keyframes gm-skeleton-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (max-width: 900px) {
+  .gm-dashboard__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gm-dashboard__primary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .gm-dashboard {
+    width: 100%;
+  }
+
+  .gm-dashboard__heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .gm-dashboard__heading h1 {
+    font-size: 24px;
+    line-height: 32px;
+  }
+
+  .gm-dashboard__filters {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .gm-dashboard__filters .gm-field {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .gm-dashboard__metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gm-dashboard__secondary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .gm-dashboard__primary-grid,
+  .gm-dashboard__secondary-grid {
+    min-width: 0;
+  }
+
+  .gm-dashboard__metric {
+    padding: 12px;
+  }
+
+  .gm-dashboard__metric strong {
+    white-space: normal;
+  }
+
+  .gm-dashboard__panel {
+    padding: 12px;
+  }
+
+  .gm-dashboard__panel-header {
+    align-items: flex-start;
+  }
+
+  .gm-dashboard__rank-list li {
+    grid-template-columns: minmax(0, 1fr) minmax(40px, 1fr) auto;
+    gap: 7px;
+  }
+
+  .gm-dashboard__alert {
+    grid-template-columns: 8px minmax(0, 1fr) auto;
+  }
+}

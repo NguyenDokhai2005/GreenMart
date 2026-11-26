@@ -1996,7 +1996,7 @@ paths:
                         direction: { type: string, enum: [IN, OUT] }
                         externalId: { type: string, nullable: true }
                         status: { type: string, enum: [SUCCESS, FAILED, RETRYING] }
-                        attempts: { type: integer }
+                        attempts: { type: integer, description: Tổng số lần gửi callback đã ghi nhận; không reset khi retry. }
                         error: { type: string, nullable: true }
                         createdAt: { type: string, format: date-time }
         '400': { description: Bộ lọc không hợp lệ }
@@ -2007,7 +2007,7 @@ paths:
       tags: [Integrations]
       operationId: retrySyncLog
       summary: ADMIN đưa callback FAILED vào lịch gửi lại
-      description: Giữ nguyên event và payload. Đặt lại bộ đếm cho lượt gửi mới. Hai yêu cầu đồng thời chỉ xếp một lượt gửi.
+      description: Giữ nguyên event, payload và tổng attempts. Đặt lại bộ đếm riêng của chu kỳ gửi mới (một lần gửi và tối đa năm retry), không cấp lại ngân sách tự phục hồi (tối đa ba lần mỗi job). Hai yêu cầu đồng thời chỉ xếp một lượt gửi.
       parameters:
         - { in: path, name: id, required: true, schema: { type: integer, format: int64, minimum: 1 } }
       responses:

@@ -94,6 +94,7 @@ services:
     build: ./forecast-service
     image: greenmart-forecast:${IMAGE_TAG:-dev}
     environment:
+      FORECAST_DOCS_ENABLED: ${FORECAST_DOCS_ENABLED:-false}
       FORECAST_DB_HOST: postgres
       FORECAST_DB_PORT: '5432'
       POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}

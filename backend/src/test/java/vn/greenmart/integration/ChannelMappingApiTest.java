@@ -18,6 +18,7 @@ import vn.greenmart.inventory.PostgresTestImage;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -52,6 +53,36 @@ class ChannelMappingApiTest {
     @Test @WithMockUser(roles = "CASHIER")
     void cashierCannotChangeChannelMappings() throws Exception {
         mvc.perform(mapping(951, "W-DENIED")).andExpect(status().isForbidden());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"{}", "{\"externalSku\":null}",
+            "{\"externalSku\":\"\"}", "{\"externalSku\":\"   \"}"})
+    @WithMockUser(roles = "ADMIN")
+    void invalidBodiesReturnFieldErrors(String body) throws Exception {
+        mvc.perform(put("/api/v1/integrations/WEB/products/1")
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.details[0].field").value("externalSku"));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(longs = {0, -1})
+    @WithMockUser(roles = "ADMIN")
+    void invalidPathIdsReturnValidationErrors(long id) throws Exception {
+        mvc.perform(mapping(id, "W-VALID")).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.details[0].field").value("productId"));
+        mvc.perform(put("/api/v1/integrations/WEB/products/{id}", id)
+                .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test @WithMockUser(roles = "ADMIN")
+    void tooLongSkuReturnsFieldError() throws Exception {
+        mvc.perform(mapping(1, "W".repeat(61))).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 
     @Test void unauthenticatedCallerCannotChangeChannelMappings() throws Exception {

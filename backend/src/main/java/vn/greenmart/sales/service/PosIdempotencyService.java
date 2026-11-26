@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import vn.greenmart.common.exception.AppException;
 import vn.greenmart.common.exception.ErrorCode;
@@ -23,6 +24,7 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -45,6 +47,7 @@ public class PosIdempotencyService {
     private final ObjectMapper objectMapper;
     private final SalesOrderRepository salesOrderRepository;
     private final PosOrderService posOrderService;
+    private final JdbcTemplate jdbcTemplate;
 
    public IdempotencyResult execute(
             String idempotencyKey,
@@ -54,6 +57,8 @@ public class PosIdempotencyService {
         validateIdempotencyKey(idempotencyKey);
 
         Long currentUserId = SecurityUtils.getCurrentUserId();
+        validatePosAccess(request.branchId());
+
         String redisKey = KEY_PREFIX + currentUserId + ":" + idempotencyKey;
         String requestHash = computeSha256(request);
 
@@ -150,7 +155,13 @@ public class PosIdempotencyService {
             );
         }
 
-        return new IdempotencyResult(false, existingRecord.response());
+        OrderResponse cachedResponse = existingRecord.response();
+        Long cachedBranchId = (cachedResponse != null && cachedResponse.branch() != null)
+                ? cachedResponse.branch().id()
+                : request.branchId();
+        validatePosAccess(cachedBranchId);
+
+        return new IdempotencyResult(false, cachedResponse);
     }
 
     private Optional<IdempotencyResult> findExistingOrderInDb(Long userId, String idempotencyKey, String requestHash) {
@@ -176,8 +187,19 @@ public class PosIdempotencyService {
                     "Cùng Idempotency-Key nhưng nội dung khác với giao dịch trước đó"
             );
         }
+        validatePosAccess(existingOrder.getBranchId());
         OrderResponse orderResponse = posOrderService.getOrder(existingOrder.getId());
         return Optional.of(new IdempotencyResult(false, orderResponse));
+    }
+
+    private void validatePosAccess(Long branchId) {
+        SecurityUtils.requireRole("BRANCH_MANAGER", "CASHIER");
+        if (branchId != null) {
+            List<Long> accessibleBranches = SecurityUtils.getAccessibleBranchIds(jdbcTemplate);
+            if (accessibleBranches != null && !accessibleBranches.contains(branchId)) {
+                throw AppException.branchForbidden(branchId, "Bạn không có quyền thao tác trên chi nhánh này");
+            }
+        }
     }
 
     private void cacheCompletedSilently(String redisKey, String requestHash, OrderResponse response) {

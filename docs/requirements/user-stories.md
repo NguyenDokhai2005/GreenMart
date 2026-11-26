@@ -859,6 +859,17 @@ Là **chủ chuỗi**, tôi muốn có thiết kế Figma màn dự báo và g�
 2. **Given** tên trường, nút, trạng thái, **When** đối chiếu SRS và `openapi.yaml`, **Then** khớp tên và giá trị (mã chi nhánh GM-00x, trạng thái đúng enum).
 3. **Given** Lead comment "Đã duyệt", **When** đóng issue, **Then** issue code tương ứng được bắt đầu.
 
+## Bổ sung đề xuất #419 · Phục hồi callback sau khi hết retry
+
+Trạng thái: chính sách cho issue #419 tại PR #513, cập nhật theo review Lead ngày 24/11; chỉ triển khai sau khi Lead duyệt và merge PR. Không thay expected result của #134 và không thêm field/mã lỗi HTTP công khai.
+
+Là **người vận hành**, tôi muốn callback FAILED được tự phục hồi khi receiver hoạt động lại, đồng thời giữ payload, thứ tự trạng thái và version tồn mới nhất.
+
+1. **Given** callback hết một lần gửi + 5 retry vì lỗi kết nối/5xx/408/429, **When** receiver hồi phục, **Then** probe có chữ ký tối đa một lần/30 giây/kênh và xếp lại tối đa 20 job mỗi lượt; không tự retry lỗi 4xx cố định. Theo review Lead ngày 24/11, mỗi job tự phục hồi tối đa 3 lần; sau đó chỉ ADMIN retry thủ công, không cấp lại ngân sách tự động. Mỗi chu kỳ vẫn tối đa 6 lần gửi; tổng `sync_log.attempts` được giữ khi retry.
+2. **Given** backlog tối đa 20 job và receiver phản hồi nhanh, **When** kênh hồi phục, **Then** mục tiêu snapshot tồn mới nhất đã nhận vào hàng đợi được gửi trong 60 giây. Giới hạn tải và triển khai tại [CALLBACK-RECOVERY.md](../operations/CALLBACK-RECOVERY.md); không thay nghiệm thu tải #384.
+3. **Given** manual/auto retry đồng thời, **When** xếp lại một job, **Then** chỉ có một chuyển FAILED → RETRYING; receiver vẫn xử lý callback lặp idempotent theo contract hiện có. Probe HTTP không giữ transaction/khóa DB; sau probe phải kiểm tra lại claim và trạng thái, nên manual retry không bị chặn bởi receiver chậm. Trạng thái cùng đơn không vượt job cũ chưa thành công; stock dùng version lớn nhất đã lưu, giữ payload gốc.
+4. **Given** FAILED chưa phục hồi hơn 24 giờ, **When** worker kiểm tra, **Then** phát cảnh báo không chứa secrets và không tự xóa dữ liệu.
+
 ## Issue Must không cần user story
 
 Việc quản lý, báo cáo, review, sửa lỗi chung: tiêu chí hoàn thành nằm sẵn trong mô tả issue.

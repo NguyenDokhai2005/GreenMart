@@ -73,6 +73,20 @@ export function UserMenu({ user }: { user: CurrentUser }) {
 
       {open && (
         <div className="ops-menu" role="menu" aria-label="Menu tài khoản">
+          {user.role === 'BRANCH_MANAGER' && (
+            <button
+              type="button"
+              role="menuitem"
+              className="ops-menu__item"
+              onClick={() => {
+                setOpen(false);
+                navigate(APP_PATHS.pos);
+              }}
+            >
+              <Icon name="orders" />
+              <span>Bán hàng POS</span>
+            </button>
+          )}
           <button
             type="button"
             role="menuitem"

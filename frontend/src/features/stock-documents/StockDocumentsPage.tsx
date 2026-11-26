@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useLocation, useSearchParams } from 'react-router';
 import type { CurrentUser } from '../../api/client';
 import { AsyncBlock, Button, Toast } from '../../components/ui';
@@ -50,8 +50,17 @@ export default function StockDocumentsPage() {
   const { branchId } = useOperationsScope();
   const location = useLocation();
   const [params, setParams] = useSearchParams();
-  const type = params.get('type') === 'EXPORT' ? 'EXPORT' : 'IMPORT';
-  const status = parseStockDocumentStatus(params.get('status'));
+  const integratedRole = user?.role === 'OWNER';
+  const rawType = params.get('type');
+  const type =
+    rawType === 'EXPORT'
+      ? 'EXPORT'
+      : rawType === 'IMPORT'
+        ? 'IMPORT'
+        : integratedRole
+          ? undefined
+          : 'IMPORT';
+  const status = integratedRole ? undefined : parseStockDocumentStatus(params.get('status'));
   const q = params.get('q') ?? '';
   const from = parseDate(params.get('from'));
   const to = parseDate(params.get('to'));
@@ -61,25 +70,78 @@ export default function StockDocumentsPage() {
   const [formType, setFormType] = useState<'IMPORT' | 'EXPORT' | null>(null);
   const [editingDocument, setEditingDocument] = useState<StockDocument | null>(null);
   const [success, setSuccess] = useState('');
-  const queryKey = `${branchId ?? 'all'}|${type}|${status ?? ''}|${q}|${from ?? ''}|${to ?? ''}|${page}`;
-  const { data, error, isLoading, reload } = useRemote(
-    (signal) =>
-      listStockDocuments(
-        {
-          branchId,
-          type,
-          status: status ? [status] : undefined,
-          q: q.trim() || undefined,
-          from,
-          to,
-          page: page - 1,
-          size: PAGE_SIZE,
-          sort: 'createdAt,desc',
-        },
-        signal,
-      ),
-    queryKey,
-  );
+  const [dateRangeErrorState, setDateRangeErrorState] = useState({
+    locationKey: location.key,
+    message: '',
+  });
+  const urlDateRangeError = from && to && from > to ? 'Từ ngày phải trước hoặc bằng Đến ngày.' : '';
+  const dateRangeError =
+    urlDateRangeError ||
+    (dateRangeErrorState.locationKey === location.key ? dateRangeErrorState.message : '');
+  const queryKey = `${branchId ?? 'all'}|${integratedRole ? 'integrated' : 'staff'}|${type ?? 'all'}|${status ?? ''}|${q}|${from ?? ''}|${to ?? ''}|${page}`;
+  const { data, error, isLoading, reload } = useRemote(async (signal) => {
+    if (from && to && from > to) {
+      return {
+        page: 0,
+        size: PAGE_SIZE,
+        totalElements: 0,
+        totalPages: 0,
+        content: [],
+      };
+    }
+    const baseQuery = {
+      branchId,
+      status: status ? [status] : undefined,
+      q: q.trim() || undefined,
+      from,
+      to,
+      sort: 'createdAt,desc',
+    };
+
+    if (integratedRole && type === undefined) {
+      const fetchAllPages = async (documentType: 'IMPORT' | 'EXPORT') => {
+        const first = await listStockDocuments(
+          { ...baseQuery, type: documentType, page: 0, size: 100 },
+          signal,
+        );
+        const content = [...first.content];
+        for (let nextPage = 1; nextPage < first.totalPages; nextPage += 1) {
+          const next = await listStockDocuments(
+            { ...baseQuery, type: documentType, page: nextPage, size: 100 },
+            signal,
+          );
+          content.push(...next.content);
+        }
+        return { content, totalElements: first.totalElements };
+      };
+      const [imports, exports] = await Promise.all([
+        fetchAllPages('IMPORT'),
+        fetchAllPages('EXPORT'),
+      ]);
+      const merged = [...imports.content, ...exports.content].sort(
+        (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+      );
+      const totalElements = imports.totalElements + exports.totalElements;
+      const totalPages = Math.max(1, Math.ceil(totalElements / PAGE_SIZE));
+      return {
+        page: page - 1,
+        size: PAGE_SIZE,
+        totalElements,
+        totalPages,
+        content: merged.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+      };
+    }
+
+    return listStockDocuments(
+      {
+        ...baseQuery,
+        type,
+        page: page - 1,
+        size: PAGE_SIZE,
+      },
+      signal,
+    );
+  }, queryKey);
   const hasFilters = !!(status || q || from || to);
   const canCreate = user ? canCreateStockDocument(user, branchId) : false;
   const formTypeToRender = editingDocument
@@ -88,10 +150,16 @@ export default function StockDocumentsPage() {
       : null
     : formType;
 
+  useEffect(() => {
+    if (!success) return;
+    const timer = globalThis.setTimeout(() => setSuccess(''), 6_000);
+    return () => globalThis.clearTimeout(timer);
+  }, [success]);
+
   const update = useCallback(
     (
       patch: {
-        type?: 'IMPORT' | 'EXPORT';
+        type?: 'IMPORT' | 'EXPORT' | undefined;
         status?: typeof status;
         q?: string;
         from?: string;
@@ -100,6 +168,16 @@ export default function StockDocumentsPage() {
       },
       replace = false,
     ) => {
+      const nextFrom = 'from' in patch ? patch.from : from;
+      const nextTo = 'to' in patch ? patch.to : to;
+      if (nextFrom && nextTo && nextFrom > nextTo) {
+        setDateRangeErrorState({
+          locationKey: location.key,
+          message: 'Từ ngày phải trước hoặc bằng Đến ngày.',
+        });
+        return;
+      }
+      setDateRangeErrorState({ locationKey: location.key, message: '' });
       setParams(
         (previous) => {
           const next = new URLSearchParams(previous);
@@ -116,7 +194,7 @@ export default function StockDocumentsPage() {
         { replace },
       );
     },
-    [setParams],
+    [from, location.key, setParams, to],
   );
   const debouncedSearch = useDebouncedCallback((value: string) => update({ q: value }, true), 300);
 
@@ -125,7 +203,9 @@ export default function StockDocumentsPage() {
   const clearFilters = () => {
     debouncedSearch.cancel();
     setSearchDraft({ locationKey: location.key, value: '' });
-    setParams(new URLSearchParams({ type }));
+    setParams(
+      integratedRole ? new URLSearchParams() : new URLSearchParams({ type: type ?? 'IMPORT' }),
+    );
   };
   const currentFilter: StockDocumentFiltersValue = { status, from, to };
   const pageError = error ? mapErrorToState(error, 'page') : undefined;
@@ -135,56 +215,75 @@ export default function StockDocumentsPage() {
     return <StockDocumentPageError state={pageError} onRetry={reload} />;
   }
 
+  const pageDescription =
+    user.role === 'OWNER'
+      ? 'Theo dõi trạng thái và hoạt động phiếu kho toàn hệ thống.'
+      : type === 'IMPORT'
+        ? 'Quản lý các phiếu nhập hàng.'
+        : 'Quản lý các phiếu xuất hủy hàng.';
+
   return (
-    <div className="sd-page">
+    <div className={`sd-page sd-page--${user.role === 'OWNER' ? 'owner' : 'staff'}`}>
       <header className="sd-header">
         <div>
           <p className="sd-breadcrumb">Kho / Phiếu nhập - xuất</p>
-          <h1>{type === 'IMPORT' ? 'Phiếu nhập kho' : 'Phiếu xuất kho'}</h1>
-          <p>
-            {type === 'IMPORT'
-              ? 'Quản lý các phiếu nhập hàng.'
-              : 'Quản lý các phiếu xuất hủy hàng.'}
-          </p>
+          <h1>
+            {integratedRole
+              ? 'Phiếu nhập / xuất kho'
+              : type === 'IMPORT'
+                ? 'Phiếu nhập kho'
+                : 'Phiếu xuất kho'}
+          </h1>
+          <p>{pageDescription}</p>
         </div>
         {canCreate && (
           <div className="sd-header-actions">
-            <Button onClick={() => setFormType(type)}>
+            <Button
+              onClick={() => setFormType(type === 'IMPORT' || type === 'EXPORT' ? type : 'IMPORT')}
+            >
               {type === 'IMPORT' ? '+ Tạo phiếu nhập' : '+ Tạo phiếu xuất'}
             </Button>
           </div>
         )}
       </header>
 
-      <div className="sd-document-switch" role="group" aria-label="Chọn loại phiếu kho">
-        <button
-          type="button"
-          className={
-            type === 'IMPORT' ? 'sd-document-tab sd-document-tab--active' : 'sd-document-tab'
-          }
-          aria-pressed={type === 'IMPORT'}
-          onClick={() => update({ type: 'IMPORT' })}
-        >
-          Phiếu nhập
-        </button>
-        <button
-          type="button"
-          className={
-            type === 'EXPORT' ? 'sd-document-tab sd-document-tab--active' : 'sd-document-tab'
-          }
-          aria-pressed={type === 'EXPORT'}
-          onClick={() => update({ type: 'EXPORT' })}
-        >
-          Phiếu xuất
-        </button>
-      </div>
+      {!integratedRole && (
+        <div className="sd-document-switch" role="group" aria-label="Chọn loại phiếu kho">
+          <button
+            type="button"
+            className={
+              type === 'IMPORT' ? 'sd-document-tab sd-document-tab--active' : 'sd-document-tab'
+            }
+            aria-pressed={type === 'IMPORT'}
+            onClick={() => update({ type: 'IMPORT' })}
+          >
+            Phiếu nhập
+          </button>
+          <button
+            type="button"
+            className={
+              type === 'EXPORT' ? 'sd-document-tab sd-document-tab--active' : 'sd-document-tab'
+            }
+            aria-pressed={type === 'EXPORT'}
+            onClick={() => update({ type: 'EXPORT' })}
+          >
+            Phiếu xuất
+          </button>
+        </div>
+      )}
 
       {success && <Toast variant="success" title={success} onClose={() => setSuccess('')} />}
 
       <StockDocumentFilters
         searchText={searchText}
         value={currentFilter}
-        errors={filterError?.kind === 'form' ? filterError.fieldErrors : undefined}
+        integrated={integratedRole}
+        type={type}
+        onTypeChange={(nextType) => update({ type: nextType })}
+        errors={{
+          ...(filterError?.kind === 'form' ? filterError.fieldErrors : {}),
+          ...(dateRangeError ? { from: dateRangeError, to: dateRangeError } : {}),
+        }}
         onSearchChange={(value) => {
           setSearchDraft({ locationKey: location.key, value });
           debouncedSearch.call(value);
@@ -194,7 +293,13 @@ export default function StockDocumentsPage() {
 
       <section className="sd-card" aria-label="Danh sách phiếu kho" aria-busy={isLoading}>
         <div className="sd-card-heading">
-          <h2>{type === 'IMPORT' ? 'Danh sách phiếu nhập' : 'Danh sách phiếu xuất'}</h2>
+          <h2>
+            {integratedRole
+              ? 'Danh sách phiếu nhập / xuất'
+              : type === 'IMPORT'
+                ? 'Danh sách phiếu nhập'
+                : 'Danh sách phiếu xuất'}
+          </h2>
           {data && <span className="sd-result-count">{data.totalElements} phiếu</span>}
         </div>
         <AsyncBlock
@@ -205,20 +310,25 @@ export default function StockDocumentsPage() {
           empty={{
             message: hasFilters
               ? 'Không tìm thấy phiếu phù hợp'
-              : type === 'IMPORT'
-                ? 'Chưa có phiếu nhập'
-                : 'Chưa có phiếu xuất',
+              : integratedRole
+                ? 'Chưa có phiếu kho'
+                : type === 'IMPORT'
+                  ? 'Chưa có phiếu nhập'
+                  : 'Chưa có phiếu xuất',
             description: hasFilters
               ? 'Thử thay đổi hoặc xóa bộ lọc để xem thêm phiếu.'
-              : type === 'IMPORT'
-                ? 'Các phiếu nhập hàng sẽ hiển thị tại đây.'
-                : 'Các phiếu xuất hủy sẽ hiển thị tại đây.',
+              : integratedRole
+                ? 'Phiếu nhập và xuất kho sẽ hiển thị tại đây.'
+                : type === 'IMPORT'
+                  ? 'Các phiếu nhập hàng sẽ hiển thị tại đây.'
+                  : 'Các phiếu xuất hủy sẽ hiển thị tại đây.',
             filtered: hasFilters,
             onClearFilters: clearFilters,
             ...(canCreate
               ? {
                   actionLabel: type === 'IMPORT' ? '+ Tạo phiếu nhập' : '+ Tạo phiếu xuất',
-                  onAction: () => setFormType(type),
+                  onAction: () =>
+                    setFormType(type === 'IMPORT' || type === 'EXPORT' ? type : 'IMPORT'),
                 }
               : {}),
           }}

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Outlet, useLocation } from 'react-router';
 import { useAuth } from '../../features/auth/useAuth';
 import { OperationsScopeProvider } from './OperationsScopeProvider';
@@ -11,6 +11,7 @@ import './operations.css';
 export default function OperationsLayout() {
   const { state } = useAuth();
   const { pathname } = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const user = state.status === 'authenticated' ? state.user : null;
   const items = useMemo(() => (user ? menuForRole(user.role) : []), [user]);
   if (!user) return null; // AuthBoundary đã xử lý các trạng thái khác
@@ -18,9 +19,25 @@ export default function OperationsLayout() {
   return (
     <OperationsScopeProvider>
       <div className="ops">
-        <Sidebar items={items} />
+        <Sidebar
+          items={items}
+          mobileOpen={mobileMenuOpen}
+          onMobileClose={() => setMobileMenuOpen(false)}
+        />
+        {mobileMenuOpen && (
+          <button
+            type="button"
+            className="ops-mobile-backdrop"
+            aria-label="Đóng menu"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+        )}
         <div className="ops-main">
-          <Topbar user={user} section={breadcrumbFor(pathname) ?? 'Tổng quan'} />
+          <Topbar
+            user={user}
+            section={breadcrumbFor(pathname) ?? 'Tổng quan'}
+            onMenu={() => setMobileMenuOpen(true)}
+          />
           <main className="ops-content">
             <Outlet />
           </main>
