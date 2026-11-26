@@ -7,6 +7,10 @@ import StockDocumentDetailDrawer from '../../../src/features/stock-documents/Sto
 import StockDocumentFormDialog from '../../../src/features/stock-documents/StockDocumentFormDialog';
 import StockDocumentsPage from '../../../src/features/stock-documents/StockDocumentsPage';
 import type { StockDocument } from '../../../src/features/stock-documents/stockDocumentApi';
+import {
+  canCreateStockDocument,
+  canEditStockDocument,
+} from '../../../src/features/stock-documents/stockDocumentPermissions';
 
 const mocks = vi.hoisted(() => ({
   createStockDocument: vi.fn(),
@@ -235,20 +239,22 @@ describe('Phiếu kho', () => {
 
     expect(await screen.findByText(draftDocument.code)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Duyệt phiếu' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Sửa phiếu' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Sửa phiếu' })).toBeTruthy();
+    expect(canEditStockDocument(manager(7), draftDocument)).toBe(true);
     expect(screen.getByText(/Bạn là người lập phiếu nên không thể tự duyệt/)).toBeTruthy();
   });
 
-  it('QL chi nhánh không thể mở biểu mẫu sửa hoặc tạo phiếu', async () => {
+  it('QL chi nhánh có thể mở biểu mẫu tạo phiếu tại chi nhánh mình', async () => {
     mocks.userRef.current = manager(7);
-    renderList();
-    expect(await screen.findByRole('heading', { name: 'Phiếu nhập / xuất kho' })).toBeTruthy();
-    expect(screen.getByText('Xem, duyệt hoặc hủy phiếu kho thuộc chi nhánh.')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /Tạo phiếu/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Sửa phiếu' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Phiếu nhập' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Phiếu xuất' })).toBeNull();
-    expect(screen.getByRole('combobox', { name: 'Loại phiếu' })).toBeTruthy();
+    renderList('/operations/stock-documents?type=IMPORT');
+    expect(await screen.findByRole('heading', { name: 'Phiếu nhập kho' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Phiếu nhập' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Phiếu xuất' })).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: 'Trạng thái' })).toBeTruthy();
+    expect(screen.queryByRole('combobox', { name: 'Loại phiếu' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: '+ Tạo phiếu nhập' })).toHaveLength(2);
+    expect(canCreateStockDocument(manager(7), 1)).toBe(true);
+    expect(canCreateStockDocument(manager(7), 2)).toBe(false);
 
     await waitFor(() =>
       expect(mocks.listStockDocuments).toHaveBeenCalledWith(
@@ -256,15 +262,17 @@ describe('Phiếu kho', () => {
         expect.any(AbortSignal),
       ),
     );
-    expect(mocks.listStockDocuments).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'EXPORT' }),
-      expect.any(AbortSignal),
-    );
-    expect(
-      mocks.listStockDocuments.mock.calls.every(
-        ([query]) => query.type === 'IMPORT' || query.type === 'EXPORT',
-      ),
-    ).toBe(true);
+
+    fireEvent.click(screen.getAllByRole('button', { name: '+ Tạo phiếu nhập' })[0]);
+    expect(await screen.findByRole('dialog', { name: 'Tạo phiếu nhập kho' })).toBeTruthy();
+  });
+
+  it('QL chi nhánh có thể mở biểu mẫu sửa phiếu nháp thuộc chi nhánh', async () => {
+    mocks.userRef.current = manager(7);
+    renderList('/operations/stock-documents/8');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Sửa phiếu' }));
+    expect(await screen.findByRole('dialog', { name: 'Sửa phiếu nhập kho' })).toBeTruthy();
   });
 
   it('OWNER chỉ xem phiếu kho, không có tạo, sửa, hủy hoặc duyệt', async () => {
@@ -330,7 +338,7 @@ describe('Phiếu kho', () => {
     );
     expect(mocks.listStockDocuments).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'Thử lại' })).toBeNull();
-    expect(screen.getByRole('combobox', { name: 'Loại phiếu' })).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: 'Trạng thái' })).toBeTruthy();
   });
 
   it('OWNER xem chi tiết phiếu nhưng không có hành động', async () => {

@@ -8,13 +8,17 @@ const belongsToBranch = (user: UserLike, branchId: number) =>
   user.branches.some((branch) => branch.id === branchId);
 
 export function canCreateStockDocument(user: UserLike, branchId: number | undefined): boolean {
-  return branchId !== undefined && user.role === 'STOREKEEPER' && belongsToBranch(user, branchId);
+  return (
+    branchId !== undefined &&
+    (user.role === 'STOREKEEPER' || user.role === 'BRANCH_MANAGER') &&
+    belongsToBranch(user, branchId)
+  );
 }
 
 export function canEditStockDocument(user: UserLike, document: DocumentLike): boolean {
   return (
     document.status === 'DRAFT' &&
-    user.role === 'STOREKEEPER' &&
+    (user.role === 'STOREKEEPER' || user.role === 'BRANCH_MANAGER') &&
     belongsToBranch(user, document.branch.id)
   );
 }

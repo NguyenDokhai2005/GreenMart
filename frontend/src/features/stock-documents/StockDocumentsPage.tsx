@@ -50,7 +50,7 @@ export default function StockDocumentsPage() {
   const { branchId } = useOperationsScope();
   const location = useLocation();
   const [params, setParams] = useSearchParams();
-  const integratedRole = user?.role === 'OWNER' || user?.role === 'BRANCH_MANAGER';
+  const integratedRole = user?.role === 'OWNER';
   const rawType = params.get('type');
   const type =
     rawType === 'EXPORT'
@@ -218,16 +218,12 @@ export default function StockDocumentsPage() {
   const pageDescription =
     user.role === 'OWNER'
       ? 'Theo dõi trạng thái và hoạt động phiếu kho toàn hệ thống.'
-      : user.role === 'BRANCH_MANAGER'
-        ? 'Xem, duyệt hoặc hủy phiếu kho thuộc chi nhánh.'
-        : type === 'IMPORT'
-          ? 'Quản lý các phiếu nhập hàng.'
-          : 'Quản lý các phiếu xuất hủy hàng.';
+      : type === 'IMPORT'
+        ? 'Quản lý các phiếu nhập hàng.'
+        : 'Quản lý các phiếu xuất hủy hàng.';
 
   return (
-    <div
-      className={`sd-page sd-page--${user.role === 'OWNER' ? 'owner' : user.role === 'BRANCH_MANAGER' ? 'manager' : 'staff'}`}
-    >
+    <div className={`sd-page sd-page--${user.role === 'OWNER' ? 'owner' : 'staff'}`}>
       <header className="sd-header">
         <div>
           <p className="sd-breadcrumb">Kho / Phiếu nhập - xuất</p>
