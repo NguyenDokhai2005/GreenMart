@@ -7,6 +7,7 @@ import TransferDetail from './TransferDetail';
 import { useCurrentUser } from './useCurrentUser';
 import { useRemote } from './useRemote';
 import './Transfers.css';
+import { APP_PATHS } from '../auth/routePolicy';
 
 function readFlash(state: unknown): 'created' | 'updated' | undefined {
   const flash =
@@ -50,13 +51,27 @@ export default function TransferDetailPage() {
         }
       >
         {doc ? (
-          <TransferDetail
-            key={doc.id}
-            doc={doc}
-            user={user}
-            onChanged={reload}
-            flash={readFlash(location.state)}
-          />
+          doc.type === 'TRANSFER' ? (
+            <TransferDetail
+              key={doc.id}
+              doc={doc}
+              user={user}
+              onChanged={reload}
+              flash={readFlash(location.state)}
+            />
+          ) : (
+            <section className="ck-card" role="alert">
+              <div className="ck-card__head">
+                <h1>Chứng từ không thuộc loại chuyển kho</h1>
+              </div>
+              <p style={{ padding: '16px 24px' }}>
+                Chứng từ này có loại {doc.type}.{' '}
+                <Link to={`${APP_PATHS.stockDocuments}/${doc.id}`}>
+                  Mở trong danh sách phiếu kho
+                </Link>
+              </p>
+            </section>
+          )
         ) : null}
       </AsyncBlock>
     </div>

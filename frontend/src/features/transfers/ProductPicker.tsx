@@ -24,11 +24,13 @@ export default function ProductPicker({
 }: ProductPickerProps) {
   const [text, setText] = useState('');
   const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
   const debounced = useDebouncedCallback((value: string) => setQ(value.trim()), 300);
 
   const { data, error, isLoading, reload } = useRemote(
-    (signal) => listInventory({ branchId: sourceId, q: q || undefined, page: 0, size: 10 }, signal),
-    `picker|${sourceId}|${q}`,
+    (signal) =>
+      listInventory({ branchId: sourceId, q: q || undefined, page: page - 1, size: 10 }, signal),
+    `picker|${sourceId}|${q}|${page}`,
   );
   const visible = (data?.content ?? []).filter(
     (i) => i.available > 0 && !excludeIds.has(i.productId),
@@ -44,6 +46,7 @@ export default function ProductPicker({
           value={text}
           onChange={(e) => {
             setText(e.target.value);
+            setPage(1);
             debounced.call(e.target.value);
           }}
           autoFocus
@@ -80,6 +83,27 @@ export default function ProductPicker({
             </li>
           ))}
         </ul>
+        {data && data.totalPages > 1 && (
+          <nav className="ck-picker__pager" aria-label="Phân trang sản phẩm">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+            >
+              Trang trước
+            </button>
+            <span>
+              {page}/{data.totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={page >= data.totalPages}
+              onClick={() => setPage((current) => Math.min(data.totalPages, current + 1))}
+            >
+              Trang sau
+            </button>
+          </nav>
+        )}
       </AsyncBlock>
     </div>
   );

@@ -243,13 +243,13 @@ describe('rendered authentication flow', () => {
     expect(currentPath).toBe('/403');
   });
 
-  it.each([0, 1, 3])('routes ADMIN with %i branches directly to Admin', async (count) => {
+  it.each([0, 1, 3])('routes ADMIN with %i branches directly to Admin branches', async (count) => {
     const auth = session('ADMIN', count);
     fetchMock.mockResolvedValueOnce(json(auth));
     await render();
     await enterCredentials();
     await submit();
-    expect(currentPath).toBe('/admin');
+    expect(currentPath).toBe('/admin/branches');
   });
 
   it.each(['CASHIER', 'BRANCH_MANAGER', 'STOREKEEPER', 'OWNER'] as const)(

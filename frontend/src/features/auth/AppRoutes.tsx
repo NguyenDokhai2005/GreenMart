@@ -18,12 +18,16 @@ import AdminUsersPage from '../admin/AdminUsersPage';
 import { OperationsHome, OperationsLayout } from '../../layouts/operations';
 import InventoryPage from '../inventory/InventoryPage';
 import InventoryLedgerPage from '../inventory/InventoryLedgerPage';
+import ForecastPage from '../forecast/ForecastPage';
 import LedgerOrderDetailDialog from '../inventory/LedgerOrderDetailDialog';
-import StockDocumentsPage from '../stock-documents/StockDocumentsPage';
-import StockDocumentDetailDrawer from '../stock-documents/StockDocumentDetailDrawer';
 import TransferDetailPage from '../transfers/TransferDetailPage';
 import TransferListPage from '../transfers/TransferListPage';
 import { TransferCreatePage, TransferEditPage } from '../transfers/TransferFormPage';
+import StockDocumentsPage from '../stock-documents/StockDocumentsPage';
+import StockDocumentDetailDrawer from '../stock-documents/StockDocumentDetailDrawer';
+import StockAlertsPage from '../dashboard/StockAlertsPage';
+import AdminBranchesPage from '../admin/AdminBranchesPage';
+import AdminChannelsPage from '../admin/AdminChannelsPage';
 import {
   ADMIN_ROLES,
   APP_PATHS,
@@ -288,6 +292,8 @@ export function AppRoutes() {
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="orders/:orderId" element={<OnlineOrderDetailPage />} />
+        <Route path="forecast" element={<ForecastPage />} />
+        <Route path="alerts" element={<StockAlertsPage />} />
         <Route path="ledger" element={<InventoryLedgerPage />}>
           <Route path="orders/:id" element={<LedgerOrderDetailDialog />} />
         </Route>
@@ -308,7 +314,9 @@ export function AppRoutes() {
           </AuthBoundary>
         }
       >
-        <Route index element={<h1>Dashboard</h1>} />
+        <Route index element={<Navigate to="/admin/branches" replace />} />
+        <Route path="branches" element={<AdminBranchesPage />} />
+        <Route path="channels" element={<AdminChannelsPage />} />
         <Route path="staff" element={<AdminUsersPage mode="staff" />} />
         <Route path="locked" element={<AdminUsersPage mode="locked" />} />
         <Route path="*" element={<WorkspaceMountPoint title="Chức năng đang phát triển" />} />
