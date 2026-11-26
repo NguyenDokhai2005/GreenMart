@@ -15,6 +15,14 @@ export function canCreateStockDocument(user: UserLike, branchId: number | undefi
   );
 }
 
+export function canEditStockDocument(user: UserLike, document: DocumentLike): boolean {
+  return (
+    document.status === 'DRAFT' &&
+    (user.role === 'STOREKEEPER' || user.role === 'BRANCH_MANAGER') &&
+    belongsToBranch(user, document.branch.id)
+  );
+}
+
 export function canApproveStockDocument(user: UserLike, document: DocumentLike): boolean {
   return (
     document.status === 'DRAFT' &&

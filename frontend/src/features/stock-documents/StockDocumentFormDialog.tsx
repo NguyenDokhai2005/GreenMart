@@ -43,30 +43,37 @@ interface ProductPickerProps {
 function ProductPicker({ type, branchId, selectedIds, disabled, onPick }: ProductPickerProps) {
   const [searchText, setSearchText] = useState('');
   const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedCallback((value: string) => setQuery(value.trim()), 300);
   const { data, error, isLoading, reload } = useRemote(async (signal) => {
     if (type === 'IMPORT') {
-      const page = await searchProducts(query, signal);
-      return page.content.map((product): ProductOption => ({
-        productId: product.id,
-        productName: product.name,
-        sku: product.sku,
-        unit: product.unit,
-      }));
+      const result = await searchProducts(query, signal, page - 1, 20);
+      return {
+        totalPages: result.totalPages,
+        content: result.content.map((product): ProductOption => ({
+          productId: product.id,
+          productName: product.name,
+          sku: product.sku,
+          unit: product.unit,
+        })),
+      };
     }
-    const page = await listInventory(
-      { branchId, q: query || undefined, page: 0, size: 20 },
+    const result = await listInventory(
+      { branchId, q: query || undefined, page: page - 1, size: 20 },
       signal,
     );
-    return page.content.map((item): ProductOption => ({
-      productId: item.productId,
-      productName: item.productName,
-      sku: item.sku,
-      unit: item.unit,
-      available: item.available,
-    }));
-  }, `${type}|${branchId}|${query}`);
-  const visible = (data ?? []).filter(
+    return {
+      totalPages: result.totalPages,
+      content: result.content.map((item): ProductOption => ({
+        productId: item.productId,
+        productName: item.productName,
+        sku: item.sku,
+        unit: item.unit,
+        available: item.available,
+      })),
+    };
+  }, `${type}|${branchId}|${query}|${page}`);
+  const visible = (data?.content ?? []).filter(
     (option) =>
       (type === 'IMPORT' || (option.available ?? 0) > 0) && !selectedIds.has(option.productId),
   );
@@ -81,6 +88,7 @@ function ProductPicker({ type, branchId, selectedIds, disabled, onPick }: Produc
         placeholder="Tên sản phẩm, SKU hoặc barcode..."
         onChange={(event) => {
           setSearchText(event.target.value);
+          setPage(1);
           debouncedSearch.call(event.target.value);
         }}
       />
@@ -119,6 +127,27 @@ function ProductPicker({ type, branchId, selectedIds, disabled, onPick }: Produc
             </li>
           ))}
         </ul>
+        {data && data.totalPages > 1 && (
+          <nav className="sd-picker-pager" aria-label="Phân trang sản phẩm">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((current) => current - 1)}
+            >
+              Trang trước
+            </button>
+            <span>
+              {page}/{data.totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={page >= data.totalPages}
+              onClick={() => setPage((current) => current + 1)}
+            >
+              Trang sau
+            </button>
+          </nav>
+        )}
       </AsyncBlock>
     </section>
   );
@@ -232,6 +261,8 @@ export default function StockDocumentFormDialog({
     lines.forEach((line, index) => {
       if (!validInteger(line.quantity, 1)) {
         next[`items[${index}].quantity`] = 'Số lượng phải là số nguyên lớn hơn 0.';
+      } else if (Number(line.quantity) > 99_999) {
+        next[`items[${index}].quantity`] = 'Số lượng tối đa là 99.999.';
       } else if (
         type === 'EXPORT' &&
         line.available !== undefined &&
@@ -464,6 +495,7 @@ export default function StockDocumentFormDialog({
                           <Input
                             type="number"
                             min={1}
+                            max={99_999}
                             step={1}
                             aria-label={`Số lượng ${line.productName}`}
                             value={line.quantity}

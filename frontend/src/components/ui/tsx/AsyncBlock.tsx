@@ -45,11 +45,17 @@ function AsyncBlock({
     const s = mapErrorToState(error, 'block');
     // form/dialog/page do nơi gọi xử lý (ô nhập, Toast, route lỗi); khối chỉ hiện lỗi chung.
     const message = s.kind === 'block' || s.kind === 'dialog' ? s.message : GENERIC_ERROR_MESSAGE;
+    const like =
+      typeof error === 'object' && error !== null
+        ? (error as { status?: number; code?: string })
+        : {};
+    const forbidden =
+      like.status === 403 || like.code === 'FORBIDDEN' || like.code === 'BRANCH_FORBIDDEN';
     return (
       <ErrorState
         message={message}
         traceId={s.kind === 'block' ? s.traceId : undefined}
-        onRetry={onRetry}
+        onRetry={forbidden ? undefined : onRetry}
       />
     );
   }

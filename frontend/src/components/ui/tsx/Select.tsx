@@ -69,9 +69,9 @@ export default function Select({
           aria-describedby={describedBy}
           className={selectClasses}
         >
-          <option value="" disabled>
-            {placeholder}
-          </option>
+          {!options.some((option) => option.value === '') && (
+            <option value="">{placeholder}</option>
+          )}
 
           {options.map((option) => (
             <option key={option.value} value={option.value} disabled={option.disabled}>
