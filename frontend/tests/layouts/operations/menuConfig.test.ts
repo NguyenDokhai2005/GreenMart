@@ -59,11 +59,16 @@ describe('menuForRole (AUTH-02)', () => {
     expect(menuForRole('CASHIER')).toEqual([]);
   });
 
-  it('nhóm Kho có đủ 5 mục con và Phiếu nhập/xuất trỏ đúng route của SV04', () => {
+  it('chỉ vai trò chi nhánh thấy Kiểm kê; Phiếu nhập/xuất trỏ đúng route của SV04', () => {
     const wh = menuForRole('OWNER').find((i) => i.key === 'warehouse');
-    expect(wh?.children).toHaveLength(5);
+    expect(wh?.children).toHaveLength(4);
     expect(wh?.children?.find((c) => c.key === 'stock-documents')?.to).toBe(
       '/operations/stock-documents',
+    );
+    expect(keys(menuForRole('OWNER'))).not.toContain('stocktake');
+    expect(keys(menuForRole('STOREKEEPER'))).toContain('stocktake');
+    expect(menuForRole('BRANCH_MANAGER').find((i) => i.key === 'warehouse')?.children).toHaveLength(
+      5,
     );
   });
 });

@@ -46,6 +46,13 @@ export function approveStockDocument(documentId: number) {
   });
 }
 
+export function reconcileStockDocument(documentId: number, signal?: AbortSignal) {
+  return request('/stock-documents/{documentId}/reconciliation', 'get', {
+    path: { documentId },
+    signal,
+  });
+}
+
 export function cancelStockDocument(documentId: number, reason: string) {
   return request('/stock-documents/{documentId}/cancel', 'post', {
     path: { documentId },

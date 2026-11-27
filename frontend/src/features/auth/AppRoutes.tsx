@@ -25,6 +25,10 @@ import TransferListPage from '../transfers/TransferListPage';
 import { TransferCreatePage, TransferEditPage } from '../transfers/TransferFormPage';
 import StockDocumentsPage from '../stock-documents/StockDocumentsPage';
 import StockDocumentDetailDrawer from '../stock-documents/StockDocumentDetailDrawer';
+import PromotionsPage from '../promotions/PromotionsPage';
+import StocktakePage from '../stocktake/StocktakePage';
+import StocktakeDetailDrawer from '../stocktake/StocktakeDetailDrawer';
+import ReportsPage from '../reports/ReportsPage';
 import StockAlertsPage from '../dashboard/StockAlertsPage';
 import AdminBranchesPage from '../admin/AdminBranchesPage';
 import AdminChannelsPage from '../admin/AdminChannelsPage';
@@ -35,6 +39,9 @@ import {
   OPERATIONS_ROLES,
   POS_ROLES,
   resolveAuthHomeRedirect,
+  PROMOTION_ROLES,
+  STOCKTAKE_ROLES,
+  REPORT_ROLES,
 } from './routePolicy';
 import './AppRoutes.css';
 
@@ -304,6 +311,32 @@ export function AppRoutes() {
         <Route path="stock-documents" element={<StockDocumentsPage />}>
           <Route path=":id" element={<StockDocumentDetailDrawer />} />
         </Route>
+        <Route
+          path="promotions"
+          element={
+            <AuthBoundary allowedRoles={PROMOTION_ROLES}>
+              <PromotionsPage />
+            </AuthBoundary>
+          }
+        />
+        <Route
+          path="stocktake"
+          element={
+            <AuthBoundary allowedRoles={STOCKTAKE_ROLES}>
+              <StocktakePage />
+            </AuthBoundary>
+          }
+        >
+          <Route path=":id" element={<StocktakeDetailDrawer />} />
+        </Route>
+        <Route
+          path="reports"
+          element={
+            <AuthBoundary allowedRoles={REPORT_ROLES}>
+              <ReportsPage />
+            </AuthBoundary>
+          }
+        />
         <Route path="*" element={<WorkspaceMountPoint title="Chức năng đang phát triển" />} />
       </Route>
       <Route

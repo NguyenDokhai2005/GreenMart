@@ -8,6 +8,9 @@ export const APP_PATHS = {
   pos: '/pos',
   operations: '/operations',
   stockDocuments: '/operations/stock-documents',
+  promotions: '/operations/promotions',
+  stocktake: '/operations/stocktake',
+  reports: '/operations/reports',
   ledger: '/operations/ledger',
   admin: '/admin',
   forbidden: '/403',
@@ -16,6 +19,9 @@ export const APP_PATHS = {
 export const POS_ROLES: readonly Role[] = ['BRANCH_MANAGER', 'CASHIER'];
 export const OPERATIONS_ROLES: readonly Role[] = ['OWNER', 'BRANCH_MANAGER', 'STOREKEEPER'];
 export const STOCK_DOCUMENT_ROLES: readonly Role[] = ['OWNER', 'BRANCH_MANAGER', 'STOREKEEPER'];
+export const PROMOTION_ROLES: readonly Role[] = ['OWNER', 'BRANCH_MANAGER'];
+export const STOCKTAKE_ROLES: readonly Role[] = ['BRANCH_MANAGER', 'STOREKEEPER'];
+export const REPORT_ROLES: readonly Role[] = ['OWNER', 'BRANCH_MANAGER'];
 export const ADMIN_ROLES: readonly Role[] = ['ADMIN'];
 
 export function getWorkspacePath(role: Role): string {
@@ -54,6 +60,15 @@ export function resolveAuthHomeRedirect(
 }
 
 export function getRolesForPath(pathname: string): readonly Role[] | undefined {
+  if (pathname === APP_PATHS.promotions || pathname.startsWith(`${APP_PATHS.promotions}/`)) {
+    return PROMOTION_ROLES;
+  }
+  if (pathname === APP_PATHS.stocktake || pathname.startsWith(`${APP_PATHS.stocktake}/`)) {
+    return STOCKTAKE_ROLES;
+  }
+  if (pathname === APP_PATHS.reports || pathname.startsWith(`${APP_PATHS.reports}/`)) {
+    return REPORT_ROLES;
+  }
   if (
     pathname === APP_PATHS.stockDocuments ||
     pathname.startsWith(`${APP_PATHS.stockDocuments}/`)

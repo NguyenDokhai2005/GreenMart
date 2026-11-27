@@ -27,6 +27,18 @@ describe('auth route policy', () => {
     expect(canOpenRoutePath('STOREKEEPER', APP_PATHS.stockDocuments)).toBe(true);
   });
 
+  it('restricts promotions, stocktake, and reports to their requested roles', () => {
+    expect(canOpenRoutePath('OWNER', APP_PATHS.promotions)).toBe(true);
+    expect(canOpenRoutePath('BRANCH_MANAGER', APP_PATHS.promotions)).toBe(true);
+    expect(canOpenRoutePath('STOREKEEPER', APP_PATHS.promotions)).toBe(false);
+    expect(canOpenRoutePath('OWNER', APP_PATHS.stocktake)).toBe(false);
+    expect(canOpenRoutePath('BRANCH_MANAGER', APP_PATHS.stocktake)).toBe(true);
+    expect(canOpenRoutePath('STOREKEEPER', APP_PATHS.stocktake)).toBe(true);
+    expect(canOpenRoutePath('OWNER', APP_PATHS.reports)).toBe(true);
+    expect(canOpenRoutePath('BRANCH_MANAGER', APP_PATHS.reports)).toBe(true);
+    expect(canOpenRoutePath('STOREKEEPER', APP_PATHS.reports)).toBe(false);
+  });
+
   it('allows CASHIER into POS and denies Operations, stock documents, and Admin', () => {
     expect(canOpenRoutePath('CASHIER', APP_PATHS.pos)).toBe(true);
     expect(canOpenRoutePath('CASHIER', APP_PATHS.operations)).toBe(false);
