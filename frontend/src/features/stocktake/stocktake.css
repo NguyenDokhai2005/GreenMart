@@ -1,0 +1,93 @@
+.stocktake-page .sd-header p:not(.sd-breadcrumb) {
+  max-width: 760px;
+}
+
+.stocktake-skeleton-cell {
+  display: block;
+  width: 70%;
+  height: 14px;
+  border-radius: var(--gm-radius-sm);
+}
+
+.stocktake-count-field input {
+  box-sizing: border-box;
+  width: 110px;
+  min-height: var(--gm-control-height);
+  padding: 0 var(--gm-space-2);
+  border: var(--gm-border-width) solid var(--gm-color-border);
+  border-radius: var(--gm-control-radius);
+  background: var(--gm-color-surface);
+  color: var(--gm-color-text);
+  font: inherit;
+  text-align: right;
+}
+
+.stocktake-count-field input:focus-visible {
+  outline: none;
+  border-color: var(--gm-color-focus);
+  box-shadow: var(--gm-focus-ring);
+}
+
+.stocktake-difference--negative {
+  color: var(--gm-color-danger, #b42318);
+  font-weight: 600;
+}
+
+.stocktake-reconciliation {
+  display: grid;
+  gap: var(--gm-space-3);
+  padding: var(--gm-space-4);
+  border: var(--gm-border-width) solid var(--gm-color-danger, #b42318);
+  border-radius: var(--gm-radius-md);
+  background: var(--gm-color-surface);
+}
+
+.stocktake-reconciliation h3,
+.stocktake-reconciliation p {
+  margin: 0;
+}
+
+.stocktake-reconciliation h3 {
+  font-size: 16px;
+}
+
+.stocktake-reconciliation > p,
+.stocktake-approval-note {
+  color: var(--gm-color-danger, #b42318);
+  font-size: var(--gm-font-size-sm);
+}
+
+.stocktake-reconciliation__line {
+  display: grid;
+  gap: var(--gm-space-2);
+  padding-top: var(--gm-space-3);
+  border-top: var(--gm-border-width) solid var(--gm-color-border);
+}
+
+.stocktake-reconciliation__line dl {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) auto;
+  gap: var(--gm-space-1) var(--gm-space-3);
+  margin: 0;
+}
+
+.stocktake-reconciliation__line dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stocktake-reconciliation__line ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.stocktake-approval-note {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .stocktake-reconciliation__line dl {
+    grid-template-columns: 1fr auto;
+  }
+}
