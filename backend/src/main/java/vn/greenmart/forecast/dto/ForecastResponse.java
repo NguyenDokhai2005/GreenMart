@@ -7,6 +7,7 @@ import java.util.List;
 
 public record ForecastResponse(
         long runId, LocalDate cutoffDate, OffsetDateTime generatedAt, String modelVersion,
+        String postprocessVersion, String servingAggregation,
         BranchRef branch, long productId, String sku, String productName, String unit,
         List<ForecastHorizon> horizons) {
     public record BranchRef(long id, String code, String name) {}

@@ -66,3 +66,36 @@ def test_error_response_structure():
         "code": "CONFLICT",
         "message": "A forecast run is already running.",
     }
+
+
+def test_forecast_run_detail_response_legacy_and_running_null_safety():
+    now = datetime.now(timezone.utc)
+    legacy_run = ForecastRunDetailResponse(
+        run_id=12,
+        status="DONE",
+        started_at=now,
+        finished_at=now,
+        model_version="LightGBM-Tweedie-H7-H30",
+        mae=0.2574,
+        wape=1.6252,
+        baseline_mae=0.2575,
+        baseline_wape=1.6261,
+        legacy=True,
+    )
+    legacy_dump = legacy_run.model_dump(by_alias=True)
+    assert legacy_dump["legacy"] is True
+    assert legacy_dump["metricHorizon"] is None
+    assert legacy_dump["aggregation"] is None
+    assert legacy_dump["metricsBreakdown"] is None
+
+    running_run = ForecastRunDetailResponse(
+        run_id=13,
+        status="RUNNING",
+        started_at=now,
+        model_version="LightGBM-Tweedie-H7-H30",
+    )
+    running_dump = running_run.model_dump(by_alias=True)
+    assert running_dump["mae"] is None
+    assert running_dump["wape"] is None
+    assert running_dump["legacy"] is False
+    assert running_dump["metricsBreakdown"] is None
