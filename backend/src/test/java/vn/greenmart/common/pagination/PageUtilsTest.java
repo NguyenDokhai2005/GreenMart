@@ -132,4 +132,32 @@ class PageUtilsTest {
         List<ValidationErrorDetail> details = getDetails(ex);
         assertEquals("size", details.get(0).field());
     }
+
+   @Test
+    void testCreatePageable_Int32OffsetBoundaries_AcceptsMaxAndRejectsOverflow() {
+        Pageable maxSize1 = PageUtils.createPageable(2_147_483_647, 1, (String) null, null, ALLOWED_FIELDS);
+        assertEquals(2_147_483_647L, maxSize1.getOffset());
+
+        Pageable maxSize20 = PageUtils.createPageable(107_374_182, 20, (String) null, null, ALLOWED_FIELDS);
+        assertEquals(2_147_483_640L, maxSize20.getOffset());
+
+        Pageable maxSize100 = PageUtils.createPageable(21_474_836, 100, (String) null, null, ALLOWED_FIELDS);
+        assertEquals(2_147_483_600L, maxSize100.getOffset());
+
+        AppException exSize20 = assertThrows(AppException.class, () ->
+            PageUtils.createPageable(107_374_183, 20, (String) null, null, ALLOWED_FIELDS)
+        );
+        assertEquals(ErrorCode.VALIDATION_ERROR.name(), exSize20.getCode());
+        List<ValidationErrorDetail> details20 = getDetails(exSize20);
+        assertEquals("page", details20.get(0).field());
+        assertTrue(details20.get(0).message().contains("107374182"));
+
+        AppException exSize100 = assertThrows(AppException.class, () ->
+            PageUtils.createPageable(21_474_837, 100, (String) null, null, ALLOWED_FIELDS)
+        );
+        assertEquals(ErrorCode.VALIDATION_ERROR.name(), exSize100.getCode());
+        List<ValidationErrorDetail> details100 = getDetails(exSize100);
+        assertEquals("page", details100.get(0).field());
+        assertTrue(details100.get(0).message().contains("21474836"));
+    }
 }

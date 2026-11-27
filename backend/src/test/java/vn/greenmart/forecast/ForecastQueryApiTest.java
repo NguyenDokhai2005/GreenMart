@@ -345,4 +345,30 @@ class ForecastQueryApiTest {
                 .andExpect(jsonPath("$.horizons[0].totalPredictedQty").value(21))
                 .andExpect(jsonPath("$.horizons[1].totalPredictedQty").value(120));
     }
+
+    @Test
+    void postprocessVersionAndServingAggregationComeFromPersistedRun() throws Exception {
+        // Legacy run 20 has postprocess_version = NULL -> must not attach current default
+        mvc.perform(owner("?branchId=11&productId=21&runId=20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.runId").value(20))
+                .andExpect(jsonPath("$.postprocessVersion").value(nullValue()))
+                .andExpect(jsonPath("$.servingAggregation").value(nullValue()));
+
+        // Standardized run exposes persisted postprocessVersion & servingAggregation
+        jdbc.update("""
+                INSERT INTO forecast_run(id,status,model_version,postprocess_version,started_at,finished_at)
+                VALUES(60,'DONE','LightGBM-Tweedie-H7-H30','slow-th-h7_0.4-h30_0.4-sh28-v1','2026-11-20T00:00:00+07:00','2026-11-20T00:10:00+07:00')
+                """);
+        predictions(60, 11, 21, 7, CUTOFF, "2.0");
+        predictions(60, 11, 21, 30, CUTOFF, "1.5");
+
+        mvc.perform(owner("?branchId=11&productId=21&runId=60"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.runId").value(60))
+                .andExpect(jsonPath("$.postprocessVersion").value("slow-th-h7_0.4-h30_0.4-sh28-v1"))
+                .andExpect(jsonPath("$.servingAggregation").value("SUM_OF_POSTPROCESSED_DAILY_POINTS"))
+                .andExpect(jsonPath("$.horizons[0].totalPredictedQty").value(14.0))
+                .andExpect(jsonPath("$.horizons[1].totalPredictedQty").value(45.0));
+    }
 }

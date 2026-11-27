@@ -1233,9 +1233,10 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * Danh sách lượt chạy dự báo và sai số
-     * @description Lượt chạy mới nhất đứng trước. `mae`, `wape` là sai số tầm 7 ngày của mô hình trên 30 ngày kiểm tra;
-     *     `baselineMae`, `baselineWape` là của baseline tốt nhất (AI-04, BA mục 9). Lượt RUNNING và FAILED có các chỉ số này là `null`.
+     * Danh sách lượt chạy dự báo và sai số tóm tắt
+     * @description Lượt chạy mới nhất đứng trước. Với lượt `DONE` theo chuẩn #423 (`legacy = false`), `mae`, `wape` là sai số tổng nhu cầu tầm 7 ngày sau hậu xử lý (`metricHorizon = 7`, `aggregation = HORIZON_AGGREGATE_POSTPROC`, `stockoutMode = EXCLUDED_CLEAN`) trên cửa sổ backtest 30 ngày; `baselineMae`, `baselineWape` là của baseline tốt nhất (`baselineName`: `weekly_naive` hoặc `rolling_mean_28`) trên cùng tầm/góc đo/mask/dữ liệu/origin/fallback.
+     *     Các lượt cũ trước chuẩn #423 giữ nguyên số liệu cũ và có `legacy = true` (các field metadata mới là `null`). Lượt `RUNNING` và `FAILED` có toàn bộ chỉ số và metadata metric là `null`.
+     *     `wape` là tỉ lệ (có thể `> 1`, UI nhân `100` để hiển thị `%`), `null` khi tổng thực tế `<= 0`. Danh sách chỉ trả summary và metadata gọn; chi tiết đa tầm H7/H30 và từng phân nhóm xem tại `GET /forecasts/runs/{runId}`.
      */
     get: operations['listForecastRuns'];
     put?: never;
@@ -1259,7 +1260,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Trạng thái và sai số của một lượt chạy */
+    /** Trạng thái, metadata và breakdown sai số chi tiết của một lượt chạy */
     get: operations['getForecastRun'];
     put?: never;
     post?: never;
@@ -1805,6 +1806,19 @@ export interface components {
     };
     /** @enum {string} */
     ForecastRunStatus: 'RUNNING' | 'DONE' | 'FAILED';
+    /** @enum {string} */
+    ForecastAggregation:
+      | 'HORIZON_AGGREGATE_POSTPROC'
+      | 'HORIZON_AGGREGATE_RAW_MODEL'
+      | 'ROLLING_H7_AGGREGATE_POSTPROC'
+      | 'WEEKLY_AGGREGATE_POSTPROC'
+      | 'DAILY_CELL_RAW'
+      | 'DAILY_CELL_RAW_UNFILTERED'
+      | 'DAILY_CELL_POSTPROC';
+    /** @enum {string} */
+    ForecastStockoutMode: 'EXCLUDED_CLEAN' | 'INCLUDED_RAW';
+    /** @enum {string} */
+    ForecastBaselineName: 'weekly_naive' | 'rolling_mean_28';
     ForecastRun: {
       /**
        * Format: int64
@@ -1820,18 +1834,149 @@ export interface components {
       modelVersion: string;
       /**
        * Format: double
-       * @description MAE tầm 7 ngày của mô hình
+       * @description MAE tổng nhu cầu tầm 7 ngày sau hậu xử lý (HORIZON_AGGREGATE_POSTPROC) ở lượt chuẩn #423; với lượt legacy giữ nghĩa cũ
        */
       mae: number | null;
       /**
        * Format: double
-       * @description WAPE tầm 7 ngày, tỉ lệ 0–1
+       * @description WAPE tỉ lệ (có thể > 1, UI nhân 100 thành %); null nếu tổng thực tế <= 0 hoặc chưa DONE
+       */
+      wape: number | null;
+      /**
+       * Format: double
+       * @description MAE của baseline tốt nhất (`baselineName`) trên cùng tầm/góc đo/mask/dữ liệu/origin
+       */
+      baselineMae: number | null;
+      /**
+       * Format: double
+       * @description WAPE tỉ lệ của baseline tốt nhất (`baselineName`)
+       */
+      baselineWape: number | null;
+      /** @description true nếu là lượt DONE cũ trước chuẩn #423 (giữ nguyên ngữ nghĩa cũ) */
+      legacy?: boolean;
+      /**
+       * @description Tầm dự báo đại diện cho các trường `mae`/`wape` top-level
+       * @enum {integer|null}
+       */
+      metricHorizon?: 7 | 30 | null;
+      aggregation?: components['schemas']['ForecastAggregation'];
+      /** @example slow-th-h7_0.4-h30_0.4-sh28-v1 */
+      postprocessVersion?: string | null;
+      /** @example ac05-v2-h7-h30-postproc-20261125 */
+      metricProtocolVersion?: string | null;
+      /**
+       * Format: date
+       * @description Ngày dữ liệu phục vụ cuối cùng (D) dùng để sinh dự báo D+1..D+30
+       */
+      cutoffDate?: string | null;
+      /**
+       * Format: date
+       * @description Ngày gốc backtest trước cửa sổ kiểm tra 30 ngày
+       */
+      evaluationCutoffDate?: string | null;
+      /** Format: date */
+      testStartDate?: string | null;
+      /** Format: date */
+      testEndDate?: string | null;
+      stockoutMode?: components['schemas']['ForecastStockoutMode'];
+      baselineName?: components['schemas']['ForecastBaselineName'];
+      /** @example postgresql.daily_sales */
+      dataSource?: string | null;
+      /** @description SHA-256 của dữ liệu đầu vào chuẩn hóa dùng đánh giá */
+      dataSourceHash?: string | null;
+    };
+    ForecastMetricValues: {
+      /** Format: double */
+      mae: number | null;
+      /**
+       * Format: double
+       * @description Tỉ lệ WAPE (có thể > 1); null khi tập rỗng hoặc tổng actual <= 0
        */
       wape: number | null;
       /** Format: double */
-      baselineMae: number | null;
+      zeroPredRatio: number | null;
+    };
+    ForecastBaselinesComparison: {
+      weeklyNaive: components['schemas']['ForecastMetricValues'];
+      rollingMean28: components['schemas']['ForecastMetricValues'];
+      zeroForecast: components['schemas']['ForecastMetricValues'];
+    };
+    ForecastSegmentMetrics: {
+      /** @enum {string} */
+      segment: 'overall' | 'top_200' | 'slow_moving' | 'zero_demand' | 'non_zero_demand';
+      /** Format: int32 */
+      sampleCount: number;
+      /** Format: int32 */
+      excludedStockoutCount: number;
+      /** Format: int32 */
+      totalDailyCellsBeforeFilter: number;
       /** Format: double */
-      baselineWape: number | null;
+      coverageRatio: number;
+      /** Format: double */
+      totalActual: number;
+      bestBaselineName: components['schemas']['ForecastBaselineName'];
+      model: components['schemas']['ForecastMetricValues'];
+      bestBaseline: components['schemas']['ForecastMetricValues'];
+      baselines: components['schemas']['ForecastBaselinesComparison'];
+    };
+    ForecastViewSegments: {
+      overall: components['schemas']['ForecastSegmentMetrics'];
+      top200: components['schemas']['ForecastSegmentMetrics'];
+      slowMoving: components['schemas']['ForecastSegmentMetrics'];
+      zeroDemand: components['schemas']['ForecastSegmentMetrics'];
+      nonZeroDemand: components['schemas']['ForecastSegmentMetrics'];
+    };
+    ForecastEvaluationView: {
+      /** @enum {integer} */
+      horizon: 7 | 30;
+      aggregation: components['schemas']['ForecastAggregation'];
+      stockoutMode: components['schemas']['ForecastStockoutMode'];
+      postprocessed: boolean;
+      postprocessVersion: string | null;
+      /** Format: double */
+      slowThreshold: number;
+      evaluationOrigins: string[];
+      /** Format: date */
+      targetStartDate: string;
+      /** Format: date */
+      targetEndDate: string;
+      segments: components['schemas']['ForecastViewSegments'];
+    };
+    ForecastHorizonBreakdown: {
+      /** @enum {integer} */
+      horizon: 7 | 30;
+      servingAggregatePostproc: components['schemas']['ForecastEvaluationView'];
+      servingAggregateRawModel: components['schemas']['ForecastEvaluationView'];
+      weeklyAggregatePostproc: components['schemas']['ForecastEvaluationView'];
+      rawDailyClean: components['schemas']['ForecastEvaluationView'];
+      rawDailyUnfiltered: components['schemas']['ForecastEvaluationView'];
+      rollingH7AggregatePostproc: components['schemas']['ForecastEvaluationView'];
+    };
+    ForecastMetricsBreakdown: {
+      /** @example 2.0 */
+      schemaVersion: string;
+      /** @example ac05-v2-h7-h30-postproc-20261125 */
+      metricProtocolVersion: string;
+      modelVersion: string;
+      postprocessVersion: string;
+      /** Format: date */
+      cutoffDate: string;
+      /** Format: date */
+      evaluationCutoffDate: string;
+      /** Format: date */
+      testStartDate: string;
+      /** Format: date */
+      testEndDate: string;
+      dataSource: string;
+      dataSourceHash: string;
+      /** Format: int32 */
+      shortHistorySeriesCount: number;
+      h7: components['schemas']['ForecastHorizonBreakdown'];
+      h30: components['schemas']['ForecastHorizonBreakdown'];
+      benchmarkLimitations: string[];
+    };
+    ForecastRunDetail: components['schemas']['ForecastRun'] & {
+      metricsBreakdown?: components['schemas']['ForecastMetricsBreakdown'];
     };
     ForecastRunPage: components['schemas']['PageMeta'] & {
       content: components['schemas']['ForecastRun'][];
@@ -1858,7 +2003,7 @@ export interface components {
       horizon: 7 | 30;
       /**
        * Format: double
-       * @description Tổng dự báo của tầm, dùng cho ROP và gợi ý nhập (BA 8.2, 8.3)
+       * @description Tổng chính xác các điểm ngày `points` sau hậu xử lý của tầm, dùng cho ROP và gợi ý nhập (BA 8.2, 8.3)
        */
       totalPredictedQty: number;
       /** @description Một điểm mỗi ngày, tăng dần theo ngày */
@@ -1878,6 +2023,13 @@ export interface components {
        */
       generatedAt: string;
       modelVersion: string;
+      /** @description Phiên bản hậu xử lý gắn trực tiếp trên `forecast_run`; null với lượt legacy */
+      postprocessVersion?: string | null;
+      /**
+       * @description Quy ước tổng hợp điểm ngày phục vụ (`totalPredictedQty = sum(points)`); null với lượt legacy
+       * @enum {string|null}
+       */
+      servingAggregation?: 'SUM_OF_POSTPROCESSED_DAILY_POINTS' | null;
       branch: components['schemas']['BranchRef'];
       /** Format: int64 */
       productId: number;
@@ -2601,7 +2753,7 @@ export interface components {
     };
   };
   parameters: {
-    /** @description Số trang, bắt đầu từ 0 */
+    /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
     Page: number;
     Size: number;
     /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
@@ -2977,7 +3129,7 @@ export interface operations {
         /** @description Gồm cả danh mục con */
         categoryId?: number;
         active?: boolean;
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
         /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
@@ -3120,7 +3272,7 @@ export interface operations {
         phone?: components['schemas']['Phone'];
         /** @description Lọc theo trạng thái hoạt động (mặc định true; chỉ OWNER, BRANCH_MANAGER được gửi active=false) */
         active?: boolean;
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
         /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
@@ -3257,7 +3409,7 @@ export interface operations {
   listCustomerOrders: {
     parameters: {
       query?: {
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
       };
@@ -3420,7 +3572,7 @@ export interface operations {
         customerId?: number;
         /** @description Tìm theo mã đơn, mã đơn kênh hoặc số điện thoại khách */
         q?: string;
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
         /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
@@ -3613,7 +3765,7 @@ export interface operations {
         /** @description Tìm chuỗi con theo tên, SKU hoặc barcode, không phân biệt hoa thường. Riêng tên sản phẩm không phân biệt dấu tiếng Việt (đ/Đ tương đương d; Unicode dạng tổ hợp và dựng sẵn tương đương). SKU/barcode giữ cách đối chiếu ký tự hiện có, không bỏ dấu. */
         q?: string;
         stockStatus?: components['schemas']['StockStatus'];
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
         /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
@@ -3737,7 +3889,7 @@ export interface operations {
         refId?: number;
         from?: string;
         to?: string;
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
       };
@@ -4128,7 +4280,7 @@ export interface operations {
         to?: string;
         /** @description Tìm theo mã phiếu hoặc nhà cung cấp */
         q?: string;
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
         /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
@@ -4385,7 +4537,7 @@ export interface operations {
         channel?: components['schemas']['ChannelCode'];
         /** @description Tìm theo mã */
         q?: string;
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
         /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
@@ -4554,7 +4706,7 @@ export interface operations {
         active?: boolean;
         /** @description Tìm theo tên đăng nhập hoặc họ tên */
         q?: string;
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
         /** @description `field,asc` hoặc `field,desc`, ví dụ `createdAt,desc` */
@@ -4972,7 +5124,7 @@ export interface operations {
     parameters: {
       query?: {
         status?: components['schemas']['ForecastRunStatus'];
-        /** @description Số trang, bắt đầu từ 0 */
+        /** @description Số trang, bắt đầu từ 0; ràng buộc liên trường `page * size <= 2147483647` (vượt ngưỡng trả 400 `VALIDATION_ERROR` ở trường `page`) */
         page?: components['parameters']['Page'];
         size?: components['parameters']['Size'];
       };
@@ -5011,7 +5163,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['ForecastRun'];
+          'application/json': components['schemas']['ForecastRunDetail'];
         };
       };
       401: components['responses']['Unauthorized'];
@@ -5065,13 +5217,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Lượt chạy */
+      /** @description Chi tiết lượt chạy kèm `metricsBreakdown` cho H7/H30 */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['ForecastRun'];
+          'application/json': components['schemas']['ForecastRunDetail'];
         };
       };
       401: components['responses']['Unauthorized'];

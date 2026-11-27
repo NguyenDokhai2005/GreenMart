@@ -1,6 +1,6 @@
 # Báo cáo phân quyền GreenMart theo BA
 
-Báo cáo mô tả quyền của năm vai trò trên bản sửa sau [PR #523](https://github.com/NguyenDokhai2005/GreenMart/pull/523). QA dùng [BA mục 2](../requirements/business-analysis.md) để xác định người được thao tác và [hợp đồng API](../api/openapi.yaml) để chọn yêu cầu kiểm thử. Quyền phụ thuộc đồng thời vào vai trò, chi nhánh và trạng thái bản ghi.
+QA dùng [BA mục 2](../requirements/business-analysis.md) để xác định người được thao tác và [OpenAPI](../api/openapi.yaml) để chọn yêu cầu kiểm thử. Quyền phụ thuộc đồng thời vào vai trò, chi nhánh và trạng thái bản ghi.
 
 ## Ai được thực hiện từng công việc?
 

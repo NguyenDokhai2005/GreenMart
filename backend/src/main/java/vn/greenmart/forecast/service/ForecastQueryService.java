@@ -56,7 +56,10 @@ public class ForecastQueryService {
         var horizons = grouped.entrySet().stream().map(entry -> new ForecastHorizon(
                 entry.getKey(), entry.getValue().stream().map(ForecastPoint::predictedQty)
                         .reduce(BigDecimal.ZERO, BigDecimal::add), List.copyOf(entry.getValue()))).toList();
+        String postprocessVersion = metadata.postprocessVersion();
+        String servingAggregation = postprocessVersion != null ? "SUM_OF_POSTPROCESSED_DAILY_POINTS" : null;
         return new ForecastResponse(metadata.runId(), cutoffDate, metadata.generatedAt(), metadata.modelVersion(),
+                postprocessVersion, servingAggregation,
                 metadata.branch(), metadata.productId(), metadata.sku(), metadata.productName(), metadata.unit(), horizons);
     }
 }
