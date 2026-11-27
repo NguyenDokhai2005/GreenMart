@@ -434,7 +434,7 @@ Yêu cầu chung: giao diện tiếng Việt; ẩn chức năng không đủ quy
 
 - Base path `/api/v1`, JSON, tên trường camelCase, thời gian ISO 8601 có múi giờ.
 - Xác thực bằng header `Authorization: Bearer <JWT>`.
-- Phân trang `?page=&size=&sort=`; trả về `content`, `page`, `size`, `totalElements`.
+- Phân trang `?page=&size=&sort=` (`page >= 0`, `size` từ 1 đến 100, `page * size <= 2147483647`); trả về `content`, `page`, `size`, `totalElements`.
 - API tạo đơn và thanh toán nhận header `Idempotency-Key`, lưu 24 giờ.
 - Lỗi theo một định dạng: `code`, `message`, `details`, `traceId`. Mã HTTP: 400 dữ liệu sai, 401 chưa đăng nhập, 403 không đủ quyền, 404 không tìm thấy, 409 xung đột (hết hàng, trùng), 422 vi phạm quy tắc nghiệp vụ.
 

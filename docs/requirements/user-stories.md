@@ -34,8 +34,9 @@ Là **lập trình viên frontend**, tôi muốn mọi danh sách phân trang, s
 
 1. **Given** không truyền `page`, `size`, **When** gọi một API danh sách, **Then** `page = 0`, `size = 20`, có `totalElements`, `totalPages`.
 2. **Given** `size = 101`, **When** gọi API danh sách, **Then** 400 `VALIDATION_ERROR`, `details[0].field = size`.
-3. **Given** `sort=passwordHash,asc` (trường không cho phép), **When** gọi API danh sách, **Then** 400, `details[0].field = sort`.
-4. **Given** `from=2026-11-01&to=2026-11-01`, **When** lọc đơn, **Then** gồm mọi đơn từ 00:00 đến 23:59:59 ngày 01/11 giờ Việt Nam.
+3. **Given** `page * size > 2147483647` (ví dụ `size = 20, page = 107374183` hoặc `size = 100, page = 21474837`), **When** gọi API danh sách, **Then** 400 `VALIDATION_ERROR`, `details[0].field = page`.
+4. **Given** `sort=passwordHash,asc` (trường không cho phép), **When** gọi API danh sách, **Then** 400, `details[0].field = sort`.
+5. **Given** `from=2026-11-01&to=2026-11-01`, **When** lọc đơn, **Then** gồm mọi đơn từ 00:00 đến 23:59:59 ngày 01/11 giờ Việt Nam.
 
 ## Xác thực, phân quyền
 

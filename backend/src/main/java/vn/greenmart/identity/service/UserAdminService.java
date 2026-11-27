@@ -20,6 +20,7 @@ import vn.greenmart.identity.dto.UserResponse;
 import vn.greenmart.identity.repository.AuthUserRepository;
 import vn.greenmart.identity.repository.RefreshTokenStore;
 import vn.greenmart.identity.repository.UserAdminRepository;
+import vn.greenmart.common.pagination.PageUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -35,7 +36,8 @@ public class UserAdminService {
     @Transactional(readOnly=true)
     public PageResponse<UserResponse> list(UserRequests.Role role, Long branchId, Boolean active, String q, int page, int size, String sort) {
         SecurityUtils.requireRole("ADMIN");
-        if(page<0 || size<1 || size>100 || (branchId!=null && branchId<=0)) throw new AppException(ErrorCode.VALIDATION_ERROR);
+        if(branchId!=null && branchId<=0) throw new AppException(ErrorCode.VALIDATION_ERROR);
+        PageUtils.validatePageAndSize(page, size);
         var found=admin.search(role==null?null:role.name(),branchId,active,q,page,size,sort);
         return new PageResponse<>(found.ids().stream().map(this::response).toList(),page,size,found.total(),
                 (int)((found.total()+size-1)/size));
