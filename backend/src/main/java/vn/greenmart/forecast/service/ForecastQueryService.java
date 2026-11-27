@@ -28,7 +28,7 @@ public class ForecastQueryService {
 
     @Transactional(readOnly = true)
     public ForecastResponse get(Long branchId, Long productId, Integer horizon, Long runId) {
-        SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER", "STOREKEEPER");
+        SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER");
         if (branchId == null || branchId <= 0 || productId == null || productId <= 0
                 || (runId != null && runId <= 0) || (horizon != null && horizon != 7 && horizon != 30)) {
             throw new AppException(ErrorCode.VALIDATION_ERROR);

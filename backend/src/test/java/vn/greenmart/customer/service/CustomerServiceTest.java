@@ -26,6 +26,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyString;
+import org.springframework.jdbc.core.RowMapper;
 
 @ExtendWith(MockitoExtension.class)
 class CustomerServiceTest {
@@ -63,6 +66,8 @@ class CustomerServiceTest {
     @Test
     void testCreateCustomer_Success() {
         authenticate("CASHIER", "2");
+        when(jdbcTemplate.query(anyString(), org.mockito.ArgumentMatchers.<RowMapper<Long>>any(), eq(2L)))
+                .thenReturn(List.of(1L));
         CustomerRequest req = new CustomerRequest("0901234567", "Trần Thị Mai", "mai@gmail.com");
 
         when(customerRepository.findByPhone("0901234567")).thenReturn(Optional.empty());
@@ -81,6 +86,8 @@ class CustomerServiceTest {
     @Test
     void testCreateCustomer_DuplicatePhone_ThrowsConflict() {
         authenticate("CASHIER", "2");
+        when(jdbcTemplate.query(anyString(), org.mockito.ArgumentMatchers.<RowMapper<Long>>any(), eq(2L)))
+                .thenReturn(List.of(1L));
         Customer existing = new Customer("0901234567", "Khách Cũ", null);
         existing.setId(99L);
 
@@ -112,6 +119,7 @@ class CustomerServiceTest {
     @Test
     void testDeactivateCustomer_BranchManager_Success() {
         authenticate("BRANCH_MANAGER", "5");
+        when(jdbcTemplate.queryForObject(anyString(), eq(Boolean.class), eq(10L), eq(5L))).thenReturn(true);
         Customer existing = new Customer("0901234567", "Khách Hàng A", "a@gmail.com");
         existing.setId(10L);
 
@@ -133,6 +141,7 @@ class CustomerServiceTest {
     @Test
     void testUpdateCustomer_CashierCannotChangeActive_ThrowsForbidden() {
         authenticate("CASHIER", "2");
+        when(jdbcTemplate.queryForObject(anyString(), eq(Boolean.class), eq(10L), eq(2L))).thenReturn(true);
         Customer existing = new Customer("0901234567", "Khách Hàng A", null);
         existing.setId(10L);
 

@@ -70,7 +70,7 @@ public class OnlineOrderServiceImpl implements OnlineOrderService {
     @Transactional(rollbackFor = Exception.class)
     public OrderResponse completeOrder(Long orderId) {
         // 1. Phân quyền vai trò & chi nhánh (openapi.yaml: BRANCH_MANAGER, STOREKEEPER)
-        SecurityUtils.requireRole("BRANCH_MANAGER", "STOREKEEPER");
+        SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER", "STOREKEEPER");
 
         // Khóa dòng đơn hàng trước khi đọc trạng thái để tránh race condition
         SalesOrder order = lockOrderForUpdate(orderId);
@@ -147,7 +147,7 @@ public class OnlineOrderServiceImpl implements OnlineOrderService {
     @Transactional(rollbackFor = Exception.class)
     public OrderResponse cancelOrder(Long orderId, CancelOrderRequest request) {
         // Phân quyền vai trò & chi nhánh (openapi.yaml: BRANCH_MANAGER)
-        SecurityUtils.requireRole("BRANCH_MANAGER");
+        SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER");
 
         if (request == null || request.reason() == null) {
             throw new AppException(ErrorCode.VALIDATION_ERROR, "Lý do hủy đơn không được để trống");

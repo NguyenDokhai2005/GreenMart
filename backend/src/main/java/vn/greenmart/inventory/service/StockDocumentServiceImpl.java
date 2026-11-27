@@ -170,9 +170,12 @@ public class StockDocumentServiceImpl implements StockDocumentService {
 
     @Override @Transactional
     public StockDocumentResponse approve(Long id) {
-        SecurityUtils.requireRole("BRANCH_MANAGER");
+        SecurityUtils.requireRole("OWNER", "BRANCH_MANAGER");
         Long actor = requireActor();
         var document = load(id, true);
+        if (document.getType() == StockDocumentType.TRANSFER) {
+            SecurityUtils.requireRole("BRANCH_MANAGER");
+        }
         document.requireApprovableBy(actor);
         // Copy immutable inputs before inventory bulk/native writes clear the persistence context.
         var lines = document.getItems().stream()

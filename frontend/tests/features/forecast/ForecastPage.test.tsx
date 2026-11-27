@@ -96,6 +96,18 @@ describe('ForecastPage', () => {
     vi.clearAllMocks();
   });
 
+  it('shows replenishment without loading the daily forecast in the warehouse view', async () => {
+    render(
+      <MemoryRouter>
+        <ForecastPage suggestionsOnly />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText('Sữa tươi')).toBeTruthy();
+    expect(getReplenishment).toHaveBeenCalledWith(7, 11, expect.anything());
+    expect(getForecast).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: '30 ngày' })).toBeNull();
+  });
+
   it('loads live inventory forecasts and switches the displayed horizon', async () => {
     render(
       <MemoryRouter>

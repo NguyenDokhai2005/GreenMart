@@ -24,7 +24,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -79,7 +78,6 @@ class PaginationBoundaryIntegrationTest {
     @ValueSource(strings = {"/api/v1/products", "/api/v1/customers", "/api/v1/promotions", "/api/v1/users"})
     void validPageZeroAndOutOfDataRange_Returns200EmptyPageResponse(String endpoint) throws Exception {
         mockMvc.perform(get(endpoint)
-                        .with(user("51601").roles("OWNER", "ADMIN"))
                         .param("page", "0")
                         .param("size", "20"))
                 .andExpect(status().isOk())
@@ -88,7 +86,6 @@ class PaginationBoundaryIntegrationTest {
                 .andExpect(jsonPath("$.content").isArray());
 
         mockMvc.perform(get(endpoint)
-                        .with(user("51601").roles("OWNER", "ADMIN"))
                         .param("page", "500")
                         .param("size", "20"))
                 .andExpect(status().isOk())
@@ -114,7 +111,6 @@ class PaginationBoundaryIntegrationTest {
     })
     void validInt32OffsetThreshold_Returns200(String endpoint, int size, int page) throws Exception {
         mockMvc.perform(get(endpoint)
-                        .with(user("51601").roles("OWNER", "ADMIN"))
                         .param("page", String.valueOf(page))
                         .param("size", String.valueOf(size)))
                 .andExpect(status().isOk())
@@ -141,7 +137,6 @@ class PaginationBoundaryIntegrationTest {
             String expectedMaxPage
     ) throws Exception {
         mockMvc.perform(get(endpoint)
-                        .with(user("51601").roles("OWNER", "ADMIN"))
                         .param("page", String.valueOf(page))
                         .param("size", String.valueOf(size)))
                 .andExpect(status().isBadRequest())
@@ -155,7 +150,6 @@ class PaginationBoundaryIntegrationTest {
     @ValueSource(strings = {"/api/v1/products", "/api/v1/customers", "/api/v1/promotions", "/api/v1/users"})
     void negativePageOrInvalidSize_Returns400(String endpoint) throws Exception {
         mockMvc.perform(get(endpoint)
-                        .with(user("51601").roles("OWNER", "ADMIN"))
                         .param("page", "-1")
                         .param("size", "20"))
                 .andExpect(status().isBadRequest())
@@ -163,7 +157,6 @@ class PaginationBoundaryIntegrationTest {
                 .andExpect(jsonPath("$.details[0].field").value("page"));
 
         mockMvc.perform(get(endpoint)
-                        .with(user("51601").roles("OWNER", "ADMIN"))
                         .param("page", "0")
                         .param("size", "0"))
                 .andExpect(status().isBadRequest())
@@ -171,7 +164,6 @@ class PaginationBoundaryIntegrationTest {
                 .andExpect(jsonPath("$.details[0].field").value("size"));
 
         mockMvc.perform(get(endpoint)
-                        .with(user("51601").roles("OWNER", "ADMIN"))
                         .param("page", "0")
                         .param("size", "101"))
                 .andExpect(status().isBadRequest())

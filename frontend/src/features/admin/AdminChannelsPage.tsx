@@ -30,7 +30,7 @@ function readPage(params: URLSearchParams) {
   return Number.isInteger(raw) && raw > 0 ? raw : 1;
 }
 
-export default function AdminChannelsPage() {
+export default function AdminChannelsPage({ readOnly = false }: { readOnly?: boolean }) {
   const [params, setParams] = useSearchParams();
   const rawChannel = params.get('channel') ?? params.get('channelCode');
   const channel = rawChannel === 'MARKET' ? 'MARKET' : rawChannel === 'WEB' ? 'WEB' : '';
@@ -96,7 +96,7 @@ export default function AdminChannelsPage() {
   };
 
   const confirmRetry = async () => {
-    if (!retryTarget?.id || retryingId !== null) return;
+    if (readOnly || !retryTarget?.id || retryingId !== null) return;
     const id = retryTarget.id;
     setRetryingId(id);
     setRetryError('');
@@ -212,6 +212,7 @@ export default function AdminChannelsPage() {
                   : (localStatuses.get(id) ?? log.status)
                 : log.status;
               const canRetry =
+                !readOnly &&
                 statusValue === 'FAILED' &&
                 id !== undefined &&
                 !blockedIds.has(id) &&

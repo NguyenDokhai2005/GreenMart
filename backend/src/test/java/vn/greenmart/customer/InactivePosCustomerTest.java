@@ -131,7 +131,15 @@ class InactivePosCustomerTest {
                 .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.code").value("CUSTOMER_INACTIVE"));
         noSale();
     }
+    private void recordPriorPurchase() {
+        jdbc.update("""
+                INSERT INTO sales_order(code, channel_id, branch_id, customer_id, status, subtotal, discount, total)
+                SELECT 'POS-418-PRIOR', id, 418, 418, 'COMPLETED', 10000, 0, 10000
+                FROM sales_channel WHERE code='POS'
+                """);
+    }
     @Test void reactivationAndInactiveDirectoryKeepExistingPermissions() throws Exception {
+        recordPriorPurchase();
         reactivate("CASHIER").andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/customers").param("active", "false").with(user("418").roles("CASHIER")))
                 .andExpect(status().isForbidden());
@@ -189,6 +197,7 @@ class InactivePosCustomerTest {
         noSale();
     }
     @Test void concurrentCashierProfileEditCannotRestoreTheOldActiveState() throws Exception {
+        recordPriorPurchase();
         raceWithDeactivation(() -> mvc.perform(put("/api/v1/customers/418").with(user("418").roles("CASHIER"))
                         .contentType("application/json").content("{\"phone\":\"0900000418\",\"name\":\"Updated by cashier\"}")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.active").value(false));

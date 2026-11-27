@@ -78,7 +78,7 @@ function ForecastTableSkeleton({ showBranch }: { showBranch: boolean }) {
   );
 }
 
-function ForecastPage() {
+function ForecastPage({ suggestionsOnly = false }: { suggestionsOnly?: boolean }) {
   const { branchId, canPickAll, pickAll, scope } = useOperationsScope();
   const [searchText, setSearchText] = useState('');
   const [search, setSearch] = useState('');
@@ -129,7 +129,7 @@ function ForecastPage() {
   const forecast = useCatalogQuery(
     `forecast-series:${selectedRow ? rowKey(selectedRow.item) : 'none'}`,
     loadForecast,
-    selectedHasForecast,
+    !suggestionsOnly && selectedHasForecast,
   );
   const selectedForecast = forecastHorizon(forecast.data, horizon);
   const chartData: ForecastChartPoint[] =
@@ -174,7 +174,7 @@ function ForecastPage() {
     <div className="forecast-page">
       <header className="forecast-page__header">
         <div>
-          <h1>Dự báo và gợi ý nhập hàng</h1>
+          <h1>{suggestionsOnly ? 'Gợi ý nhập theo chi nhánh' : 'Dự báo và gợi ý nhập hàng'}</h1>
           <p>
             {scope.kind === 'all'
               ? 'Dự báo nhu cầu và lượng nhập theo các chi nhánh được phép xem.'
@@ -206,51 +206,53 @@ function ForecastPage() {
         </AsyncBlock>
       </section>
 
-      <section className="forecast-page__chart-panel" aria-labelledby="forecast-chart-title">
-        <header className="forecast-page__section-header">
-          <div>
-            <h2 id="forecast-chart-title">
-              {selectedRow ? selectedRow.item.productName : 'Dự báo theo ngày'}
-            </h2>
-            <p>
-              {forecast.data
-                ? `SKU ${forecast.data.sku} · Model ${forecast.data.modelVersion} · Dữ liệu đến ${formatDayFull(forecast.data.cutoffDate)}`
-                : 'Chọn sản phẩm trong bảng để xem đường dự báo theo ngày.'}
-            </p>
-          </div>
-          <div className="forecast-page__horizons" role="group" aria-label="Khoảng dự báo">
-            {HORIZONS.map((value) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={horizon === value}
-                onClick={() => setHorizon(value)}
-              >
-                {value} ngày
-              </button>
-            ))}
-          </div>
-        </header>
-        <AsyncBlock
-          isLoading={inventory.pending || forecast.pending}
-          error={inventory.error ?? forecast.error}
-          onRetry={inventory.error ? inventory.retry : forecast.retry}
-          isEmpty={chartEmpty}
-          empty={{
-            message: selectedRow
-              ? 'Chưa có dữ liệu dự báo cho sản phẩm này'
-              : 'Chưa có dữ liệu dự báo',
-            description: 'Dữ liệu sẽ hiển thị sau khi có lần chạy dự báo hoàn tất.',
-          }}
-          skeleton={<Skeleton height={280} />}
-        >
-          {inventory.pending || forecast.pending ? null : selectedForecast ? (
-            <ForecastAreaChart data={chartData} horizon={horizon} />
-          ) : (
-            <EmptyState message="Chọn một sản phẩm có dự báo ở bảng bên dưới" />
-          )}
-        </AsyncBlock>
-      </section>
+      {!suggestionsOnly && (
+        <section className="forecast-page__chart-panel" aria-labelledby="forecast-chart-title">
+          <header className="forecast-page__section-header">
+            <div>
+              <h2 id="forecast-chart-title">
+                {selectedRow ? selectedRow.item.productName : 'Dự báo theo ngày'}
+              </h2>
+              <p>
+                {forecast.data
+                  ? `SKU ${forecast.data.sku} · Model ${forecast.data.modelVersion} · Dữ liệu đến ${formatDayFull(forecast.data.cutoffDate)}`
+                  : 'Chọn sản phẩm trong bảng để xem đường dự báo theo ngày.'}
+              </p>
+            </div>
+            <div className="forecast-page__horizons" role="group" aria-label="Khoảng dự báo">
+              {HORIZONS.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={horizon === value}
+                  onClick={() => setHorizon(value)}
+                >
+                  {value} ngày
+                </button>
+              ))}
+            </div>
+          </header>
+          <AsyncBlock
+            isLoading={inventory.pending || forecast.pending}
+            error={inventory.error ?? forecast.error}
+            onRetry={inventory.error ? inventory.retry : forecast.retry}
+            isEmpty={chartEmpty}
+            empty={{
+              message: selectedRow
+                ? 'Chưa có dữ liệu dự báo cho sản phẩm này'
+                : 'Chưa có dữ liệu dự báo',
+              description: 'Dữ liệu sẽ hiển thị sau khi có lần chạy dự báo hoàn tất.',
+            }}
+            skeleton={<Skeleton height={280} />}
+          >
+            {inventory.pending || forecast.pending ? null : selectedForecast ? (
+              <ForecastAreaChart data={chartData} horizon={horizon} />
+            ) : (
+              <EmptyState message="Chọn một sản phẩm có dự báo ở bảng bên dưới" />
+            )}
+          </AsyncBlock>
+        </section>
+      )}
 
       <section className="forecast-page__table-panel" aria-labelledby="forecast-table-title">
         <header className="forecast-page__section-header forecast-page__table-heading">
@@ -309,8 +311,10 @@ function ForecastPage() {
               <ForecastTable
                 rows={inventory.data?.rows ?? []}
                 showBranch={branchId === undefined}
-                selectedKey={selectedRow ? rowKey(selectedRow.item) : undefined}
-                onSelect={(item) => setSelectedProductKey(rowKey(item))}
+                selectedKey={!suggestionsOnly && selectedRow ? rowKey(selectedRow.item) : undefined}
+                onSelect={
+                  suggestionsOnly ? undefined : (item) => setSelectedProductKey(rowKey(item))
+                }
               />
               {inventory.data && inventory.data.totalPages > 1 && (
                 <Pagination page={page} totalPages={inventory.data.totalPages} onChange={setPage} />
@@ -346,7 +350,7 @@ function ForecastTable({
   rows: ForecastInventoryRow[];
   showBranch: boolean;
   selectedKey?: string;
-  onSelect: (item: InventoryItem) => void;
+  onSelect?: (item: InventoryItem) => void;
 }) {
   return (
     <div className="forecast-table-wrap">
@@ -368,15 +372,22 @@ function ForecastTable({
             return (
               <tr key={rowKey(item)} className={selected ? 'is-selected' : undefined}>
                 <td>
-                  <button
-                    className="forecast-table__product"
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => onSelect(item)}
-                  >
-                    <strong>{item.productName}</strong>
-                    <small>{item.sku}</small>
-                  </button>
+                  {onSelect ? (
+                    <button
+                      className="forecast-table__product"
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => onSelect(item)}
+                    >
+                      <strong>{item.productName}</strong>
+                      <small>{item.sku}</small>
+                    </button>
+                  ) : (
+                    <span className="forecast-table__product">
+                      <strong>{item.productName}</strong>
+                      <small>{item.sku}</small>
+                    </span>
+                  )}
                 </td>
                 {showBranch && <td>{item.branch.code}</td>}
                 <td>{formatQuantity(replenishment.available)}</td>

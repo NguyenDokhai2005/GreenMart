@@ -124,11 +124,11 @@ class UserAdminApiTest {
         assertThat(all.path("totalElements").asInt()).isEqualTo(3); // Admin + two Owners, not branch-1 Cashier.
     }
     @ParameterizedTest @ValueSource(strings={"owner","cashier"})
-    void onlyAdminCanUseEveryOperation(String username) throws Exception {
+    void ownerCanOnlyReadAndCashierCannotManageUsers(String username) throws Exception {
         String access=login(username).path("accessToken").asText();
         request(get("/api/v1/users"),null,null,401);
-        request(get("/api/v1/users"),null,access,403);
-        request(get("/api/v1/users/7"),null,access,403);
+        request(get("/api/v1/users"),null,access,username.equals("owner") ? 200 : 403);
+        request(get("/api/v1/users/7"),null,access,username.equals("owner") ? 200 : 403);
         request(post("/api/v1/users"),Map.of(),access,403);
         request(put("/api/v1/users/7"),Map.of(),access,403);
         request(post("/api/v1/users/7/unlock"),null,access,403);

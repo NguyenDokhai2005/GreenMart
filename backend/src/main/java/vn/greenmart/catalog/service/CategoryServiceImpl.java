@@ -41,7 +41,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional
     public CategoryResponse createCategory(CategoryRequest request) {
-        SecurityUtils.requireRole("OWNER");
+        SecurityUtils.requireRole("ADMIN", "OWNER");
         acquireCategoryTreeLock();
         String name = validatedName(request.name());
 
@@ -60,7 +60,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional
     public CategoryResponse updateCategory(Long id, CategoryRequest request) {
-        SecurityUtils.requireRole("OWNER");
+        SecurityUtils.requireRole("ADMIN", "OWNER");
 
         Long newParentId = request.parentId();
         // Serialize all tree/name changes, including moves to the root.

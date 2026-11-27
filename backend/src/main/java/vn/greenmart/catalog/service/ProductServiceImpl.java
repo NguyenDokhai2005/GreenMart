@@ -95,7 +95,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public ProductResponse createProduct(ProductRequest request) {
-        SecurityUtils.requireRole("OWNER");
+        SecurityUtils.requireRole("ADMIN", "OWNER");
 
         String sku = request.sku().trim();
         if (productRepository.existsBySku(sku)) {
@@ -136,10 +136,15 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public ProductResponse updateProduct(Long id, ProductRequest request) {
-        SecurityUtils.requireRole("OWNER");
+        SecurityUtils.requireRole("ADMIN", "OWNER");
 
-        Product p = productRepository.findById(id)
+        Product p = productRepository.lockForEdit(id)
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy sản phẩm với id: " + id));
+
+        boolean salePriceChanged = !Objects.equals(p.getSalePrice(), request.salePrice());
+        if (salePriceChanged) {
+            SecurityUtils.requireRole("OWNER");
+        }
 
         String sku = request.sku().trim();
         if (productRepository.existsBySkuAndIdNot(sku, id)) {
@@ -155,7 +160,7 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Không tìm thấy danh mục với id: " + request.categoryId()));
 
         // nhật ký đổi giá bán
-        if (!Objects.equals(p.getSalePrice(), request.salePrice())) {
+        if (salePriceChanged) {
             AuditLog log = new AuditLog();
             log.setUserId(SecurityUtils.getCurrentUserId());
             log.setAction("CHANGE_PRICE");

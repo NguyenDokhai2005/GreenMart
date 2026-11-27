@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
+import { Link, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router';
 import type { ReactNode } from 'react';
 import type { Role } from '../../api/client';
 import { Button, Toast } from '../../components/ui';
@@ -287,12 +287,31 @@ export function AppRoutes() {
         }
       >
         <Route index element={<OperationsHome />} />
+        <Route
+          element={
+            <AuthBoundary allowedRoles={['OWNER']}>
+              <Outlet />
+            </AuthBoundary>
+          }
+        >
+          <Route path="staff" element={<AdminUsersPage mode="staff" readOnly />} />
+          <Route path="branches" element={<AdminBranchesPage />} />
+          <Route path="channels" element={<AdminChannelsPage readOnly />} />
+        </Route>
         <Route path="products" element={<ProductsPage />} />
         <Route path="customers" element={<CustomersPage />} />
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="orders/:orderId" element={<OnlineOrderDetailPage />} />
-        <Route path="forecast" element={<ForecastPage />} />
+        <Route
+          path="forecast"
+          element={
+            <AuthBoundary allowedRoles={['OWNER', 'BRANCH_MANAGER']}>
+              <ForecastPage />
+            </AuthBoundary>
+          }
+        />
+        <Route path="replenishment" element={<ForecastPage suggestionsOnly />} />
         <Route path="alerts" element={<StockAlertsPage />} />
         <Route path="ledger" element={<InventoryLedgerPage />}>
           <Route path="orders/:id" element={<LedgerOrderDetailDialog />} />
@@ -315,6 +334,7 @@ export function AppRoutes() {
         }
       >
         <Route index element={<Navigate to="/admin/branches" replace />} />
+        <Route path="products" element={<ProductsPage />} />
         <Route path="branches" element={<AdminBranchesPage />} />
         <Route path="channels" element={<AdminChannelsPage />} />
         <Route path="staff" element={<AdminUsersPage mode="staff" />} />

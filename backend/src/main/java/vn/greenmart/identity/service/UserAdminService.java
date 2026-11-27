@@ -35,7 +35,7 @@ public class UserAdminService {
 
     @Transactional(readOnly=true)
     public PageResponse<UserResponse> list(UserRequests.Role role, Long branchId, Boolean active, String q, int page, int size, String sort) {
-        SecurityUtils.requireRole("ADMIN");
+        SecurityUtils.requireRole("ADMIN", "OWNER");
         if(branchId!=null && branchId<=0) throw new AppException(ErrorCode.VALIDATION_ERROR);
         PageUtils.validatePageAndSize(page, size);
         var found=admin.search(role==null?null:role.name(),branchId,active,q,page,size,sort);
@@ -44,7 +44,7 @@ public class UserAdminService {
     }
     @Transactional(readOnly=true)
     public UserResponse get(long id) {
-        SecurityUtils.requireRole("ADMIN");
+        SecurityUtils.requireRole("ADMIN", "OWNER");
         return response(id);
     }
     public UserResponse create(UserRequests.Create request) {
