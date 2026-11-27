@@ -17,6 +17,7 @@ import {
   canEditStockDocument,
   isBlockedSelfApproval,
 } from '../stock-documents/stockDocumentPermissions';
+import { getPendingStocktakeCounts, saveStocktakeCountBatches } from './stocktakeCounts';
 import type { StocktakeOutletContext } from './StocktakePage';
 import '../stock-documents/StockDocuments.css';
 import './stocktake.css';
@@ -92,7 +93,6 @@ function StocktakeContent({
                         <input
                           type="number"
                           min={0}
-                          max={99999}
                           step={1}
                           value={text}
                           aria-label={`Số đếm ${item.productName}`}
@@ -248,13 +248,18 @@ export default function StocktakeDetailDrawer() {
   const changed = Object.keys(counts).some(
     (key) => counts[Number(key)] !== savedCounts[Number(key)],
   );
+  const pendingCountChanges = stocktake
+    ? getPendingStocktakeCounts(stocktake.items, counts, savedCounts)
+    : [];
+  const hasClearedSavedCounts =
+    stocktake?.items.some(
+      (item) =>
+        counts[item.productId] !== savedCounts[item.productId] && counts[item.productId] === '',
+    ) ?? false;
   const invalidCounts =
     stocktake?.items.some((item) => {
       const value = counts[item.productId] ?? '';
-      return (
-        value !== '' &&
-        (!Number.isSafeInteger(Number(value)) || Number(value) < 0 || Number(value) > 99999)
-      );
+      return value !== '' && (!Number.isSafeInteger(Number(value)) || Number(value) < 0);
     }) ?? false;
   const allCounted =
     stocktake?.items.every((item) => {
@@ -274,29 +279,53 @@ export default function StocktakeDetailDrawer() {
   const selfApproval = stocktake ? isBlockedSelfApproval(user, stocktake) : false;
 
   async function saveCounts() {
-    if (!stocktake || busy || invalidCounts || !changed) return;
+    if (!stocktake || busy || invalidCounts || !changed || pendingCountChanges.length === 0) {
+      if (hasClearedSavedCounts && pendingCountChanges.length === 0) {
+        setMessage('Không thể xóa số đếm đã lưu bằng cách để trống. Hãy nhập số đếm hợp lệ.');
+      }
+      return;
+    }
     setBusy(true);
     setMessage('');
+    let savedItemCount = 0;
     try {
-      const body: components['schemas']['StockDocumentUpdateRequest'] = {
-        items: stocktake.items.map((item) => ({
-          productId: item.productId,
-          ...(counts[item.productId] === '' || counts[item.productId] === undefined
-            ? {}
-            : { countedQuantity: Number(counts[item.productId]) }),
-        })),
-      };
-      const updated = await updateStockDocument(stocktake.id, body);
-      const values = countValues(updated.items);
-      setCountEdits((current) => ({ ...current, [stocktake.id]: values }));
-      setSavedCountValues((current) => ({ ...current, [stocktake.id]: values }));
+      await saveStocktakeCountBatches(
+        stocktake.id,
+        pendingCountChanges,
+        updateStockDocument,
+        (batch) => {
+          savedItemCount += batch.length;
+          setSavedCountValues((current) => ({
+            ...current,
+            [stocktake.id]: {
+              ...(current[stocktake.id] ?? originalCounts),
+              ...Object.fromEntries(
+                batch.map((item) => [item.productId, String(item.countedQuantity)]),
+              ),
+            },
+          }));
+        },
+      );
       onChanged();
       reload();
       reconciliation.reload();
-      setMessage('Đã lưu số đếm kiểm kê.');
+      setMessage(
+        hasClearedSavedCounts
+          ? `Đã lưu ${savedItemCount} số đếm. Ô để trống chưa được lưu; hãy nhập số đếm hợp lệ.`
+          : `Đã lưu ${savedItemCount} số đếm kiểm kê.`,
+      );
     } catch (error) {
       const mapped = mapErrorToState(error, 'block');
-      setMessage(mapped.message ?? 'Không thể lưu số đếm.');
+      if (savedItemCount > 0) {
+        onChanged();
+        reload();
+        reconciliation.reload();
+        setMessage(
+          `Đã lưu ${savedItemCount} số đếm. Các dòng còn lại vẫn chưa lưu. ${mapped.message ?? 'Không thể tiếp tục lưu.'}`,
+        );
+      } else {
+        setMessage(mapped.message ?? 'Không thể lưu số đếm.');
+      }
     } finally {
       setBusy(false);
     }

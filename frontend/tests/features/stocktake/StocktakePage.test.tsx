@@ -141,21 +141,25 @@ beforeEach(() => {
   mocks.reconcileStockDocument.mockReset().mockResolvedValue(ready);
   mocks.updateStockDocument.mockReset().mockImplementation(async (_id, body) => {
     const current = mocks.document.current as StockDocument;
+    const requestedCounts = new Map(
+      body.items.map((line: components['schemas']['StockDocumentItemRequest']) => [
+        line.productId,
+        line.countedQuantity,
+      ]),
+    );
     const next = {
       ...current,
-      items: current.items.map((item) => ({
-        ...item,
-        countedQuantity:
-          body.items.find(
-            (line: components['schemas']['StockDocumentItemRequest']) =>
-              line.productId === item.productId,
-          )?.countedQuantity ?? null,
-        difference:
-          (body.items.find(
-            (line: components['schemas']['StockDocumentItemRequest']) =>
-              line.productId === item.productId,
-          )?.countedQuantity ?? item.quantity) - item.quantity,
-      })),
+      items: current.items.map((item) => {
+        if (!requestedCounts.has(item.productId)) return item;
+        const countedQuantity = requestedCounts.get(item.productId);
+        if (countedQuantity === undefined) return item;
+        const value = Number(countedQuantity);
+        return {
+          ...item,
+          countedQuantity: value,
+          difference: value - item.quantity,
+        };
+      }),
     };
     mocks.document.current = next;
     return next;
@@ -191,7 +195,53 @@ describe('StocktakePage', () => {
         }),
       );
     });
-    expect(await screen.findByText('Đã lưu số đếm kiểm kê.')).toBeTruthy();
+    expect(await screen.findByText('Đã lưu 1 số đếm kiểm kê.')).toBeTruthy();
+  });
+
+  it.each([99_999, 100_000])('accepts a counted quantity of %s', async (countedQuantity) => {
+    renderDetail();
+    const input = await screen.findByLabelText('Số đếm Gạo thơm');
+    fireEvent.change(input, { target: { value: String(countedQuantity) } });
+    const saveButton = screen.getByRole('button', { name: 'Lưu số đếm' });
+    expect((saveButton as HTMLButtonElement).disabled).toBe(false);
+
+    fireEvent.click(saveButton);
+    await waitFor(() => {
+      expect(mocks.updateStockDocument).toHaveBeenCalledWith(11, {
+        items: [{ productId: 21, countedQuantity }],
+      });
+    });
+  });
+
+  it('saves zero and only sends the changed item', async () => {
+    const current = draft();
+    mocks.document.current = {
+      ...current,
+      itemCount: 2,
+      items: [
+        current.items[0],
+        {
+          ...current.items[0],
+          id: 56,
+          productId: 22,
+          sku: 'RICE-02',
+          productName: 'Gạo lứt',
+          countedQuantity: 3,
+          difference: -5,
+        },
+      ],
+    };
+    renderDetail();
+    fireEvent.change(await screen.findByLabelText('Số đếm Gạo thơm'), {
+      target: { value: '0' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu số đếm' }));
+
+    await waitFor(() => {
+      expect(mocks.updateStockDocument).toHaveBeenCalledWith(11, {
+        items: [{ productId: 21, countedQuantity: 0 }],
+      });
+    });
   });
 
   it('shows reservation reconciliation and prevents approval when projected stock is short', async () => {

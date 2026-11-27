@@ -168,6 +168,36 @@ describe('PromotionsPage', () => {
     expect(await screen.findByText('phải lớn hơn 1')).toBeTruthy();
   });
 
+  it('preserves the original promotion timestamps including seconds when saving unchanged fields', async () => {
+    const promotionWithSeconds: Promotion = {
+      ...promotion,
+      startAt: '2027-12-01T10:15:37+07:00',
+      endAt: '2027-12-31T23:59:59+07:00',
+    };
+    mocks.listPromotions.mockResolvedValue({
+      page: 0,
+      size: 20,
+      totalElements: 1,
+      totalPages: 1,
+      content: [promotionWithSeconds],
+    });
+    mocks.updatePromotion.mockResolvedValue(promotionWithSeconds);
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Sửa KM-ITEM' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
+
+    await waitFor(() => {
+      expect(mocks.updatePromotion).toHaveBeenCalledWith(
+        promotionWithSeconds.id,
+        expect.objectContaining({
+          startAt: promotionWithSeconds.startAt,
+          endAt: promotionWithSeconds.endAt,
+        }),
+      );
+    });
+  });
+
   it('keeps branch managers read-only', async () => {
     mocks.user.current = { ...owner, role: 'BRANCH_MANAGER' };
     renderPage();

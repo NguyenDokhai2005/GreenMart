@@ -64,6 +64,8 @@ function PromotionFormDialog({
   onSaved: () => void;
 }) {
   const { branches } = useOperationsScope();
+  const initialStartAt = promotion?.startAt ? toLocalDateTime(promotion.startAt) : '';
+  const initialEndAt = promotion?.endAt ? toLocalDateTime(promotion.endAt) : '';
   const [code, setCode] = useState(promotion?.code ?? '');
   const [type, setType] = useState<PromotionType>(promotion?.type ?? 'PERCENT');
   const [level, setLevel] = useState<PromotionLevel>(promotion?.level ?? 'ORDER');
@@ -77,10 +79,8 @@ function PromotionFormDialog({
   const [minQuantity, setMinQuantity] = useState(
     promotion?.minQuantity == null ? '' : String(promotion.minQuantity),
   );
-  const [startAt, setStartAt] = useState(
-    promotion?.startAt ? toLocalDateTime(promotion.startAt) : '',
-  );
-  const [endAt, setEndAt] = useState(promotion?.endAt ? toLocalDateTime(promotion.endAt) : '');
+  const [startAt, setStartAt] = useState(initialStartAt);
+  const [endAt, setEndAt] = useState(initialEndAt);
   const [usageLimit, setUsageLimit] = useState(
     promotion?.usageLimit == null ? '' : String(promotion.usageLimit),
   );
@@ -139,8 +139,8 @@ function PromotionFormDialog({
       type,
       level,
       value: Number(value),
-      startAt: start.toISOString(),
-      endAt: end.toISOString(),
+      startAt: promotion && startAt === initialStartAt ? promotion.startAt : start.toISOString(),
+      endAt: promotion && endAt === initialEndAt ? promotion.endAt : end.toISOString(),
       branchIds,
       channels,
       ...(type === 'PERCENT' && maxDiscount ? { maxDiscount: Number(maxDiscount) } : {}),
