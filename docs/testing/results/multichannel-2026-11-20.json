@@ -1,0 +1,225 @@
+{
+  "commit": "4e45b443fb25424554aae68df9a58102335d8f67",
+  "finishedAt": "2026-11-20T15:02:15+07:00",
+  "fixture": {
+    "webSku": "W-COM-SUON-BI-CHA-0001",
+    "marketSku": "M-COM-SUON-BI-CHA-0001",
+    "productId": 1
+  },
+  "pass": 19,
+  "total": 19,
+  "results": [
+    {
+      "id": "S01",
+      "name": "WEB ONLINE → RESERVED, giữ chỗ 15 phút",
+      "result": "PASS",
+      "http": 202,
+      "ms": 234,
+      "orderId": 10201,
+      "branch": 1,
+      "reservedDelta": 2,
+      "holdMinutes": 14.99
+    },
+    {
+      "id": "S02",
+      "name": "Đẩy tồn mới ra WEB sau giữ chỗ (≤ 60 s)",
+      "result": "PASS",
+      "seconds": 2.02,
+      "pushed": {
+        "version": 1,
+        "available": 63,
+        "externalSku": "W-COM-SUON-BI-CHA-0001"
+      }
+    },
+    {
+      "id": "S03",
+      "name": "Kênh MARKET cũng nhận tồn của cùng sản phẩm",
+      "result": "PASS",
+      "seconds": 0.5,
+      "pushed": {
+        "version": 2,
+        "available": 63,
+        "externalSku": "M-COM-SUON-BI-CHA-0001"
+      }
+    },
+    {
+      "id": "S04",
+      "name": "Gửi trùng externalOrderId → 200, không giữ chỗ thêm",
+      "result": "PASS",
+      "http": 200,
+      "ms": 31,
+      "orders": "1"
+    },
+    {
+      "id": "S05",
+      "name": "Sai chữ ký HMAC → 401, không tạo đơn",
+      "result": "PASS",
+      "http": 401,
+      "code": "INVALID_SIGNATURE",
+      "orders": "0"
+    },
+    {
+      "id": "S06",
+      "name": "Sự kiện PAID → CONFIRMED, kênh nhận CONFIRMED",
+      "result": "PASS",
+      "http": 200,
+      "ms": 78,
+      "callbackSeconds": 1.53
+    },
+    {
+      "id": "S07",
+      "name": "Gửi lại PAID → 200, không đổi",
+      "result": "PASS",
+      "http": 200
+    },
+    {
+      "id": "S08",
+      "name": "QLCN hoàn tất → COMPLETED, trừ tồn thực và giữ chỗ, kênh nhận COMPLETED",
+      "result": "PASS",
+      "http": 200,
+      "ms": 63,
+      "user": "quanly.gm001",
+      "onHandDelta": -2,
+      "reservedDelta": -2,
+      "callbackSeconds": 1.0
+    },
+    {
+      "id": "S09",
+      "name": "QLCN chi nhánh khác hoàn tất đơn → 403",
+      "result": "PASS",
+      "http": 403,
+      "code": "BRANCH_FORBIDDEN",
+      "user": "quanly.gm002",
+      "orderBranch": 1
+    },
+    {
+      "id": "S10",
+      "name": "MARKET COD → CONFIRMED ngay sau giữ chỗ",
+      "result": "PASS",
+      "http": 202,
+      "ms": 15,
+      "orderId": 10203,
+      "branch": 2
+    },
+    {
+      "id": "S11",
+      "name": "Kênh báo CANCELLED → nhả giữ chỗ, kênh nhận CANCELLED",
+      "result": "PASS",
+      "http": 200,
+      "ms": 31,
+      "reservedDelta": -1,
+      "callbackSeconds": 2.52
+    },
+    {
+      "id": "S12",
+      "name": "SKU chưa ánh xạ → 422 UNMAPPED_SKU, đơn lưu REJECTED",
+      "result": "PASS",
+      "http": 422,
+      "ms": 47,
+      "details": {
+        "externalSkus": [
+          "QA16-KHONG-CO-SKU"
+        ],
+        "status": "REJECTED",
+        "orderId": 10204
+      }
+    },
+    {
+      "id": "S13",
+      "name": "Thiếu tồn mọi chi nhánh → 409 INSUFFICIENT_STOCK, REJECTED, không giữ chỗ",
+      "result": "PASS",
+      "http": 409,
+      "ms": 16,
+      "lines": [
+        {
+          "sku": "COM-SUON-BI-CHA-0001",
+          "productId": 1,
+          "available": 22,
+          "requested": 9999
+        }
+      ]
+    },
+    {
+      "id": "S14",
+      "name": "Quá hạn giữ chỗ → EXPIRED, nhả giữ chỗ, kênh nhận EXPIRED (dời reserved_until bằng SQL)",
+      "result": "PASS",
+      "expireSeconds": 11.66,
+      "reservedDelta": -1,
+      "callbackSeconds": 1.03
+    },
+    {
+      "id": "S15",
+      "name": "PAID sau khi EXPIRED, còn đủ hàng → giữ chỗ lại, CONFIRMED",
+      "result": "PASS",
+      "http": 200,
+      "ms": 15,
+      "status": "CONFIRMED"
+    },
+    {
+      "id": "S16",
+      "name": "QLCN hủy đơn đã trả → CANCELLED, nhả giữ chỗ, hoàn tiền giả lập, kênh nhận CANCELLED",
+      "result": "PASS",
+      "http": 200,
+      "ms": 47,
+      "payments": "REFUNDED",
+      "callbackSeconds": 0.0
+    },
+    {
+      "id": "S17",
+      "name": "Kênh WEB/MARKET mất kết nối: nhận đơn vẫn 202, callback thử lại rồi FAILED",
+      "result": "PASS",
+      "http": 202,
+      "orderId": 10207,
+      "secondsToFailed": 57.17,
+      "failed": [
+        {
+          "id": 32,
+          "attempts": 6
+        },
+        {
+          "id": 33,
+          "attempts": 6
+        },
+        {
+          "id": 34,
+          "attempts": 6
+        }
+      ]
+    },
+    {
+      "id": "S18",
+      "name": "ADMIN thấy log FAILED, bật lại kênh, gửi lại → SUCCESS, kênh nhận trạng thái đơn",
+      "result": "PASS",
+      "retried": [
+        [
+          32,
+          202
+        ],
+        [
+          33,
+          202
+        ],
+        [
+          34,
+          202
+        ]
+      ],
+      "secondsToSuccess": 16.95,
+      "mockOrderStatus": "CONFIRMED",
+      "inventoryVersion": "10",
+      "mockWebStock": {
+        "version": 21,
+        "available": 62,
+        "externalSku": "W-COM-SUON-BI-CHA-0001"
+      },
+      "adminListHttp": 200,
+      "failedListed": true
+    },
+    {
+      "id": "S19",
+      "name": "Thu ngân gọi gửi lại sync log → 403",
+      "result": "PASS",
+      "http": 403
+    }
+  ]
+}
